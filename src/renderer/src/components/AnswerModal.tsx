@@ -24,9 +24,12 @@ export function AnswerModal() {
   const scrollRef = useRef<HTMLDivElement>(null)
   
   // AI Hook
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  
   const { sendMessage } = useAI({
     onStream: (chunk) => {
       setResponse(prev => prev + chunk)
+      setErrorMessage(null)
       // 自动滚动到底部
       if (scrollRef.current) {
         scrollRef.current.scrollTop = scrollRef.current.scrollHeight
@@ -34,12 +37,14 @@ export function AnswerModal() {
     },
     onComplete: (fullText) => {
       setIsStreaming(false)
+      setErrorMessage(null)
       const prefs = getPreferencesForPrompt()
       setAppliedPreferences(prefs)
     },
     onError: (error) => {
       setIsStreaming(false)
-      setResponse(prev => prev + '\n\n> 错误: ' + error)
+      setErrorMessage(error)
+      setResponse('') // 清空失败的内容
     }
   })
 
@@ -92,18 +97,22 @@ export function AnswerModal() {
     // 等待动画完成
     await new Promise(resolve => setTimeout(resolve, 300))
     
-    if (response && currentConversation) {
-      await endConversation(response, appliedPreferences)
+    // 总是有对话就保存节点（即使API失败）
+    if (currentConversation) {
+      // 如果有回复就保存回复，否则保存错误信息
+      const finalResponse = response || (errorMessage ? `[API错误: ${errorMessage}]` : '[无回复]')
+      await endConversation(finalResponse, appliedPreferences)
     }
     
     // 重置状态
     setResponse('')
+    setErrorMessage(null)
     setFeedbackMessage('')
     setDetectedPreference(null)
     setAppliedPreferences([])
     setIsClosing(false)
     closeModal()
-  }, [response, currentConversation, endConversation, closeModal, appliedPreferences])
+  }, [response, errorMessage, currentConversation, endConversation, closeModal, appliedPreferences])
 
   // ESC键关闭
   useEffect(() => {
@@ -145,7 +154,12 @@ export function AnswerModal() {
         
         {/* 标题 */}
         <div className="absolute left-1/2 transform -translate-x-1/2 text-sm text-gray-500">
-          {isStreaming ? (
+          {errorMessage ? (
+            <span className="flex items-center gap-2 text-red-500">
+              <span className="w-2 h-2 bg-red-500 rounded-full" />
+              发生错误
+            </span>
+          ) : isStreaming ? (
             <span className="flex items-center gap-2">
               <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
               AI 正在思考...
@@ -195,11 +209,29 @@ export function AnswerModal() {
               
               {/* AI消息内容 */}
               <div className="text-gray-800 text-[15px] leading-relaxed whitespace-pre-wrap">
-                {response ? (
+                {errorMessage ? (
+                  // 错误状态
+                  <div className="bg-red-50 border border-red-100 rounded-xl p-4 text-red-700">
+                    <div className="flex items-center gap-2 mb-2">
+                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                      <span className="font-medium">API调用失败</span>
+                    </div>
+                    <p className="text-sm">{errorMessage}</p>
+                    <p className="text-xs mt-2 text-red-500">
+                      提示: 点击"返回画布"仍可保存这个问题节点，稍后配置正确的API Key后可重新提问
+                    </p>
+                  </div>
+                ) : response ? (
+                  // 正常回复
                   <div className="prose prose-gray max-w-none">
                     {response}
                   </div>
                 ) : (
+                  // 加载中
                   <div className="flex items-center gap-2 text-gray-400">
                     <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
                     <span>正在思考...</span>

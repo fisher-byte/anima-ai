@@ -126,7 +126,7 @@ export async function callAI(
           messages: fullMessages,
           max_tokens: AI_CONFIG.MAX_TOKENS,
           temperature: AI_CONFIG.TEMPERATURE,
-          stream: false
+          stream: true
         })
       }
     )
