@@ -5,6 +5,7 @@
  */
 
 import { API_CONFIG, AI_CONFIG, DEFAULT_SYSTEM_PROMPT } from '../shared/constants'
+import { mockCallAI, mockStreamAI, isMockMode } from './mockAI'
 import type { AIMessage } from '../shared/types'
 
 interface AIResponse {
@@ -85,12 +86,18 @@ export async function setApiKey(apiKey: string): Promise<boolean> {
 
 /**
  * 调用AI API（非流式）
+ * 自动判断使用真实API或模拟模式
  */
 export async function callAI(
   messages: AIMessage[],
   preferences: string[] = []
 ): Promise<AIResponse> {
   try {
+    // 检查是否使用模拟模式
+    if (isMockMode()) {
+      return await mockCallAI(messages, preferences)
+    }
+    
     const apiKey = await getApiKey()
     if (!apiKey) {
       return {
@@ -156,12 +163,25 @@ export async function callAI(
 
 /**
  * 调用AI API（流式）
+ * 自动判断使用真实API或模拟模式
  */
 export async function* streamAI(
   messages: AIMessage[],
   preferences: string[] = []
 ): AsyncGenerator<string, AIResponse, unknown> {
   try {
+    // 检查是否使用模拟模式
+    if (isMockMode()) {
+      // 模拟模式下，使用流式生成器
+      const result = await mockCallAI(messages, preferences)
+      const words = result.content.split('')
+      for (const word of words) {
+        await new Promise(resolve => setTimeout(resolve, 30))
+        yield word
+      }
+      return { content: result.content }
+    }
+    
     const apiKey = await getApiKey()
     if (!apiKey) {
       return {
