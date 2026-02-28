@@ -1,0 +1,118 @@
+# EvoCanvas 变更日志
+
+## [0.1.0] - 2026-02-28
+
+### 项目初始化
+
+- 创建项目基础架构 (Electron + React + TypeScript + Vite)
+- 配置开发环境 (Tailwind CSS, Zustand, electron-vite)
+- 设计数据存储结构 (profile.json, nodes.json, conversations.jsonl)
+
+### Week 1: 基础交互闭环
+
+**新增功能**
+- 无限画布组件 (Canvas.tsx) - 白底 + 点阵背景，支持拖拽
+- 底部输入框 (InputBox.tsx) - 毛玻璃风格，支持多行输入
+- 全屏回答层 (AnswerModal.tsx) - 流式展示AI回复
+- 节点卡片 (NodeCard.tsx) - 显示标题、关键词、日期
+- 本地存储系统 - 自动持久化节点和配置
+
+**技术实现**
+- 主进程IPC通信封装
+- Preload脚本安全隔离
+- Zustand状态管理
+- 流式AI响应处理
+
+### Week 2: 偏好学习闭环
+
+**新增功能**
+- 负反馈识别系统 (feedback.ts)
+  - 支持触发词："简洁点"、"太复杂"、"别用这个"、"换个思路"、"不对"
+  - 自动提取偏好规则
+- 偏好管理服务 (profile.ts)
+  - 配置文件读写
+  - 置信度系统 (初始0.6，每次+0.1，上限1.0)
+  - 旧偏好自动衰减
+- Prompt组装服务 (prompt.ts)
+  - 自动注入历史偏好到System Prompt
+  - 检测偏好应用情况
+- 对话记录系统 - 使用 .jsonl 格式追加存储
+
+**技术实现**
+- 规则匹配引擎
+- 置信度算法
+- 偏好合并策略
+
+### Week 3: 体验打磨闭环
+
+**新增功能**
+- 灰字提示组件 (GrayHint.tsx)
+  - 仅在偏好被应用时显示
+  - 简洁的文案提醒
+- 节点回放功能 - 点击节点打开对应对话
+- 偏好匹配检测
+  - 检测回答是否符合用户偏好
+  - 触发灰字提示
+
+**体验优化**
+- 平滑动画过渡
+- 输入框自动高度调整
+- 错误处理和边界情况
+- 响应式布局
+
+**稳定性**
+- 数据校验和错误恢复
+- 存储操作失败处理
+- API调用超时处理
+
+### 已知问题
+
+- [ ] 节点回放时只显示标题，不加载完整对话内容
+- [ ] 画布拖拽时节点位置计算需要优化
+- [ ] API Key需要从配置文件读取而非环境变量
+
+### 后续规划
+
+**v0.2.0 (计划中)**
+- 完整的对话历史查看
+- 节点拖拽排序
+- 导入/导出配置
+- 多模型切换UI
+
+**v0.3.0 (计划中)**
+- 节点连线（简单关系）
+- 搜索功能
+- 设置面板
+
+## 提交记录
+
+### 2026-02-28
+
+- `init-1` ✓ 项目初始化：搭建Electron+React+TypeScript+Vite环境
+- `init-2` ✓ 创建数据类型定义：types.ts
+- `init-3` ✓ 创建常量定义：constants.ts
+- `week1-1` ✓ 实现无限画布组件（Canvas.tsx）
+- `week1-2` ✓ 实现底部输入框组件（InputBox.tsx）
+- `week1-3` ✓ 实现AI接入层（useAI.ts, ai.ts）
+- `week1-4` ✓ 实现全屏回答层（AnswerModal.tsx）
+- `week1-5` ✓ 实现节点卡片组件（NodeCard.tsx）
+- `week1-6` ✓ 实现本地存储（storage.ts）
+- `week1-7` ✓ Week1验收：完成闭环-输入→回答→成卡
+- `week2-1` ✓ 实现负反馈识别（feedback.ts）
+- `week2-2` ✓ 实现偏好抽取与存储（profile.ts）
+- `week2-3` ✓ 实现对话记录（conversations.jsonl）
+- `week2-4` ✓ 实现System Prompt组装（prompt.ts）
+- `week2-5` ✓ Week2验收：完成闭环-纠错→学习→写入
+- `week3-1` ✓ 实现灰字提示组件（GrayHint.tsx）
+- `week3-2` ✓ 实现偏好匹配检测（prompt.ts增强）
+- `week3-3` ✓ 实现节点回放功能
+- `week3-4` ✓ 体验打磨 - 动画、过渡、边界处理
+- `week3-5` ✓ 稳定性优化
+- `week3-6` ✓ Week3验收：完成闭环-被记住的反馈+打磨
+- `docs-1` ✓ 建立文档体系：architecture.md, api.md, changelog.md
+- `backup-1` ✓ 更新项目备份记录
+
+---
+
+**开发周期**: 3周 (2026-02-28 完成MVP)
+**核心目标**: 验证"AI会记住我"的默契感 ✓
