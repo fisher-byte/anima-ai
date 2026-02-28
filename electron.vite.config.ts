@@ -27,7 +27,7 @@ export default defineConfig({
   },
   renderer: {
     root: 'src/renderer',
-    build: {
+    build:    {
       outDir: '../../out/renderer',
       rollupOptions: {
         input: {
@@ -41,6 +41,11 @@ export default defineConfig({
         '@': resolve('src/renderer/src'),
         '@shared': resolve('src/shared')
       }
+    },
+    // 支持环境变量
+    define: {
+      'import.meta.env.VITE_API_KEY': JSON.stringify(process.env.EVOCANVAS_API_KEY || ''),
+      'import.meta.env.VITE_API_URL': JSON.stringify(process.env.EVOCANVAS_API_URL || 'https://api.openai.com/v1')
     }
   }
 })

@@ -81,11 +81,11 @@ export const CONFIDENCE_CONFIG = {
 
 /**
  * API配置
- * API Key将在运行时从主进程安全获取，不在渲染进程暴露
+ * API Key将在运行时从主进程或环境变量获取
  */
 export const API_CONFIG = {
-  BASE_URL: 'https://api.openai.com/v1',
-  API_KEY: '', // 将在应用启动时从主进程加载
+  BASE_URL: import.meta.env.VITE_API_URL || 'https://api.openai.com/v1',
+  API_KEY: '', // 将在应用启动时加载
   TIMEOUT: 30000 // 30秒超时
 }
 
