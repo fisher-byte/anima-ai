@@ -20,22 +20,26 @@ export function AnswerModal() {
   const [feedbackMessage, setFeedbackMessage] = useState('')
   const [detectedPreference, setDetectedPreference] = useState<PreferenceRule | null>(null)
   const [appliedPreferences, setAppliedPreferences] = useState<string[]>([])
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [isClosing, setIsClosing] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
   
   // AI Hook
   const { sendMessage } = useAI({
     onStream: (chunk) => {
       setResponse(prev => prev + chunk)
+      // 自动滚动到底部
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      }
     },
     onComplete: (fullText) => {
       setIsStreaming(false)
-      // 检测是否应用了偏好
       const prefs = getPreferencesForPrompt()
       setAppliedPreferences(prefs)
     },
     onError: (error) => {
       setIsStreaming(false)
-      setResponse(prev => prev + '\n\n[错误: ' + error + ']')
+      setResponse(prev => prev + '\n\n> 错误: ' + error)
     }
   })
 
@@ -45,8 +49,9 @@ export function AnswerModal() {
       setResponse('')
       setIsStreaming(true)
       setAppliedPreferences([])
+      setFeedbackMessage('')
+      setDetectedPreference(null)
       
-      // 获取历史偏好并发送
       const preferences = getPreferencesForPrompt()
       sendMessage(currentConversation.userMessage, preferences)
     }
@@ -57,7 +62,6 @@ export function AnswerModal() {
     const value = e.target.value
     setFeedbackMessage(value)
     
-    // 实时检测负反馈
     const detected = detectFeedback(value)
     if (detected) {
       setDetectedPreference(detected)
@@ -68,12 +72,10 @@ export function AnswerModal() {
   const handleFeedbackSubmit = useCallback(async () => {
     if (!feedbackMessage.trim()) return
     
-    // 如果检测到偏好，保存它
     if (detectedPreference) {
       await addPreference(detectedPreference)
     }
     
-    // 重新生成回答
     setResponse('')
     setIsStreaming(true)
     setFeedbackMessage('')
@@ -83,107 +85,197 @@ export function AnswerModal() {
     sendMessage(currentConversation?.userMessage || '', preferences)
   }, [feedbackMessage, detectedPreference, addPreference, currentConversation, getPreferencesForPrompt, sendMessage])
 
-  // 关闭并保存
+  // 关闭并保存（带平滑过渡）
   const handleClose = useCallback(async () => {
+    setIsClosing(true)
+    
+    // 等待动画完成
+    await new Promise(resolve => setTimeout(resolve, 300))
+    
     if (response && currentConversation) {
       await endConversation(response, appliedPreferences)
     }
+    
+    // 重置状态
     setResponse('')
     setFeedbackMessage('')
     setDetectedPreference(null)
     setAppliedPreferences([])
+    setIsClosing(false)
     closeModal()
   }, [response, currentConversation, endConversation, closeModal, appliedPreferences])
+
+  // ESC键关闭
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isModalOpen) {
+        handleClose()
+      }
+    }
+    window.addEventListener('keydown', handleEsc)
+    return () => window.removeEventListener('keydown', handleEsc)
+  }, [isModalOpen, handleClose])
 
   if (!isModalOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 bg-white animate-fade-in">
-      {/* 头部 */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+    <div 
+      className={`fixed inset-0 z-50 bg-white transition-all duration-300 ease-out ${
+        isClosing ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0'
+      }`}
+    >
+      {/* 头部导航 */}
+      <div className="fixed top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3 bg-white/80 backdrop-blur-sm border-b border-gray-100">
         <button
           onClick={handleClose}
-          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+          className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all duration-200 group"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg 
+            className="w-5 h-5 transform group-hover:-translate-x-1 transition-transform" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2"
+          >
             <line x1="19" y1="12" x2="5" y2="12" />
             <polyline points="12 19 5 12 12 5" />
           </svg>
-          <span>返回画布</span>
+          <span className="text-sm font-medium">返回画布</span>
         </button>
         
-        {isStreaming && (
-          <div className="flex items-center gap-2 text-gray-400 text-sm">
-            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-            <span>AI 正在回答...</span>
-          </div>
-        )}
+        {/* 标题 */}
+        <div className="absolute left-1/2 transform -translate-x-1/2 text-sm text-gray-500">
+          {isStreaming ? (
+            <span className="flex items-center gap-2">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              AI 正在思考...
+            </span>
+          ) : response ? (
+            <span>对话完成</span>
+          ) : (
+            <span>准备中...</span>
+          )}
+        </div>
+
+        {/* 占位保持平衡 */}
+        <div className="w-24" />
       </div>
 
-      {/* 内容区 */}
-      <div className="flex h-[calc(100vh-80px)]">
-        {/* 左侧：对话 */}
-        <div className="flex-1 flex flex-col max-w-3xl mx-auto px-6 py-6 overflow-hidden">
-          {/* 用户问题 */}
-          <div className="mb-6">
-            <div className="text-sm text-gray-400 mb-2">你的问题</div>
-            <div className="text-lg text-gray-800 font-medium">
+      {/* 对话内容区 */}
+      <div 
+        ref={scrollRef}
+        className="h-full overflow-y-auto pt-16 pb-48"
+      >
+        <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+          
+          {/* 用户消息 */}
+          <div className="flex justify-end">
+            <div className="max-w-[85%] bg-gray-100 rounded-2xl rounded-tr-sm px-5 py-3.5 text-gray-800 text-[15px] leading-relaxed">
               {currentConversation?.userMessage}
             </div>
           </div>
 
-          {/* AI回答 */}
-          <div className="flex-1 overflow-y-auto">
-            <div className="text-sm text-gray-400 mb-2">AI回答</div>
-            <div className="prose prose-gray max-w-none">
-              {response ? (
-                <div className="whitespace-pre-wrap text-gray-700 leading-relaxed">
-                  {response}
+          {/* AI回复 */}
+          <div className="flex justify-start">
+            <div className="max-w-[90%] space-y-2">
+              {/* AI标识 */}
+              <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
+                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center text-white text-[10px] font-bold">
+                  AI
                 </div>
-              ) : (
-                <div className="text-gray-400 italic">等待AI回复...</div>
+                <span>Assistant</span>
+                {isStreaming && (
+                  <span className="flex gap-1">
+                    <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </span>
+                )}
+              </div>
+              
+              {/* AI消息内容 */}
+              <div className="text-gray-800 text-[15px] leading-relaxed whitespace-pre-wrap">
+                {response ? (
+                  <div className="prose prose-gray max-w-none">
+                    {response}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-gray-400">
+                    <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                    <span>正在思考...</span>
+                  </div>
+                )}
+              </div>
+              
+              {/* 灰字提示 */}
+              {appliedPreferences.length > 0 && response && !isStreaming && (
+                <div className="pt-2">
+                  <GrayHint preferences={appliedPreferences} />
+                </div>
               )}
             </div>
-            
-            {/* 灰字提示 */}
-            {appliedPreferences.length > 0 && response && !isStreaming && (
-              <GrayHint preferences={appliedPreferences} />
-            )}
           </div>
 
-          {/* 反馈区 */}
+        </div>
+      </div>
+
+      {/* 底部反馈区 */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100">
+        <div className="max-w-3xl mx-auto px-4 py-4">
           {!isStreaming && response && (
-            <div className="mt-6 pt-6 border-t border-gray-100">
-              <div className="text-sm text-gray-500 mb-3">
-                不满意？直接告诉AI你的想法（例如："简洁点"、"换个思路"）
+            <div className="space-y-3">
+              {/* 反馈提示 */}
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 16v-4M12 8h.01" />
+                </svg>
+                <span>不满意？告诉AI你的想法，下次会记住</span>
               </div>
+              
+              {/* 反馈输入 */}
               <div className="flex gap-3">
                 <textarea
                   ref={textareaRef}
                   value={feedbackMessage}
                   onChange={handleFeedbackChange}
-                  placeholder="输入反馈，AI会记住你的偏好..."
-                  className="flex-1 bg-gray-50 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-gray-200 resize-none"
-                  rows={2}
+                  placeholder="例如：简洁点、换个思路、详细一点..."
+                  className="flex-1 bg-gray-50 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-gray-200 resize-none min-h-[44px] max-h-[100px]"
+                  rows={1}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      handleFeedbackSubmit()
+                    }
+                  }}
                 />
                 <button
                   onClick={handleFeedbackSubmit}
                   disabled={!feedbackMessage.trim()}
-                  className="px-4 py-2 bg-gray-900 text-white rounded-xl text-sm hover:bg-gray-800 disabled:opacity-40 transition-colors"
+                  className="px-4 py-2 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
                 >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+                  </svg>
                   重新回答
                 </button>
               </div>
               
-              {/* 检测到的偏好提示 */}
+              {/* 检测到的偏好 */}
               {detectedPreference && (
-                <div className="mt-2 text-xs text-green-600">
-                  检测到偏好：{detectedPreference.preference}
-                  {detectedPreference.confidence > 0.6 && '（已记录）'}
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-green-600 font-medium">✓ 已记住偏好:</span>
+                  <span className="text-gray-600">{detectedPreference.preference}</span>
                 </div>
               )}
             </div>
           )}
+          
+          {/* 快捷键提示 */}
+          <div className="mt-3 flex items-center justify-between text-xs text-gray-400">
+            <span>按 ESC 返回画布</span>
+            <span>Enter 发送 · Shift+Enter 换行</span>
+          </div>
         </div>
       </div>
     </div>

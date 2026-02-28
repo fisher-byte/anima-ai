@@ -5,7 +5,6 @@
  */
 
 import { API_CONFIG, AI_CONFIG, DEFAULT_SYSTEM_PROMPT } from '../shared/constants'
-import { mockCallAI, mockStreamAI, isMockMode } from './mockAI'
 import type { AIMessage } from '../shared/types'
 
 interface AIResponse {
@@ -41,7 +40,7 @@ async function fetchWithTimeout(
 }
 
 /**
- * 获取API Key（从主进程或环境变量获取）
+ * 获取API Key（从环境变量或主进程获取）
  */
 async function getApiKey(): Promise<string> {
   try {
@@ -50,7 +49,7 @@ async function getApiKey(): Promise<string> {
       return API_CONFIG.API_KEY
     }
     
-    // 开发模式：从环境变量获取（用于快速体验）
+    // 开发模式：从环境变量获取
     // @ts-ignore - Vite环境变量
     const envKey = import.meta.env.VITE_API_KEY || ''
     if (envKey) {
@@ -86,23 +85,17 @@ export async function setApiKey(apiKey: string): Promise<boolean> {
 
 /**
  * 调用AI API（非流式）
- * 自动判断使用真实API或模拟模式
  */
 export async function callAI(
   messages: AIMessage[],
   preferences: string[] = []
 ): Promise<AIResponse> {
   try {
-    // 检查是否使用模拟模式
-    if (isMockMode()) {
-      return await mockCallAI(messages, preferences)
-    }
-    
     const apiKey = await getApiKey()
     if (!apiKey) {
       return {
         content: '',
-        error: 'API Key未配置，请在设置中输入API Key'
+        error: 'API Key未配置，请在.env文件中配置EVOCANVAS_API_KEY'
       }
     }
 
@@ -142,7 +135,7 @@ export async function callAI(
       if (response.status === 401) {
         return {
           content: '',
-          error: 'API Key无效，请检查设置'
+          error: 'API Key无效，请检查.env配置'
         }
       }
       throw new Error(`API error: ${response.status}`)
@@ -163,30 +156,17 @@ export async function callAI(
 
 /**
  * 调用AI API（流式）
- * 自动判断使用真实API或模拟模式
  */
 export async function* streamAI(
   messages: AIMessage[],
   preferences: string[] = []
 ): AsyncGenerator<string, AIResponse, unknown> {
   try {
-    // 检查是否使用模拟模式
-    if (isMockMode()) {
-      // 模拟模式下，使用流式生成器
-      const result = await mockCallAI(messages, preferences)
-      const words = result.content.split('')
-      for (const word of words) {
-        await new Promise(resolve => setTimeout(resolve, 30))
-        yield word
-      }
-      return { content: result.content }
-    }
-    
     const apiKey = await getApiKey()
     if (!apiKey) {
       return {
         content: '',
-        error: 'API Key未配置，请在设置中输入API Key'
+        error: 'API Key未配置，请在.env文件中配置EVOCANVAS_API_KEY'
       }
     }
 
@@ -226,7 +206,7 @@ export async function* streamAI(
       if (response.status === 401) {
         return {
           content: '',
-          error: 'API Key无效，请检查设置'
+          error: 'API Key无效，请检查.env配置'
         }
       }
       throw new Error(`API error: ${response.status}`)
