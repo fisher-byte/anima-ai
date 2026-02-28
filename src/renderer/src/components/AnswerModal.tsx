@@ -101,7 +101,8 @@ export function AnswerModal() {
     if (currentConversation) {
       // 如果有回复就保存回复，否则保存错误信息
       const finalResponse = response || (errorMessage ? `[API错误: ${errorMessage}]` : '[无回复]')
-      await endConversation(finalResponse, appliedPreferences)
+      // 关闭后继续保存，避免阻塞返回画布
+      void endConversation(finalResponse, appliedPreferences)
     }
     
     // 重置状态

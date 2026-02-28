@@ -130,16 +130,19 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       appliedPreferences
     }
     
-    set({ 
-      currentConversation: updatedConversation, 
-      isLoading: false 
+    set({
+      currentConversation: updatedConversation,
+      isLoading: false
     })
-    
-    // 记录对话
-    await appendConversation(updatedConversation)
-    
-    // 创建节点
-    await addNode(updatedConversation)
+
+    try {
+      // 记录对话
+      await appendConversation(updatedConversation)
+      // 创建节点
+      await addNode(updatedConversation)
+    } catch (error) {
+      console.error('保存对话或节点失败:', error)
+    }
   },
 
   // 关闭模态框

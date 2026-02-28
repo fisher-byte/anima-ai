@@ -95,7 +95,7 @@ export async function callAI(
     if (!apiKey) {
       return {
         content: '',
-        error: 'API Key未配置，请在.env文件中配置EVOCANVAS_API_KEY'
+        error: 'API Key未配置，请在.env文件中配置VITE_API_KEY'
       }
     }
 
@@ -164,10 +164,7 @@ export async function* streamAI(
   try {
     const apiKey = await getApiKey()
     if (!apiKey) {
-      return {
-        content: '',
-        error: 'API Key未配置，请在.env文件中配置EVOCANVAS_API_KEY'
-      }
+      throw new Error('API Key未配置，请在.env文件中配置VITE_API_KEY')
     }
 
     // 组装system prompt
@@ -204,10 +201,7 @@ export async function* streamAI(
 
     if (!response.ok) {
       if (response.status === 401) {
-        return {
-          content: '',
-          error: 'API Key无效，请检查.env配置'
-        }
+        throw new Error('API Key无效，请检查.env配置')
       }
       throw new Error(`API error: ${response.status}`)
     }
@@ -249,10 +243,7 @@ export async function* streamAI(
     return { content: fullContent }
   } catch (error) {
     console.error('AI stream failed:', error)
-    return {
-      content: '',
-      error: error instanceof Error ? error.message : 'Unknown error'
-    }
+    throw error instanceof Error ? error : new Error('Unknown error')
   }
 }
 
