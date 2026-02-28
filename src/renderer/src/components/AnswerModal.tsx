@@ -101,8 +101,11 @@ export function AnswerModal() {
     if (currentConversation) {
       // 如果有回复就保存回复，否则保存错误信息
       const finalResponse = response || (errorMessage ? `[API错误: ${errorMessage}]` : '[无回复]')
-      // 关闭后继续保存，避免阻塞返回画布
-      void endConversation(finalResponse, appliedPreferences)
+      // 关闭后继续保存，避免阻塞返回画布，但保留错误处理
+      endConversation(finalResponse, appliedPreferences).catch(err => {
+        console.error('保存对话失败:', err)
+        // 可以在这里添加 toast 提示，但目前保持静默失败
+      })
     }
     
     // 重置状态

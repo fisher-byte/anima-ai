@@ -142,7 +142,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       await addNode(updatedConversation)
     } catch (error) {
       console.error('保存对话或节点失败:', error)
-    }
+      // TODO: 添加 UI 反馈（如 toast 通知）告知用户保存失败
+      // 暂时静默处理，避免阻塞用户操作流程
   },
 
   // 关闭模态框
