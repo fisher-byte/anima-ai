@@ -40,16 +40,24 @@ async function fetchWithTimeout(
 }
 
 /**
- * 获取API Key（从主进程安全获取）
+ * 获取API Key（从主进程或环境变量获取）
  */
 async function getApiKey(): Promise<string> {
   try {
-    // 如果已有缓存且未过期，直接返回
+    // 如果已有缓存，直接返回
     if (API_CONFIG.API_KEY) {
       return API_CONFIG.API_KEY
     }
     
-    // 从主进程获取
+    // 开发模式：从环境变量获取（用于快速体验）
+    // @ts-ignore - Vite环境变量
+    const envKey = import.meta.env.VITE_API_KEY || ''
+    if (envKey) {
+      API_CONFIG.API_KEY = envKey
+      return envKey
+    }
+    
+    // 生产模式：从主进程安全获取
     const key = await window.electronAPI.config.getApiKey()
     API_CONFIG.API_KEY = key
     return key
