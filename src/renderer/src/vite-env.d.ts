@@ -7,5 +7,9 @@ interface Window {
       write: (filename: string, content: string) => Promise<boolean>
       append: (filename: string, content: string) => Promise<boolean>
     }
+    config: {
+      getApiKey: () => Promise<string>
+      setApiKey: (apiKey: string) => Promise<boolean>
+    }
   }
 }

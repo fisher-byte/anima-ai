@@ -5,6 +5,10 @@ const api = {
     read: (filename: string) => ipcRenderer.invoke('storage:read', filename),
     write: (filename: string, content: string) => ipcRenderer.invoke('storage:write', filename, content),
     append: (filename: string, content: string) => ipcRenderer.invoke('storage:append', filename, content)
+  },
+  config: {
+    getApiKey: () => ipcRenderer.invoke('config:getApiKey'),
+    setApiKey: (apiKey: string) => ipcRenderer.invoke('config:setApiKey', apiKey)
   }
 }
 

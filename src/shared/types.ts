@@ -18,6 +18,17 @@ export interface Node {
 }
 
 /**
+ * 节点之间的连线
+ */
+export interface Edge {
+  id: string
+  source: string  // 源节点ID
+  target: string  // 目标节点ID
+  label?: string  // 连线标签（可选）
+  createdAt: string
+}
+
+/**
  * 对话记录
  */
 export interface Conversation {
@@ -84,6 +95,7 @@ export interface NodePosition {
  */
 export interface AppState {
   nodes: Node[]
+  edges: Edge[]
   currentConversation: Conversation | null
   isModalOpen: boolean
   profile: Profile

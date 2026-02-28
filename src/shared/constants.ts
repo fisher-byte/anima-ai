@@ -80,9 +80,37 @@ export const CONFIDENCE_CONFIG = {
 } as const
 
 /**
- * API配置（从环境变量读取）
+ * API配置
+ * API Key将在运行时从主进程安全获取，不在渲染进程暴露
  */
 export const API_CONFIG = {
-  BASE_URL: process.env.EVOCANVAS_API_URL || 'https://api.openai.com/v1',
-  API_KEY: process.env.EVOCANVAS_API_KEY || ''
+  BASE_URL: 'https://api.openai.com/v1',
+  API_KEY: '', // 将在应用启动时从主进程加载
+  TIMEOUT: 30000 // 30秒超时
+}
+
+/**
+ * 允许的文件名列表（防止路径遍历攻击）
+ */
+export const ALLOWED_FILENAMES = [
+  'profile.json',
+  'nodes.json',
+  'conversations.jsonl'
+] as const
+
+/**
+ * 验证文件名是否合法
+ */
+export function isValidFilename(filename: string): boolean {
+  // 检查是否在允许列表中
+  if (!ALLOWED_FILENAMES.includes(filename as any)) {
+    return false
+  }
+  
+  // 检查是否包含路径遍历字符
+  if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+    return false
+  }
+  
+  return true
 }
