@@ -14,11 +14,13 @@ export function InputBox() {
     startConversation(trimmed)
     setMessage('')
     
-    // 重置textarea高度
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-    }
-  }, [message, startConversation])
+    // 使用 setTimeout 确保在状态更新后重置高度
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto'
+      }
+    }, 0)
+  }, [message, startConversation, textareaRef])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Enter发送，Shift+Enter换行
