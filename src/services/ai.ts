@@ -90,67 +90,53 @@ export async function callAI(
   messages: AIMessage[],
   preferences: string[] = []
 ): Promise<AIResponse> {
-  try {
-    const apiKey = await getApiKey()
-    if (!apiKey) {
-      return {
-        content: '',
-        error: 'API Key未配置，请在.env文件中配置VITE_API_KEY'
-      }
-    }
+  const apiKey = await getApiKey()
+  if (!apiKey) {
+    throw new Error('API Key未配置，请在.env文件中配置VITE_API_KEY')
+  }
 
-    // 组装system prompt
-    let systemPrompt = DEFAULT_SYSTEM_PROMPT
-    if (preferences.length > 0) {
-      systemPrompt += '\n\n以下是用户的历史偏好：\n'
-      preferences.forEach((pref, idx) => {
-        systemPrompt += `${idx + 1}. ${pref}\n`
+  // 组装system prompt
+  let systemPrompt = DEFAULT_SYSTEM_PROMPT
+  if (preferences.length > 0) {
+    systemPrompt += '\n\n以下是用户的历史偏好：\n'
+    preferences.forEach((pref, idx) => {
+      systemPrompt += `${idx + 1}. ${pref}\n`
+    })
+  }
+
+  const fullMessages: AIMessage[] = [
+    { role: 'system', content: systemPrompt },
+    ...messages
+  ]
+
+  const response = await fetchWithTimeout(
+    `${API_CONFIG.BASE_URL}/chat/completions`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: AI_CONFIG.MODEL,
+        messages: fullMessages,
+        max_tokens: AI_CONFIG.MAX_TOKENS,
+        temperature: AI_CONFIG.TEMPERATURE,
+        stream: false
       })
     }
+  )
 
-    const fullMessages: AIMessage[] = [
-      { role: 'system', content: systemPrompt },
-      ...messages
-    ]
-
-    const response = await fetchWithTimeout(
-      `${API_CONFIG.BASE_URL}/chat/completions`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: AI_CONFIG.MODEL,
-          messages: fullMessages,
-          max_tokens: AI_CONFIG.MAX_TOKENS,
-          temperature: AI_CONFIG.TEMPERATURE,
-          stream: true
-        })
-      }
-    )
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        return {
-          content: '',
-          error: 'API Key无效，请检查.env配置'
-        }
-      }
-      throw new Error(`API error: ${response.status}`)
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error('API Key无效，请检查.env配置')
     }
+    throw new Error(`API error: ${response.status}`)
+  }
 
-    const data = await response.json()
-    return {
-      content: data.choices[0]?.message?.content || ''
-    }
-  } catch (error) {
-    console.error('AI call failed:', error)
-    return {
-      content: '',
-      error: error instanceof Error ? error.message : 'Unknown error'
-    }
+  const data = await response.json()
+  return {
+    content: data.choices[0]?.message?.content || ''
   }
 }
 
@@ -251,32 +237,42 @@ export async function* streamAI(
  * 生成节点标题
  */
 export async function generateNodeTitle(content: string): Promise<string> {
-  const messages: AIMessage[] = [
-    {
-      role: 'user',
-      content: `请用不超过8个字总结以下内容的主题：\n\n${content.slice(0, 200)}`
-    }
-  ]
+  try {
+    const messages: AIMessage[] = [
+      {
+        role: 'user',
+        content: `请用不超过8个字总结以下内容的主题：\n\n${content.slice(0, 200)}`
+      }
+    ]
 
-  const response = await callAI(messages)
-  return response.content.slice(0, 8).trim() || '未命名'
+    const response = await callAI(messages)
+    return response.content.slice(0, 8).trim() || '未命名'
+  } catch (error) {
+    console.error('生成节点标题失败:', error)
+    return '未命名'
+  }
 }
 
 /**
  * 生成关键词
  */
 export async function generateKeywords(content: string): Promise<string[]> {
-  const messages: AIMessage[] = [
-    {
-      role: 'user',
-      content: `请从以下内容中提取2-3个关键词，用逗号分隔：\n\n${content.slice(0, 300)}`
-    }
-  ]
+  try {
+    const messages: AIMessage[] = [
+      {
+        role: 'user',
+        content: `请从以下内容中提取2-3个关键词，用逗号分隔：\n\n${content.slice(0, 300)}`
+      }
+    ]
 
-  const response = await callAI(messages)
-  return response.content
-    .split(/[,，]/)
-    .map(k => k.trim())
-    .filter(k => k.length >= 2 && k.length <= 6)
-    .slice(0, 3)
+    const response = await callAI(messages)
+    return response.content
+      .split(/[,，]/)
+      .map(k => k.trim())
+      .filter(k => k.length >= 2 && k.length <= 6)
+      .slice(0, 3)
+  } catch (error) {
+    console.error('生成关键词失败:', error)
+    return []
+  }
 }
