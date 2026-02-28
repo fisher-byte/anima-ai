@@ -104,7 +104,7 @@ export async function callAI(
     if (preferences.length > 0) {
       systemPrompt += '\n\n以下是用户的历史偏好：\n'
       preferences.forEach((pref, idx) => {
-        systemPrompt += `${idx + 1}. ${pref}\n'
+        systemPrompt += `${idx + 1}. ${pref}\n`
       })
     }
 
