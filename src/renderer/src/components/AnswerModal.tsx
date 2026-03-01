@@ -1,10 +1,14 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Send, CheckCircle2, Edit3, Globe, Copy, RefreshCw, Square, Paperclip } from 'lucide-react'
+import { Sparkles, Send, CheckCircle2, Edit3, Globe, Copy, RefreshCw, Square, Paperclip, Cpu } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useAI } from '../hooks/useAI'
 import { GrayHint } from './GrayHint'
+import { AI_CONFIG } from '@shared/constants'
 import type { PreferenceRule, Conversation } from '@shared/types'
+import type { AIMessage } from '@shared/types'
 
 type Turn = {
   user: string
@@ -466,38 +470,27 @@ export function AnswerModal() {
                   )}
 
                   {/* 文字气泡 */}
-                  <div className="relative group/bubble flex items-center gap-2">
-                    {/* 编辑按钮（仅非流式且悬停时显示） */}
-                    {!isStreaming && editingIndex !== idx && (
-                      <button
-                        onClick={() => handleStartEdit(idx, t.user)}
-                        className="opacity-0 group-hover/bubble:opacity-100 p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
-                        title="编辑消息"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </button>
-                    )}
-
-                    <div className="bg-gray-100 rounded-2xl rounded-tr-sm px-5 py-3.5 text-gray-800 text-[15px] leading-relaxed">
+                  <div className="relative group/bubble flex items-end gap-2">
+                    <div className="bg-blue-600 rounded-2xl rounded-tr-sm px-5 py-3.5 text-white text-[15px] leading-relaxed shadow-sm">
                       {editingIndex === idx ? (
-                        <div className="flex flex-col gap-2 min-w-[300px]">
+                        <div className="flex flex-col gap-3 min-w-[300px]">
                           <textarea
                             value={editingContent}
                             onChange={(e) => setEditingContent(e.target.value)}
-                            className="w-full bg-white border border-blue-200 rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-blue-100"
+                            className="w-full bg-white/10 border border-white/20 rounded-xl p-3 text-[15px] outline-none focus:ring-2 focus:ring-white/30 text-white placeholder-white/50"
                             rows={3}
                             autoFocus
                           />
                           <div className="flex justify-end gap-2">
                             <button
                               onClick={() => setEditingIndex(null)}
-                              className="px-3 py-1 text-xs text-gray-500 hover:bg-gray-200 rounded-md transition-colors"
+                              className="px-4 py-1.5 text-xs text-white/70 hover:bg-white/10 rounded-lg transition-colors"
                             >
                               取消
                             </button>
                             <button
                               onClick={handleSaveEdit}
-                              className="px-3 py-1 text-xs bg-blue-600 text-white hover:bg-blue-700 rounded-md transition-colors shadow-sm"
+                              className="px-4 py-1.5 text-xs bg-white text-blue-600 font-bold hover:bg-blue-50 rounded-lg transition-colors shadow-md"
                             >
                               保存并重新发送
                             </button>
@@ -507,6 +500,17 @@ export function AnswerModal() {
                         t.user
                       )}
                     </div>
+
+                    {/* 编辑按钮 (气泡右侧/悬停显示) */}
+                    {!isStreaming && editingIndex !== idx && (
+                      <button
+                        onClick={() => handleStartEdit(idx, t.user)}
+                        className="opacity-0 group-hover/bubble:opacity-100 p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all shadow-sm bg-white/50 backdrop-blur-sm border border-gray-100/50"
+                        title="编辑消息"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -515,23 +519,23 @@ export function AnswerModal() {
               <div className="flex justify-start">
                 <div className="max-w-[90%] space-y-2">
                   {/* AI标识 */}
-                  <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
-                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center text-white text-[10px] font-bold">
-                      AI
+                  <div className="flex items-center gap-2 text-xs text-gray-400/80 mb-2 font-medium tracking-tight">
+                    <div className="flex items-center gap-1.5 px-2 py-1 bg-gray-50 rounded-full border border-gray-100/50">
+                      <Cpu className="w-3 h-3 text-blue-400" />
+                      <span className="uppercase text-[10px]">{AI_CONFIG.MODEL}</span>
                     </div>
-                    <span>Assistant</span>
                     {isStreaming && idx === turns.length - 1 && (
-                      <span className="flex gap-1">
-                        <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      <span className="flex gap-1 ml-1">
+                        <span className="w-1 h-1 bg-blue-400/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="w-1 h-1 bg-blue-400/40 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <span className="w-1 h-1 bg-blue-400/40 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                       </span>
                     )}
                   </div>
 
                   {/* AI消息内容 */}
                   <div className="relative group/message">
-                    <div className="text-gray-800 text-[15px] leading-relaxed whitespace-pre-wrap bg-gray-50 rounded-2xl rounded-tl-sm px-5 py-4">
+                    <div className="text-gray-800 text-[15px] leading-relaxed bg-gray-50 rounded-2xl rounded-tl-sm px-6 py-5 shadow-sm border border-gray-100/30">
                       {t.error ? (
                         <div className="bg-red-50 border border-red-100 rounded-xl p-4 text-red-700">
                           <div className="flex items-center gap-2 mb-2">
@@ -543,53 +547,47 @@ export function AnswerModal() {
                             <span className="font-medium">API调用失败</span>
                           </div>
                           <p className="text-sm">{t.error}</p>
-                          <p className="text-xs mt-2 text-red-500">
-                            提示: 点击"返回画布"仍可保存这个问题节点，稍后配置正确的API Key后可重新提问
-                          </p>
                         </div>
                       ) : t.assistant ? (
-                        <div className="prose prose-gray max-w-none">
-                          {t.assistant}
+                        <div className="prose prose-blue max-w-none prose-sm sm:prose-base prose-headings:font-bold prose-headings:text-gray-900 prose-p:text-gray-800 prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-code:text-blue-600 prose-code:bg-blue-50 prose-code:px-1 prose-code:rounded">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {t.assistant}
+                          </ReactMarkdown>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-2 text-gray-400">
-                          <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-                          <span>正在思考...</span>
+                        <div className="flex items-center gap-3 text-gray-400 py-2">
+                          <div className="w-4 h-4 border-2 border-blue-100 border-t-blue-500 rounded-full animate-spin" />
+                          <span className="text-sm font-medium animate-pulse">正在思考中...</span>
                         </div>
                       )}
                     </div>
 
-                    {/* 消息操作按钮 */}
+                    {/* 消息操作按钮 (右下角) */}
                     {t.assistant && !isStreaming && (
-                      <div className="absolute -bottom-8 left-0 flex items-center gap-1 opacity-0 group-hover/message:opacity-100 transition-opacity">
-                        {/* 复制按钮 */}
-                        <button
-                          onClick={() => handleCopyMessage(t.assistant, idx)}
-                          className="flex items-center gap-1 px-2 py-1 text-[11px] text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-all"
-                          title="复制回复"
-                        >
-                          {copiedIndex === idx ? (
-                            <>
-                              <CheckCircle2 className="w-3 h-3 text-green-500" />
-                              <span className="text-green-600">已复制</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3 h-3" />
-                              <span>复制</span>
-                            </>
-                          )}
-                        </button>
+                      <div className="absolute -bottom-2 -right-2 flex items-center gap-1 opacity-0 group-hover/message:opacity-100 transition-all duration-300 translate-y-1 group-hover/message:translate-y-0">
+                        <div className="flex bg-white/90 backdrop-blur-md rounded-xl shadow-lg border border-gray-100 p-0.5">
+                          {/* 复制按钮 */}
+                          <button
+                            onClick={() => handleCopyMessage(t.assistant, idx)}
+                            className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                            title="复制回复"
+                          >
+                            {copiedIndex === idx ? (
+                              <CheckCircle2 className="w-4 h-4 text-green-500" />
+                            ) : (
+                              <Copy className="w-4 h-4" />
+                            )}
+                          </button>
 
-                        {/* 重新生成按钮 */}
-                        <button
-                          onClick={() => handleRegenerate(idx)}
-                          className="flex items-center gap-1 px-2 py-1 text-[11px] text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all"
-                          title="重新生成"
-                        >
-                          <RefreshCw className="w-3 h-3" />
-                          <span>重新生成</span>
-                        </button>
+                          {/* 重新生成按钮 */}
+                          <button
+                            onClick={() => handleRegenerate(idx)}
+                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                            title="重新生成"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>

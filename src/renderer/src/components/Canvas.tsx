@@ -13,7 +13,10 @@ export function Canvas() {
   
   const canvasRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const dragStart = useRef({ x: 0, y: 0 })
+  const velocity = useRef({ x: 0, y: 0 })
+  const lastPos = useRef({ x: 0, y: 0 })
+  const animationFrameId = useRef<number | null>(null)
   
   // 侧边栏、搜索和设置面板状态
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
@@ -21,9 +24,31 @@ export function Canvas() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
+  // 惯性动画
+  const startInertia = useCallback(() => {
+    const damping = 0.95
+    const step = () => {
+      velocity.current.x *= damping
+      velocity.current.y *= damping
+
+      if (Math.abs(velocity.current.x) > 0.1 || Math.abs(velocity.current.y) > 0.1) {
+        setOffset({
+          x: useCanvasStore.getState().offset.x + velocity.current.x,
+          y: useCanvasStore.getState().offset.y + velocity.current.y
+        })
+        animationFrameId.current = requestAnimationFrame(step)
+      } else {
+        animationFrameId.current = null
+      }
+    }
+    animationFrameId.current = requestAnimationFrame(step)
+  }, [setOffset])
+
   // 滚轮缩放处理
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault() // 始终阻止默认滚动，支持两指缩放
+    if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current)
+    
     const delta = -e.deltaY
     const factor = Math.pow(1.002, delta) // 更细腻的缩放
     setScale(scale * factor)
@@ -33,23 +58,42 @@ export function Canvas() {
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     // 允许通过左键平移，或者空格+左键
     if (e.target === canvasRef.current || (e.target as HTMLElement).classList.contains('dot-grid')) {
+      if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current)
       setIsDragging(true)
-      setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y })
+      dragStart.current = { x: e.clientX - offset.x, y: e.clientY - offset.y }
+      lastPos.current = { x: e.clientX, y: e.clientY }
+      velocity.current = { x: 0, y: 0 }
     }
   }, [offset])
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (isDragging) {
+      const dx = e.clientX - lastPos.current.x
+      const dy = e.clientY - lastPos.current.y
+      
+      // 平滑速度计算 (加权平均)
+      velocity.current = {
+        x: velocity.current.x * 0.2 + dx * 0.8,
+        y: velocity.current.y * 0.2 + dy * 0.8
+      }
+      
+      lastPos.current = { x: e.clientX, y: e.clientY }
+      
       setOffset({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y
+        x: e.clientX - dragStart.current.x,
+        y: e.clientY - dragStart.current.y
       })
     }
-  }, [isDragging, dragStart, setOffset])
+  }, [isDragging, setOffset])
 
   const handleMouseUp = useCallback(() => {
-    setIsDragging(false)
-  }, [])
+    if (isDragging) {
+      setIsDragging(false)
+      if (Math.abs(velocity.current.x) > 2 || Math.abs(velocity.current.y) > 2) {
+        startInertia()
+      }
+    }
+  }, [isDragging, startInertia])
 
   // 处理手势缩放 (Touch)
   const touchStartDistRef = useRef<number | null>(null)
