@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useAI } from '../hooks/useAI'
 import { GrayHint } from './GrayHint'
-import type { PreferenceRule } from '@shared/types'
+import type { PreferenceRule, AIMessage } from '@shared/types'
 
 export function AnswerModal() {
   const { 
@@ -27,7 +27,7 @@ export function AnswerModal() {
   // AI Hook
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   
-  const { sendMessage } = useAI({
+  const { sendMessage, resetHistory } = useAI({
     onStream: (chunk) => {
       setResponse(prev => prev + chunk)
       setErrorMessage(null)
@@ -52,6 +52,8 @@ export function AnswerModal() {
   // 当模态框打开时，自动发送消息
   useEffect(() => {
     if (isModalOpen && currentConversation && !currentConversation.assistantMessage) {
+      // 新对话：重置历史并开始
+      resetHistory()
       setResponse('')
       setIsStreaming(true)
       setAppliedPreferences([])
@@ -61,7 +63,7 @@ export function AnswerModal() {
       const preferences = getPreferencesForPrompt()
       sendMessage(currentConversation.userMessage, preferences)
     }
-  }, [isModalOpen, currentConversation])
+  }, [isModalOpen, currentConversation, resetHistory, sendMessage, getPreferencesForPrompt])
 
   // 处理反馈输入
   const handleFeedbackChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -74,7 +76,7 @@ export function AnswerModal() {
     }
   }, [detectFeedback])
 
-  // 提交反馈
+  // 提交反馈（连续对话）
   const handleFeedbackSubmit = useCallback(async () => {
     if (!feedbackMessage.trim()) return
     
@@ -88,8 +90,23 @@ export function AnswerModal() {
     setDetectedPreference(null)
     
     const preferences = getPreferencesForPrompt()
-    sendMessage(currentConversation?.userMessage || '', preferences)
-  }, [feedbackMessage, detectedPreference, addPreference, currentConversation, getPreferencesForPrompt, sendMessage])
+    
+    // 构建对话历史，包含之前的问答
+    const history: AIMessage[] = []
+    if (currentConversation) {
+      // 添加之前的用户问题
+      history.push({ role: 'user', content: currentConversation.userMessage })
+      // 添加之前的 AI 回复（如果有）
+      if (response) {
+        history.push({ role: 'assistant', content: response })
+      }
+      // 添加用户的反馈/新要求
+      history.push({ role: 'user', content: feedbackMessage })
+    }
+    
+    // 发送包含历史的对话请求
+    sendMessage(feedbackMessage, preferences, history)
+  }, [feedbackMessage, detectedPreference, addPreference, currentConversation, getPreferencesForPrompt, sendMessage, response])
 
   // 关闭并保存（带平滑过渡）
   const handleClose = useCallback(async () => {

@@ -69,20 +69,20 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   // 添加节点
   addNode: async (conversation: Conversation, position?: NodePosition) => {
     const { nodes } = get()
-    
+
     // 生成标题（从用户消息提取前8个字符）
     const title = conversation.userMessage.slice(0, UI_CONFIG.NODE_TITLE_MAX_LENGTH)
-    
+
     // 生成关键词（简单实现：从AI回答中提取前3个有意义的词）
     const keywords = conversation.assistantMessage
       .split(/[\s,，.。!！?？;；]+/)
       .filter(word => word.length >= 2 && word.length <= 6)
       .slice(0, UI_CONFIG.NODE_KEYWORDS_COUNT)
-    
+
     // 计算位置（如果未指定，随机分布在画布中央区域）
     const x = position?.x ?? 100 + Math.random() * 200
     const y = position?.y ?? 100 + Math.random() * 200
-    
+
     const newNode: Node = {
       id: conversation.id,
       title,
@@ -92,10 +92,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       x,
       y
     }
-    
+
     const updatedNodes = [...nodes, newNode]
     set({ nodes: updatedNodes })
-    
+
     // 持久化
     await window.electronAPI.storage.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
   },
@@ -123,13 +123,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   endConversation: async (assistantMessage: string, appliedPreferences?: string[]) => {
     const { currentConversation, addNode, appendConversation } = get()
     if (!currentConversation) return
-    
+
     const updatedConversation: Conversation = {
       ...currentConversation,
       assistantMessage,
       appliedPreferences
     }
-    
+
     set({
       currentConversation: updatedConversation,
       isLoading: false
@@ -142,8 +142,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       await addNode(updatedConversation)
     } catch (error) {
       console.error('保存对话或节点失败:', error)
-      // TODO: 添加 UI 反馈（如 toast 通知）告知用户保存失败
-      // 暂时静默处理，避免阻塞用户操作流程
     }
   },
 
