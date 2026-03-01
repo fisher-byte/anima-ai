@@ -51,7 +51,7 @@ async function getApiKey(): Promise<string> {
     
     // 开发模式：从环境变量获取
     // @ts-ignore - Vite环境变量
-    const envKey = import.meta.env.VITE_API_KEY || ''
+    const envKey = import.meta.env.RENDERER_VITE_API_KEY || ''
     if (envKey) {
       API_CONFIG.API_KEY = envKey
       return envKey
