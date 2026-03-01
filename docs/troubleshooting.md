@@ -2,24 +2,28 @@
 
 ## 常见问题速查
 
-### 问题1: AI不回复/一直显示"等待AI回复"
+### 问题1: AI不回复/一直显示"等待AI回复" / API error: 400
 
-**症状**: 发送问题后，回答层显示"等待AI回复..."但无响应
+**症状**: 发送问题后，回答层显示"等待AI回复..."但无响应，或顶部提示 "API error: 400"。
 
 **排查步骤**:
 
-1. **检查API Key配置**
+1. **检查 Kimi 2.5 模型配置** (针对最新模型):
+   - **Temperature**: 必须设置为 `1.0`。Moonshot API 对 Kimi 2.5 有硬性校验。
+   - **Reasoning Content**: 在进行联网搜索工具调用时，必须提供非空的 `reasoning_content`。系统已自动填充占位符，请检查 `ai.ts` 逻辑。
+
+2. **检查API Key配置**
    ```bash
    cat .env
-   # 应该包含 EVOCANVAS_API_KEY 和 EVOCANVAS_API_URL
+   # 应该包含 RENDERER_VITE_API_KEY 和 RENDERER_VITE_API_URL
    ```
 
-2. **验证API连通性**
+3. **验证API连通性**
    ```bash
    curl -X POST https://api.moonshot.cn/v1/chat/completions \
-     -H "Authorization: Bearer $EVOCANVAS_API_KEY" \
+     -H "Authorization: Bearer $RENDERER_VITE_API_KEY" \
      -H "Content-Type: application/json" \
-     -d '{"model": "moonshot-v1-8k", "messages": [{"role": "user", "content": "测试"}]}'
+     -d '{"model": "kimi-k2.5", "messages": [{"role": "user", "content": "测试"}], "temperature": 1.0}'
    ```
 
 3. **检查控制台日志**

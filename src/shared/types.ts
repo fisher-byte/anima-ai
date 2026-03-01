@@ -85,8 +85,10 @@ export interface FeedbackTrigger {
  * AI消息类型
  */
 export interface AIMessage {
-  role: 'system' | 'user' | 'assistant'
+  role: 'system' | 'user' | 'assistant' | 'tool'
   content: string | any[] // 支持多模态内容数组
+  tool_calls?: any[]
+  tool_call_id?: string
 }
 
 /**

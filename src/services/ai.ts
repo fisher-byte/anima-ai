@@ -233,6 +233,8 @@ export async function* streamAI(
     }
 
     let fullContent = ''
+    let reasoningContent = ''
+    let toolCalls: any[] = []
     const decoder = new TextDecoder()
 
     while (true) {
@@ -254,10 +256,61 @@ export async function* streamAI(
 
           try {
             const parsed = JSON.parse(data)
-            const content = parsed.choices[0]?.delta?.content
-            if (content) {
-              fullContent += content
-              yield content
+            const delta = parsed.choices[0]?.delta
+            const finishReason = parsed.choices[0]?.finish_reason
+            
+            // 处理内容
+            if (delta?.content) {
+              fullContent += delta.content
+              yield delta.content
+            }
+
+            // 处理推理内容 (Kimi 2.5 Thinking)
+            if (delta?.reasoning_content) {
+              reasoningContent += delta.reasoning_content
+            }
+
+            // 处理工具调用
+            if (delta?.tool_calls) {
+              delta.tool_calls.forEach((tc: any) => {
+                const idx = tc.index
+                if (!toolCalls[idx]) {
+                  toolCalls[idx] = { id: tc.id, type: tc.type, function: { name: tc.function?.name, arguments: tc.function?.arguments || '' } }
+                } else {
+                  if (tc.function?.arguments) {
+                    toolCalls[idx].function.arguments += tc.function.arguments
+                  }
+                }
+              })
+            }
+
+            // 如果流结束且是工具调用，触发下一轮
+            if (finishReason === 'tool_calls' && toolCalls.length > 0) {
+              // 构造包含工具调用的消息
+              const assistantMessage: any = {
+                role: 'assistant',
+                content: fullContent || '',
+                tool_calls: toolCalls,
+                // Kimi 2.5 要求在 tool call 轮次也提供 reasoning_content
+                // 若模型未返回 reasoning_content，则填充最小非空占位避免 400
+                reasoning_content: reasoningContent || 'web_search'
+              }
+
+              // 构造对应的工具返回消息（针对 $web_search，Kimi 需要一个 tool 消息）
+              const toolMessages: AIMessage[] = toolCalls.map(tc => ({
+                role: 'tool',
+                tool_call_id: tc.id,
+                content: tc.function.arguments // 传回 Kimi 刚才给的参数（包含 search_id）
+              } as any))
+
+              // 递归调用下一轮
+              const nextMessages = [...messages, assistantMessage, ...toolMessages]
+              for await (const nextChunk of streamAI(nextMessages, preferences, signal)) {
+                yield nextChunk
+                if (typeof nextChunk === 'string') {
+                  fullContent += nextChunk
+                }
+              }
             }
           } catch (e) {
             // 忽略解析错误

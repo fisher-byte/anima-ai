@@ -45,6 +45,11 @@ interface CanvasState {
   
   // 方法：对话记录
   appendConversation: (conversation: Conversation) => Promise<void>
+  
+  // 新增：全局对话历史管理，解决模态框关闭后丢失上下文的问题
+  conversationHistory: import('@shared/types').AIMessage[]
+  setConversationHistory: (history: import('@shared/types').AIMessage[]) => void
+  resetConversationHistory: () => void
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
@@ -56,6 +61,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   isLoading: false,
   offset: { x: 0, y: 0 },
   scale: 1,
+  conversationHistory: [],
+
+  setConversationHistory: (history) => set({ conversationHistory: history }),
+  resetConversationHistory: () => set({ conversationHistory: [] }),
 
   setOffset: (offset) => set({ offset }),
   setScale: (scale) => set({ scale: Math.max(0.2, Math.min(3, scale)) }),
