@@ -287,7 +287,7 @@ export async function* streamAI(
             // 如果流结束且是工具调用，触发下一轮
             if (finishReason === 'tool_calls' && toolCalls.length > 0) {
               // 构造包含工具调用的消息
-              const assistantMessage: any = {
+              const assistantMessage: AIMessage = {
                 role: 'assistant',
                 content: fullContent || '',
                 tool_calls: toolCalls,
@@ -300,8 +300,8 @@ export async function* streamAI(
               const toolMessages: AIMessage[] = toolCalls.map(tc => ({
                 role: 'tool',
                 tool_call_id: tc.id,
-                content: tc.function.arguments // 传回 Kimi 刚才给的参数（包含 search_id）
-              } as any))
+                content: tc.function.arguments // 传回 Kimi 刚才给 of 的参数（包含 search_id）
+              }))
 
               // 递归调用下一轮
               const nextMessages = [...messages, assistantMessage, ...toolMessages]
