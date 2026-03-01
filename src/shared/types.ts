@@ -31,6 +31,18 @@ export interface Edge {
 }
 
 /**
+ * 文件附件
+ */
+export interface FileAttachment {
+  id: string
+  name: string
+  type: string
+  size: number
+  content?: string  // 解析后的文本内容（用于文档）
+  preview?: string  // 预览图（用于图片）
+}
+
+/**
  * 对话记录
  */
 export interface Conversation {
@@ -38,7 +50,8 @@ export interface Conversation {
   createdAt: string
   userMessage: string
   assistantMessage: string
-  images?: string[]  // 支持图片 base64 列表
+  images?: string[]  // 支持图片 base64 列表（向后兼容）
+  files?: FileAttachment[]  // 文件附件列表
   negativeFeedback?: string
   appliedPreferences?: string[]
 }

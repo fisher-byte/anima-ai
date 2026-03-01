@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Send, CheckCircle2, Edit3, Globe } from 'lucide-react'
+import { Sparkles, Send, CheckCircle2, Edit3, Globe, Copy, RefreshCw, Square, Paperclip } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useAI } from '../hooks/useAI'
 import { GrayHint } from './GrayHint'
@@ -10,15 +10,16 @@ type Turn = {
   user: string
   assistant: string
   images?: string[]
+  files?: import('@shared/types').FileAttachment[]
   error?: string
 }
 
-function parseTurnsFromAssistantMessage(message: string, initialImages?: string[]): Turn[] | null {
+function parseTurnsFromAssistantMessage(message: string, initialImages?: string[], initialFiles?: import('@shared/types').FileAttachment[]): Turn[] | null {
   if (!message) return null
-  
+
   // 兼容旧格式或单次回答
   if (!message.includes('#1\n')) {
-    return [{ user: '', assistant: message, images: initialImages }]
+    return [{ user: '', assistant: message, images: initialImages, files: initialFiles }]
   }
 
   const turns: Turn[] = []
@@ -29,13 +30,14 @@ function parseTurnsFromAssistantMessage(message: string, initialImages?: string[
     const userContent = match[2].trim()
     const aiContent = match[3].trim()
     const index = parseInt(match[1])
-    
+
     if (userContent || aiContent) {
-      turns.push({ 
-        user: userContent, 
+      turns.push({
+        user: userContent,
         assistant: aiContent,
-        // 只有第一轮显示初始图片
-        images: index === 1 ? initialImages : undefined
+        // 只有第一轮显示初始文件
+        images: index === 1 ? initialImages : undefined,
+        files: index === 1 ? initialFiles : undefined
       })
     }
   }
@@ -44,17 +46,17 @@ function parseTurnsFromAssistantMessage(message: string, initialImages?: string[
 }
 
 export function AnswerModal() {
-  const { 
-    isModalOpen, 
-    currentConversation, 
-    closeModal, 
+  const {
+    isModalOpen,
+    currentConversation,
+    closeModal,
     endConversation,
     detectFeedback,
     addPreference,
     getPreferencesForPrompt,
     getRelevantMemories
   } = useCanvasStore()
-  
+
   const [turns, setTurns] = useState<Turn[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [feedbackMessage, setFeedbackMessage] = useState('')
@@ -63,10 +65,13 @@ export function AnswerModal() {
   const [relevantMemories, setRelevantMemories] = useState<Conversation[]>([])
   const [appliedPreferences, setAppliedPreferences] = useState<string[]>([])
   const [isClosing, setIsClosing] = useState(false)
-  
+
   // 编辑相关状态
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [editingContent, setEditingContent] = useState('')
+
+  // 复制提示状态
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -76,10 +81,10 @@ export function AnswerModal() {
 
   // AI Hook
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  
+
   const hasAnyAnswer = useMemo(() => turns.some(t => !!t.assistant || !!t.error), [turns])
 
-  const { sendMessage, resetHistory } = useAI({
+  const { sendMessage, resetHistory, cancel } = useAI({
     onStream: (chunk) => {
       setTurns(prev => {
         if (prev.length === 0) return prev
@@ -99,7 +104,7 @@ export function AnswerModal() {
       didMutateRef.current = true
       const prefs = getPreferencesForPrompt()
       setAppliedPreferences(prefs)
-      
+
       if (prefs.length >= 2 && !isReplayRef.current) {
         setShowEvolutionToast(true)
         setTimeout(() => setShowEvolutionToast(false), 4000)
@@ -116,6 +121,11 @@ export function AnswerModal() {
         next[next.length - 1] = { ...last, assistant: '', error }
         return next
       })
+    },
+    onStopped: () => {
+      setIsStreaming(false)
+      setErrorMessage('生成已停止')
+      didMutateRef.current = true
     }
   })
 
@@ -127,11 +137,16 @@ export function AnswerModal() {
       if (currentConversation.assistantMessage) {
         isReplayRef.current = true
         didMutateRef.current = false
-        const parsedTurns = parseTurnsFromAssistantMessage(currentConversation.assistantMessage, currentConversation.images)
-        setTurns(parsedTurns ?? [{ 
-          user: currentConversation.userMessage, 
+        const parsedTurns = parseTurnsFromAssistantMessage(
+          currentConversation.assistantMessage,
+          currentConversation.images,
+          currentConversation.files
+        )
+        setTurns(parsedTurns ?? [{
+          user: currentConversation.userMessage,
           assistant: currentConversation.assistantMessage,
-          images: currentConversation.images
+          images: currentConversation.images,
+          files: currentConversation.files
         }])
         setIsStreaming(false)
         setErrorMessage(null)
@@ -146,7 +161,12 @@ export function AnswerModal() {
       isReplayRef.current = false
       didMutateRef.current = false
       resetHistory()
-      setTurns([{ user: currentConversation.userMessage, assistant: '', images: currentConversation.images }])
+      setTurns([{
+        user: currentConversation.userMessage,
+        assistant: '',
+        images: currentConversation.images,
+        files: currentConversation.files
+      }])
       setIsStreaming(true)
       setAppliedPreferences([])
       setFeedbackMessage('')
@@ -170,14 +190,14 @@ export function AnswerModal() {
 
   const handleSaveEdit = async () => {
     if (editingIndex === null || !currentConversation) return
-    
+
     const newContent = editingContent.trim()
     if (!newContent) return
 
     // 截断对话历史到当前轮次
     const previousTurns = turns.slice(0, editingIndex)
     const currentTurn = turns[editingIndex]
-    
+
     // 构造新的历史供 AI 使用
     const history = previousTurns.flatMap(t => [
       { role: 'user' as const, content: t.user },
@@ -185,7 +205,12 @@ export function AnswerModal() {
     ])
 
     // 更新界面状态
-    const newTurns = [...previousTurns, { user: newContent, assistant: '', images: currentTurn.images }]
+    const newTurns = [...previousTurns, {
+      user: newContent,
+      assistant: '',
+      images: currentTurn.images,
+      files: currentTurn.files
+    }]
     setTurns(newTurns)
     setEditingIndex(null)
     setIsStreaming(true)
@@ -196,11 +221,54 @@ export function AnswerModal() {
     sendMessage(newContent, preferences, history, currentTurn.images)
   }
 
+  // 处理停止生成
+  const handleStopGeneration = useCallback(() => {
+    cancel()
+  }, [cancel])
+
+  // 处理重新生成
+  const handleRegenerate = useCallback(async (index: number) => {
+    if (!currentConversation) return
+
+    const previousTurns = turns.slice(0, index)
+    const currentTurn = turns[index]
+
+    // 构造历史
+    const history = previousTurns.flatMap(t => [
+      { role: 'user' as const, content: t.user },
+      { role: 'assistant' as const, content: t.assistant }
+    ])
+
+    // 清空当前回答并重新生成
+    const newTurns = [...previousTurns, {
+      user: currentTurn.user,
+      assistant: '',
+      images: currentTurn.images,
+      files: currentTurn.files
+    }]
+    setTurns(newTurns)
+    setIsStreaming(true)
+
+    const preferences = getPreferencesForPrompt()
+    sendMessage(currentTurn.user, preferences, history, currentTurn.images)
+  }, [turns, currentConversation, sendMessage, getPreferencesForPrompt])
+
+  // 处理复制消息
+  const handleCopyMessage = useCallback(async (text: string, index: number) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedIndex(index)
+      setTimeout(() => setCopiedIndex(null), 2000)
+    } catch (err) {
+      console.error('复制失败:', err)
+    }
+  }, [])
+
   // 处理反馈输入
   const handleFeedbackChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value
     setFeedbackMessage(value)
-    
+
     const detected = detectFeedback(value)
     if (detected) {
       setDetectedPreference(detected)
@@ -210,16 +278,16 @@ export function AnswerModal() {
   // 提交反馈（连续对话）
   const handleFeedbackSubmit = useCallback(async () => {
     if (!feedbackMessage.trim()) return
-    
+
     if (detectedPreference) {
       await addPreference(detectedPreference)
       setShowEvolutionToast(true)
       setTimeout(() => setShowEvolutionToast(false), 3000)
     }
-    
+
     setIsStreaming(true)
     setDetectedPreference(null)
-    
+
     const preferences = getPreferencesForPrompt()
 
     // 连续对话：useAI 内部会保留历史，这里直接追加新一句即可
@@ -232,10 +300,10 @@ export function AnswerModal() {
   // 关闭并保存（带平滑过渡）
   const handleClose = useCallback(async () => {
     setIsClosing(true)
-    
+
     // 等待动画完成
     await new Promise(resolve => setTimeout(resolve, 300))
-    
+
     const shouldSave = !!currentConversation && (!isReplayRef.current || didMutateRef.current)
 
     // 仅在“新对话或确实产生了新内容”时保存，避免回放重复建节点
@@ -255,7 +323,7 @@ export function AnswerModal() {
         // 可以在这里添加 toast 提示，但目前保持静默失败
       })
     }
-    
+
     // 重置状态
     setTurns([])
     setErrorMessage(null)
@@ -284,7 +352,7 @@ export function AnswerModal() {
   if (!isModalOpen) return null
 
   return (
-    <div 
+    <div
       className={`fixed inset-0 z-50 bg-white transition-all duration-300 ease-out ${
         isClosing ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0'
       }`}
@@ -295,11 +363,11 @@ export function AnswerModal() {
           onClick={handleClose}
           className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all duration-200 group"
         >
-          <svg 
-            className="w-5 h-5 transform group-hover:-translate-x-1 transition-transform" 
-            viewBox="0 0 24 24" 
-            fill="none" 
-            stroke="currentColor" 
+          <svg
+            className="w-5 h-5 transform group-hover:-translate-x-1 transition-transform"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
             strokeWidth="2"
           >
             <line x1="19" y1="12" x2="5" y2="12" />
@@ -307,7 +375,7 @@ export function AnswerModal() {
           </svg>
           <span className="text-sm font-medium">返回画布</span>
         </button>
-        
+
         {/* 标题 */}
         <div className="absolute left-1/2 transform -translate-x-1/2 text-sm text-gray-500">
           {errorMessage ? (
@@ -335,12 +403,12 @@ export function AnswerModal() {
       </div>
 
       {/* 对话内容区 */}
-      <div 
+      <div
         ref={scrollRef}
         className="h-full overflow-y-auto pt-16 pb-48"
       >
         <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
-          
+
           {turns.map((t, idx) => (
             <div key={idx} className="space-y-4 group/turn">
               {/* 用户消息 */}
@@ -354,12 +422,32 @@ export function AnswerModal() {
                       ))}
                     </div>
                   )}
-                  
+
+                  {/* 文件展示 */}
+                  {t.files && t.files.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-1 justify-end">
+                      {t.files.map((file, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100 text-xs"
+                        >
+                          <Paperclip className="w-3 h-3 text-blue-500" />
+                          <span className="text-blue-700 font-medium">{file.name}</span>
+                          {file.content && (
+                            <span className="text-blue-400">
+                              ({file.content.length > 1000 ? `${(file.content.length / 1000).toFixed(1)}k` : file.content.length} 字符)
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {/* 文字气泡 */}
                   <div className="relative group/bubble flex items-center gap-2">
                     {/* 编辑按钮（仅非流式且悬停时显示） */}
                     {!isStreaming && editingIndex !== idx && (
-                      <button 
+                      <button
                         onClick={() => handleStartEdit(idx, t.user)}
                         className="opacity-0 group-hover/bubble:opacity-100 p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
                         title="编辑消息"
@@ -379,13 +467,13 @@ export function AnswerModal() {
                             autoFocus
                           />
                           <div className="flex justify-end gap-2">
-                            <button 
+                            <button
                               onClick={() => setEditingIndex(null)}
                               className="px-3 py-1 text-xs text-gray-500 hover:bg-gray-200 rounded-md transition-colors"
                             >
                               取消
                             </button>
-                            <button 
+                            <button
                               onClick={handleSaveEdit}
                               className="px-3 py-1 text-xs bg-blue-600 text-white hover:bg-blue-700 rounded-md transition-colors shadow-sm"
                             >
@@ -420,30 +508,66 @@ export function AnswerModal() {
                   </div>
 
                   {/* AI消息内容 */}
-                  <div className="text-gray-800 text-[15px] leading-relaxed whitespace-pre-wrap">
-                    {t.error ? (
-                      <div className="bg-red-50 border border-red-100 rounded-xl p-4 text-red-700">
-                        <div className="flex items-center gap-2 mb-2">
-                          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="12" cy="12" r="10" />
-                            <line x1="12" y1="8" x2="12" y2="12" />
-                            <line x1="12" y1="16" x2="12.01" y2="16" />
-                          </svg>
-                          <span className="font-medium">API调用失败</span>
+                  <div className="relative group/message">
+                    <div className="text-gray-800 text-[15px] leading-relaxed whitespace-pre-wrap bg-gray-50 rounded-2xl rounded-tl-sm px-5 py-4">
+                      {t.error ? (
+                        <div className="bg-red-50 border border-red-100 rounded-xl p-4 text-red-700">
+                          <div className="flex items-center gap-2 mb-2">
+                            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <circle cx="12" cy="12" r="10" />
+                              <line x1="12" y1="8" x2="12" y2="12" />
+                              <line x1="12" y1="16" x2="12.01" y2="16" />
+                            </svg>
+                            <span className="font-medium">API调用失败</span>
+                          </div>
+                          <p className="text-sm">{t.error}</p>
+                          <p className="text-xs mt-2 text-red-500">
+                            提示: 点击"返回画布"仍可保存这个问题节点，稍后配置正确的API Key后可重新提问
+                          </p>
                         </div>
-                        <p className="text-sm">{t.error}</p>
-                        <p className="text-xs mt-2 text-red-500">
-                          提示: 点击"返回画布"仍可保存这个问题节点，稍后配置正确的API Key后可重新提问
-                        </p>
-                      </div>
-                    ) : t.assistant ? (
-                      <div className="prose prose-gray max-w-none">
-                        {t.assistant}
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 text-gray-400">
-                        <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-                        <span>正在思考...</span>
+                      ) : t.assistant ? (
+                        <div className="prose prose-gray max-w-none">
+                          {t.assistant}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-gray-400">
+                          <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                          <span>正在思考...</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 消息操作按钮 */}
+                    {t.assistant && !isStreaming && (
+                      <div className="absolute -bottom-8 left-0 flex items-center gap-1 opacity-0 group-hover/message:opacity-100 transition-opacity">
+                        {/* 复制按钮 */}
+                        <button
+                          onClick={() => handleCopyMessage(t.assistant, idx)}
+                          className="flex items-center gap-1 px-2 py-1 text-[11px] text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-all"
+                          title="复制回复"
+                        >
+                          {copiedIndex === idx ? (
+                            <>
+                              <CheckCircle2 className="w-3 h-3 text-green-500" />
+                              <span className="text-green-600">已复制</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3 h-3" />
+                              <span>复制</span>
+                            </>
+                          )}
+                        </button>
+
+                        {/* 重新生成按钮 */}
+                        <button
+                          onClick={() => handleRegenerate(idx)}
+                          className="flex items-center gap-1 px-2 py-1 text-[11px] text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all"
+                          title="重新生成"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          <span>重新生成</span>
+                        </button>
                       </div>
                     )}
                   </div>
@@ -458,10 +582,10 @@ export function AnswerModal() {
                   {/* 记忆加载提示 */}
                   {idx === 0 && relevantMemories.length > 0 && !isStreaming && (
                     <div className="pt-2">
-                      <GrayHint 
-                        preferences={[]} 
-                        type="memory" 
-                        message={`已联结关于 "${relevantMemories[0].userMessage.slice(0, 10)}..." 的历史记忆`} 
+                      <GrayHint
+                        preferences={[]}
+                        type="memory"
+                        message={`已联结关于 "${relevantMemories[0].userMessage.slice(0, 10)}..." 的历史记忆`}
                       />
                     </div>
                   )}
@@ -478,7 +602,7 @@ export function AnswerModal() {
         <div className="max-w-3xl mx-auto px-4 py-6">
           <AnimatePresence>
             {!isStreaming && hasAnyAnswer && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
@@ -486,7 +610,7 @@ export function AnswerModal() {
               >
                 {/* 进化提示（极其微弱的告知） */}
                 {showEvolutionToast && (
-                  <motion.div 
+                  <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
@@ -521,10 +645,10 @@ export function AnswerModal() {
                     <Send className="w-4 h-4" />
                   </button>
                 </div>
-                
+
                 {/* 自动学习提示 */}
                 {detectedPreference && (
-                  <motion.div 
+                  <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     className="flex items-center justify-center gap-2 text-[11px] text-gray-400"
@@ -535,8 +659,22 @@ export function AnswerModal() {
                 )}
               </motion.div>
             )}
+
+            {/* 停止生成按钮 */}
+            {isStreaming && (
+              <motion.button
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                onClick={handleStopGeneration}
+                className="flex items-center gap-2 mx-auto px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full text-sm font-medium transition-all"
+              >
+                <Square className="w-4 h-4 fill-current" />
+                停止生成
+              </motion.button>
+            )}
           </AnimatePresence>
-          
+
           <div className="mt-4 flex items-center justify-between text-[10px] text-gray-300 uppercase tracking-widest font-medium">
             <span>ESC BACK</span>
             <span>ENTER SEND</span>

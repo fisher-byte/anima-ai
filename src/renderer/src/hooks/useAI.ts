@@ -6,6 +6,7 @@ interface UseAIOptions {
   onStream?: (chunk: string) => void
   onComplete?: (fullText: string) => void
   onError?: (error: string) => void
+  onStopped?: () => void
 }
 
 export function useAI(options: UseAIOptions = {}) {
@@ -23,15 +24,20 @@ export function useAI(options: UseAIOptions = {}) {
    * @param userMessage 用户消息
    * @param preferences 偏好设置
    * @param history 可选的历史对话记录（用于连续对话）
+   * @param images 图片列表（多模态）
    */
   const sendMessage = useCallback(async (
     userMessage: string,
     preferences: string[] = [],
     history?: AIMessage[],
-    images: string[] = [] // 新增图片参数
+    images: string[] = []
   ) => {
+    // 创建新的 AbortController
+    abortControllerRef.current = new AbortController()
+    const signal = abortControllerRef.current.signal
+
     // 如果有图片，构造多模态内容数组
-    const userContent = images.length > 0 
+    const userContent = images.length > 0
       ? [
           { type: 'text', text: userMessage },
           ...images.map(img => ({
@@ -46,10 +52,10 @@ export function useAI(options: UseAIOptions = {}) {
     // 添加当前用户消息
     messages.push({ role: 'user', content: userContent as any })
 
+    let fullText = ''
+
     try {
-      let fullText = ''
-      
-      for await (const chunk of streamAI(messages, preferences)) {
+      for await (const chunk of streamAI(messages, preferences, signal)) {
         if (typeof chunk === 'string') {
           fullText += chunk
           callbacksRef.current.onStream?.(chunk)
@@ -66,8 +72,24 @@ export function useAI(options: UseAIOptions = {}) {
       return fullText
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+
+      // 如果是用户主动停止，不调用 onError
+      if (errorMessage === '生成已停止') {
+        // 保存已生成的部分回复
+        if (fullText) {
+          conversationHistoryRef.current = [
+            ...messages,
+            { role: 'assistant', content: fullText }
+          ]
+        }
+        callbacksRef.current.onStopped?.()
+        return fullText
+      }
+
       callbacksRef.current.onError?.(errorMessage)
       return ''
+    } finally {
+      abortControllerRef.current = null
     }
   }, [])
 
@@ -91,7 +113,7 @@ export function useAI(options: UseAIOptions = {}) {
 
     try {
       const response = await callAI(messages, preferences)
-      
+
       if (response.error) {
         callbacksRef.current.onError?.(response.error)
         return ''
@@ -110,13 +132,23 @@ export function useAI(options: UseAIOptions = {}) {
    * 取消当前请求
    */
   const cancel = useCallback(() => {
-    abortControllerRef.current?.abort()
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+  }, [])
+
+  /**
+   * 检查是否正在生成中
+   */
+  const isGenerating = useCallback(() => {
+    return abortControllerRef.current !== null
   }, [])
 
   return {
     sendMessage,
     sendMessageSync,
     cancel,
-    resetHistory
+    resetHistory,
+    isGenerating
   }
 }

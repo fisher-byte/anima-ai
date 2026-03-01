@@ -22,7 +22,9 @@
     "electron-updater": "^6.1.7",
     "framer-motion": "^12.34.3",
     "lucide-react": "^0.575.0",
+    "mammoth": "^1.11.0",
     "openai": "^4.28.4",
+    "pdfjs-dist": "^5.4.624",
     "zustand": "^4.5.2"
   },
   "devDependencies": {

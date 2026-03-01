@@ -30,7 +30,7 @@ interface CanvasState {
   setScale: (scale: number) => void
   focusNode: (id: string) => void
   resetView: () => void
-  startConversation: (userMessage: string, images?: string[]) => void
+  startConversation: (userMessage: string, images?: string[], files?: import('@shared/types').FileAttachment[]) => void
   updateConversation: (conversationId: string, updates: Partial<Conversation>) => Promise<void>
   endConversation: (assistantMessage: string, appliedPreferences?: string[]) => Promise<void>
   closeModal: () => void
@@ -365,13 +365,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   // 开始对话
-  startConversation: (userMessage: string, images?: string[]) => {
+  startConversation: (userMessage: string, images?: string[], files?: import('@shared/types').FileAttachment[]) => {
     const conversation: Conversation = {
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
       userMessage,
       assistantMessage: '',
-      images: images || []
+      images: images || [],
+      files: files || []
     }
     set({ currentConversation: conversation, isModalOpen: true, isLoading: true })
   },
