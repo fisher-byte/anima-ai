@@ -59,7 +59,8 @@ export function AnswerModal() {
     addPreference,
     getPreferencesForPrompt,
     getRelevantMemories,
-    setConversationHistory
+    setConversationHistory,
+    startConversation
   } = useCanvasStore()
 
   const [turns, setTurns] = useState<Turn[]>([])
@@ -471,26 +472,26 @@ export function AnswerModal() {
 
                   {/* 文字气泡 */}
                   <div className="relative group/bubble flex items-end gap-2">
-                    <div className="bg-blue-600 rounded-2xl rounded-tr-sm px-5 py-3.5 text-white text-[15px] leading-relaxed shadow-sm">
+                    <div className="bg-gray-100 rounded-2xl rounded-tr-sm px-5 py-3.5 text-gray-800 text-[15px] leading-relaxed shadow-sm border border-gray-200/50">
                       {editingIndex === idx ? (
                         <div className="flex flex-col gap-3 min-w-[300px]">
                           <textarea
                             value={editingContent}
                             onChange={(e) => setEditingContent(e.target.value)}
-                            className="w-full bg-white/10 border border-white/20 rounded-xl p-3 text-[15px] outline-none focus:ring-2 focus:ring-white/30 text-white placeholder-white/50"
+                            className="w-full bg-white border border-gray-200 rounded-xl p-3 text-[15px] outline-none focus:ring-2 focus:ring-blue-100 text-gray-800 placeholder-gray-400"
                             rows={3}
                             autoFocus
                           />
                           <div className="flex justify-end gap-2">
                             <button
                               onClick={() => setEditingIndex(null)}
-                              className="px-4 py-1.5 text-xs text-white/70 hover:bg-white/10 rounded-lg transition-colors"
+                              className="px-4 py-1.5 text-xs text-gray-500 hover:bg-gray-200 rounded-lg transition-colors"
                             >
                               取消
                             </button>
                             <button
                               onClick={handleSaveEdit}
-                              className="px-4 py-1.5 text-xs bg-white text-blue-600 font-bold hover:bg-blue-50 rounded-lg transition-colors shadow-md"
+                              className="px-4 py-1.5 text-xs bg-gray-900 text-white font-bold hover:bg-black rounded-lg transition-colors shadow-md"
                             >
                               保存并重新发送
                             </button>
@@ -549,7 +550,15 @@ export function AnswerModal() {
                           <p className="text-sm">{t.error}</p>
                         </div>
                       ) : t.assistant ? (
-                        <div className="prose prose-blue max-w-none prose-sm sm:prose-base prose-headings:font-bold prose-headings:text-gray-900 prose-p:text-gray-800 prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-code:text-blue-600 prose-code:bg-blue-50 prose-code:px-1 prose-code:rounded">
+                        <div className="prose prose-slate max-w-none prose-sm sm:prose-base 
+                          prose-headings:font-bold prose-headings:text-gray-900 
+                          prose-p:text-gray-800 prose-p:leading-relaxed
+                          prose-pre:bg-gray-900 prose-pre:text-gray-100 
+                          prose-code:text-blue-600 prose-code:bg-blue-50 prose-code:px-1 prose-code:rounded
+                          prose-table:border-collapse prose-table:w-full prose-table:my-4
+                          prose-th:border prose-th:border-gray-200 prose-th:bg-gray-50 prose-th:px-4 prose-th:py-2 prose-th:text-left
+                          prose-td:border prose-td:border-gray-200 prose-td:px-4 prose-td:py-2
+                          prose-img:rounded-xl prose-img:shadow-md">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>
                             {t.assistant}
                           </ReactMarkdown>
@@ -586,6 +595,20 @@ export function AnswerModal() {
                             title="重新生成"
                           >
                             <RefreshCw className="w-4 h-4" />
+                          </button>
+
+                          {/* 分支按钮 (新增) */}
+                          <button
+                            onClick={() => {
+                              const userMsg = window.prompt('输入新分支的起始消息：', t.user)
+                              if (userMsg && currentConversation) {
+                                startConversation(userMsg, t.images, t.files, currentConversation.id)
+                              }
+                            }}
+                            className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all"
+                            title="从此消息开启新分支"
+                          >
+                            <Sparkles className="w-4 h-4" />
                           </button>
                         </div>
                       </div>

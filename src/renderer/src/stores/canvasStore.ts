@@ -30,7 +30,7 @@ interface CanvasState {
   setScale: (scale: number) => void
   focusNode: (id: string) => void
   resetView: () => void
-  startConversation: (userMessage: string, images?: string[], files?: import('@shared/types').FileAttachment[]) => void
+  startConversation: (userMessage: string, images?: string[], files?: import('@shared/types').FileAttachment[], parentId?: string) => void
   updateConversation: (conversationId: string, updates: Partial<Conversation>) => Promise<void>
   endConversation: (assistantMessage: string, appliedPreferences?: string[]) => Promise<void>
   closeModal: () => void
@@ -280,10 +280,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       keywords,
       date: new Date().toISOString().split('T')[0],
       conversationId: conversation.id,
+      parentId: conversation.parentId, // 保存父节点 ID
       x: x!,
       y: y!,
       category,
-      color
+      color,
+      groupId: conversation.parentId ? nodes.find(n => n.id === conversation.parentId)?.groupId : undefined
     }
 
     const existingIndex = nodes.findIndex(n => n.id === conversation.id)
@@ -307,29 +309,43 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     await window.electronAPI.storage.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
   },
 
-  // 更新连线逻辑 (板块化连线)
+  // 更新连线逻辑 (优先基于分支关系，其次基于板块)
   updateEdges: () => {
     const { nodes } = get()
     const newEdges: Edge[] = []
+    const connectedNodeIds = new Set<string>()
     
-    // 按类别分组
+    // 1. 基于 parentId 的分支连线 (树状结构)
+    nodes.forEach(node => {
+      if (node.parentId) {
+        const parentNode = nodes.find(n => n.id === node.parentId)
+        if (parentNode) {
+          newEdges.push({
+            id: `edge-branch-${parentNode.id}-${node.id}`,
+            source: parentNode.id,
+            target: node.id,
+            createdAt: new Date().toISOString()
+          })
+          connectedNodeIds.add(node.id)
+        }
+      }
+    })
+    
+    // 2. 按类别分组的板块连线 (星型拓扑 - 仅针对没有父节点的根节点)
     const categories = new Map<string, Node[]>()
     nodes.forEach(n => {
+      if (connectedNodeIds.has(n.id)) return // 已经有分支连线的不再参与板块星型连线
       const cat = n.category || '其他'
       if (!categories.has(cat)) categories.set(cat, [])
       categories.get(cat)!.push(n)
     })
     
-    // 在同类别内建立连线（形成连通分量或星型拓扑）
     categories.forEach((catNodes) => {
       if (catNodes.length < 2) return
-      
-      // 简单实现：按时间顺序首尾相连，或者全都连向该类别的第一个节点
-      // 这里采用连向第一个节点（星型），视觉上更像“板块中心”
       const centerNode = catNodes[0]
       for (let i = 1; i < catNodes.length; i++) {
         newEdges.push({
-          id: `edge-${centerNode.id}-${catNodes[i].id}`,
+          id: `edge-cat-${centerNode.id}-${catNodes[i].id}`,
           source: centerNode.id,
           target: catNodes[i].id,
           createdAt: new Date().toISOString()
@@ -374,9 +390,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   // 开始对话
-  startConversation: (userMessage: string, images?: string[], files?: import('@shared/types').FileAttachment[]) => {
+  startConversation: (userMessage: string, images?: string[], files?: import('@shared/types').FileAttachment[], parentId?: string) => {
     const conversation: Conversation = {
       id: crypto.randomUUID(),
+      parentId, // 支持对话分支
       createdAt: new Date().toISOString(),
       userMessage,
       assistantMessage: '',

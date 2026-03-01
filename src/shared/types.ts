@@ -13,10 +13,12 @@ export interface Node {
   keywords: string[]
   date: string
   conversationId: string
+  parentId?: string // 冗余 parentId 以便快速绘制连线
   x: number
   y: number
   category?: string
   color?: string
+  groupId?: string // 支持节点分组
 }
 
 /**
@@ -47,6 +49,7 @@ export interface FileAttachment {
  */
 export interface Conversation {
   id: string
+  parentId?: string // 支持对话分支
   createdAt: string
   userMessage: string
   assistantMessage: string
