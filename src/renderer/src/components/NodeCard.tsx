@@ -14,6 +14,7 @@ export function NodeCard({ node }: NodeCardProps) {
   const dragStartRef = useRef({ x: 0, y: 0 })
   const mouseDownPosRef = useRef({ x: 0, y: 0 })
   const positionRef = useRef({ x: node.x, y: node.y })
+  const lastDragEndRef = useRef(0)
 
   // 同步外部坐标变更
   useEffect(() => {
@@ -27,12 +28,12 @@ export function NodeCard({ node }: NodeCardProps) {
     const dy = e.clientY - mouseDownPosRef.current.y
     const distance = Math.hypot(dx, dy)
 
-    if (!isDragging && distance > 5) {
+    if (!isDragging && distance > 10) {
       setIsDragging(true)
     }
 
     // 如果已经在拖拽，则更新位置
-    const currentIsDragging = isDragging || distance > 5
+    const currentIsDragging = isDragging || distance > 10
     if (currentIsDragging) {
       const newX = e.clientX - dragStartRef.current.x
       const newY = e.clientY - dragStartRef.current.y
@@ -52,6 +53,7 @@ export function NodeCard({ node }: NodeCardProps) {
     
     if (isDragging) {
       setIsDragging(false)
+      lastDragEndRef.current = Date.now()
       updateNodePosition(node.id, positionRef.current.x, positionRef.current.y)
     }
   }, [isDragging, node.id, updateNodePosition, handleGlobalMouseMove])
@@ -69,7 +71,7 @@ export function NodeCard({ node }: NodeCardProps) {
   }, [handleGlobalMouseMove, handleGlobalMouseUp])
 
   const handleClick = useCallback(() => {
-    if (isDragging) return
+    if (isDragging || Date.now() - lastDragEndRef.current < 200) return
     openModalById(node.conversationId)
   }, [node.conversationId, openModalById, isDragging])
 
