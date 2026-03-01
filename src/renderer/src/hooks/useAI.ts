@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { streamAI, callAI } from '../../../services/ai'
 import type { AIMessage } from '../../../shared/types'
+import { useCanvasStore } from '../stores/canvasStore'
 
 interface UseAIOptions {
   onStream?: (chunk: string) => void
@@ -12,8 +13,14 @@ interface UseAIOptions {
 export function useAI(options: UseAIOptions = {}) {
   const abortControllerRef = useRef<AbortController | null>(null)
   const callbacksRef = useRef<UseAIOptions>(options)
-  // 保存对话历史，用于连续对话
-  const conversationHistoryRef = useRef<AIMessage[]>([])
+  // 对话历史由 store 维护，这里通过 ref 做内存引用以适应 stream 逻辑
+  const { conversationHistory, setConversationHistory } = useCanvasStore()
+  const conversationHistoryRef = useRef<AIMessage[]>(conversationHistory)
+
+  // 同步 store 到 ref
+  useEffect(() => {
+    conversationHistoryRef.current = conversationHistory
+  }, [conversationHistory])
 
   useEffect(() => {
     callbacksRef.current = options
@@ -62,11 +69,17 @@ export function useAI(options: UseAIOptions = {}) {
         }
       }
 
-      // 保存到对话历史：用户消息 + AI回复
-      conversationHistoryRef.current = [
-        ...messages,
-        { role: 'assistant', content: fullText }
-      ]
+      // 保存到对话历史：用户消息 + AI回复（仅当回复非空时）
+      if (fullText) {
+        const nextHistory: AIMessage[] = [
+          ...messages,
+          { role: 'assistant', content: fullText }
+        ]
+        setConversationHistory(nextHistory)
+      } else {
+        // 如果回复为空，可能需要从历史中移除这一轮的用户消息，避免下一轮出错
+        setConversationHistory(messages.slice(0, -1))
+      }
 
       callbacksRef.current.onComplete?.(fullText)
       return fullText
@@ -77,10 +90,11 @@ export function useAI(options: UseAIOptions = {}) {
       if (errorMessage === '生成已停止') {
         // 保存已生成的部分回复
         if (fullText) {
-          conversationHistoryRef.current = [
+          const nextHistory: AIMessage[] = [
             ...messages,
             { role: 'assistant', content: fullText }
           ]
+          setConversationHistory(nextHistory)
         }
         callbacksRef.current.onStopped?.()
         return fullText
@@ -97,8 +111,8 @@ export function useAI(options: UseAIOptions = {}) {
    * 重置对话历史（新对话时调用）
    */
   const resetHistory = useCallback(() => {
-    conversationHistoryRef.current = []
-  }, [])
+    setConversationHistory([])
+  }, [setConversationHistory])
 
   /**
    * 发送消息并获取完整响应（非流式）

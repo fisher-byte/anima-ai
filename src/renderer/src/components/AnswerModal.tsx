@@ -54,7 +54,8 @@ export function AnswerModal() {
     detectFeedback,
     addPreference,
     getPreferencesForPrompt,
-    getRelevantMemories
+    getRelevantMemories,
+    setConversationHistory
   } = useCanvasStore()
 
   const [turns, setTurns] = useState<Turn[]>([])
@@ -142,16 +143,33 @@ export function AnswerModal() {
           currentConversation.images,
           currentConversation.files
         )
-        setTurns(parsedTurns ?? [{
+        const finalTurns = parsedTurns ?? [{
           user: currentConversation.userMessage,
           assistant: currentConversation.assistantMessage,
           images: currentConversation.images,
           files: currentConversation.files
-        }])
+        }]
+        setTurns(finalTurns)
+        
+        // --- 核心修复：回放时重建对话历史，支持后续对话继承上下文 ---
+        const history: AIMessage[] = []
+        finalTurns.forEach(t => {
+          if (t.user) history.push({ role: 'user', content: t.user })
+          if (t.assistant && !t.assistant.includes('[正在生成中...]') && !t.assistant.includes('[无回复]')) {
+            history.push({ role: 'assistant', content: t.assistant })
+          }
+        })
+        setConversationHistory(history)
+        
         setIsStreaming(false)
         setErrorMessage(null)
         setAppliedPreferences(currentConversation.appliedPreferences || [])
         startedConversationIdRef.current = currentConversation.id
+
+        // --- 核心修复：如果第一轮没有回复，自动触发重新生成 ---
+        if (finalTurns.length === 1 && (!finalTurns[0].assistant || finalTurns[0].assistant.includes('[正在生成中...]') || finalTurns[0].assistant.includes('[无回复]'))) {
+          handleRegenerate(0)
+        }
         return
       }
 
@@ -308,11 +326,15 @@ export function AnswerModal() {
 
     // 仅在“新对话或确实产生了新内容”时保存，避免回放重复建节点
     if (shouldSave && currentConversation) {
+      // 检查当前是否仍在流式传输中
+      const stillStreaming = isStreaming
+      
       const finalResponse =
         turns.length > 0
           ? turns
               .map((t, idx) => {
-                const a = t.error ? `[API错误: ${t.error}]` : (t.assistant || '[无回复]')
+                const isLastTurn = idx === turns.length - 1
+                const a = t.error ? `[API错误: ${t.error}]` : (t.assistant || (isLastTurn && stillStreaming ? '[正在生成中...]' : '[无回复]'))
                 return `#${idx + 1}\n用户：${t.user}\nAI：${a}`
               })
               .join('\n\n')
