@@ -157,7 +157,8 @@ export async function callAI(
  */
 export async function* streamAI(
   messages: AIMessage[],
-  preferences: string[] = []
+  preferences: string[] = [],
+  signal?: AbortSignal
 ): AsyncGenerator<string, AIResponse, unknown> {
   try {
     const apiKey = await getApiKey()
@@ -193,7 +194,18 @@ export async function* streamAI(
       body.tools = [{ type: 'builtin_function', function: { name: '$web_search' } }]
     }
 
-    const response = await fetchWithTimeout(
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.TIMEOUT)
+
+    // 如果有外部 signal，监听它
+    if (signal) {
+      signal.addEventListener('abort', () => {
+        controller.abort()
+        clearTimeout(timeoutId)
+      })
+    }
+
+    const response = await fetch(
       `${API_CONFIG.BASE_URL}/chat/completions`,
       {
         method: 'POST',
@@ -201,9 +213,12 @@ export async function* streamAI(
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`
         },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        signal: controller.signal
       }
     )
+
+    clearTimeout(timeoutId)
 
     if (!response.ok) {
       if (response.status === 401) {
@@ -221,6 +236,11 @@ export async function* streamAI(
     const decoder = new TextDecoder()
 
     while (true) {
+      // 检查是否被取消
+      if (signal?.aborted) {
+        throw new Error('生成已停止')
+      }
+
       const { done, value } = await reader.read()
       if (done) break
 
@@ -248,6 +268,9 @@ export async function* streamAI(
 
     return { content: fullContent }
   } catch (error) {
+    if (error instanceof Error && error.message === '生成已停止') {
+      throw error
+    }
     console.error('AI stream failed:', error)
     throw error instanceof Error ? error : new Error('Unknown error')
   }
