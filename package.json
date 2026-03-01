@@ -20,8 +20,10 @@
     "@electron-toolkit/utils": "^3.0.0",
     "electron-store": "^8.1.0",
     "electron-updater": "^6.1.7",
-    "zustand": "^4.5.2",
-    "openai": "^4.28.4"
+    "framer-motion": "^12.34.3",
+    "lucide-react": "^0.575.0",
+    "openai": "^4.28.4",
+    "zustand": "^4.5.2"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^2.0.0",

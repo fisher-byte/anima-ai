@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { streamAI, callAI } from '../../../services/ai'
 import type { AIMessage } from '../../../shared/types'
 
@@ -10,8 +10,13 @@ interface UseAIOptions {
 
 export function useAI(options: UseAIOptions = {}) {
   const abortControllerRef = useRef<AbortController | null>(null)
+  const callbacksRef = useRef<UseAIOptions>(options)
   // 保存对话历史，用于连续对话
   const conversationHistoryRef = useRef<AIMessage[]>([])
+
+  useEffect(() => {
+    callbacksRef.current = options
+  }, [options])
 
   /**
    * 发送消息并获取流式响应
@@ -35,7 +40,7 @@ export function useAI(options: UseAIOptions = {}) {
       for await (const chunk of streamAI(messages, preferences)) {
         if (typeof chunk === 'string') {
           fullText += chunk
-          options.onStream?.(chunk)
+          callbacksRef.current.onStream?.(chunk)
         }
       }
 
@@ -45,14 +50,14 @@ export function useAI(options: UseAIOptions = {}) {
         { role: 'assistant', content: fullText }
       ]
 
-      options.onComplete?.(fullText)
+      callbacksRef.current.onComplete?.(fullText)
       return fullText
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      options.onError?.(errorMessage)
+      callbacksRef.current.onError?.(errorMessage)
       return ''
     }
-  }, [options])
+  }, [])
 
   /**
    * 重置对话历史（新对话时调用）
@@ -76,18 +81,18 @@ export function useAI(options: UseAIOptions = {}) {
       const response = await callAI(messages, preferences)
       
       if (response.error) {
-        options.onError?.(response.error)
+        callbacksRef.current.onError?.(response.error)
         return ''
       }
 
-      options.onComplete?.(response.content)
+      callbacksRef.current.onComplete?.(response.content)
       return response.content
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      options.onError?.(errorMessage)
+      callbacksRef.current.onError?.(errorMessage)
       return ''
     }
-  }, [options])
+  }, [])
 
   /**
    * 取消当前请求
