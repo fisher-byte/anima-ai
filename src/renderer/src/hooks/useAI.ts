@@ -10,17 +10,24 @@ interface UseAIOptions {
 
 export function useAI(options: UseAIOptions = {}) {
   const abortControllerRef = useRef<AbortController | null>(null)
+  // 保存对话历史，用于连续对话
+  const conversationHistoryRef = useRef<AIMessage[]>([])
 
   /**
    * 发送消息并获取流式响应
+   * @param userMessage 用户消息
+   * @param preferences 偏好设置
+   * @param history 可选的历史对话记录（用于连续对话）
    */
   const sendMessage = useCallback(async (
     userMessage: string,
-    preferences: string[] = []
+    preferences: string[] = [],
+    history?: AIMessage[]
   ) => {
-    const messages: AIMessage[] = [
-      { role: 'user', content: userMessage }
-    ]
+    // 如果有外部传入的历史，使用它；否则使用内部保存的历史
+    const messages: AIMessage[] = history ? [...history] : [...conversationHistoryRef.current]
+    // 添加当前用户消息
+    messages.push({ role: 'user', content: userMessage })
 
     try {
       let fullText = ''
@@ -32,6 +39,12 @@ export function useAI(options: UseAIOptions = {}) {
         }
       }
 
+      // 保存到对话历史：用户消息 + AI回复
+      conversationHistoryRef.current = [
+        ...messages,
+        { role: 'assistant', content: fullText }
+      ]
+
       options.onComplete?.(fullText)
       return fullText
     } catch (error) {
@@ -40,6 +53,13 @@ export function useAI(options: UseAIOptions = {}) {
       return ''
     }
   }, [options])
+
+  /**
+   * 重置对话历史（新对话时调用）
+   */
+  const resetHistory = useCallback(() => {
+    conversationHistoryRef.current = []
+  }, [])
 
   /**
    * 发送消息并获取完整响应（非流式）
@@ -79,6 +99,7 @@ export function useAI(options: UseAIOptions = {}) {
   return {
     sendMessage,
     sendMessageSync,
-    cancel
+    cancel,
+    resetHistory
   }
 }
