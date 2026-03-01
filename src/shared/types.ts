@@ -15,6 +15,8 @@ export interface Node {
   conversationId: string
   x: number
   y: number
+  category?: string
+  color?: string
 }
 
 /**

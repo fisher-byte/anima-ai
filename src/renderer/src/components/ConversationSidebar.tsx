@@ -8,7 +8,7 @@ interface ConversationSidebarProps {
 }
 
 export function ConversationSidebar({ isOpen, onClose }: ConversationSidebarProps) {
-  const { nodes, openModal } = useCanvasStore()
+  const { nodes, openModalById, focusNode } = useCanvasStore()
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
@@ -22,16 +22,20 @@ export function ConversationSidebar({ isOpen, onClose }: ConversationSidebarProp
         const content = await window.electronAPI.storage.read('conversations.jsonl')
         if (content) {
           const lines = content.trim().split('\n').filter(Boolean)
-          const parsed = lines
-            .map(line => {
-              try {
-                return JSON.parse(line) as Conversation
-              } catch {
-                return null
+          const idMap = new Map<string, Conversation>()
+          
+          lines.forEach(line => {
+            try {
+              const conv = JSON.parse(line) as Conversation
+              if (conv.id) {
+                idMap.set(conv.id, conv) // 后面的记录会覆盖前面的，即保留最新状态
               }
-            })
-            .filter(Boolean)
-            .reverse() // 最新的在前
+            } catch {
+              // ignore invalid line
+            }
+          })
+
+          const parsed = Array.from(idMap.values()).reverse() // 最新的在前
           setConversations(parsed)
         }
       } catch (error) {
@@ -51,8 +55,10 @@ export function ConversationSidebar({ isOpen, onClose }: ConversationSidebarProp
 
   // 点击对话打开回放
   const handleConversationClick = useCallback((conversation: Conversation) => {
-    openModal(conversation)
-  }, [openModal])
+    onClose() // 关闭侧边栏
+    openModalById(conversation.id)
+    focusNode(conversation.id)
+  }, [onClose, openModalById, focusNode])
 
   if (!isOpen) return null
 
@@ -92,8 +98,11 @@ export function ConversationSidebar({ isOpen, onClose }: ConversationSidebarProp
               暂无对话记录
             </div>
           ) : (
-            conversations.map((conversation) => {
-              const node = findNodeForConversation(conversation.id)
+            conversations
+              // 过滤掉那些没有对应节点的“孤儿对话”，确保两边数量匹配
+              .filter(conv => nodes.some(n => n.conversationId === conv.id))
+              .map((conversation) => {
+                const node = findNodeForConversation(conversation.id)
               return (
                 <div
                   key={conversation.id}
@@ -125,7 +134,7 @@ export function ConversationSidebar({ isOpen, onClose }: ConversationSidebarProp
         
         {/* 底部统计 */}
         <div className="p-4 border-t border-gray-100 text-xs text-gray-500">
-          共 {conversations.length} 条对话
+          共 {conversations.filter(c => nodes.some(n => n.conversationId === c.id)).length} 条对话
         </div>
       </div>
     </>

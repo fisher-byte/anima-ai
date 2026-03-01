@@ -5,6 +5,7 @@ import { STORAGE_FILES, FEEDBACK_TRIGGERS, CONFIDENCE_CONFIG, UI_CONFIG } from '
 interface CanvasState {
   // 数据
   nodes: Node[]
+  edges: Edge[]
   currentConversation: Conversation | null
   profile: Profile
   isModalOpen: boolean
@@ -16,18 +17,30 @@ interface CanvasState {
   
   // 方法：节点操作
   addNode: (conversation: Conversation, position?: NodePosition) => Promise<void>
+  updateNodePosition: (id: string, x: number, y: number) => Promise<void>
   removeNode: (id: string) => Promise<void>
   
-  // 方法：对话
+  // 方法：连线操作
+  updateEdges: () => void
+  
+  // 方法：画布操作
+  offset: NodePosition
+  scale: number
+  setOffset: (offset: NodePosition) => void
+  setScale: (scale: number) => void
+  focusNode: (id: string) => void
+  resetView: () => void
   startConversation: (userMessage: string) => void
   endConversation: (assistantMessage: string, appliedPreferences?: string[]) => Promise<void>
   closeModal: () => void
   openModal: (conversation: Conversation) => void
+  openModalById: (conversationId: string) => Promise<void>
   
   // 方法：偏好学习
   detectFeedback: (message: string) => PreferenceRule | null
   addPreference: (rule: PreferenceRule) => Promise<void>
   getPreferencesForPrompt: () => string[]
+  getRelevantMemories: (query: string) => Promise<Conversation[]>
   
   // 方法：对话记录
   appendConversation: (conversation: Conversation) => Promise<void>
@@ -35,18 +48,112 @@ interface CanvasState {
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   nodes: [],
+  edges: [],
   currentConversation: null,
   profile: { rules: [] },
   isModalOpen: false,
   isLoading: false,
+  offset: { x: 0, y: 0 },
+  scale: 1,
+
+  setOffset: (offset) => set({ offset }),
+  setScale: (scale) => set({ scale: Math.max(0.2, Math.min(3, scale)) }),
+
+  resetView: () => set({ offset: { x: 0, y: 0 }, scale: 1 }),
+
+  focusNode: (id) => {
+    const node = get().nodes.find(n => n.id === id)
+    if (node) {
+      const viewW = typeof window !== 'undefined' ? window.innerWidth : 1280
+      const viewH = typeof window !== 'undefined' ? window.innerHeight : 800
+      
+      // #region agent log
+      const screenCenterX = 1.5 * viewW
+      const screenCenterY = 1.5 * viewH
+      const newOffsetX = screenCenterX - node.x
+      const newOffsetY = screenCenterY - node.y
+      fetch('http://127.0.0.1:7468/ingest/682f804a-d0e9-403b-aa62-25ff831522a6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02d755'},body:JSON.stringify({sessionId:'02d755',runId:'coordinate-fix',hypothesisId:'H1',location:'canvasStore.ts:focusNode',message:'focusing node',data:{nodeId:id,nodeX:node.x,nodeY:node.y,viewW,viewH,newOffsetX,newOffsetY},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+
+      set({
+        scale: 1,
+        offset: {
+          x: newOffsetX,
+          y: newOffsetY
+        }
+      })
+    }
+  },
 
   // 加载节点数据
   loadNodes: async () => {
     try {
       const content = await window.electronAPI.storage.read(STORAGE_FILES.NODES)
       if (content) {
-        const nodes = JSON.parse(content) as Node[]
+        const parsed = JSON.parse(content) as Node[]
+
+        const uniqueByConversation = new Map<string, Node>()
+        for (const n of parsed) {
+          if (!n?.conversationId) continue
+          uniqueByConversation.set(n.conversationId, n)
+        }
+
+        let nodes = Array.from(uniqueByConversation.values())
+
+        // 将历史“跑飞/重叠”的节点重新排布到可视区域（基于 1.5 * viewW 中心）
+        const viewW = typeof window !== 'undefined' ? window.innerWidth : 1280
+        const viewH = typeof window !== 'undefined' ? window.innerHeight : 800
+        const minX = viewW
+        const maxX = 2 * viewW
+        const minY = viewH
+        const maxY = 2 * viewH
+
+        const needsRelayout = nodes.some(n => !Number.isFinite(n.x) || !Number.isFinite(n.y) || n.x < minX - 1000 || n.x > maxX + 1000 || n.y < minY - 1000 || n.y > maxY + 1000)
+
+        if (needsRelayout) {
+          const centerX = 1.5 * viewW
+          const centerY = 1.5 * viewH
+          const minDist = 230
+          const placed: { x: number; y: number }[] = []
+          const isFarEnough = (x1: number, y1: number) => placed.every(p => Math.hypot(p.x - x1, p.y - y1) >= minDist)
+
+          nodes = nodes.map((n, idx) => {
+            // 旧坐标有效且在可视附近就保留
+            if (Number.isFinite(n.x) && Number.isFinite(n.y) && n.x >= minX && n.x <= maxX && n.y >= minY && n.y <= maxY) {
+              placed.push({ x: n.x, y: n.y })
+              return n
+            }
+
+            let angle = (idx / Math.max(1, nodes.length)) * Math.PI * 2
+            for (let i = 0; i < 100; i++) {
+              const r = 40 + i * 18
+              const x = centerX + Math.cos(angle) * r
+              const y = centerY + Math.sin(angle) * r
+              angle += 0.7
+              if (isFarEnough(x, y)) {
+                placed.push({ x, y })
+                return { ...n, x, y }
+              }
+            }
+            placed.push({ x: centerX, y: centerY })
+            return { ...n, x: centerX, y: centerY }
+          })
+
+          // 持久化整理后的坐标，避免下次依旧“看不见”
+          await window.electronAPI.storage.write(STORAGE_FILES.NODES, JSON.stringify(nodes, null, 2))
+        }
+
+        // #region agent log
+        fetch('http://127.0.0.1:7468/ingest/682f804a-d0e9-403b-aa62-25ff831522a6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02d755'},body:JSON.stringify({sessionId:'02d755',runId:'post-fix',hypothesisId:'H6',location:'canvasStore.ts:loadNodes',message:'nodes loaded',data:{parsedCount:parsed.length,uniqueCount:nodes.length,needsRelayout},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+
         set({ nodes })
+        get().updateEdges() // 加载后更新连线
+        
+        // 初始加载后，如果有节点，聚焦到第一个
+        if (nodes.length > 0) {
+          get().focusNode(nodes[0].id)
+        }
       }
     } catch (error) {
       console.error('Failed to load nodes:', error)
@@ -70,18 +177,84 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   addNode: async (conversation: Conversation, position?: NodePosition) => {
     const { nodes } = get()
 
-    // 生成标题（从用户消息提取前8个字符）
+    // 生成标题
     const title = conversation.userMessage.slice(0, UI_CONFIG.NODE_TITLE_MAX_LENGTH)
 
-    // 生成关键词（简单实现：从AI回答中提取前3个有意义的词）
+    // 生成关键词并清理结构词
     const keywords = conversation.assistantMessage
       .split(/[\s,，.。!！?？;；]+/)
       .filter(word => word.length >= 2 && word.length <= 6)
+      .filter(word => !/^#\d+$/.test(word))
+      .filter(word => !['用户', 'AI', '用户：', 'AI：'].includes(word))
       .slice(0, UI_CONFIG.NODE_KEYWORDS_COUNT)
 
-    // 计算位置（如果未指定，随机分布在画布中央区域）
-    const x = position?.x ?? 100 + Math.random() * 200
-    const y = position?.y ?? 100 + Math.random() * 200
+    // --- 增强分类与染色逻辑 ---
+    const CATEGORIES = [
+      { name: '工作学习', keywords: ['代码', '开发', '学习', '论文', '总结', '计划', 'AI', '模型', '技术', '工作'], color: 'rgba(219, 234, 254, 0.9)' }, // 蓝色
+      { name: '生活日常', keywords: ['美食', '天气', '旅游', '电影', '运动', '健康', '深圳', '餐厅', '吃饭'], color: 'rgba(220, 252, 231, 0.9)' }, // 绿色
+      { name: '灵感创意', keywords: ['创意', '想法', '艺术', '写作', '小说', '绘画', '设计'], color: 'rgba(243, 232, 255, 0.9)' }, // 紫色
+      { name: '其他', keywords: [], color: 'rgba(243, 244, 246, 0.9)' } // 灰色
+    ]
+
+    let matchedCat = CATEGORIES[CATEGORIES.length - 1] // 默认“其他”
+    const fullContent = (conversation.userMessage + conversation.assistantMessage).toLowerCase()
+    
+    for (const cat of CATEGORIES) {
+      if (cat.keywords.some(k => fullContent.includes(k.toLowerCase()))) {
+        matchedCat = cat
+        break
+      }
+    }
+
+    let category = matchedCat.name
+    let color = matchedCat.color
+
+    // 计算中心参考点
+    const viewW = typeof window !== 'undefined' ? window.innerWidth : 800
+    const viewH = typeof window !== 'undefined' ? window.innerHeight : 450
+    const centerX = 1.5 * viewW
+    const centerY = 1.5 * viewH
+
+    // 寻找同类节点作为布局参考
+    const sameCatNode = nodes.find(n => n.category === category)
+    const baseSearchX = sameCatNode ? sameCatNode.x : centerX
+    const baseSearchY = sameCatNode ? sameCatNode.y : centerY
+
+    // 如果已存在同 conversationId 的节点：只更新内容
+    const existingIndex = nodes.findIndex(n => n.conversationId === conversation.id)
+
+    // 计算位置
+    const minDist = 230
+    const isFarEnough = (x1: number, y1: number) => {
+      for (const n of nodes) {
+        if (n.conversationId === conversation.id) continue
+        const dx = n.x - x1
+        const dy = n.y - y1
+        if (Math.hypot(dx, dy) < minDist) return false
+      }
+      return true
+    }
+
+    let x = position?.x
+    let y = position?.y
+    
+    if (x == null || y == null) {
+      let angle = Math.random() * Math.PI * 2
+      let found = false
+      for (let i = 0; i < 80; i++) {
+        const r = (sameCatNode ? 180 : 40) + i * 15
+        const cx = baseSearchX + Math.cos(angle) * r
+        const cy = baseSearchY + Math.sin(angle) * r
+        angle += 0.8
+        if (isFarEnough(cx, cy)) {
+          x = cx
+          y = cy
+          found = true
+          break
+        }
+      }
+      if (!found) { x = baseSearchX; y = baseSearchY; }
+    }
 
     const newNode: Node = {
       id: conversation.id,
@@ -89,23 +262,96 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       keywords,
       date: new Date().toISOString().split('T')[0],
       conversationId: conversation.id,
-      x,
-      y
+      x: x!,
+      y: y!,
+      category,
+      color
     }
 
-    const updatedNodes = [...nodes, newNode]
+    const updatedNodes =
+      existingIndex >= 0
+        ? nodes.map((n, idx) => (idx === existingIndex ? { ...n, title, keywords, color, category } : n))
+        : [...nodes, newNode]
+    
     set({ nodes: updatedNodes })
-
-    // 持久化
+    get().updateEdges() // 添加后更新连线
+    get().focusNode(conversation.id)
     await window.electronAPI.storage.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
+  },
+
+  // 更新节点位置
+  updateNodePosition: async (id: string, x: number, y: number) => {
+    const { nodes, updateEdges } = get()
+    const updatedNodes = nodes.map(n => n.id === id ? { ...n, x, y } : n)
+    set({ nodes: updatedNodes })
+    updateEdges() // 更新连线位置
+    await window.electronAPI.storage.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
+  },
+
+  // 更新连线逻辑 (板块化连线)
+  updateEdges: () => {
+    const { nodes } = get()
+    const newEdges: Edge[] = []
+    
+    // 按类别分组
+    const categories = new Map<string, Node[]>()
+    nodes.forEach(n => {
+      const cat = n.category || '其他'
+      if (!categories.has(cat)) categories.set(cat, [])
+      categories.get(cat)!.push(n)
+    })
+    
+    // 在同类别内建立连线（形成连通分量或星型拓扑）
+    categories.forEach((catNodes, catName) => {
+      if (catNodes.length < 2) return
+      
+      // 简单实现：按时间顺序首尾相连，或者全都连向该类别的第一个节点
+      // 这里采用连向第一个节点（星型），视觉上更像“板块中心”
+      const centerNode = catNodes[0]
+      for (let i = 1; i < catNodes.length; i++) {
+        newEdges.push({
+          id: `edge-${centerNode.id}-${catNodes[i].id}`,
+          source: centerNode.id,
+          target: catNodes[i].id,
+          createdAt: new Date().toISOString()
+        })
+      }
+    })
+    
+    set({ edges: newEdges })
   },
 
   // 删除节点
   removeNode: async (id: string) => {
     const { nodes } = get()
+    const nodeToRemove = nodes.find(n => n.id === id)
     const updatedNodes = nodes.filter(n => n.id !== id)
     set({ nodes: updatedNodes })
+    get().updateEdges() // 删除后同步更新连线
+    
+    // 1. 同步删除节点文件记录
     await window.electronAPI.storage.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
+    
+    // 2. 同步清理对话记录文件（jsonl 格式需要重写）
+    if (nodeToRemove) {
+      try {
+        const content = await window.electronAPI.storage.read(STORAGE_FILES.CONVERSATIONS)
+        if (content) {
+          const lines = content.trim().split('\n').filter(Boolean)
+          const filteredLines = lines.filter(line => {
+            try {
+              const conv = JSON.parse(line) as Conversation
+              return conv.id !== nodeToRemove.conversationId
+            } catch {
+              return true
+            }
+          })
+          await window.electronAPI.storage.write(STORAGE_FILES.CONVERSATIONS, filteredLines.join('\n') + (filteredLines.length > 0 ? '\n' : ''))
+        }
+      } catch (err) {
+        console.error('Failed to sync conversation deletion:', err)
+      }
+    }
   },
 
   // 开始对话
@@ -147,12 +393,45 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   // 关闭模态框
   closeModal: () => {
-    set({ isModalOpen: false, currentConversation: null })
+    set({ isModalOpen: false, currentConversation: null, isLoading: false })
   },
 
   // 打开模态框（用于回放）
   openModal: (conversation: Conversation) => {
-    set({ currentConversation: conversation, isModalOpen: true })
+    set({ currentConversation: conversation, isModalOpen: true, isLoading: false })
+  },
+
+  // 通过 conversationId 打开回放（从 conversations.jsonl 读取完整内容）
+  openModalById: async (conversationId: string) => {
+    try {
+      const content = await window.electronAPI.storage.read(STORAGE_FILES.CONVERSATIONS)
+      if (!content) {
+        set({ currentConversation: null, isModalOpen: true, isLoading: false })
+        return
+      }
+      const lines = content.trim().split('\n').filter(Boolean)
+      // 找最后一次同 id 的记录（防止同 id 多次写入）
+      for (let i = lines.length - 1; i >= 0; i--) {
+        try {
+          const conv = JSON.parse(lines[i]) as Conversation
+          if (conv.id === conversationId) {
+            // #region agent log
+            fetch('http://127.0.0.1:7468/ingest/682f804a-d0e9-403b-aa62-25ff831522a6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02d755'},body:JSON.stringify({sessionId:'02d755',runId:'pre-fix',hypothesisId:'H2',location:'canvasStore.ts:openModalById',message:'loaded conversation for modal',data:{conversationId,hasUserMessage:!!conv.userMessage,userLen:conv.userMessage?.length||0,assistantLen:conv.assistantMessage?.length||0},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+            set({ currentConversation: conv, isModalOpen: true, isLoading: false })
+            return
+          }
+        } catch {
+          // ignore invalid line
+        }
+      }
+      set({ currentConversation: null, isModalOpen: true, isLoading: false })
+    } catch (error) {
+      // #region agent log
+      fetch('http://127.0.0.1:7468/ingest/682f804a-d0e9-403b-aa62-25ff831522a6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02d755'},body:JSON.stringify({sessionId:'02d755',runId:'pre-fix',hypothesisId:'H2',location:'canvasStore.ts:openModalById',message:'failed to load conversation',data:{conversationId,error:String(error)},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      set({ isLoading: false })
+    }
   },
 
   // 检测负反馈
@@ -222,6 +501,55 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       .filter(r => r.confidence > 0.5)
       .sort((a, b) => b.confidence - a.confidence)
       .map(r => r.preference)
+  },
+
+  // 获取相关的历史记忆
+  getRelevantMemories: async (query: string): Promise<Conversation[]> => {
+    try {
+      const content = await window.electronAPI.storage.read(STORAGE_FILES.CONVERSATIONS)
+      if (!content) return []
+      
+      const lines = content.trim().split('\n').filter(Boolean)
+      const conversations: Conversation[] = []
+      
+      for (const line of lines) {
+        try {
+          conversations.push(JSON.parse(line))
+        } catch {
+          // ignore
+        }
+      }
+      
+      // 提取查询关键词（排除常用助词）
+      const queryKeywords = query.toLowerCase().split(/[\s,，.。!！?？;；]+/)
+        .filter(k => k.length >= 2 && !['这个', '那个', '什么', '怎么', '如何'].includes(k))
+        
+      if (queryKeywords.length === 0) return []
+      
+      // 评分
+      const scored = conversations.map(conv => {
+        let score = 0
+        const text = (conv.userMessage + ' ' + conv.assistantMessage).toLowerCase()
+        
+        queryKeywords.forEach(k => {
+          if (text.includes(k)) {
+            score += 1
+          }
+        })
+        
+        return { conv, score }
+      })
+      
+      // 返回评分最高且不为0的最近3条记忆
+      return scored
+        .filter(s => s.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3)
+        .map(s => s.conv)
+    } catch (error) {
+      console.error('Failed to get relevant memories:', error)
+      return []
+    }
   },
 
   // 追加对话记录

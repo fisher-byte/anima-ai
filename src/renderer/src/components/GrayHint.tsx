@@ -1,30 +1,43 @@
 import { UI_CONFIG } from '@shared/constants'
+import { motion } from 'framer-motion'
+import { Sparkles } from 'lucide-react'
 
 interface GrayHintProps {
   preferences: string[]
+  type?: 'preference' | 'memory' | 'evolution'
+  message?: string
 }
 
-export function GrayHint({ preferences }: GrayHintProps) {
-  if (preferences.length === 0) return null
+export function GrayHint({ preferences, type = 'preference', message }: GrayHintProps) {
+  if (type === 'preference' && preferences.length === 0) return null
 
-  // 取第一条被应用的偏好
-  const mainPreference = preferences[0]
+  let hintText = message || ''
   
-  // 简化显示
-  let hintText = ''
-  if (mainPreference.includes('简洁')) {
-    hintText = '简洁表达'
-  } else if (mainPreference.includes('避免')) {
-    hintText = '避免某些内容'
-  } else if (mainPreference.includes('组织')) {
-    hintText = '结构化输出'
-  } else {
-    hintText = '你的偏好'
+  if (type === 'preference') {
+    // 取第一条被应用的偏好
+    const mainPreference = preferences[0]
+    
+    // 简化显示
+    if (mainPreference.includes('简洁')) {
+      hintText = '简洁表达'
+    } else if (mainPreference.includes('避免')) {
+      hintText = '避免某些内容'
+    } else if (mainPreference.includes('组织')) {
+      hintText = '结构化输出'
+    } else {
+      hintText = '你的偏好'
+    }
+    hintText = `${UI_CONFIG.GRAY_HINT_TEXT}${hintText}。`
   }
 
   return (
-    <div className="mt-4 text-sm text-gray-hint italic animate-fade-in">
-      {UI_CONFIG.GRAY_HINT_TEXT}{hintText}。
-    </div>
+    <motion.div 
+      initial={{ opacity: 0, y: 5 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mt-4 flex items-center gap-2 text-xs text-gray-400 italic"
+    >
+      <Sparkles className="w-3 h-3 text-blue-400/60" />
+      <span>{hintText}</span>
+    </motion.div>
   )
 }

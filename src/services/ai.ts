@@ -24,6 +24,10 @@ async function fetchWithTimeout(
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
   
   try {
+    // #region agent log
+    fetch('http://127.0.0.1:7468/ingest/682f804a-d0e9-403b-aa62-25ff831522a6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02d755'},body:JSON.stringify({sessionId:'02d755',runId:'pre-fix',hypothesisId:'H1',location:'ai.ts:fetchWithTimeout:beforeFetch',message:'fetch start',data:{urlOrigin:(() => { try { return new URL(url).origin } catch { return 'invalid-url' } })(),urlPath:(() => { try { return new URL(url).pathname } catch { return '' } })(),method:(options as any)?.method || 'GET',hasAuthHeader:!!(options as any)?.headers && String(((options as any).headers as any)['Authorization'] || '').startsWith('Bearer '),timeoutMs},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
     const response = await fetch(url, {
       ...options,
       signal: controller.signal
@@ -32,6 +36,10 @@ async function fetchWithTimeout(
     return response
   } catch (error) {
     clearTimeout(timeoutId)
+    // #region agent log
+    fetch('http://127.0.0.1:7468/ingest/682f804a-d0e9-403b-aa62-25ff831522a6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02d755'},body:JSON.stringify({sessionId:'02d755',runId:'pre-fix',hypothesisId:'H1',location:'ai.ts:fetchWithTimeout:catch',message:'fetch failed',data:{errorName:(error as any)?.name || typeof error,errorMessage:(error as any)?.message || String(error)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error(`Request timeout after ${timeoutMs}ms`)
     }
@@ -48,15 +56,24 @@ async function getApiKey(): Promise<string> {
     if (API_CONFIG.API_KEY) {
       return API_CONFIG.API_KEY
     }
-    
+
+    // #region agent log
+    fetch('http://127.0.0.1:7468/ingest/682f804a-d0e9-403b-aa62-25ff831522a6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02d755'},body:JSON.stringify({sessionId:'02d755',location:'ai.ts:50',message:'getApiKey called',data:{envKeys:Object.keys(import.meta.env).filter(k=>k.includes('API'))},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
     // 开发模式：从环境变量获取
     // @ts-ignore - Vite环境变量
     const envKey = import.meta.env.RENDERER_VITE_API_KEY || ''
+
+    // #region agent log
+    fetch('http://127.0.0.1:7468/ingest/682f804a-d0e9-403b-aa62-25ff831522a6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02d755'},body:JSON.stringify({sessionId:'02d755',location:'ai.ts:57',message:'envKey check',data:{hasEnvKey:!!envKey,keyLength:envKey?.length},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
     if (envKey) {
       API_CONFIG.API_KEY = envKey
       return envKey
     }
-    
+
     // 生产模式：从主进程安全获取
     const key = await window.electronAPI.config.getApiKey()
     API_CONFIG.API_KEY = key
@@ -90,13 +107,17 @@ export async function callAI(
   messages: AIMessage[],
   preferences: string[] = []
 ): Promise<AIResponse> {
-  const apiKey = await getApiKey()
-  if (!apiKey) {
-    throw new Error('API Key未配置，请在.env文件中配置VITE_API_KEY')
-  }
+  const { currentConversation, addNode, appendConversation, getRelevantMemories } = get()
+  if (!currentConversation) return
+
+  // 检索相关记忆并注入 system prompt
+  const memories = await getRelevantMemories(currentConversation.userMessage)
+  const memoryContext = memories.length > 0 
+    ? `\n\n以下是与当前话题相关的历史对话片段：\n${memories.map((m, i) => `[记忆 ${i+1}]: 用户说 "${m.userMessage}", AI 回答 "${m.assistantMessage.slice(0, 100)}..."`).join('\n')}`
+    : ''
 
   // 组装system prompt
-  let systemPrompt = DEFAULT_SYSTEM_PROMPT
+  let systemPrompt = DEFAULT_SYSTEM_PROMPT + memoryContext
   if (preferences.length > 0) {
     systemPrompt += '\n\n以下是用户的历史偏好：\n'
     preferences.forEach((pref, idx) => {
@@ -196,6 +217,10 @@ export async function* streamAI(
     if (!reader) {
       throw new Error('No response body')
     }
+
+    // #region agent log
+    fetch('http://127.0.0.1:7468/ingest/682f804a-d0e9-403b-aa62-25ff831522a6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02d755'},body:JSON.stringify({sessionId:'02d755',location:'ai.ts:streamAI',message:'system prompt with memories',data:{systemPrompt},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
 
     let fullContent = ''
     const decoder = new TextDecoder()

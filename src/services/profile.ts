@@ -124,12 +124,13 @@ export function decayOldPreferences(
     const daysDiff = (now.getTime() - updatedAt.getTime()) / (1000 * 60 * 60 * 24)
     
     if (daysDiff > daysThreshold) {
+      const newConfidence = Math.max(
+        rule.confidence - 0.1,
+        CONFIDENCE_CONFIG.MIN
+      )
       return {
         ...rule,
-        confidence: Math.max(
-          rule.confidence - 0.1,
-          CONFIDENCE_CONFIG.MIN
-        )
+        confidence: Number(newConfidence.toFixed(2))
       }
     }
     
