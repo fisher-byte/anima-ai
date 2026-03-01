@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Settings, Search, History, Maximize2, Minus, Plus, Compass } from 'lucide-react'
+import { Settings, Search, History, Minus, Plus, LayoutGrid } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { NodeCard } from './NodeCard'
 import { Edge } from './Edge'
@@ -11,24 +11,6 @@ import { SettingsModal } from './SettingsModal'
 export function Canvas() {
   const { nodes, edges, offset, scale, setOffset, setScale, resetView } = useCanvasStore()
   
-  // #region agent log
-  useEffect(() => {
-    if (nodes.length > 0) {
-      const viewW = window.innerWidth
-      const viewH = window.innerHeight
-      // 画布容器左上角在屏幕 (-viewW, -viewH)
-      // 节点在画布 (node.x, node.y)
-      // 偏移在 (offset.x, offset.y)
-      // 屏幕位置 = (-viewW + offset.x) + node.x
-      const checkNode = nodes[0]
-      const screenX = (-viewW + offset.x) + checkNode.x
-      const screenY = (-viewH + offset.y) + checkNode.y
-      
-      fetch('http://127.0.0.1:7468/ingest/682f804a-d0e9-403b-aa62-25ff831522a6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02d755'},body:JSON.stringify({sessionId:'02d755',runId:'coordinate-verify',hypothesisId:'H1',location:'Canvas.tsx:useEffect',message:'checking visible position',data:{firstNodeId:checkNode.id,nodePos:{x:checkNode.x,y:checkNode.y},offset,screenPos:{x:screenX,y:screenY},viewW,viewH},timestamp:Date.now()})}).catch(()=>{});
-    }
-  }, [nodes, offset]);
-  // #endregion
-
   const canvasRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
@@ -37,6 +19,7 @@ export function Canvas() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   // 滚轮缩放处理
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -101,52 +84,77 @@ export function Canvas() {
   return (
     <>
       {/* 工具栏 */}
-      <div className="fixed top-4 right-4 z-30 flex gap-2">
-        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-sm flex items-center px-1 border border-gray-100">
+      <div className="fixed top-6 right-6 z-30 flex items-center gap-3">
+        {/* 视图控制挂件 */}
+        <div className="flex items-center bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 overflow-hidden px-1 py-1">
           <button 
             onClick={() => setScale(scale * 0.8)} 
-            className="p-2 text-gray-400 hover:text-gray-900 transition-colors"
+            className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
             title="缩小"
           >
             <Minus className="w-4 h-4" />
           </button>
-          <span className="text-[10px] font-bold text-gray-400 min-w-[36px] text-center select-none uppercase">{Math.round(scale * 100)}%</span>
+          <div 
+            className="px-2 min-w-[50px] text-center cursor-pointer hover:bg-gray-50 rounded-lg py-1 transition-all"
+            onClick={resetView}
+            title="重置视图"
+          >
+            <span className="text-[11px] font-bold text-gray-500 uppercase">{Math.round(scale * 100)}%</span>
+          </div>
           <button 
             onClick={() => setScale(scale * 1.2)} 
-            className="p-2 text-gray-400 hover:text-gray-900 transition-colors"
+            className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
             title="放大"
           >
             <Plus className="w-4 h-4" />
           </button>
         </div>
-        <button
-          onClick={resetView}
-          className="p-2.5 bg-white/90 backdrop-blur-sm rounded-2xl shadow-sm hover:shadow-md transition-all text-gray-500 hover:text-gray-900 border border-gray-100"
-          title="重置视图"
-        >
-          <Compass className="w-5 h-5" />
-        </button>
-        <button
-          onClick={() => setIsSearchOpen(true)}
-          className="p-2.5 bg-white/90 backdrop-blur-sm rounded-2xl shadow-sm hover:shadow-md transition-all text-gray-500 hover:text-gray-900 border border-gray-100"
-          title="搜索 (Ctrl+K)"
-        >
-          <Search className="w-5 h-5" />
-        </button>
-        <button
-          onClick={() => setIsSidebarOpen(true)}
-          className="p-2.5 bg-white/90 backdrop-blur-sm rounded-2xl shadow-sm hover:shadow-md transition-all text-gray-500 hover:text-gray-900 border border-gray-100"
-          title="对话历史"
-        >
-          <History className="w-5 h-5" />
-        </button>
-        <button
-          onClick={() => setIsSettingsOpen(true)}
-          className="p-2.5 bg-white/90 backdrop-blur-sm rounded-2xl shadow-sm hover:shadow-md transition-all text-gray-500 hover:text-gray-900 border border-gray-100"
-          title="设置"
-        >
-          <Settings className="w-5 h-5" />
-        </button>
+
+        {/* 应用菜单挂件 */}
+        <div className="relative">
+          <button
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            className={`p-3 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm hover:shadow-md transition-all border border-gray-100 ${isMenuOpen ? 'text-blue-600 bg-blue-50/50 ring-2 ring-blue-100' : 'text-gray-500 hover:text-gray-900'}`}
+            title="更多应用"
+          >
+            <LayoutGrid className="w-5 h-5" />
+          </button>
+
+          <AnimatePresence>
+            {isMenuOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                className="absolute right-0 mt-3 w-48 bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-gray-100 p-2 z-40 origin-top-right"
+              >
+                <button
+                  onClick={() => { setIsSearchOpen(true); setIsMenuOpen(false); }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
+                >
+                  <Search className="w-4 h-4" />
+                  <span className="font-medium">全局搜索</span>
+                  <span className="ml-auto text-[10px] text-gray-300 font-bold border px-1 rounded">⌘K</span>
+                </button>
+                <button
+                  onClick={() => { setIsSidebarOpen(true); setIsMenuOpen(false); }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
+                >
+                  <History className="w-4 h-4" />
+                  <span className="font-medium">对话历史</span>
+                </button>
+                <div className="my-1 border-t border-gray-100/50" />
+                <button
+                  onClick={() => { setIsSettingsOpen(true); setIsMenuOpen(false); }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
+                >
+                  <Settings className="w-4 h-4" />
+                  <span className="font-medium">偏好设置</span>
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* 节点数量指示 */}

@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { History, Sparkles, X, Trash2, Calendar, MessageSquare, BrainCircuit } from 'lucide-react'
+import { History, Sparkles, X, Calendar, MessageSquare, BrainCircuit } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
-import type { Conversation, PreferenceRule } from '@shared/types'
+import type { Conversation } from '@shared/types'
 
 interface ConversationSidebarProps {
   isOpen: boolean
@@ -10,7 +10,7 @@ interface ConversationSidebarProps {
 }
 
 export function ConversationSidebar({ isOpen, onClose }: ConversationSidebarProps) {
-  const { nodes, profile, openModalById, focusNode, removeNode } = useCanvasStore()
+  const { nodes, profile, openModalById, focusNode } = useCanvasStore()
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeTab, setActiveTab] = useState<'history' | 'evolution'>('history')
   const [isLoading, setIsLoading] = useState(false)

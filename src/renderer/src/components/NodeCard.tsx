@@ -12,6 +12,7 @@ export function NodeCard({ node }: NodeCardProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   const dragStartRef = useRef({ x: 0, y: 0 })
+  const mouseDownPosRef = useRef({ x: 0, y: 0 })
   const positionRef = useRef({ x: node.x, y: node.y })
 
   // 同步外部坐标变更
@@ -21,17 +22,18 @@ export function NodeCard({ node }: NodeCardProps) {
     }
   }, [node.x, node.y, isDragging])
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    setIsDragging(true)
-    dragStartRef.current = {
-      x: e.clientX - positionRef.current.x,
-      y: e.clientY - positionRef.current.y
-    }
-  }, [])
+  const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
+    const dx = e.clientX - mouseDownPosRef.current.x
+    const dy = e.clientY - mouseDownPosRef.current.y
+    const distance = Math.hypot(dx, dy)
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (isDragging) {
+    if (!isDragging && distance > 5) {
+      setIsDragging(true)
+    }
+
+    // 如果已经在拖拽，则更新位置
+    const currentIsDragging = isDragging || distance > 5
+    if (currentIsDragging) {
       const newX = e.clientX - dragStartRef.current.x
       const newY = e.clientY - dragStartRef.current.y
       positionRef.current = { x: newX, y: newY }
@@ -44,23 +46,27 @@ export function NodeCard({ node }: NodeCardProps) {
     }
   }, [isDragging, node.id])
 
-  const handleMouseUp = useCallback(() => {
+  const handleGlobalMouseUp = useCallback(() => {
+    window.removeEventListener('mousemove', handleGlobalMouseMove)
+    window.removeEventListener('mouseup', handleGlobalMouseUp)
+    
     if (isDragging) {
       setIsDragging(false)
       updateNodePosition(node.id, positionRef.current.x, positionRef.current.y)
     }
-  }, [isDragging, node.id, updateNodePosition])
+  }, [isDragging, node.id, updateNodePosition, handleGlobalMouseMove])
 
-  useEffect(() => {
-    if (isDragging) {
-      window.addEventListener('mousemove', handleMouseMove)
-      window.addEventListener('mouseup', handleMouseUp)
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    mouseDownPosRef.current = { x: e.clientX, y: e.clientY }
+    dragStartRef.current = {
+      x: e.clientX - positionRef.current.x,
+      y: e.clientY - positionRef.current.y
     }
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [isDragging, handleMouseMove, handleMouseUp])
+    
+    window.addEventListener('mousemove', handleGlobalMouseMove)
+    window.addEventListener('mouseup', handleGlobalMouseUp)
+  }, [handleGlobalMouseMove, handleGlobalMouseUp])
 
   const handleClick = useCallback(() => {
     if (isDragging) return
