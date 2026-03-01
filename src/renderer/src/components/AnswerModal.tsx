@@ -22,7 +22,8 @@ export function AnswerModal() {
   const [appliedPreferences, setAppliedPreferences] = useState<string[]>([])
   const [isClosing, setIsClosing] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
-  
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
   // AI Hook
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   
