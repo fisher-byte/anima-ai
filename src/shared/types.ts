@@ -38,6 +38,7 @@ export interface Conversation {
   createdAt: string
   userMessage: string
   assistantMessage: string
+  images?: string[]  // 支持图片 base64 列表
   negativeFeedback?: string
   appliedPreferences?: string[]
 }
@@ -72,7 +73,7 @@ export interface FeedbackTrigger {
  */
 export interface AIMessage {
   role: 'system' | 'user' | 'assistant'
-  content: string
+  content: string | any[] // 支持多模态内容数组
 }
 
 /**

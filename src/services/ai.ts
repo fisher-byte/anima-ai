@@ -4,7 +4,7 @@
  * 封装OpenAI API调用，支持流式输出和超时控制
  */
 
-import { API_CONFIG, AI_CONFIG, DEFAULT_SYSTEM_PROMPT } from '../shared/constants'
+import { API_CONFIG, AI_CONFIG, DEFAULT_SYSTEM_PROMPT, MULTIMODAL_MODELS } from '../shared/constants'
 import type { AIMessage } from '../shared/types'
 
 interface AIResponse {
@@ -24,10 +24,6 @@ async function fetchWithTimeout(
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
   
   try {
-    // #region agent log
-    fetch('http://127.0.0.1:7468/ingest/682f804a-d0e9-403b-aa62-25ff831522a6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02d755'},body:JSON.stringify({sessionId:'02d755',runId:'pre-fix',hypothesisId:'H1',location:'ai.ts:fetchWithTimeout:beforeFetch',message:'fetch start',data:{urlOrigin:(() => { try { return new URL(url).origin } catch { return 'invalid-url' } })(),urlPath:(() => { try { return new URL(url).pathname } catch { return '' } })(),method:(options as any)?.method || 'GET',hasAuthHeader:!!(options as any)?.headers && String(((options as any).headers as any)['Authorization'] || '').startsWith('Bearer '),timeoutMs},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-
     const response = await fetch(url, {
       ...options,
       signal: controller.signal
@@ -36,9 +32,6 @@ async function fetchWithTimeout(
     return response
   } catch (error) {
     clearTimeout(timeoutId)
-    // #region agent log
-    fetch('http://127.0.0.1:7468/ingest/682f804a-d0e9-403b-aa62-25ff831522a6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02d755'},body:JSON.stringify({sessionId:'02d755',runId:'pre-fix',hypothesisId:'H1',location:'ai.ts:fetchWithTimeout:catch',message:'fetch failed',data:{errorName:(error as any)?.name || typeof error,errorMessage:(error as any)?.message || String(error)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error(`Request timeout after ${timeoutMs}ms`)
@@ -57,17 +50,9 @@ async function getApiKey(): Promise<string> {
       return API_CONFIG.API_KEY
     }
 
-    // #region agent log
-    fetch('http://127.0.0.1:7468/ingest/682f804a-d0e9-403b-aa62-25ff831522a6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02d755'},body:JSON.stringify({sessionId:'02d755',location:'ai.ts:50',message:'getApiKey called',data:{envKeys:Object.keys(import.meta.env).filter(k=>k.includes('API'))},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-
     // 开发模式：从环境变量获取
     // @ts-ignore - Vite环境变量
     const envKey = import.meta.env.RENDERER_VITE_API_KEY || ''
-
-    // #region agent log
-    fetch('http://127.0.0.1:7468/ingest/682f804a-d0e9-403b-aa62-25ff831522a6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02d755'},body:JSON.stringify({sessionId:'02d755',location:'ai.ts:57',message:'envKey check',data:{hasEnvKey:!!envKey,keyLength:envKey?.length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     if (envKey) {
       API_CONFIG.API_KEY = envKey
@@ -107,57 +92,63 @@ export async function callAI(
   messages: AIMessage[],
   preferences: string[] = []
 ): Promise<AIResponse> {
-  const { currentConversation, addNode, appendConversation, getRelevantMemories } = get()
-  if (!currentConversation) return
+  try {
+    const apiKey = await getApiKey()
+    if (!apiKey) {
+      throw new Error('API Key未配置')
+    }
 
-  // 检索相关记忆并注入 system prompt
-  const memories = await getRelevantMemories(currentConversation.userMessage)
-  const memoryContext = memories.length > 0 
-    ? `\n\n以下是与当前话题相关的历史对话片段：\n${memories.map((m, i) => `[记忆 ${i+1}]: 用户说 "${m.userMessage}", AI 回答 "${m.assistantMessage.slice(0, 100)}..."`).join('\n')}`
-    : ''
-
-  // 组装system prompt
-  let systemPrompt = DEFAULT_SYSTEM_PROMPT + memoryContext
-  if (preferences.length > 0) {
-    systemPrompt += '\n\n以下是用户的历史偏好：\n'
-    preferences.forEach((pref, idx) => {
-      systemPrompt += `${idx + 1}. ${pref}\n`
-    })
-  }
-
-  const fullMessages: AIMessage[] = [
-    { role: 'system', content: systemPrompt },
-    ...messages
-  ]
-
-  const response = await fetchWithTimeout(
-    `${API_CONFIG.BASE_URL}/chat/completions`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: AI_CONFIG.MODEL,
-        messages: fullMessages,
-        max_tokens: AI_CONFIG.MAX_TOKENS,
-        temperature: AI_CONFIG.TEMPERATURE,
-        stream: false
+    // 组装system prompt
+    let systemPrompt = DEFAULT_SYSTEM_PROMPT
+    if (preferences.length > 0) {
+      systemPrompt += '\n\n以下是用户的历史偏好：\n'
+      preferences.forEach((pref, idx) => {
+        systemPrompt += `${idx + 1}. ${pref}\n`
       })
     }
-  )
 
-  if (!response.ok) {
-    if (response.status === 401) {
-      throw new Error('API Key无效，请检查.env配置')
+    const fullMessages: AIMessage[] = [
+      { role: 'system', content: systemPrompt },
+      ...messages
+    ]
+
+    // 构造请求体
+    const body: any = {
+      model: AI_CONFIG.MODEL,
+      messages: fullMessages,
+      max_tokens: AI_CONFIG.MAX_TOKENS,
+      temperature: AI_CONFIG.TEMPERATURE,
+      stream: false
     }
-    throw new Error(`API error: ${response.status}`)
-  }
 
-  const data = await response.json()
-  return {
-    content: data.choices[0]?.message?.content || ''
+    // 为 Kimi 2.5 或其他具备能力的模型开启联网搜索
+    if (MULTIMODAL_MODELS.includes(AI_CONFIG.MODEL as any)) {
+      body.tools = [{ type: 'builtin_function', function: { name: '$web_search' } }]
+    }
+
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/chat/completions`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(body)
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    return {
+      content: data.choices[0]?.message?.content || ''
+    }
+  } catch (error) {
+    console.error('AI call failed:', error)
+    return { content: '', error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }
 
@@ -188,6 +179,20 @@ export async function* streamAI(
       ...messages
     ]
 
+    // 构造请求体
+    const body: any = {
+      model: AI_CONFIG.MODEL,
+      messages: fullMessages,
+      max_tokens: AI_CONFIG.MAX_TOKENS,
+      temperature: AI_CONFIG.TEMPERATURE,
+      stream: true
+    }
+
+    // 为 Kimi 2.5 或其他具备能力的模型开启联网搜索
+    if (MULTIMODAL_MODELS.includes(AI_CONFIG.MODEL as any)) {
+      body.tools = [{ type: 'builtin_function', function: { name: '$web_search' } }]
+    }
+
     const response = await fetchWithTimeout(
       `${API_CONFIG.BASE_URL}/chat/completions`,
       {
@@ -196,13 +201,7 @@ export async function* streamAI(
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`
         },
-        body: JSON.stringify({
-          model: AI_CONFIG.MODEL,
-          messages: fullMessages,
-          max_tokens: AI_CONFIG.MAX_TOKENS,
-          temperature: AI_CONFIG.TEMPERATURE,
-          stream: true
-        })
+        body: JSON.stringify(body)
       }
     )
 
@@ -217,10 +216,6 @@ export async function* streamAI(
     if (!reader) {
       throw new Error('No response body')
     }
-
-    // #region agent log
-    fetch('http://127.0.0.1:7468/ingest/682f804a-d0e9-403b-aa62-25ff831522a6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02d755'},body:JSON.stringify({sessionId:'02d755',location:'ai.ts:streamAI',message:'system prompt with memories',data:{systemPrompt},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     let fullContent = ''
     const decoder = new TextDecoder()

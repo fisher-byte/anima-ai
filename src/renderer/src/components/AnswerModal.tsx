@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, ArrowLeft, Send, CheckCircle2 } from 'lucide-react'
+import { Sparkles, Send, CheckCircle2, Edit3, Globe } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useAI } from '../hooks/useAI'
 import { GrayHint } from './GrayHint'
@@ -9,32 +9,33 @@ import type { PreferenceRule, Conversation } from '@shared/types'
 type Turn = {
   user: string
   assistant: string
+  images?: string[]
   error?: string
 }
 
-function parseTurnsFromAssistantMessage(message: string): Turn[] | null {
+function parseTurnsFromAssistantMessage(message: string, initialImages?: string[]): Turn[] | null {
   if (!message) return null
   
   // 兼容旧格式或单次回答
   if (!message.includes('#1\n')) {
-    return [{ user: '', assistant: message }]
+    return [{ user: '', assistant: message, images: initialImages }]
   }
 
   const turns: Turn[] = []
-  
-  // 使用更健壮的正则：匹配 #数字 开头，支持全角和半角冒号，以及多余的空格
-  // 支持多行内容，包括列表、Markdown等
   const sectionRegex = /#\s*(\d+)\s*\n+\s*用户[：:]\s*([\s\S]*?)\n+\s*AI[：:]\s*([\s\S]*?)(?=\n+\s*#\s*\d+|$)/g
   let match
 
   while ((match = sectionRegex.exec(message)) !== null) {
     const userContent = match[2].trim()
     const aiContent = match[3].trim()
+    const index = parseInt(match[1])
     
     if (userContent || aiContent) {
       turns.push({ 
         user: userContent, 
-        assistant: aiContent 
+        assistant: aiContent,
+        // 只有第一轮显示初始图片
+        images: index === 1 ? initialImages : undefined
       })
     }
   }
@@ -62,6 +63,11 @@ export function AnswerModal() {
   const [relevantMemories, setRelevantMemories] = useState<Conversation[]>([])
   const [appliedPreferences, setAppliedPreferences] = useState<string[]>([])
   const [isClosing, setIsClosing] = useState(false)
+  
+  // 编辑相关状态
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [editingContent, setEditingContent] = useState('')
+
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const startedConversationIdRef = useRef<string | null>(null)
@@ -71,6 +77,8 @@ export function AnswerModal() {
   // AI Hook
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   
+  const hasAnyAnswer = useMemo(() => turns.some(t => !!t.assistant || !!t.error), [turns])
+
   const { sendMessage, resetHistory } = useAI({
     onStream: (chunk) => {
       setTurns(prev => {
@@ -81,19 +89,17 @@ export function AnswerModal() {
         return next
       })
       setErrorMessage(null)
-      // 自动滚动到底部
       if (scrollRef.current) {
         scrollRef.current.scrollTop = scrollRef.current.scrollHeight
       }
     },
-    onComplete: (fullText) => {
+    onComplete: () => {
       setIsStreaming(false)
       setErrorMessage(null)
       didMutateRef.current = true
       const prefs = getPreferencesForPrompt()
       setAppliedPreferences(prefs)
       
-      // 如果应用了多条偏好，且不是回放模式，触发一个小提示
       if (prefs.length >= 2 && !isReplayRef.current) {
         setShowEvolutionToast(true)
         setTimeout(() => setShowEvolutionToast(false), 4000)
@@ -113,20 +119,20 @@ export function AnswerModal() {
     }
   })
 
-  const hasAnyAnswer = useMemo(() => turns.some(t => !!t.assistant || !!t.error), [turns])
-
-  // 当模态框打开时：新对话自动发送；回放则把内容灌入 turns
+  // 当模态框打开时
   useEffect(() => {
     if (!isModalOpen || !currentConversation) return
 
-    // 加载记忆逻辑
     const prepareConversation = async () => {
-      // 回放：已有 assistantMessage，直接展示，避免“正在思考...”卡住
       if (currentConversation.assistantMessage) {
         isReplayRef.current = true
         didMutateRef.current = false
-        const parsedTurns = parseTurnsFromAssistantMessage(currentConversation.assistantMessage)
-        setTurns(parsedTurns ?? [{ user: currentConversation.userMessage, assistant: currentConversation.assistantMessage }])
+        const parsedTurns = parseTurnsFromAssistantMessage(currentConversation.assistantMessage, currentConversation.images)
+        setTurns(parsedTurns ?? [{ 
+          user: currentConversation.userMessage, 
+          assistant: currentConversation.assistantMessage,
+          images: currentConversation.images
+        }])
         setIsStreaming(false)
         setErrorMessage(null)
         setAppliedPreferences(currentConversation.appliedPreferences || [])
@@ -134,31 +140,61 @@ export function AnswerModal() {
         return
       }
 
-      // 新对话：只启动一次
       if (startedConversationIdRef.current === currentConversation.id) return
       startedConversationIdRef.current = currentConversation.id
 
       isReplayRef.current = false
       didMutateRef.current = false
       resetHistory()
-      setTurns([{ user: currentConversation.userMessage, assistant: '' }])
+      setTurns([{ user: currentConversation.userMessage, assistant: '', images: currentConversation.images }])
       setIsStreaming(true)
       setAppliedPreferences([])
       setFeedbackMessage('')
       setDetectedPreference(null)
 
-      // 异步检索记忆
       const memories = await getRelevantMemories(currentConversation.userMessage)
       setRelevantMemories(memories)
 
       const preferences = getPreferencesForPrompt()
-      
-      // 组装带记忆的上下文（可选，目前通过 system prompt 注入，见 ai.ts 修改）
-      sendMessage(currentConversation.userMessage, preferences)
+      sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images)
     }
 
     prepareConversation()
   }, [isModalOpen, currentConversation, resetHistory, sendMessage, getPreferencesForPrompt, getRelevantMemories])
+
+  // 编辑消息处理
+  const handleStartEdit = (index: number, content: string) => {
+    setEditingIndex(index)
+    setEditingContent(content)
+  }
+
+  const handleSaveEdit = async () => {
+    if (editingIndex === null || !currentConversation) return
+    
+    const newContent = editingContent.trim()
+    if (!newContent) return
+
+    // 截断对话历史到当前轮次
+    const previousTurns = turns.slice(0, editingIndex)
+    const currentTurn = turns[editingIndex]
+    
+    // 构造新的历史供 AI 使用
+    const history = previousTurns.flatMap(t => [
+      { role: 'user' as const, content: t.user },
+      { role: 'assistant' as const, content: t.assistant }
+    ])
+
+    // 更新界面状态
+    const newTurns = [...previousTurns, { user: newContent, assistant: '', images: currentTurn.images }]
+    setTurns(newTurns)
+    setEditingIndex(null)
+    setIsStreaming(true)
+    didMutateRef.current = true
+
+    // 重新发送
+    const preferences = getPreferencesForPrompt()
+    sendMessage(newContent, preferences, history, currentTurn.images)
+  }
 
   // 处理反馈输入
   const handleFeedbackChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -189,9 +225,6 @@ export function AnswerModal() {
     // 连续对话：useAI 内部会保留历史，这里直接追加新一句即可
     didMutateRef.current = true
     setTurns(prev => [...prev, { user: feedbackMessage, assistant: '' }])
-    // #region agent log
-    fetch('http://127.0.0.1:7468/ingest/682f804a-d0e9-403b-aa62-25ff831522a6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02d755'},body:JSON.stringify({sessionId:'02d755',runId:'pre-fix',hypothesisId:'H4',location:'AnswerModal.tsx:handleFeedbackSubmit',message:'append turn and send',data:{feedbackLen:feedbackMessage.length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     sendMessage(feedbackMessage, preferences)
     setFeedbackMessage('')
   }, [feedbackMessage, detectedPreference, addPreference, getPreferencesForPrompt, sendMessage])
@@ -204,10 +237,6 @@ export function AnswerModal() {
     await new Promise(resolve => setTimeout(resolve, 300))
     
     const shouldSave = !!currentConversation && (!isReplayRef.current || didMutateRef.current)
-
-    // #region agent log
-    fetch('http://127.0.0.1:7468/ingest/682f804a-d0e9-403b-aa62-25ff831522a6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02d755'},body:JSON.stringify({sessionId:'02d755',runId:'pre-fix',hypothesisId:'H5',location:'AnswerModal.tsx:handleClose',message:'close modal',data:{shouldSave,isReplay:isReplayRef.current,didMutate:didMutateRef.current,turnsCount:turns.length,conversationId:currentConversation?.id||''},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     // 仅在“新对话或确实产生了新内容”时保存，避免回放重复建节点
     if (shouldSave && currentConversation) {
@@ -241,12 +270,16 @@ export function AnswerModal() {
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isModalOpen) {
-        handleClose()
+        if (editingIndex !== null) {
+          setEditingIndex(null)
+        } else {
+          handleClose()
+        }
       }
     }
     window.addEventListener('keydown', handleEsc)
     return () => window.removeEventListener('keydown', handleEsc)
-  }, [isModalOpen, handleClose])
+  }, [isModalOpen, handleClose, editingIndex])
 
   if (!isModalOpen) return null
 
@@ -284,11 +317,14 @@ export function AnswerModal() {
             </span>
           ) : isStreaming ? (
             <span className="flex items-center gap-2">
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              AI 正在思考...
+              <Globe className="w-4 h-4 text-blue-500 animate-pulse" />
+              <span className="font-medium text-blue-600">AI 正在联网研究中...</span>
             </span>
           ) : hasAnyAnswer ? (
-            <span>对话完成</span>
+            <span className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-green-500" />
+              <span>对话完成</span>
+            </span>
           ) : (
             <span>准备中...</span>
           )}
@@ -306,11 +342,62 @@ export function AnswerModal() {
         <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
           
           {turns.map((t, idx) => (
-            <div key={idx} className="space-y-4">
+            <div key={idx} className="space-y-4 group/turn">
               {/* 用户消息 */}
-              <div className="flex justify-end">
-                <div className="max-w-[85%] bg-gray-100 rounded-2xl rounded-tr-sm px-5 py-3.5 text-gray-800 text-[15px] leading-relaxed">
-                  {t.user}
+              <div className="flex justify-end items-start gap-2">
+                <div className="flex flex-col items-end gap-2 max-w-[85%]">
+                  {/* 图片展示 */}
+                  {t.images && t.images.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-1 justify-end">
+                      {t.images.map((img, i) => (
+                        <img key={i} src={img} className="w-32 h-32 object-cover rounded-xl border border-gray-100 shadow-sm" />
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* 文字气泡 */}
+                  <div className="relative group/bubble flex items-center gap-2">
+                    {/* 编辑按钮（仅非流式且悬停时显示） */}
+                    {!isStreaming && editingIndex !== idx && (
+                      <button 
+                        onClick={() => handleStartEdit(idx, t.user)}
+                        className="opacity-0 group-hover/bubble:opacity-100 p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                        title="编辑消息"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                    )}
+
+                    <div className="bg-gray-100 rounded-2xl rounded-tr-sm px-5 py-3.5 text-gray-800 text-[15px] leading-relaxed">
+                      {editingIndex === idx ? (
+                        <div className="flex flex-col gap-2 min-w-[300px]">
+                          <textarea
+                            value={editingContent}
+                            onChange={(e) => setEditingContent(e.target.value)}
+                            className="w-full bg-white border border-blue-200 rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-blue-100"
+                            rows={3}
+                            autoFocus
+                          />
+                          <div className="flex justify-end gap-2">
+                            <button 
+                              onClick={() => setEditingIndex(null)}
+                              className="px-3 py-1 text-xs text-gray-500 hover:bg-gray-200 rounded-md transition-colors"
+                            >
+                              取消
+                            </button>
+                            <button 
+                              onClick={handleSaveEdit}
+                              className="px-3 py-1 text-xs bg-blue-600 text-white hover:bg-blue-700 rounded-md transition-colors shadow-sm"
+                            >
+                              保存并重新发送
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        t.user
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
 

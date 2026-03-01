@@ -34,7 +34,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   },
 
   endConversation: async (assistantMessage: string, appliedPreferences?: string[]) => {
-    const { currentConversation, appendConversation } = get()
+    const { currentConversation } = get()
     if (!currentConversation) return
     
     const updatedConversation: Conversation = {
@@ -44,7 +44,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
     }
     
     set({ currentConversation: updatedConversation })
-    await appendConversation(updatedConversation)
+    await get().appendConversation(updatedConversation)
   },
 
   setCurrentConversation: (conversation) => {
@@ -72,7 +72,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
             return null
           }
         })
-        .filter(Boolean)
+        .filter((c): c is Conversation => c !== null)
         .reverse()
     } catch (error) {
       console.error('Failed to load conversation history:', error)

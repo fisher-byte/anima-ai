@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Node, Conversation, Profile, PreferenceRule, NodePosition } from '@shared/types'
+import type { Node, Edge, Conversation, Profile, PreferenceRule, NodePosition } from '@shared/types'
 import { STORAGE_FILES, FEEDBACK_TRIGGERS, CONFIDENCE_CONFIG, UI_CONFIG } from '@shared/constants'
 
 interface CanvasState {
@@ -30,7 +30,8 @@ interface CanvasState {
   setScale: (scale: number) => void
   focusNode: (id: string) => void
   resetView: () => void
-  startConversation: (userMessage: string) => void
+  startConversation: (userMessage: string, images?: string[]) => void
+  updateConversation: (conversationId: string, updates: Partial<Conversation>) => Promise<void>
   endConversation: (assistantMessage: string, appliedPreferences?: string[]) => Promise<void>
   closeModal: () => void
   openModal: (conversation: Conversation) => void
@@ -67,13 +68,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       const viewW = typeof window !== 'undefined' ? window.innerWidth : 1280
       const viewH = typeof window !== 'undefined' ? window.innerHeight : 800
       
-      // #region agent log
       const screenCenterX = 1.5 * viewW
       const screenCenterY = 1.5 * viewH
       const newOffsetX = screenCenterX - node.x
       const newOffsetY = screenCenterY - node.y
-      fetch('http://127.0.0.1:7468/ingest/682f804a-d0e9-403b-aa62-25ff831522a6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02d755'},body:JSON.stringify({sessionId:'02d755',runId:'coordinate-fix',hypothesisId:'H1',location:'canvasStore.ts:focusNode',message:'focusing node',data:{nodeId:id,nodeX:node.x,nodeY:node.y,viewW,viewH,newOffsetX,newOffsetY},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
 
       set({
         scale: 1,
@@ -142,10 +140,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           // 持久化整理后的坐标，避免下次依旧“看不见”
           await window.electronAPI.storage.write(STORAGE_FILES.NODES, JSON.stringify(nodes, null, 2))
         }
-
-        // #region agent log
-        fetch('http://127.0.0.1:7468/ingest/682f804a-d0e9-403b-aa62-25ff831522a6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02d755'},body:JSON.stringify({sessionId:'02d755',runId:'post-fix',hypothesisId:'H6',location:'canvasStore.ts:loadNodes',message:'nodes loaded',data:{parsedCount:parsed.length,uniqueCount:nodes.length,needsRelayout},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
 
         set({ nodes })
         get().updateEdges() // 加载后更新连线
@@ -227,7 +221,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     } else if (nodes.length > 0) {
       // 新岛屿：找一个远离现有岛屿的空位
       const islandDist = 600
-      let foundIsland = false
       let angle = Math.random() * Math.PI * 2
       for (let i = 0; i < 12; i++) {
         const tx = centerX + Math.cos(angle) * islandDist
@@ -236,7 +229,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         if (nodes.every(n => Math.hypot(n.x - tx, n.y - ty) > islandDist * 0.8)) {
           islandX = tx
           islandY = ty
-          foundIsland = true
           break
         }
         angle += (Math.PI * 2) / 12
@@ -285,6 +277,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       color
     }
 
+    const existingIndex = nodes.findIndex(n => n.id === conversation.id)
     const updatedNodes =
       existingIndex >= 0
         ? nodes.map((n, idx) => (idx === existingIndex ? { ...n, title, keywords, color, category } : n))
@@ -319,7 +312,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     })
     
     // 在同类别内建立连线（形成连通分量或星型拓扑）
-    categories.forEach((catNodes, catName) => {
+    categories.forEach((catNodes) => {
       if (catNodes.length < 2) return
       
       // 简单实现：按时间顺序首尾相连，或者全都连向该类别的第一个节点
@@ -372,14 +365,26 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   // 开始对话
-  startConversation: (userMessage: string) => {
+  startConversation: (userMessage: string, images?: string[]) => {
     const conversation: Conversation = {
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
       userMessage,
-      assistantMessage: ''
+      assistantMessage: '',
+      images: images || []
     }
     set({ currentConversation: conversation, isModalOpen: true, isLoading: true })
+  },
+
+  // 更新对话记录（用于编辑消息等场景）
+  updateConversation: async (conversationId: string, updates: Partial<Conversation>) => {
+    const { currentConversation } = get()
+    if (currentConversation && currentConversation.id === conversationId) {
+      set({ 
+        currentConversation: { ...currentConversation, ...updates },
+        isLoading: updates.assistantMessage === '' // 如果清空了助手回复，说明正在重新请求
+      })
+    }
   },
 
   // 结束对话
@@ -432,9 +437,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         try {
           const conv = JSON.parse(lines[i]) as Conversation
           if (conv.id === conversationId) {
-            // #region agent log
-            fetch('http://127.0.0.1:7468/ingest/682f804a-d0e9-403b-aa62-25ff831522a6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02d755'},body:JSON.stringify({sessionId:'02d755',runId:'pre-fix',hypothesisId:'H2',location:'canvasStore.ts:openModalById',message:'loaded conversation for modal',data:{conversationId,hasUserMessage:!!conv.userMessage,userLen:conv.userMessage?.length||0,assistantLen:conv.assistantMessage?.length||0},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
             set({ currentConversation: conv, isModalOpen: true, isLoading: false })
             return
           }
@@ -444,9 +446,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       }
       set({ currentConversation: null, isModalOpen: true, isLoading: false })
     } catch (error) {
-      // #region agent log
-      fetch('http://127.0.0.1:7468/ingest/682f804a-d0e9-403b-aa62-25ff831522a6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02d755'},body:JSON.stringify({sessionId:'02d755',runId:'pre-fix',hypothesisId:'H2',location:'canvasStore.ts:openModalById',message:'failed to load conversation',data:{conversationId,error:String(error)},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       set({ isLoading: false })
     }
   },

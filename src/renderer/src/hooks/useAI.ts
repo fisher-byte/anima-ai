@@ -27,12 +27,24 @@ export function useAI(options: UseAIOptions = {}) {
   const sendMessage = useCallback(async (
     userMessage: string,
     preferences: string[] = [],
-    history?: AIMessage[]
+    history?: AIMessage[],
+    images: string[] = [] // 新增图片参数
   ) => {
+    // 如果有图片，构造多模态内容数组
+    const userContent = images.length > 0 
+      ? [
+          { type: 'text', text: userMessage },
+          ...images.map(img => ({
+            type: 'image_url',
+            image_url: { url: img }
+          }))
+        ]
+      : userMessage
+
     // 如果有外部传入的历史，使用它；否则使用内部保存的历史
     const messages: AIMessage[] = history ? [...history] : [...conversationHistoryRef.current]
     // 添加当前用户消息
-    messages.push({ role: 'user', content: userMessage })
+    messages.push({ role: 'user', content: userContent as any })
 
     try {
       let fullText = ''

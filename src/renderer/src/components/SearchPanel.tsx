@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Hash, Calendar, ArrowRight } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { Hash, Calendar, ArrowRight } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 
 interface SearchPanelProps {
@@ -9,7 +9,7 @@ interface SearchPanelProps {
 }
 
 export function SearchPanel({ isOpen, onClose }: SearchPanelProps) {
-  const { nodes, openModal } = useCanvasStore()
+  const { nodes, openModalById, focusNode } = useCanvasStore()
   const [query, setQuery] = useState('')
   const [activeTab, setActiveTab] = useState<'nodes' | 'content'>('nodes')
 

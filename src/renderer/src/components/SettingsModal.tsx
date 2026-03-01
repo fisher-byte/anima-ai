@@ -11,7 +11,7 @@ interface SettingsModalProps {
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState('')
   const [baseUrl, setBaseUrl] = useState(API_CONFIG.BASE_URL)
-  const [model, setModel] = useState(AI_CONFIG.MODEL)
+  const [model, setModel] = useState<string>(AI_CONFIG.MODEL)
   const [isSaving, setIsSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
 

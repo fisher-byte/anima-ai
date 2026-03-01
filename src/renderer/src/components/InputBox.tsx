@@ -1,27 +1,76 @@
 import { useState, useCallback, useRef } from 'react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { UI_CONFIG } from '@shared/constants'
+import { X, Paperclip } from 'lucide-react'
 
 export function InputBox() {
   const [message, setMessage] = useState('')
+  const [images, setImages] = useState<string[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const { startConversation, isModalOpen } = useCanvasStore()
+
+  // 处理图片文件读取
+  const handleFiles = useCallback((files: FileList | File[]) => {
+    const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'))
+    const MAX_SIZE = 5 * 1024 * 1024 // 5MB
+    
+    if (imageFiles.length === 0) return
+
+    imageFiles.forEach(file => {
+      if (file.size > MAX_SIZE) {
+        alert(`图片 "${file.name}" 超过 5MB，请上传较小的图片。`)
+        return
+      }
+
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const result = e.target?.result as string
+        if (result) {
+          setImages(prev => [...prev, result].slice(0, 4)) // 最多支持4张图片
+        }
+      }
+      reader.readAsDataURL(file)
+    })
+  }, [])
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const items = e.clipboardData.items
+    const files: File[] = []
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        const file = items[i].getAsFile()
+        if (file) files.push(file)
+      }
+    }
+    if (files.length > 0) {
+      handleFiles(files)
+    }
+  }, [handleFiles])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    if (e.dataTransfer.files.length > 0) {
+      handleFiles(e.dataTransfer.files)
+    }
+  }, [handleFiles])
 
   const handleSubmit = useCallback(() => {
     const trimmed = message.trim()
-    if (!trimmed) return
+    if (!trimmed && images.length === 0) return
     
-    startConversation(trimmed)
+    startConversation(trimmed, images)
     setMessage('')
+    setImages([])
     
-    // 重置textarea高度 - 使用 requestAnimationFrame 确保在DOM更新后执行
+    // 重置textarea高度
     requestAnimationFrame(() => {
       const textarea = textareaRef.current
       if (textarea) {
         textarea.style.height = 'auto'
       }
     })
-  }, [message, startConversation])
+  }, [message, images, startConversation])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Enter发送，Shift+Enter换行
@@ -44,22 +93,59 @@ export function InputBox() {
   if (isModalOpen) return null
 
   return (
-    <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-2xl px-4">
-      <div className="glass rounded-2xl p-2 flex items-end gap-2 shadow-lg">
+    <div 
+      className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-2xl px-4"
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={handleDrop}
+    >
+      {/* 图片预览区 */}
+      {images.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-2 p-2 bg-white/50 backdrop-blur-md rounded-xl border border-white/20">
+          {images.map((img, idx) => (
+            <div key={idx} className="relative group w-16 h-16 rounded-lg overflow-hidden border border-gray-200">
+              <img src={img} className="w-full h-full object-cover" />
+              <button 
+                onClick={() => setImages(prev => prev.filter((_, i) => i !== idx))}
+                className="absolute top-0.5 right-0.5 p-0.5 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="glass rounded-2xl p-2 flex items-end gap-2 shadow-lg ring-1 ring-black/5">
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="p-3 text-gray-400 hover:text-gray-600 transition-colors"
+          aria-label="上传图片"
+        >
+          <Paperclip className="w-5 h-5" />
+        </button>
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          className="hidden" 
+          accept="image/*" 
+          multiple 
+          onChange={(e) => e.target.files && handleFiles(e.target.files)}
+        />
         <textarea
           ref={textareaRef}
           value={message}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           placeholder={UI_CONFIG.INPUT_PLACEHOLDER}
-          className="flex-1 bg-transparent border-none outline-none resize-none px-4 py-3 text-gray-800 placeholder-gray-400 min-h-[48px] max-h-[120px]"
+          className="flex-1 bg-transparent border-none outline-none resize-none px-2 py-3 text-gray-800 placeholder-gray-400 min-h-[48px] max-h-[200px]"
           rows={1}
           autoFocus
         />
         <button
           onClick={handleSubmit}
-          disabled={!message.trim()}
-          className="px-4 py-2 bg-gray-900 text-white rounded-xl hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
+          disabled={!message.trim() && images.length === 0}
+          className="px-4 py-2.5 bg-gray-900 text-white rounded-xl hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center shadow-sm"
           aria-label="发送"
         >
           <svg 
