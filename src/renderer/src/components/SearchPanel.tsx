@@ -1,4 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Search, Hash, Calendar, ArrowRight } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 
 interface SearchPanelProps {
@@ -18,34 +20,21 @@ export function SearchPanel({ isOpen, onClose }: SearchPanelProps) {
     const lowerQuery = query.toLowerCase()
     return nodes.filter(node => 
       node.title.toLowerCase().includes(lowerQuery) ||
-      node.keywords.some(k => k.toLowerCase().includes(lowerQuery))
+      node.keywords.some(k => k.toLowerCase().includes(lowerQuery)) ||
+      (node.category && node.category.toLowerCase().includes(lowerQuery))
     )
   }, [nodes, query])
 
-  // 搜索对话内容（简化版，只搜索节点关联的对话）
-  const contentResults = useMemo(() => {
-    if (!query.trim() || activeTab !== 'content') return []
-    
-    const lowerQuery = query.toLowerCase()
-    // 这里简化处理，实际应该搜索conversations.jsonl
-    return nodes.filter(node => 
-      node.title.toLowerCase().includes(lowerQuery)
-    )
-  }, [nodes, query, activeTab])
+  // 搜索对话内容（目前搜索标题和分类，后续可增强）
+  const contentResults = nodeResults
 
   // 点击结果
-  const handleResultClick = useCallback((nodeId: string) => {
-    // 这里应该跳转到对应节点并打开对话
-    // 简化处理：打开对应节点的对话
-    const conversation = {
-      id: nodeId,
-      createdAt: new Date().toISOString(),
-      userMessage: '',
-      assistantMessage: ''
-    }
-    openModal(conversation)
+  const handleResultClick = useCallback((nodeId: string, conversationId: string) => {
+    // 跳转到对应节点并打开对话
+    focusNode(nodeId)
+    openModalById(conversationId)
     onClose()
-  }, [openModal, onClose])
+  }, [openModalById, focusNode, onClose])
 
   if (!isOpen) return null
 
@@ -123,23 +112,34 @@ export function SearchPanel({ isOpen, onClose }: SearchPanelProps) {
             </div>
           ) : (
             results.map((node) => (
-              <div
+              <motion.div
+                layout
                 key={node.id}
-                onClick={() => handleResultClick(node.conversationId)}
-                className="p-3 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors"
+                onClick={() => handleResultClick(node.id, node.conversationId)}
+                className="p-3 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors group flex items-center justify-between"
               >
-                <div className="font-medium text-gray-800 text-sm mb-1">
-                  {node.title}
-                </div>
-                <div className="flex items-center gap-2 text-xs text-gray-500">
-                  {node.keywords.map((kw, idx) => (
-                    <span key={idx} className="px-2 py-0.5 bg-gray-100 rounded-full">
-                      {kw}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Hash className="w-3 h-3 text-blue-400" />
+                    <div className="font-medium text-gray-800 text-sm truncate">
+                      {node.title}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] text-gray-400">
+                    {node.keywords.map((kw, idx) => (
+                      <span key={idx} className="px-1.5 py-0.5 bg-gray-100/50 rounded-md">
+                        {kw}
+                      </span>
+                    ))}
+                    <div className="w-1 h-1 rounded-full bg-gray-200" />
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-2.5 h-2.5" />
+                      {node.date}
                     </span>
-                  ))}
-                  <span className="text-gray-400">{node.date}</span>
+                  </div>
                 </div>
-              </div>
+                <ArrowRight className="w-4 h-4 text-gray-300 opacity-0 group-hover:opacity-100 transform translate-x-[-10px] group-hover:translate-x-0 transition-all" />
+              </motion.div>
             ))
           )}
         </div>

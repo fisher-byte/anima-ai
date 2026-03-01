@@ -112,7 +112,8 @@ export const API_CONFIG = {
 export const ALLOWED_FILENAMES = [
   'profile.json',
   'nodes.json',
-  'conversations.jsonl'
+  'conversations.jsonl',
+  'settings.json'
 ] as const
 
 /**

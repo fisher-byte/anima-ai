@@ -1,9 +1,12 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Settings, Search, History, Maximize2, Minus, Plus, Compass } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { NodeCard } from './NodeCard'
 import { Edge } from './Edge'
 import { ConversationSidebar } from './ConversationSidebar'
 import { SearchPanel } from './SearchPanel'
+import { SettingsModal } from './SettingsModal'
 
 export function Canvas() {
   const { nodes, edges, offset, scale, setOffset, setScale, resetView } = useCanvasStore()
@@ -30,9 +33,10 @@ export function Canvas() {
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   
-  // 侧边栏和搜索面板状态
+  // 侧边栏、搜索和设置面板状态
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
   // 滚轮缩放处理
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -98,56 +102,50 @@ export function Canvas() {
     <>
       {/* 工具栏 */}
       <div className="fixed top-4 right-4 z-30 flex gap-2">
-        <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-sm flex items-center px-1 border border-gray-100">
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-sm flex items-center px-1 border border-gray-100">
           <button 
             onClick={() => setScale(scale * 0.8)} 
             className="p-2 text-gray-400 hover:text-gray-900 transition-colors"
             title="缩小"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
+            <Minus className="w-4 h-4" />
           </button>
-          <span className="text-[10px] font-medium text-gray-400 min-w-[36px] text-center select-none">{Math.round(scale * 100)}%</span>
+          <span className="text-[10px] font-bold text-gray-400 min-w-[36px] text-center select-none uppercase">{Math.round(scale * 100)}%</span>
           <button 
             onClick={() => setScale(scale * 1.2)} 
             className="p-2 text-gray-400 hover:text-gray-900 transition-colors"
             title="放大"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
+            <Plus className="w-4 h-4" />
           </button>
         </div>
         <button
           onClick={resetView}
-          className="p-2 bg-white rounded-xl shadow-md hover:shadow-lg transition-all text-gray-600"
+          className="p-2.5 bg-white/90 backdrop-blur-sm rounded-2xl shadow-sm hover:shadow-md transition-all text-gray-500 hover:text-gray-900 border border-gray-100"
           title="重置视图"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-            <path d="M3 3v5h5" />
-          </svg>
+          <Compass className="w-5 h-5" />
         </button>
         <button
           onClick={() => setIsSearchOpen(true)}
-          className="p-2 bg-white rounded-xl shadow-md hover:shadow-lg transition-all text-gray-600"
+          className="p-2.5 bg-white/90 backdrop-blur-sm rounded-2xl shadow-sm hover:shadow-md transition-all text-gray-500 hover:text-gray-900 border border-gray-100"
           title="搜索 (Ctrl+K)"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.35-4.35" />
-          </svg>
+          <Search className="w-5 h-5" />
         </button>
         <button
           onClick={() => setIsSidebarOpen(true)}
-          className="p-2 bg-white rounded-xl shadow-md hover:shadow-lg transition-all text-gray-600"
+          className="p-2.5 bg-white/90 backdrop-blur-sm rounded-2xl shadow-sm hover:shadow-md transition-all text-gray-500 hover:text-gray-900 border border-gray-100"
           title="对话历史"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
+          <History className="w-5 h-5" />
+        </button>
+        <button
+          onClick={() => setIsSettingsOpen(true)}
+          className="p-2.5 bg-white/90 backdrop-blur-sm rounded-2xl shadow-sm hover:shadow-md transition-all text-gray-500 hover:text-gray-900 border border-gray-100"
+          title="设置"
+        >
+          <Settings className="w-5 h-5" />
         </button>
       </div>
 
@@ -224,6 +222,10 @@ export function Canvas() {
       <SearchPanel 
         isOpen={isSearchOpen} 
         onClose={() => setIsSearchOpen(false)} 
+      />
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
       />
     </>
   )

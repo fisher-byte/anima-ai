@@ -17,7 +17,7 @@
 
 ## 项目状态
 
-- **当前版本**: v0.1.4
+- **当前版本**: v0.1.6
 - **开发状态**: Active
 - **最后更新**: 2026-03-01
 - **GitHub**: https://github.com/fisher-byte/Cogniflow

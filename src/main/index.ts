@@ -8,7 +8,7 @@ const DATA_DIR = join(app.getPath('userData'), 'data')
 const API_KEY_FILE = join(app.getPath('userData'), 'api_key.enc')
 
 // 允许的文件名白名单（防止路径遍历）
-const ALLOWED_FILENAMES = ['profile.json', 'nodes.json', 'conversations.jsonl']
+const ALLOWED_FILENAMES = ['profile.json', 'nodes.json', 'conversations.jsonl', 'settings.json']
 
 /**
  * 验证文件名是否合法

@@ -209,51 +209,68 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     let category = matchedCat.name
     let color = matchedCat.color
 
-    // 计算中心参考点
-    const viewW = typeof window !== 'undefined' ? window.innerWidth : 800
-    const viewH = typeof window !== 'undefined' ? window.innerHeight : 450
+    // --- 聚类布局优化 (Category Island) ---
+    const viewW = typeof window !== 'undefined' ? window.innerWidth : 1280
+    const viewH = typeof window !== 'undefined' ? window.innerHeight : 800
     const centerX = 1.5 * viewW
     const centerY = 1.5 * viewH
 
-    // 寻找同类节点作为布局参考
-    const sameCatNode = nodes.find(n => n.category === category)
-    const baseSearchX = sameCatNode ? sameCatNode.x : centerX
-    const baseSearchY = sameCatNode ? sameCatNode.y : centerY
+    // 寻找该类别的中心点（岛屿中心）
+    const catNodes = nodes.filter(n => n.category === category)
+    let islandX = centerX
+    let islandY = centerY
 
-    // 如果已存在同 conversationId 的节点：只更新内容
-    const existingIndex = nodes.findIndex(n => n.conversationId === conversation.id)
-
-    // 计算位置
-    const minDist = 230
-    const isFarEnough = (x1: number, y1: number) => {
-      for (const n of nodes) {
-        if (n.conversationId === conversation.id) continue
-        const dx = n.x - x1
-        const dy = n.y - y1
-        if (Math.hypot(dx, dy) < minDist) return false
+    if (catNodes.length > 0) {
+      // 岛屿已存在：计算质心
+      islandX = catNodes.reduce((sum, n) => sum + n.x, 0) / catNodes.length
+      islandY = catNodes.reduce((sum, n) => sum + n.y, 0) / catNodes.length
+    } else if (nodes.length > 0) {
+      // 新岛屿：找一个远离现有岛屿的空位
+      const islandDist = 600
+      let foundIsland = false
+      let angle = Math.random() * Math.PI * 2
+      for (let i = 0; i < 12; i++) {
+        const tx = centerX + Math.cos(angle) * islandDist
+        const ty = centerY + Math.sin(angle) * islandDist
+        // 检查是否离其他节点足够远
+        if (nodes.every(n => Math.hypot(n.x - tx, n.y - ty) > islandDist * 0.8)) {
+          islandX = tx
+          islandY = ty
+          foundIsland = true
+          break
+        }
+        angle += (Math.PI * 2) / 12
       }
-      return true
     }
 
+    // 在岛屿周围寻找空位
     let x = position?.x
     let y = position?.y
-    
+    const nodeGap = 240 // 节点间距
+
     if (x == null || y == null) {
-      let angle = Math.random() * Math.PI * 2
       let found = false
-      for (let i = 0; i < 80; i++) {
-        const r = (sameCatNode ? 180 : 40) + i * 15
-        const cx = baseSearchX + Math.cos(angle) * r
-        const cy = baseSearchY + Math.sin(angle) * r
-        angle += 0.8
-        if (isFarEnough(cx, cy)) {
-          x = cx
-          y = cy
+      // 螺旋搜索
+      for (let i = 0; i < 100; i++) {
+        const radius = (catNodes.length === 0 ? 0 : 150) + Math.floor(i / 8) * 100
+        const angle = (i % 8) * (Math.PI / 4) + (radius / 200)
+        const tx = islandX + Math.cos(angle) * radius
+        const ty = islandY + Math.sin(angle) * radius
+        
+        // 碰撞检测
+        const isClear = nodes.every(n => {
+          if (n.conversationId === conversation.id) return true
+          return Math.hypot(n.x - tx, n.y - ty) >= nodeGap
+        })
+
+        if (isClear) {
+          x = tx
+          y = ty
           found = true
           break
         }
       }
-      if (!found) { x = baseSearchX; y = baseSearchY; }
+      if (!found) { x = islandX; y = islandY; }
     }
 
     const newNode: Node = {
