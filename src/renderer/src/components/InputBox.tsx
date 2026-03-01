@@ -1,7 +1,8 @@
 import { useState, useCallback, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useCanvasStore } from '../stores/canvasStore'
 import { UI_CONFIG } from '@shared/constants'
-import { X, Paperclip, FileText, FileCode, File as FileIcon, Loader2 } from 'lucide-react'
+import { X, Paperclip, FileText, FileCode, File as FileIcon, Loader2, ArrowUp } from 'lucide-react'
 import { formatFilesForAI, FilePreview, getFileType, readImageAsBase64, formatFileSize } from '../../../services/fileParsing'
 import type { FileAttachment } from '@shared/types'
 
@@ -222,63 +223,81 @@ export function InputBox() {
   if (isModalOpen) return null
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
       className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-2xl px-4"
       onDragOver={(e) => e.preventDefault()}
       onDrop={handleDrop}
     >
       {/* 文件预览区 */}
-      {(filePreviews.length > 0 || images.length > 0) && (
-        <div className="flex flex-wrap gap-2 mb-2 p-2 bg-white/50 backdrop-blur-md rounded-xl border border-white/20">
-          {/* 图片预览 */}
-          {images.map((img, idx) => (
-            <div key={`img-${idx}`} className="relative group w-16 h-16 rounded-lg overflow-hidden border border-gray-200">
-              <img src={img} className="w-full h-full object-cover" />
-              <button
-                onClick={() => removeImage(idx)}
-                className="absolute top-0.5 right-0.5 p-0.5 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+      <AnimatePresence>
+        {(filePreviews.length > 0 || images.length > 0) && (
+          <motion.div 
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            className="flex flex-wrap gap-2 mb-3 p-3 bg-white/70 backdrop-blur-xl rounded-2xl border border-gray-100 shadow-xl"
+          >
+            {/* 图片预览 */}
+            {images.map((img, idx) => (
+              <motion.div 
+                key={`img-${idx}`} 
+                layout
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="relative group w-16 h-16 rounded-xl overflow-hidden border border-gray-100 shadow-sm"
               >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          ))}
+                <img src={img} className="w-full h-full object-cover" />
+                <button
+                  onClick={() => removeImage(idx)}
+                  className="absolute top-1 right-1 p-0.5 bg-black/40 backdrop-blur-md text-white rounded-full opacity-0 group-hover:opacity-100 transition-all hover:bg-black/60"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </motion.div>
+            ))}
 
-          {/* 文件预览 */}
-          {filePreviews.map((file) => (
-            <div
-              key={file.id}
-              className="relative group flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg border border-gray-200"
-            >
-              {file.status === 'reading' ? (
-                <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
-              ) : (
-                getFileIcon(file.type)
-              )}
-              <div className="flex flex-col min-w-0">
-                <span className="text-xs font-medium text-gray-700 truncate max-w-[120px]">
-                  {file.name}
-                </span>
-                <span className="text-[10px] text-gray-400">
-                  {file.status === 'reading' ? '读取中...' : file.size}
-                </span>
-              </div>
-              <button
-                onClick={() => removeFile(file.id)}
-                className="p-0.5 text-gray-400 hover:text-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+            {/* 文件预览 */}
+            {filePreviews.map((file) => (
+              <motion.div
+                key={file.id}
+                layout
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="relative group flex items-center gap-2.5 px-4 py-2.5 bg-gray-50/50 rounded-xl border border-gray-100 hover:bg-white transition-colors"
               >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+                {file.status === 'reading' ? (
+                  <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
+                ) : (
+                  getFileIcon(file.type)
+                )}
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-semibold text-gray-700 truncate max-w-[120px] tracking-tight">
+                    {file.name}
+                  </span>
+                  <span className="text-[10px] text-gray-400 font-medium">
+                    {file.status === 'reading' ? '解析中...' : file.size}
+                  </span>
+                </div>
+                <button
+                  onClick={() => removeFile(file.id)}
+                  className="p-1 text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <div className="glass rounded-2xl p-2 flex items-end gap-2 shadow-lg ring-1 ring-black/5">
+      <div className="bg-white/80 backdrop-blur-2xl rounded-[28px] p-2.5 flex items-end gap-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-gray-100 ring-1 ring-black/5 focus-within:ring-blue-200 transition-all duration-300">
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={isProcessing}
-          className="p-3 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
-          aria-label="上传文件"
+          className="p-3 text-gray-400 hover:text-blue-500 hover:bg-blue-50/50 rounded-2xl transition-all disabled:opacity-50"
+          title="上传文件 (图片、文档、代码)"
         >
           <Paperclip className="w-5 h-5" />
         </button>
@@ -297,37 +316,29 @@ export function InputBox() {
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           placeholder={UI_CONFIG.INPUT_PLACEHOLDER}
-          className="flex-1 bg-transparent border-none outline-none resize-none px-2 py-3 text-gray-800 placeholder-gray-400 min-h-[48px] max-h-[200px]"
+          className="flex-1 bg-transparent border-none outline-none resize-none px-2 py-3.5 text-gray-800 placeholder-gray-400 min-h-[52px] max-h-[220px] text-[15px] leading-relaxed"
           rows={1}
           autoFocus
         />
         <button
           onClick={handleSubmit}
           disabled={(!message.trim() && images.length === 0 && files.length === 0) || isProcessing}
-          className="px-4 py-2.5 bg-gray-900 text-white rounded-xl hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center shadow-sm"
+          className={`p-2.5 rounded-2xl transition-all duration-300 flex items-center justify-center shadow-lg transform active:scale-95 ${
+            (!message.trim() && images.length === 0 && files.length === 0) || isProcessing
+              ? 'bg-gray-100 text-gray-300 cursor-not-allowed shadow-none'
+              : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-blue-200 ring-4 ring-blue-50'
+          }`}
           aria-label="发送"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <line x1="22" y1="2" x2="11" y2="13" />
-            <polygon points="22 2 15 22 11 13 2 9 22 2" />
-          </svg>
+          <ArrowUp className="w-6 h-6 stroke-[2.5px]" />
         </button>
       </div>
 
       {/* 快捷键提示 */}
-      <div className="text-center mt-2 text-xs text-gray-400">
-        按 Enter 发送，Shift + Enter 换行 · 支持拖入图片、PDF、Word、代码文件
+      <div className="flex justify-center gap-4 mt-3 text-[10px] text-gray-300 font-bold uppercase tracking-widest pointer-events-none">
+        <span className="bg-gray-50 px-2 py-0.5 rounded border border-gray-100">Enter Send</span>
+        <span className="bg-gray-50 px-2 py-0.5 rounded border border-gray-100">Shift + Enter Newline</span>
       </div>
-    </div>
+    </motion.div>
   )
 }

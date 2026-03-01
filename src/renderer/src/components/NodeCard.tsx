@@ -85,7 +85,8 @@ export function NodeCard({ node }: NodeCardProps) {
       animate={{ 
         scale: isDragging ? 1.05 : 1, 
         opacity: 1,
-        transition: { type: "spring", stiffness: 300, damping: 20 }
+        rotate: isDragging ? 2 : 0, // 拖动时轻微倾斜，增加物理感
+        transition: { type: "spring", stiffness: 400, damping: 25 }
       }}
       className={`absolute cursor-grab active:cursor-grabbing group z-10`}
       style={{
