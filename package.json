@@ -1,6 +1,6 @@
 {
   "name": "evocanvas",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "EvoCanvas - 不会忘记你的AI画布",
   "main": "./out/main/index.js",
   "author": "EvoCanvas Team",

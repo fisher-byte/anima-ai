@@ -225,8 +225,8 @@ export function InputBox() {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20, x: "-50%" }}
-      animate={{ opacity: 1, y: 0, x: "-50%" }}
-      className="fixed bottom-8 left-1/2 z-50 w-full max-w-2xl px-4"
+  animate={{ opacity: 1, y: 0, x: "-50%" }}
+  className="fixed bottom-12 left-1/2 z-50 w-full max-w-2xl px-4"
       onDragOver={(e) => e.preventDefault()}
       onDrop={handleDrop}
     >
