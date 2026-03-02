@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Send, CheckCircle2, Edit3, Globe, Copy, RefreshCw, Square, Paperclip, Cpu, ChevronDown, ChevronRight } from 'lucide-react'
+import { Sparkles, Send, CheckCircle2, Edit3, Copy, RefreshCw, Square, Paperclip, Cpu, ChevronDown, ChevronRight } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useCanvasStore } from '../stores/canvasStore'
@@ -127,8 +127,6 @@ export function AnswerModal() {
 
   // AI Hook
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-
-  const hasAnyAnswer = useMemo(() => turns.some(t => !!t.assistant || !!t.error), [turns])
 
   const { sendMessage, resetHistory, cancel } = useAI({
     onThinking: (chunk) => {
@@ -640,6 +638,19 @@ export function AnswerModal() {
                   className="space-y-4"
                 >
                   <div className="relative group">
+                    <AnimatePresence>
+                      {showEvolutionToast && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 10 }}
+                          className="absolute -top-10 left-0 right-0 flex items-center justify-center gap-2 text-[10px] text-gray-400/60 font-bold uppercase tracking-[0.1em]"
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          <span>AI 正在根据你的反馈无声进化...</span>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                     <textarea
                       ref={textareaRef}
                       value={feedbackMessage}
