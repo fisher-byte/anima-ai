@@ -33,12 +33,14 @@ export function useAI(options: UseAIOptions = {}) {
    * @param preferences 偏好设置
    * @param history 可选的历史对话记录（用于连续对话）
    * @param images 图片列表（多模态）
+   * @param compressedMemory 压缩后的相关记忆文本，注入 systemPrompt
    */
   const sendMessage = useCallback(async (
     userMessage: string,
     preferences: string[] = [],
     history?: AIMessage[],
-    images: string[] = []
+    images: string[] = [],
+    compressedMemory?: string
   ) => {
     // 创建新的 AbortController
     abortControllerRef.current = new AbortController()
@@ -64,7 +66,7 @@ export function useAI(options: UseAIOptions = {}) {
     let fullReasoning = ''
 
     try {
-      for await (const chunk of streamAI(messages, preferences, signal)) {
+      for await (const chunk of streamAI(messages, preferences, signal, compressedMemory)) {
         if (chunk.type === 'content') {
           fullText += chunk.content
           callbacksRef.current.onStream?.(chunk.content)
