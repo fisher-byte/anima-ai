@@ -730,13 +730,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         return { conv, score }
       })
       
-      // 返回评分最高且不为0的最近3条记忆
+      // 返回评分最高且不为0的最近3条记忆（节点用 conversationId 与对话 id 对应）
       return scored
         .filter(s => s.score > 0)
         .sort((a, b) => b.score - a.score)
         .slice(0, 3)
         .map(s => {
-          const node = nodes.find(n => n.id === s.conv.id)
+          const node = nodes.find(n => n.conversationId === s.conv.id)
           return { conv: s.conv, category: node?.category }
         })
     } catch (error) {
