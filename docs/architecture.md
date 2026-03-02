@@ -54,40 +54,55 @@ evocanvas/
 - `currentConversation`: 当前对话
 - `profile`: 用户偏好配置
 - `isModalOpen`: 回答层开关
+- `selectedNodeId` / `highlightedNodeIds`: 节点选中与语义高亮
+- `offset` / `scale`: 画布平移与缩放
 
 核心方法:
 - `loadNodes/loadProfile`: 数据加载
 - `addNode`: 添加节点
 - `startConversation/endConversation`: 对话生命周期
 - `detectFeedback/addPreference`: 偏好学习
+- `detectIntent` / `getRelevantMemories` / `setHighlight`: 意图检测与语义高亮
+- `selectNode` / `openModalById`: 节点详情与回放
 
 ### 3. 组件层 (React)
 
 **Canvas** (`components/Canvas.tsx`)
-- 无限画布，支持拖拽
-- 白底 + 点阵背景
-- 渲染节点卡片
+- 无限画布，支持拖拽（画布层使用 pointer-events-auto 保证事件可达）
+- 极光背景（AmbientBackground）+ 点阵背景
+- 平移、缩放、惯性滑动；LOD：缩小显示聚类标签，放大显示节点
+- 渲染 NodeCard、Edge、ClusterLabel
+
+**AmbientBackground** (`components/AmbientBackground.tsx`)
+- 极光渐变背景，颜色随主导节点分类变化（工作蓝/生活绿/创意紫）
+- 噪声纹理层，pointer-events-none
+
+**ClusterLabel** (`components/ClusterLabel.tsx`)
+- 宏观视图下显示的聚类标签（生活日常、工作学习等）
+- 随 scale 淡入淡出；反向缩放保持可读；支持拖拽整组、点击聚焦
 
 **InputBox** (`components/InputBox.tsx`)
-- 底部居中输入框
-- 毛玻璃效果
-- 支持 Enter 发送，Shift+Enter 换行
+- 底部居中输入框，毛玻璃效果
+- 防抖语义检测：detectIntent + getRelevantMemories，结果 setHighlight 驱动画布高亮
+- 支持 Enter 发送，Shift+Enter 换行；附件与多行
 
 **AnswerModal** (`components/AnswerModal.tsx`)
-- 全屏回答层
-- 流式显示AI回复
-- 负反馈输入框
+- 对话岛形态：从输入框 Morph 展开的半屏面板，非全屏
+- 顶部记忆引用条，流式 AI 回复，负反馈输入，文件上传与停止生成
 - 检测并记录偏好
 
 **NodeCard** (`components/NodeCard.tsx`)
-- 显示标题（≤8字）
-- 显示关键词（2-3个）
-- 显示日期
-- 点击回放对话
+- 显示标题、关键词、日期；LOD 透明度；高亮态（highlightedNodeIds）
+- 点击打开 NodeDetailPanel（不再直接打开 AnswerModal）
+
+**NodeDetailPanel** (`components/NodeDetailPanel.tsx`)
+- 节点详情侧边面板：继续话题、重命名、删除
+
+**OnboardingGuide** (`components/OnboardingGuide.tsx`)
+- 新用户首次引导（漫游、对话、宏微观切换），localStorage 记录已读
 
 **GrayHint** (`components/GrayHint.tsx`)
-- 灰色小字提示
-- 仅在偏好被应用时显示
+- 灰色小字提示，仅在偏好被应用时显示
 
 ### 4. 服务层
 

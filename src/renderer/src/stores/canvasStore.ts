@@ -32,7 +32,7 @@ interface CanvasState {
   resetView: () => void
   startConversation: (userMessage: string, images?: string[], files?: import('@shared/types').FileAttachment[], parentId?: string) => Promise<void>
   updateConversation: (conversationId: string, updates: Partial<Conversation>) => Promise<void>
-  endConversation: (assistantMessage: string, appliedPreferences?: string[], reasoning_content?: string) => Promise<void>
+  endConversation: (assistantMessage: string, appliedPreferences?: string[], reasoning_content?: string, explicitConversation?: Conversation) => Promise<void>
   closeModal: () => void
   openModal: (conversation: Conversation) => void
   openModalById: (conversationId: string) => Promise<void>
@@ -500,9 +500,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     }
   },
 
-  // 结束对话 (增强：支持基于意图的话题拆分)
-  endConversation: async (assistantMessage: string, appliedPreferences?: string[], reasoning_content?: string) => {
-    const { currentConversation, addNode, appendConversation, detectIntent } = get()
+  // 结束对话 (增强：支持基于意图的话题拆分；explicitConversation 用于 handleClose 后台保存时传入快照)
+  endConversation: async (assistantMessage: string, appliedPreferences?: string[], reasoning_content?: string, explicitConversation?: Conversation) => {
+    const { addNode, appendConversation, detectIntent } = get()
+    const currentConversation = explicitConversation ?? get().currentConversation
     if (!currentConversation) return
 
     // 1. 解析回复中的多轮对话
