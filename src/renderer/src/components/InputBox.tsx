@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCanvasStore } from '../stores/canvasStore'
 import { UI_CONFIG } from '@shared/constants'
-import { X, Paperclip, FileText, FileCode, File as FileIcon, Loader2, ArrowUp, Command, Sparkles } from 'lucide-react'
+import { X, Paperclip, FileText, FileCode, File as FileIcon, Loader2, ArrowUp, Sparkles } from 'lucide-react'
 import { formatFilesForAI, FilePreview, getFileType, readImageAsBase64, formatFileSize } from '../../../services/fileParsing'
 import type { FileAttachment } from '@shared/types'
 
@@ -328,24 +328,20 @@ export function InputBox() {
             )}
         </AnimatePresence>
 
-        <motion.div 
+        <motion.div
             layout
             className={`
-            relative flex items-end gap-1.5 rounded-[28px] 
-            bg-white/80 backdrop-blur-2xl p-2.5 
-            border border-gray-100 shadow-[0_20px_50px_rgba(0,0,0,0.1)] 
-            ring-1 ring-black/5 transition-all duration-300
-            ${focused ? 'scale-[1.02] shadow-[0_25px_60px_rgba(0,0,0,0.12)] ring-blue-200' : ''}
+            relative flex items-end gap-1.5 rounded-[28px]
+            bg-white p-2.5
+            border shadow-[0_8px_30px_rgba(0,0,0,0.08)]
+            transition-all duration-200
+            ${focused ? 'border-gray-900 shadow-[0_8px_30px_rgba(0,0,0,0.12)]' : 'border-gray-200'}
             `}
         >
-            <div className="flex items-center justify-center w-10 h-10 mb-1.5 rounded-full bg-gray-50 text-gray-400">
-                <Command className="w-5 h-5" />
-            </div>
-
             <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isProcessing}
-            className="mb-1.5 p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50/50 rounded-xl transition-all disabled:opacity-50"
+            className="mb-1.5 p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-all disabled:opacity-50"
             title="上传文件 (图片、文档、代码)"
             >
             <Paperclip className="w-5 h-5" />
@@ -367,11 +363,12 @@ export function InputBox() {
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             placeholder={UI_CONFIG.INPUT_PLACEHOLDER}
-            className="flex-1 bg-transparent border-none outline-none resize-none px-2 py-3.5 text-gray-800 placeholder-gray-400 min-h-[52px] max-h-[220px] text-[15px] leading-relaxed"
+            className="flex-1 bg-transparent border-none outline-none resize-none px-2 py-3.5 text-gray-800 placeholder-gray-400 min-h-[52px] max-h-[220px] text-[15px] leading-relaxed overflow-y-auto scrollbar-none"
+            style={{ scrollbarWidth: 'none' }}
             rows={1}
             autoFocus
             />
-            
+
             {/* 搜索反馈 */}
             <AnimatePresence>
                 {matchCount > 0 && (
@@ -379,7 +376,7 @@ export function InputBox() {
                     initial={{ opacity: 0, scale: 0.8, x: -10 }}
                     animate={{ opacity: 1, scale: 1, x: 0 }}
                     exit={{ opacity: 0, scale: 0.8, x: 10 }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 mb-2 rounded-full bg-blue-50 text-blue-600 text-xs font-semibold mr-1 whitespace-nowrap"
+                    className="flex items-center gap-1.5 px-3 py-1.5 mb-2 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold mr-1 whitespace-nowrap"
                 >
                     <Sparkles className="w-3 h-3" />
                     <span>{matchCount} 记忆</span>
@@ -390,10 +387,10 @@ export function InputBox() {
             <button
             onClick={handleSubmit}
             disabled={(!message.trim() && images.length === 0 && files.length === 0) || isProcessing}
-            className={`mb-1 p-2.5 rounded-2xl transition-all duration-300 flex items-center justify-center shadow-lg transform active:scale-95 ${
+            className={`mb-1 p-2.5 rounded-2xl transition-all duration-200 flex items-center justify-center transform active:scale-95 ${
             (!message.trim() && images.length === 0 && files.length === 0) || isProcessing
-                ? 'bg-gray-100 text-gray-300 cursor-not-allowed shadow-none'
-                : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-blue-200 ring-4 ring-blue-50'
+                ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
+                : 'bg-gray-900 text-white hover:bg-black shadow-sm'
             }`}
             aria-label="发送"
             >

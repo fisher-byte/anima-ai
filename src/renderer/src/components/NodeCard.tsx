@@ -104,8 +104,11 @@ export function NodeCard({ node }: NodeCardProps) {
   }, [removeNode, node.id])
 
   // 随机浮动相位（每个节点不同）
-  const floatDuration = useMemo(() => 3 + (node.id.charCodeAt(0) % 20) * 0.1, [node.id])
-  const floatDelay = useMemo(() => (node.id.charCodeAt(1) || 0) % 20 * 0.1, [node.id])
+  const floatDuration = useMemo(() => 4 + (node.id.charCodeAt(0) % 20) * 0.15, [node.id])
+  const floatDelay = useMemo(() => (node.id.charCodeAt(1) || 0) % 20 * 0.15, [node.id])
+  // x 轴漂移：与 y 轴错相位，形成轨道漂浮感
+  const floatDurationX = useMemo(() => 5.5 + (node.id.charCodeAt(2) || 0) % 20 * 0.12, [node.id])
+  const floatDelayX = useMemo(() => ((node.id.charCodeAt(3) || 0) % 20 * 0.15) + floatDuration * 0.5, [node.id, floatDuration])
 
   return (
     <motion.div
@@ -134,24 +137,35 @@ export function NodeCard({ node }: NodeCardProps) {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* 微浮动层：只在非拖拽时活跃，每个节点相位不同 */}
+      {/* 微浮动层：x+y 错相位漂移，产生轨道流动感 */}
       <motion.div
-        animate={isDragging ? { y: 0 } : { y: [0, -4, 0] }}
+        animate={isDragging ? { x: 0, y: 0 } : { x: [0, 3, 0, -3, 0], y: [0, -4, 0] }}
         transition={{
+          x: { duration: floatDurationX, repeat: Infinity, ease: "easeInOut", delay: floatDelayX },
           y: { duration: floatDuration, repeat: Infinity, ease: "easeInOut", delay: floatDelay }
         }}
       >
+      {/* 高亮时的外发光圈 */}
+      {isHighlighted && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.85 }}
+          animate={{ opacity: [0.5, 0.9, 0.5], scale: [1, 1.12, 1] }}
+          transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute inset-0 rounded-2xl pointer-events-none"
+          style={{ boxShadow: '0 0 0 2px rgba(0,0,0,0.15), 0 0 24px 6px rgba(0,0,0,0.1)', zIndex: -1 }}
+        />
+      )}
       <motion.div
         layout
-        className={`rounded-2xl transition-shadow duration-500 p-5 w-52 border backdrop-blur-sm ${
+        className={`rounded-2xl transition-all duration-300 p-5 w-52 border ${
           isHighlighted
-            ? 'shadow-[0_0_30px_rgba(59,130,246,0.25)] border-blue-300/60 bg-white/80'
+            ? 'shadow-[0_0_20px_rgba(0,0,0,0.12)] border-gray-400/50 bg-white'
             : isDragging
-              ? 'shadow-[0_20px_50px_rgba(0,0,0,0.12)] border-blue-200/50'
-              : 'shadow-[0_4px_20px_rgba(0,0,0,0.04)] border-white/60 hover:shadow-[0_8px_32px_rgba(0,0,0,0.08)] hover:border-blue-100/40'
+              ? 'shadow-[0_20px_50px_rgba(0,0,0,0.12)] border-gray-200/80'
+              : 'shadow-[0_4px_20px_rgba(0,0,0,0.04)] border-white/60 hover:shadow-[0_8px_32px_rgba(0,0,0,0.08)] hover:border-gray-200/60'
         }`}
         style={{
-          backgroundColor: isHighlighted ? undefined : (node.color ? node.color.replace('0.9', '0.45') : 'rgba(255,255,255,0.65)'),
+          backgroundColor: isHighlighted ? 'rgba(255,255,255,1)' : (node.color ? node.color.replace('0.9', '0.45') : 'rgba(255,255,255,0.65)'),
         }}
       >
         {/* 删除按钮 (仅悬停时展示) */}
