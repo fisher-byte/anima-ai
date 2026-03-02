@@ -5,10 +5,24 @@ import type { Node } from '@shared/types'
 interface EdgeProps {
   sourceNode: Node
   targetNode: Node
+  scale?: number
 }
 
-export function Edge({ sourceNode, targetNode }: EdgeProps) {
-  const { path, pathShadow, strokeWidth, opacity, blur } = useMemo(() => {
+// Helper for opacity transition
+function getOpacity(scale: number, min: number, max: number, type: 'fade-in' | 'fade-out') {
+  if (type === 'fade-in') {
+    if (scale < min) return 0
+    if (scale > max) return 1
+    return (scale - min) / (max - min)
+  } else {
+    if (scale < min) return 1
+    if (scale > max) return 0
+    return 1 - (scale - min) / (max - min)
+  }
+}
+
+export function Edge({ sourceNode, targetNode, scale = 1 }: EdgeProps) {
+  const { path, pathShadow, strokeWidth, opacity, blur, color } = useMemo(() => {
     // 节点中心位置
     const sx = sourceNode.x + 104
     const sy = sourceNode.y + 60
@@ -33,20 +47,27 @@ export function Edge({ sourceNode, targetNode }: EdgeProps) {
     const op = 0.05 + ratio * 0.15 // 透明度在 0.05 到 0.2 之间变化
     const b = (1 - ratio) * 2 // 模糊度在 0 到 2px 之间变化
     
-    return { path: p, pathShadow: ps, strokeWidth: sw, opacity: op, blur: b }
-  }, [sourceNode.x, sourceNode.y, targetNode.x, targetNode.y])
+    // Color based on source node category color
+    // Extract rgb values from rgba string like 'rgba(219, 234, 254, 0.9)'
+    const nodeColor = sourceNode.color || 'rgba(148, 163, 184, 0.9)'
+    
+    return { path: p, pathShadow: ps, strokeWidth: sw, opacity: op, blur: b, color: nodeColor }
+  }, [sourceNode.x, sourceNode.y, targetNode.x, targetNode.y, sourceNode.color])
+
+  // LOD Opacity
+  const lodOpacity = getOpacity(scale, 0.3, 0.5, 'fade-in')
+  if (lodOpacity <= 0) return null
 
   return (
     <g className="group/edge">
       {/* 底层阴影/发光效果 */}
       <motion.path
         initial={{ opacity: 0 }}
-        animate={{ opacity: opacity * 0.5 }}
+        animate={{ opacity: opacity * 0.5 * lodOpacity, stroke: color }}
         d={pathShadow}
         fill="none"
-        stroke="currentColor"
         strokeWidth={strokeWidth * 3}
-        className="text-blue-400 pointer-events-none blur-md"
+        className="pointer-events-none blur-md"
       />
       
       {/* 主线条 */}
@@ -54,24 +75,25 @@ export function Edge({ sourceNode, targetNode }: EdgeProps) {
         initial={{ pathLength: 0, opacity: 0 }}
         animate={{ 
           pathLength: 1, 
-          opacity: opacity,
+          opacity: opacity * lodOpacity,
           strokeWidth: strokeWidth,
-          filter: `blur(${blur}px)`
+          filter: `blur(${blur}px)`,
+          stroke: color
         }}
         transition={{ duration: 1.5, ease: [0.23, 1, 0.32, 1] }}
         d={path}
         fill="none"
-        stroke="currentColor"
-        className="text-blue-400/40 group-hover/edge:text-blue-400 transition-all duration-500 pointer-events-none"
+        className="transition-all duration-500 pointer-events-none"
         strokeLinecap="round"
       />
       
-      {/* 装饰性流动微粒效果 */}
+      {/* 装饰性流动微粒效果 (Active State) */}
       <motion.path
         initial={{ pathLength: 0, opacity: 0 }}
         animate={{ 
           pathLength: [0, 1],
-          opacity: [0, opacity * 2, 0],
+          opacity: [0, opacity * 2 * lodOpacity, 0],
+          stroke: color,
           transition: { 
             duration: 4, 
             repeat: Infinity, 
@@ -81,9 +103,8 @@ export function Edge({ sourceNode, targetNode }: EdgeProps) {
         }}
         d={path}
         fill="none"
-        stroke="currentColor"
         strokeWidth={strokeWidth * 0.6}
-        className="text-blue-300 pointer-events-none"
+        className="pointer-events-none"
         strokeLinecap="round"
         strokeDasharray="2, 12"
       />
