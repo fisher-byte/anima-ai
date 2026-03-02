@@ -53,6 +53,7 @@ export interface Conversation {
   createdAt: string
   userMessage: string
   assistantMessage: string
+  reasoning_content?: string // 新增：保存推理内容
   images?: string[]  // 支持图片 base64 列表（向后兼容）
   files?: FileAttachment[]  // 文件附件列表
   negativeFeedback?: string

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Send, CheckCircle2, Edit3, Globe, Copy, RefreshCw, Square, Paperclip, Cpu } from 'lucide-react'
+import { Sparkles, Send, CheckCircle2, Edit3, Globe, Copy, RefreshCw, Square, Paperclip, Cpu, ChevronDown, ChevronRight } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useCanvasStore } from '../stores/canvasStore'
@@ -13,17 +13,18 @@ import type { AIMessage } from '@shared/types'
 type Turn = {
   user: string
   assistant: string
+  reasoning?: string
   images?: string[]
   files?: import('@shared/types').FileAttachment[]
   error?: string
 }
 
-function parseTurnsFromAssistantMessage(message: string, initialImages?: string[], initialFiles?: import('@shared/types').FileAttachment[]): Turn[] | null {
+function parseTurnsFromAssistantMessage(message: string, reasoning?: string, initialImages?: string[], initialFiles?: import('@shared/types').FileAttachment[]): Turn[] | null {
   if (!message) return null
 
   // 兼容旧格式或单次回答
   if (!message.includes('#1\n')) {
-    return [{ user: '', assistant: message, images: initialImages, files: initialFiles }]
+    return [{ user: '', assistant: message, reasoning, images: initialImages, files: initialFiles }]
   }
 
   const turns: Turn[] = []
@@ -47,6 +48,45 @@ function parseTurnsFromAssistantMessage(message: string, initialImages?: string[
   }
 
   return turns.length > 0 ? turns : null
+}
+
+function ThinkingSection({ content, isStreaming }: { content: string; isStreaming: boolean }) {
+  const [isExpanded, setIsExpanded] = useState(true)
+
+  if (!content && !isStreaming) return null
+
+  return (
+    <div className="mb-3">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex items-center gap-2 text-xs text-gray-400 hover:text-gray-600 transition-colors group"
+      >
+        <div className="flex items-center justify-center w-4 h-4 rounded-full bg-gray-100 group-hover:bg-gray-200 transition-colors">
+          {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+        </div>
+        <span className="font-medium tracking-tight uppercase">
+          {isStreaming ? '正在思考中...' : '已完成思考'}
+        </span>
+      </button>
+      
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="mt-2 pl-4 border-l-2 border-gray-100 text-sm text-gray-500 leading-relaxed italic">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {content || (isStreaming ? '...' : '')}
+              </ReactMarkdown>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
 }
 
 export function AnswerModal() {
@@ -91,6 +131,18 @@ export function AnswerModal() {
   const hasAnyAnswer = useMemo(() => turns.some(t => !!t.assistant || !!t.error), [turns])
 
   const { sendMessage, resetHistory, cancel } = useAI({
+    onThinking: (chunk) => {
+      setTurns(prev => {
+        if (prev.length === 0) return prev
+        const next = [...prev]
+        const last = next[next.length - 1]
+        next[next.length - 1] = { ...last, reasoning: (last.reasoning || '') + chunk }
+        return next
+      })
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      }
+    },
     onStream: (chunk) => {
       setTurns(prev => {
         if (prev.length === 0) return prev
@@ -145,6 +197,7 @@ export function AnswerModal() {
         didMutateRef.current = false
         const parsedTurns = parseTurnsFromAssistantMessage(
           currentConversation.assistantMessage,
+          '', // TODO: 如果以后 Conversation 支持保存 reasoning，这里需要传
           currentConversation.images,
           currentConversation.files
         )
@@ -344,10 +397,12 @@ export function AnswerModal() {
               })
               .join('\n\n')
           : (errorMessage ? `[API错误: ${errorMessage}]` : '[无回复]')
-      // 关闭后继续保存，避免阻塞返回画布，但保留错误处理
-      endConversation(finalResponse, appliedPreferences).catch(err => {
+      // 提取最新的推理内容（来自最后一轮）
+      const lastReasoning = turns.length > 0 ? turns[turns.length - 1].reasoning : ''
+
+      // 关闭后继续保存，保留错误处理
+      endConversation(finalResponse, appliedPreferences, lastReasoning).catch(err => {
         console.error('保存对话失败:', err)
-        // 可以在这里添加 toast 提示，但目前保持静默失败
       })
     }
 
@@ -379,351 +434,247 @@ export function AnswerModal() {
   if (!isModalOpen) return null
 
   return (
-    <div
-      className={`fixed inset-0 z-50 bg-white transition-all duration-300 ease-out ${
-        isClosing ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0'
-      }`}
-    >
-      {/* 头部导航 */}
-      <div className="fixed top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3 bg-white/80 backdrop-blur-sm border-b border-gray-100">
-        <button
-          onClick={handleClose}
-          className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all duration-200 group"
-        >
-          <svg
-            className="w-5 h-5 transform group-hover:-translate-x-1 transition-transform"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/5 backdrop-blur-[2px]">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={isClosing ? { opacity: 0, scale: 0.95, y: 20 } : { opacity: 1, scale: 1, y: 0 }}
+        className="relative w-full max-w-3xl h-[85vh] bg-white/80 backdrop-blur-2xl rounded-[32px] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.12)] border border-white/40 overflow-hidden flex flex-col"
+      >
+        {/* 头部导航 - 极简 */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100/50 bg-white/30 backdrop-blur-md">
+          <button
+            onClick={handleClose}
+            className="flex items-center gap-2 px-3 py-1.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100/50 rounded-xl transition-all duration-200 group"
           >
-            <line x1="19" y1="12" x2="5" y2="12" />
-            <polyline points="12 19 5 12 12 5" />
-          </svg>
-          <span className="text-sm font-medium">返回画布</span>
-        </button>
+            <ChevronRight className="w-4 h-4 rotate-180 transform group-hover:-translate-x-0.5 transition-transform" />
+            <span className="text-xs font-bold uppercase tracking-wider">返回画布</span>
+          </button>
 
-        {/* 标题 */}
-        <div className="absolute left-1/2 transform -translate-x-1/2 text-sm text-gray-500">
-          {errorMessage ? (
-            <span className="flex items-center gap-2 text-red-500">
-              <span className="w-2 h-2 bg-red-500 rounded-full" />
-              发生错误
-            </span>
-          ) : isStreaming ? (
-            <span className="flex items-center gap-2">
-              <Globe className="w-4 h-4 text-blue-500 animate-pulse" />
-              <span className="font-medium text-blue-600">AI 正在联网研究中...</span>
-            </span>
-          ) : hasAnyAnswer ? (
-            <span className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-green-500" />
-              <span>对话完成</span>
-            </span>
-          ) : (
-            <span>准备中...</span>
-          )}
+          <div className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.2em]">
+            {errorMessage ? (
+              <span className="text-red-500">API Error</span>
+            ) : isStreaming ? (
+              <span className="text-blue-500 animate-pulse">AI Evolving...</span>
+            ) : (
+              <span>Dialogue Island</span>
+            )}
+          </div>
+
+          <div className="w-20" /> {/* Balance */}
         </div>
 
-        {/* 占位保持平衡 */}
-        <div className="w-24" />
-      </div>
-
-      {/* 对话内容区 */}
-      <div
-        ref={scrollRef}
-        className="h-full overflow-y-auto pt-16 pb-48"
-      >
-        <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
-
-          {turns.map((t, idx) => (
-            <div key={idx} className="space-y-4 group/turn">
-              {/* 用户消息 */}
-              <div className="flex justify-end items-start gap-2">
-                <div className="flex flex-col items-end gap-2 max-w-[85%]">
-                  {/* 图片展示 */}
-                  {t.images && t.images.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-1 justify-end">
-                      {t.images.map((img, i) => (
-                        <img key={i} src={img} className="w-32 h-32 object-cover rounded-xl border border-gray-100 shadow-sm" />
-                      ))}
-                    </div>
-                  )}
-
-                  {/* 文件展示 */}
-                  {t.files && t.files.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-1 justify-end">
-                      {t.files.map((file, i) => (
-                        <div
-                          key={i}
-                          className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100 text-xs"
-                        >
-                          <Paperclip className="w-3 h-3 text-blue-500" />
-                          <span className="text-blue-700 font-medium">{file.name}</span>
-                          {file.content && (
-                            <span className="text-blue-400">
-                              ({file.content.length > 1000 ? `${(file.content.length / 1000).toFixed(1)}k` : file.content.length} 字符)
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* 文字气泡 */}
-                  <div className="relative group/bubble flex items-end gap-2">
-                    <div className="bg-gray-100 rounded-2xl rounded-tr-sm px-5 py-3.5 text-gray-800 text-[15px] leading-relaxed shadow-sm border border-gray-200/50">
-                      {editingIndex === idx ? (
-                        <div className="flex flex-col gap-3 min-w-[300px]">
-                          <textarea
-                            value={editingContent}
-                            onChange={(e) => setEditingContent(e.target.value)}
-                            className="w-full bg-white border border-gray-200 rounded-xl p-3 text-[15px] outline-none focus:ring-2 focus:ring-blue-100 text-gray-800 placeholder-gray-400"
-                            rows={3}
-                            autoFocus
-                          />
-                          <div className="flex justify-end gap-2">
-                            <button
-                              onClick={() => setEditingIndex(null)}
-                              className="px-4 py-1.5 text-xs text-gray-500 hover:bg-gray-200 rounded-lg transition-colors"
-                            >
-                              取消
-                            </button>
-                            <button
-                              onClick={handleSaveEdit}
-                              className="px-4 py-1.5 text-xs bg-gray-900 text-white font-bold hover:bg-black rounded-lg transition-colors shadow-md"
-                            >
-                              保存并重新发送
-                            </button>
+        {/* 对话内容区 */}
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto px-6 py-8 space-y-8 scroll-smooth"
+        >
+          <div className="max-w-2xl mx-auto">
+            {turns.map((t, idx) => (
+              <div key={idx} className="mb-12 last:mb-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                {/* 用户消息 */}
+                <div className="flex justify-end mb-6">
+                  <div className="flex flex-col items-end gap-3 max-w-[85%]">
+                    {t.images && t.images.length > 0 && (
+                      <div className="flex flex-wrap gap-2 justify-end">
+                        {t.images.map((img, i) => (
+                          <img key={i} src={img} className="w-24 h-24 object-cover rounded-2xl border border-gray-100 shadow-sm" />
+                        ))}
+                      </div>
+                    )}
+                    
+                    {t.files && t.files.length > 0 && (
+                      <div className="flex flex-wrap gap-2 justify-end">
+                        {t.files.map((file, i) => (
+                          <div key={i} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-xl border border-gray-100 text-[11px]">
+                            <Paperclip className="w-3 h-3 text-gray-400" />
+                            <span className="text-gray-600 font-bold uppercase tracking-tight">{file.name}</span>
                           </div>
-                        </div>
-                      ) : (
-                        t.user
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="relative group/user">
+                      <div className="bg-gray-100/80 backdrop-blur-sm rounded-[24px] rounded-tr-sm px-6 py-4 text-gray-800 text-[15px] leading-relaxed shadow-sm border border-gray-200/20">
+                        {editingIndex === idx ? (
+                          <div className="flex flex-col gap-3 min-w-[280px]">
+                            <textarea
+                              value={editingContent}
+                              onChange={(e) => setEditingContent(e.target.value)}
+                              className="w-full bg-white border border-gray-200 rounded-2xl p-4 text-[15px] outline-none focus:ring-2 focus:ring-blue-100 text-gray-800 transition-all"
+                              rows={3}
+                              autoFocus
+                            />
+                            <div className="flex justify-end gap-2">
+                              <button onClick={() => setEditingIndex(null)} className="px-4 py-2 text-xs text-gray-400 hover:text-gray-600 transition-colors">取消</button>
+                              <button onClick={handleSaveEdit} className="px-5 py-2 text-xs bg-gray-900 text-white font-bold rounded-xl hover:bg-black transition-all shadow-lg">更新消息</button>
+                            </div>
+                          </div>
+                        ) : (
+                          t.user
+                        )}
+                      </div>
+                      {!isStreaming && editingIndex !== idx && (
+                        <button
+                          onClick={() => handleStartEdit(idx, t.user)}
+                          className="absolute -left-10 top-1/2 -translate-y-1/2 opacity-0 group-hover/user:opacity-100 p-2 text-gray-400 hover:text-blue-500 transition-all"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
                       )}
                     </div>
-
-                    {/* 编辑按钮 (气泡右侧/悬停显示) */}
-                    {!isStreaming && editingIndex !== idx && (
-                      <button
-                        onClick={() => handleStartEdit(idx, t.user)}
-                        className="opacity-0 group-hover/bubble:opacity-100 p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all shadow-sm bg-white/50 backdrop-blur-sm border border-gray-100/50"
-                        title="编辑消息"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
                   </div>
                 </div>
-              </div>
 
-              {/* AI回复 */}
-              <div className="flex justify-start">
-                <div className="max-w-[90%] space-y-2">
-                  {/* AI标识 */}
-                  <div className="flex items-center gap-2 text-xs text-gray-400/80 mb-2 font-medium tracking-tight">
-                    <div className="flex items-center gap-1.5 px-2 py-1 bg-gray-50 rounded-full border border-gray-100/50">
-                      <Cpu className="w-3 h-3 text-blue-400" />
-                      <span className="uppercase text-[10px]">{AI_CONFIG.MODEL}</span>
-                    </div>
-                    {isStreaming && idx === turns.length - 1 && (
-                      <span className="flex gap-1 ml-1">
-                        <span className="w-1 h-1 bg-blue-400/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <span className="w-1 h-1 bg-blue-400/40 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <span className="w-1 h-1 bg-blue-400/40 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                      </span>
-                    )}
-                  </div>
-
-                  {/* AI消息内容 */}
-                  <div className="relative group/message">
-                    <div className="text-gray-800 text-[15px] leading-relaxed bg-gray-50 rounded-2xl rounded-tl-sm px-6 py-5 shadow-sm border border-gray-100/30">
-                      {t.error ? (
-                        <div className="bg-red-50 border border-red-100 rounded-xl p-4 text-red-700">
-                          <div className="flex items-center gap-2 mb-2">
-                            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <circle cx="12" cy="12" r="10" />
-                              <line x1="12" y1="8" x2="12" y2="12" />
-                              <line x1="12" y1="16" x2="12.01" y2="16" />
-                            </svg>
-                            <span className="font-medium">API调用失败</span>
-                          </div>
-                          <p className="text-sm">{t.error}</p>
-                        </div>
-                      ) : t.assistant ? (
-                        <div className="prose prose-slate max-w-none prose-sm sm:prose-base 
-                          prose-headings:font-bold prose-headings:text-gray-900 
-                          prose-p:text-gray-800 prose-p:leading-relaxed
-                          prose-pre:bg-gray-900 prose-pre:text-gray-100 
-                          prose-code:text-blue-600 prose-code:bg-blue-50 prose-code:px-1 prose-code:rounded
-                          prose-table:border-collapse prose-table:w-full prose-table:my-4
-                          prose-th:border prose-th:border-gray-200 prose-th:bg-gray-50 prose-th:px-4 prose-th:py-2 prose-th:text-left
-                          prose-td:border prose-td:border-gray-200 prose-td:px-4 prose-td:py-2
-                          prose-img:rounded-xl prose-img:shadow-md">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {t.assistant}
-                          </ReactMarkdown>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-3 text-gray-400 py-2">
-                          <div className="w-4 h-4 border-2 border-blue-100 border-t-blue-500 rounded-full animate-spin" />
-                          <span className="text-sm font-medium animate-pulse">正在思考中...</span>
-                        </div>
+                {/* AI 回复 */}
+                <div className="flex justify-start">
+                  <div className="max-w-[95%] w-full">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-7 h-7 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center">
+                        <Cpu className="w-4 h-4 text-blue-500" />
+                      </div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{AI_CONFIG.MODEL}</span>
+                      {isStreaming && idx === turns.length - 1 && (
+                        <span className="flex gap-1 ml-1">
+                          <span className="w-1 h-1 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <span className="w-1 h-1 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                          <span className="w-1 h-1 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                        </span>
                       )}
                     </div>
 
-                    {/* 消息操作按钮 (右下角) */}
-                    {t.assistant && !isStreaming && (
-                      <div className="absolute -bottom-2 -right-2 flex items-center gap-1 opacity-0 group-hover/message:opacity-100 transition-all duration-300 translate-y-1 group-hover/message:translate-y-0">
-                        <div className="flex bg-white/90 backdrop-blur-md rounded-xl shadow-lg border border-gray-100 p-0.5">
-                          {/* 复制按钮 */}
-                          <button
-                            onClick={() => handleCopyMessage(t.assistant, idx)}
-                            className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
-                            title="复制回复"
-                          >
-                            {copiedIndex === idx ? (
-                              <CheckCircle2 className="w-4 h-4 text-green-500" />
-                            ) : (
-                              <Copy className="w-4 h-4" />
-                            )}
-                          </button>
+                    <ThinkingSection 
+                      content={t.reasoning || ''} 
+                      isStreaming={isStreaming && idx === turns.length - 1 && !t.assistant} 
+                    />
 
-                          {/* 重新生成按钮 */}
-                          <button
-                            onClick={() => handleRegenerate(idx)}
-                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                            title="重新生成"
-                          >
+                    <div className="relative group/ai">
+                      <div className="text-gray-800 text-[16px] leading-[1.7] px-2 py-1">
+                        {t.error ? (
+                          <div className="bg-red-50/50 border border-red-100 rounded-2xl p-5 text-red-600 text-sm italic">
+                            {t.error}
+                          </div>
+                        ) : t.assistant ? (
+                          <div className="prose prose-slate max-w-none prose-sm sm:prose-base 
+                            prose-headings:font-bold prose-headings:text-gray-900 
+                            prose-p:text-gray-800 prose-p:leading-relaxed
+                            prose-pre:bg-gray-900/90 prose-pre:backdrop-blur-md prose-pre:text-gray-100 
+                            prose-code:text-blue-600 prose-code:bg-blue-50/50 prose-code:px-1.5 prose-code:rounded-md
+                            prose-table:border-collapse prose-table:w-full prose-table:my-6
+                            prose-th:border prose-th:border-gray-200/50 prose-th:bg-gray-50/50 prose-th:px-4 prose-th:py-3 prose-th:text-left
+                            prose-td:border prose-td:border-gray-200/50 prose-td:px-4 prose-td:py-3
+                            prose-img:rounded-2xl prose-img:shadow-xl">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {t.assistant}
+                            </ReactMarkdown>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      {/* AI 回复工具栏 (悬浮) */}
+                      {t.assistant && !isStreaming && (
+                        <div className="flex items-center gap-1 mt-4 ml-2 opacity-0 group-hover/ai:opacity-100 transition-all">
+                          <button onClick={() => handleCopyMessage(t.assistant, idx)} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-gray-100 rounded-xl transition-all">
+                            {copiedIndex === idx ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                          </button>
+                          <button onClick={() => handleRegenerate(idx)} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-gray-100 rounded-xl transition-all">
                             <RefreshCw className="w-4 h-4" />
                           </button>
-
-                          {/* 分支按钮 (新增) */}
-                          <button
-                            onClick={() => {
+                          <button 
+                            onClick={async () => {
                               const userMsg = window.prompt('输入新分支的起始消息：', t.user)
                               if (userMsg && currentConversation) {
-                                startConversation(userMsg, t.images, t.files, currentConversation.id)
+                                await startConversation(userMsg, t.images, t.files, currentConversation.id)
                               }
                             }}
-                            className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all"
-                            title="从此消息开启新分支"
+                            className="p-2 text-gray-400 hover:text-purple-500 hover:bg-gray-100 rounded-xl transition-all"
                           >
                             <Sparkles className="w-4 h-4" />
                           </button>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
-
-                  {/* 灰字提示：只在最后一轮显示 */}
-                  {idx === turns.length - 1 && appliedPreferences.length > 0 && t.assistant && !isStreaming && (
-                    <div className="pt-2">
-                      <GrayHint preferences={appliedPreferences} />
-                    </div>
-                  )}
-
-                  {/* 记忆加载提示 */}
-                  {idx === 0 && relevantMemories.length > 0 && !isStreaming && (
-                    <div className="pt-2">
-                      <GrayHint
-                        preferences={[]}
-                        type="memory"
-                        message={`已联结关于 "${relevantMemories[0].userMessage.slice(0, 10)}..." 的历史记忆`}
-                      />
-                    </div>
-                  )}
                 </div>
+
+                {/* 记忆与偏好提示 */}
+                {idx === turns.length - 1 && appliedPreferences.length > 0 && !isStreaming && (
+                  <div className="mt-6 ml-10">
+                    <GrayHint preferences={appliedPreferences} />
+                  </div>
+                )}
+                {idx === 0 && relevantMemories.length > 0 && !isStreaming && (
+                  <div className="mt-4 ml-10">
+                    <GrayHint preferences={[]} type="memory" message={`已联结关于 "${relevantMemories[0].userMessage.slice(0, 10)}..." 的历史记忆`} />
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
-
-        </div>
-      </div>
-
-      {/* 底部反馈区 */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-gray-100/50">
-        <div className="max-w-3xl mx-auto px-4 py-6">
-          <AnimatePresence>
-            {!isStreaming && hasAnyAnswer && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                className="space-y-4"
-              >
-                {/* 进化提示（极其微弱的告知） */}
-                {showEvolutionToast && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="text-[10px] text-gray-400/60 flex items-center justify-center gap-1.5"
-                  >
-                    <Sparkles className="w-3 h-3" />
-                    <span>AI 正在根据你的反馈无声进化...</span>
-                  </motion.div>
-                )}
-
-                {/* 对话输入组 */}
-                <div className="relative group">
-                  <textarea
-                    ref={textareaRef}
-                    value={feedbackMessage}
-                    onChange={handleFeedbackChange}
-                    placeholder="继续对话，或通过反馈引导我进化..."
-                    className="w-full bg-gray-50/30 border border-gray-100/50 rounded-2xl px-5 py-4 text-[15px] outline-none focus:ring-1 focus:ring-blue-100/30 focus:bg-white transition-all resize-none min-h-[56px] max-h-[160px] pr-12"
-                    rows={1}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault()
-                        handleFeedbackSubmit()
-                      }
-                    }}
-                  />
-                  <button
-                    onClick={handleFeedbackSubmit}
-                    disabled={!feedbackMessage.trim()}
-                    className="absolute right-3 bottom-3 p-2 bg-gray-900 text-white rounded-xl hover:bg-gray-800 disabled:opacity-20 transition-all shadow-md"
-                  >
-                    <Send className="w-4 h-4" />
-                  </button>
-                </div>
-
-                {/* 自动学习提示 */}
-                {detectedPreference && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="flex items-center justify-center gap-2 text-[11px] text-gray-400"
-                  >
-                    <Sparkles className="w-3 h-3 text-yellow-400" />
-                    <span>检测到新偏好：{detectedPreference.preference}</span>
-                  </motion.div>
-                )}
-              </motion.div>
-            )}
-
-            {/* 停止生成按钮 */}
-            {isStreaming && (
-              <motion.button
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                onClick={handleStopGeneration}
-                className="flex items-center gap-2 mx-auto px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full text-sm font-medium transition-all"
-              >
-                <Square className="w-4 h-4 fill-current" />
-                停止生成
-              </motion.button>
-            )}
-          </AnimatePresence>
-
-          <div className="mt-4 flex items-center justify-between text-[10px] text-gray-300 uppercase tracking-widest font-medium">
-            <span>ESC BACK</span>
-            <span>ENTER SEND</span>
+            ))}
           </div>
         </div>
-      </div>
+
+        {/* 底部反馈/输入区 */}
+        <div className="p-6 bg-white/40 backdrop-blur-xl border-t border-gray-100/50">
+          <div className="max-w-2xl mx-auto relative">
+            <AnimatePresence mode="wait">
+              {isStreaming ? (
+                <motion.div
+                  key="stop-btn"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className="flex justify-center"
+                >
+                  <button
+                    onClick={handleStopGeneration}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-gray-900 text-white rounded-2xl font-bold shadow-xl hover:bg-black transition-all group"
+                  >
+                    <Square className="w-4 h-4 fill-white animate-pulse" />
+                    <span>停止生成</span>
+                  </button>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="input-area"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-4"
+                >
+                  <div className="relative group">
+                    <textarea
+                      ref={textareaRef}
+                      value={feedbackMessage}
+                      onChange={handleFeedbackChange}
+                      placeholder="发送反馈或继续对话..."
+                      className="w-full bg-gray-50/50 border border-gray-200/50 rounded-[24px] px-6 py-4 pr-14 text-[15px] outline-none focus:ring-2 focus:ring-blue-100/50 focus:bg-white transition-all resize-none min-h-[60px] max-h-[160px] shadow-inner"
+                      rows={1}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          handleFeedbackSubmit()
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={handleFeedbackSubmit}
+                      disabled={!feedbackMessage.trim()}
+                      className="absolute right-3 bottom-3 p-2.5 bg-gray-900 text-white rounded-xl hover:bg-black disabled:opacity-20 transition-all shadow-lg"
+                    >
+                      <Send className="w-4 h-4" />
+                    </button>
+                  </div>
+                  
+                  {detectedPreference && (
+                    <div className="flex items-center justify-center gap-2 text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                      <Sparkles className="w-3 h-3 text-yellow-500" />
+                      <span>检测到新偏好：{detectedPreference.preference}</span>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      </motion.div>
     </div>
   )
 }

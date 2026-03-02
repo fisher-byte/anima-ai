@@ -5,6 +5,7 @@ import { useCanvasStore } from '../stores/canvasStore'
 
 interface UseAIOptions {
   onStream?: (chunk: string) => void
+  onThinking?: (chunk: string) => void
   onComplete?: (fullText: string) => void
   onError?: (error: string) => void
   onStopped?: () => void
@@ -60,12 +61,16 @@ export function useAI(options: UseAIOptions = {}) {
     messages.push({ role: 'user', content: userContent as any })
 
     let fullText = ''
+    let fullReasoning = ''
 
     try {
       for await (const chunk of streamAI(messages, preferences, signal)) {
-        if (typeof chunk === 'string') {
-          fullText += chunk
-          callbacksRef.current.onStream?.(chunk)
+        if (chunk.type === 'content') {
+          fullText += chunk.content
+          callbacksRef.current.onStream?.(chunk.content)
+        } else if (chunk.type === 'reasoning') {
+          fullReasoning += chunk.content
+          callbacksRef.current.onThinking?.(chunk.content)
         }
       }
 
@@ -73,7 +78,11 @@ export function useAI(options: UseAIOptions = {}) {
       if (fullText) {
         const nextHistory: AIMessage[] = [
           ...messages,
-          { role: 'assistant', content: fullText }
+          { 
+            role: 'assistant', 
+            content: fullText,
+            reasoning_content: fullReasoning || undefined 
+          }
         ]
         setConversationHistory(nextHistory)
       } else {
@@ -92,7 +101,11 @@ export function useAI(options: UseAIOptions = {}) {
         if (fullText) {
           const nextHistory: AIMessage[] = [
             ...messages,
-            { role: 'assistant', content: fullText }
+            { 
+              role: 'assistant', 
+              content: fullText,
+              reasoning_content: fullReasoning || undefined 
+            }
           ]
           setConversationHistory(nextHistory)
         }
@@ -105,7 +118,7 @@ export function useAI(options: UseAIOptions = {}) {
     } finally {
       abortControllerRef.current = null
     }
-  }, [])
+  }, [setConversationHistory])
 
   /**
    * 重置对话历史（新对话时调用）
