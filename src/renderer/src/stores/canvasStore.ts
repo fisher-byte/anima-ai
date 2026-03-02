@@ -125,15 +125,26 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
         let nodes = Array.from(uniqueByConversation.values())
 
-        // 将历史“跑飞/重叠”的节点重新排布到可视区域（基于 1.5 * viewW 中心）
         const viewW = typeof window !== 'undefined' ? window.innerWidth : 1280
         const viewH = typeof window !== 'undefined' ? window.innerHeight : 800
-        const minX = viewW
-        const maxX = 2 * viewW
-        const minY = viewH
-        const maxY = 2 * viewH
+        const centerX = 1.5 * viewW
+        const centerY = 1.5 * viewH
+        const BOUND = 1500  // 所有节点必须在 center ± BOUND 范围内
 
-        const needsRelayout = nodes.some(n => !Number.isFinite(n.x) || !Number.isFinite(n.y) || n.x < minX - 1000 || n.x > maxX + 1000 || n.y < minY - 1000 || n.y > maxY + 1000)
+        // 无论如何先做坐标钳制，消除历史飞远节点
+        nodes = nodes.map(n => ({
+          ...n,
+          x: !Number.isFinite(n.x) ? centerX : Math.max(centerX - BOUND, Math.min(centerX + BOUND, n.x)),
+          y: !Number.isFinite(n.y) ? centerY : Math.max(centerY - BOUND, Math.min(centerY + BOUND, n.y)),
+        }))
+
+        // 如果钳制后有重叠（多个节点被压到同一边界），做一次重排
+        const minX = centerX - BOUND
+        const maxX = centerX + BOUND
+        const minY = centerY - BOUND
+        const maxY = centerY + BOUND
+
+        const needsRelayout = nodes.some(n => n.x < minX + 50 || n.x > maxX - 50 || n.y < minY + 50 || n.y > maxY - 50)
 
         if (needsRelayout) {
           const centerX = 1.5 * viewW
@@ -288,13 +299,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       islandX = catNodes.reduce((sum, n) => sum + n.x, 0) / catNodes.length
       islandY = catNodes.reduce((sum, n) => sum + n.y, 0) / catNodes.length
     } else if (nodes.length > 0) {
-      // 新岛屿：找一个远离现有岛屿的空位
-      const islandDist = 600
+      // 新岛屿：找一个远离现有岛屿的空位（限制在中心 1200px 范围内）
+      const islandDist = 500
       let angle = Math.random() * Math.PI * 2
       for (let i = 0; i < 12; i++) {
         const tx = centerX + Math.cos(angle) * islandDist
         const ty = centerY + Math.sin(angle) * islandDist
-        // 检查是否离其他节点足够远
         if (nodes.every(n => Math.hypot(n.x - tx, n.y - ty) > islandDist * 0.8)) {
           islandX = tx
           islandY = ty
@@ -302,23 +312,25 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         }
         angle += (Math.PI * 2) / 12
       }
+      // 无论是否找到空位，都限制在 centerX±1200 范围内
+      islandX = Math.max(centerX - 1200, Math.min(centerX + 1200, islandX))
+      islandY = Math.max(centerY - 1200, Math.min(centerY + 1200, islandY))
     }
 
-    // 在岛屿周围寻找空位
+    // 在岛屿周围寻找空位（螺旋搜索，半径上限600px）
     let x = position?.x
     let y = position?.y
-    const nodeGap = 240 // 节点间距
+    const nodeGap = 240
 
     if (x == null || y == null) {
       let found = false
-      // 螺旋搜索
       for (let i = 0; i < 100; i++) {
-        const radius = (catNodes.length === 0 ? 0 : 150) + Math.floor(i / 8) * 100
+        const radius = (catNodes.length === 0 ? 0 : 150) + Math.floor(i / 8) * 60  // 上限：150 + 11*60 = 810 → 实际最大 ~600
+        if (radius > 600) break  // 超过600px停止寻找，直接用岛屿中心附近
         const angle = (i % 8) * (Math.PI / 4) + (radius / 200)
         const tx = islandX + Math.cos(angle) * radius
         const ty = islandY + Math.sin(angle) * radius
-        
-        // 碰撞检测
+
         const isClear = nodes.every(n => {
           if (n.conversationId === conversation.id) return true
           return Math.hypot(n.x - tx, n.y - ty) >= nodeGap
@@ -331,8 +343,17 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           break
         }
       }
-      if (!found) { x = islandX; y = islandY; }
+      if (!found) {
+        // fallback：在岛屿中心随机小偏移叠加，而不是精确位置
+        x = islandX + (Math.random() - 0.5) * nodeGap
+        y = islandY + (Math.random() - 0.5) * nodeGap
+      }
     }
+
+    // 坐标钳制：所有节点必须在 center ± 1500px 范围内
+    const BOUND = 1500
+    x = Math.max(centerX - BOUND, Math.min(centerX + BOUND, x!))
+    y = Math.max(centerY - BOUND, Math.min(centerY + BOUND, y!))
 
     const newNode: Node = {
       id: conversation.id,

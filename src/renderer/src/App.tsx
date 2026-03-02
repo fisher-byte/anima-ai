@@ -15,7 +15,7 @@ function App() {
   }, [loadNodes, loadProfile])
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-[#F8F9FB]">
+    <div className="relative w-full h-full overflow-hidden bg-white">
       <Canvas />
       <InputBox />
       <AnswerModal />

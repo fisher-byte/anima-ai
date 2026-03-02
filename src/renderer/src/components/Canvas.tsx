@@ -10,6 +10,78 @@ import { SettingsModal } from './SettingsModal'
 
 import { AmbientBackground } from './AmbientBackground'
 import { ClusterLabel } from './ClusterLabel'
+import type { Node as CanvasNode } from '@shared/types'
+
+/** 记忆引用连线：从高亮节点画虚线到输入框位置 */
+function MemoryLines({
+  nodes,
+  highlightedNodeIds,
+  offset,
+  scale,
+}: {
+  nodes: CanvasNode[]
+  highlightedNodeIds: string[]
+  offset: { x: number; y: number }
+  scale: number
+}) {
+  if (highlightedNodeIds.length === 0) return null
+
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 1280
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 800
+
+  // 输入框固定在底部中央
+  const targetX = vw / 2
+  const targetY = vh - 80
+
+  // Canvas 内容层偏移：left=-100vw, top=-100vh，再加 translate(offset.x, offset.y) scale(scale)
+  // 节点屏幕坐标 = node.canvasPos * scale + offset - [vw, vh]
+  const NODE_W = 208  // NodeCard 固定宽度 w-52
+  const NODE_H = 100  // 节点大致高度（估算）
+  const lines = highlightedNodeIds
+    .map(id => nodes.find(n => n.id === id))
+    .filter((n): n is CanvasNode => !!n)
+    .map(node => {
+      // 节点左上角屏幕坐标
+      const nx = node.x * scale + offset.x - vw
+      const ny = node.y * scale + offset.y - vh
+      // 节点中心屏幕坐标
+      const sx = nx + (NODE_W / 2) * scale
+      const sy = ny + (NODE_H / 2) * scale
+      return { id: node.id, sx, sy }
+    })
+    // 只画节点中心严格在屏幕可视区内的连线，避免"悬空线"
+    .filter(({ sx, sy }) => sx >= 0 && sx <= vw && sy >= 0 && sy <= vh - 100)
+
+  if (lines.length === 0) return null
+
+  return (
+    <svg
+      className="fixed inset-0 w-full h-full pointer-events-none"
+      style={{ zIndex: 25 }}
+    >
+      <defs>
+        <marker id="mem-arrow" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+          <circle cx="3" cy="3" r="2" fill="rgba(0,0,0,0.2)" />
+        </marker>
+      </defs>
+      {lines.map(({ id, sx, sy }, i) => (
+        <motion.path
+          key={id}
+          d={`M ${sx} ${sy} L ${targetX} ${targetY}`}
+          stroke="rgba(0,0,0,0.13)"
+          strokeWidth={1.5}
+          strokeDasharray="6 5"
+          fill="none"
+          markerEnd="url(#mem-arrow)"
+          initial={{ pathLength: 0, opacity: 0 }}
+          animate={{ pathLength: 1, opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.5, delay: i * 0.08, ease: 'easeOut' }}
+        />
+      ))}
+    </svg>
+  )
+}
 
 // Helper for cluster calculation
 function getClusters(nodes: any[]) {
@@ -34,7 +106,7 @@ function getClusters(nodes: any[]) {
 }
 
 export function Canvas() {
-  const { nodes, edges, offset, scale, setOffset, setScale, setView, resetView, updateNodePosition, isModalOpen } = useCanvasStore()
+  const { nodes, edges, offset, scale, setOffset, setScale, resetView, updateNodePosition, isModalOpen, highlightedNodeIds } = useCanvasStore()
   // Calculate clusters for Macro view
   const clusters = useMemo(() => getClusters(nodes), [nodes])
 
@@ -387,18 +459,30 @@ export function Canvas() {
       </motion.div>
       
       {/* 侧边栏和搜索面板 */}
-      <ConversationSidebar 
-        isOpen={isSidebarOpen} 
-        onClose={() => setIsSidebarOpen(false)} 
+      <ConversationSidebar
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
       />
-      <SearchPanel 
-        isOpen={isSearchOpen} 
-        onClose={() => setIsSearchOpen(false)} 
+      <SearchPanel
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
       />
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
       />
+
+      {/* 记忆引用连线 overlay：高亮节点 → 输入框 */}
+      <AnimatePresence>
+        {highlightedNodeIds.length > 0 && (
+          <MemoryLines
+            nodes={nodes}
+            highlightedNodeIds={highlightedNodeIds}
+            offset={offset}
+            scale={scale}
+          />
+        )}
+      </AnimatePresence>
     </>
   )
 }

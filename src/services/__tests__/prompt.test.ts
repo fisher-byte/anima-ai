@@ -17,7 +17,10 @@ describe('prompt service', () => {
   describe('buildSystemPrompt', () => {
     it('should return default prompt when no preferences', () => {
       const prompt = buildSystemPrompt([])
-      expect(prompt).toBe(DEFAULT_SYSTEM_PROMPT)
+      // 基础 prompt 内容包含在结果中（函数会额外追加当前日期）
+      expect(prompt).toContain(DEFAULT_SYSTEM_PROMPT)
+      // 验证日期注入存在
+      expect(prompt).toMatch(/当前日期：\d{4}年/)
     })
 
     it('should include preferences in prompt', () => {

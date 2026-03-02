@@ -30,14 +30,6 @@ function getOpacity(scale: number, min: number, max: number, type: 'fade-in' | '
   }
 }
 
-// Map category to a deeper color for visibility
-function getCategoryColor(category: string): string {
-  if (category === '工作学习') return '#3B82F6' // blue-500
-  if (category === '生活日常') return '#10B981' // green-500
-  if (category === '灵感创意') return '#8B5CF6' // purple-500
-  return '#6B7280' // gray-500
-}
-
 export function ClusterLabel({ cluster, scale, onDrag, onClick }: ClusterLabelProps) {
   // Fade out between 0.4 and 0.6 scale
   const opacity = getOpacity(scale, 0.4, 0.6, 'fade-out')
@@ -45,8 +37,6 @@ export function ClusterLabel({ cluster, scale, onDrag, onClick }: ClusterLabelPr
 
   // Inverse scale to keep label readable when zoomed out
   const inverseScale = Math.max(1, (1 / Math.max(scale, 0.1)) * 0.6)
-
-  const categoryColor = getCategoryColor(cluster.category)
 
   return (
     <motion.div

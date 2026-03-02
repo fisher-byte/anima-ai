@@ -13,11 +13,21 @@ import type { PreferenceRule, AIMessage } from '../shared/types'
  * @returns 完整的System Prompt
  */
 export function buildSystemPrompt(preferences: string[]): string {
+  // 动态注入当前日期，确保 AI 感知正确时间
+  const now = new Date()
+  const dateStr = now.toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long'
+  })
+  const dateInjection = `\n\n当前日期：${dateStr}。`
+
   if (preferences.length === 0) {
-    return DEFAULT_SYSTEM_PROMPT
+    return DEFAULT_SYSTEM_PROMPT + dateInjection
   }
 
-  let prompt = DEFAULT_SYSTEM_PROMPT
+  let prompt = DEFAULT_SYSTEM_PROMPT + dateInjection
   prompt += '\n\n以下是用户的历史偏好，请在回答中遵循这些偏好：\n'
   
   preferences.forEach((pref, idx) => {

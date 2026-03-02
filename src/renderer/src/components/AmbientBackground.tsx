@@ -1,5 +1,5 @@
 import { useCanvasStore } from '../stores/canvasStore'
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 
 export function AmbientBackground() {
   const { nodes, scale } = useCanvasStore()

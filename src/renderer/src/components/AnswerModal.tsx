@@ -20,6 +20,7 @@ type Turn = {
   files?: import('@shared/types').FileAttachment[]
   error?: string
   memoryCategory?: string
+  memories?: { conv: Conversation; category?: string }[]
 }
 
 /** 将相关记忆压缩为简短参考文本再注入 AI，避免全文灌入 */
@@ -37,13 +38,14 @@ function compressMemoriesForPrompt(memories: { conv: Conversation; category?: st
 function parseTurnsFromAssistantMessage(message: string, reasoning?: string, initialImages?: string[], initialFiles?: import('@shared/types').FileAttachment[]): Turn[] | null {
   if (!message) return null
 
-  // 兼容旧格式或单次回答
-  if (!message.includes('#1\n')) {
+  // 兼容旧格式或单次回答（无分段标记）
+  if (!message.includes('#1\n') && !message.includes('# 1\n')) {
     return [{ user: '', assistant: message, reasoning, images: initialImages, files: initialFiles }]
   }
 
   const turns: Turn[] = []
-  const sectionRegex = /#\s*(\d+)\s*\n+\s*用户[：:]\s*([\s\S]*?)\n+\s*AI[：:]\s*([\s\S]*?)(?=\n+\s*#\s*\d+|$)/g
+  // 修复：AI[：:] 后面支持紧跟换行（\s* 涵盖换行），分段分隔符支持空行或下一个 # 数字
+  const sectionRegex = /#\s*(\d+)\s*\n+用户[：:]\s*([\s\S]*?)\nAI[：:]\s*([\s\S]*?)(?=\n+#\s*\d+\s*\n|$)/g
   let match
 
   while ((match = sectionRegex.exec(message)) !== null) {
@@ -51,7 +53,7 @@ function parseTurnsFromAssistantMessage(message: string, reasoning?: string, ini
     let aiContent = match[3].trim()
     const index = parseInt(match[1])
 
-    // 提取思考内容
+    // 提取思考内容（支持 "思考：...\n\n正文" 和 "思考：...\n正文"）
     let turnReasoning = undefined
     const reasoningMatch = aiContent.match(/^思考：([\s\S]*?)\n\n([\s\S]*)$/)
     if (reasoningMatch) {
@@ -64,22 +66,33 @@ function parseTurnsFromAssistantMessage(message: string, reasoning?: string, ini
         user: userContent,
         assistant: aiContent,
         reasoning: turnReasoning,
-        // 只有第一轮显示初始文件
         images: index === 1 ? initialImages : undefined,
         files: index === 1 ? initialFiles : undefined
       })
     }
   }
 
-  return turns.length > 0 ? turns : null
+  // 正则没匹配到时，做安全降级：整段当作单轮 assistant 内容
+  if (turns.length === 0) {
+    return [{ user: '', assistant: message, reasoning, images: initialImages, files: initialFiles }]
+  }
+
+  return turns
 }
 
-/** 展示时去掉内容里开头的 #数字 行，避免被渲染成巨大标题 */
+/** 展示时清理原始格式标记，避免 #数字、用户：、AI: 等被渲染出来 */
 function stripLeadingNumberHeading(text: string): string {
-  let s = text.replace(/^#\s*\d+\s*\n?/, '').trim()
-  // 多轮或单轮错位时可能带「用户：… AI：」前缀，只保留 AI 输出部分
-  const userAiPrefix = /^[\s\S]*?AI[：:]\s*/
-  if (userAiPrefix.test(s)) s = s.replace(userAiPrefix, '').trim()
+  if (!text) return text
+  // 去掉开头的 #数字 行
+  let s = text.replace(/^#+\s*\d+\s*\n?/, '').trim()
+  // 去掉 "用户：... AI：" 前缀，只保留 AI 正文部分
+  if (/AI[：:]/.test(s)) {
+    s = s.replace(/^[\s\S]*?AI[：:]\s*/, '').trim()
+  }
+  // 去掉仅剩的 "用户：..." 前缀
+  if (/^用户[：:]/.test(s)) {
+    s = s.replace(/^用户[：:][^\n]*\n?/, '').trim()
+  }
   return s
 }
 
@@ -143,15 +156,16 @@ export function AnswerModal() {
     getRelevantMemories,
     setConversationHistory,
     setHighlight,
-    focusNode
+    focusNode,
+    nodes
   } = useCanvasStore()
 
   const [turns, setTurns] = useState<Turn[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
+  const [isClosing, setIsClosing] = useState(false)
   const [feedbackMessage, setFeedbackMessage] = useState('')
   const [detectedPreference, setDetectedPreference] = useState<PreferenceRule | null>(null)
   const [showEvolutionToast, setShowEvolutionToast] = useState(false)
-  const [relevantMemories, setRelevantMemories] = useState<{ conv: Conversation; category?: string }[]>([])
   const [appliedPreferences, setAppliedPreferences] = useState<string[]>([])
   const [pendingImages, setPendingImages] = useState<string[]>([])
   const [pendingFiles, setPendingFiles] = useState<FileAttachment[]>([])
@@ -342,7 +356,6 @@ export function AnswerModal() {
       didMutateRef.current = false
       resetHistory()
       const memories = await getRelevantMemories(currentConversation.userMessage)
-      setRelevantMemories(memories)
       const compressed = compressMemoriesForPrompt(memories)
 
       setTurns([{
@@ -350,7 +363,8 @@ export function AnswerModal() {
         assistant: '',
         images: currentConversation.images,
         files: currentConversation.files,
-        memoryCategory: memories[0]?.category
+        memoryCategory: memories[0]?.category,
+        memories: memories.length > 0 ? memories : undefined
       }])
       setIsStreaming(true)
       setAppliedPreferences([])
@@ -475,11 +489,13 @@ export function AnswerModal() {
     setDetectedPreference(null)
 
     const memories = await getRelevantMemories(trimmed)
-    setRelevantMemories(memories)
     const category = memories[0]?.category ?? null
-    const highlightedIds = memories.map(m => m.conv.id)
-    setHighlight(category, highlightedIds)
-    if (highlightedIds.length > 0) focusNode(highlightedIds[0])
+    // 正确映射：conv.id → node.id（NodeCard 读的是 node.id）
+    const highlightedNodeIds = memories
+      .map(m => nodes.find(n => n.conversationId === m.conv.id)?.id)
+      .filter((id): id is string => id != null)
+    setHighlight(category, highlightedNodeIds)
+    if (highlightedNodeIds.length > 0) focusNode(highlightedNodeIds[0])
     const compressed = compressMemoriesForPrompt(memories)
 
     // 组合消息内容
@@ -503,7 +519,8 @@ export function AnswerModal() {
       assistant: '',
       images: pendingImages,
       files: pendingFiles,
-      memoryCategory: memories[0]?.category
+      memoryCategory: memories[0]?.category,
+      memories: memories.length > 0 ? memories : undefined
     }
     setTurns(prev => [...prev, currentTurn])
 
@@ -522,6 +539,7 @@ export function AnswerModal() {
 
   // 关闭并保存（同步关闭 UI，endConversation 后台异步运行，彻底防止冻结）
   const handleClose = useCallback(() => {
+    if (isClosing) return
     const shouldSave = !!currentConversation && (!isReplayRef.current || didMutateRef.current)
 
     // 1. 在 closeModal 之前先保存所有需要的数据快照（closeModal 会把 currentConversation 置 null）
@@ -541,20 +559,24 @@ export function AnswerModal() {
     const lastReasoning = turns.length > 0 ? turns[turns.length - 1].reasoning : ''
     const savedAppliedPreferences = [...appliedPreferences]
 
-    // 2. 立即重置 UI 状态并关闭 modal（画布立即解冻，不等 IPC）
-    setTurns([])
-    setErrorMessage(null)
-    setFeedbackMessage('')
-    setDetectedPreference(null)
-    setAppliedPreferences([])
-    closeModal()
+    // 2. 触发关闭动画，动画结束后再重置状态并关闭
+    setIsClosing(true)
+    setTimeout(() => {
+      setIsClosing(false)
+      setTurns([])
+      setErrorMessage(null)
+      setFeedbackMessage('')
+      setDetectedPreference(null)
+      setAppliedPreferences([])
+      closeModal()
 
-    // 3. 后台保存（传入显式 conversationSnapshot，不依赖 store 里已被置 null 的 currentConversation）
-    if (shouldSave && conversationSnapshot) {
-      endConversation(finalResponse, savedAppliedPreferences, lastReasoning, conversationSnapshot)
-        .catch(err => console.error('后台保存对话失败:', err))
-    }
-  }, [turns, errorMessage, isStreaming, currentConversation, endConversation, closeModal, appliedPreferences])
+      // 3. 后台保存
+      if (shouldSave && conversationSnapshot) {
+        endConversation(finalResponse, savedAppliedPreferences, lastReasoning, conversationSnapshot)
+          .catch(err => console.error('后台保存对话失败:', err))
+      }
+    }, 500)
+  }, [isClosing, turns, errorMessage, isStreaming, currentConversation, endConversation, closeModal, appliedPreferences])
 
   // ESC键关闭
   useEffect(() => {
@@ -578,34 +600,70 @@ export function AnswerModal() {
       {isModalOpen && (
         <>
         {/* 遮罩层：点击空白处关闭 */}
-        <div
-          className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px]"
+        <motion.div
+          className="fixed inset-0 z-40 bg-black/30"
+          animate={{ opacity: isClosing ? 0 : 1 }}
+          transition={{ duration: 0.4 }}
           aria-hidden
           onClick={handleClose}
         />
+
+        {/* 关闭时节点固化动画：对话碎片飞向画布右上角（新节点所在区域），传达"固化为节点"概念 */}
+        <AnimatePresence>
+          {isClosing && (
+            <div className="fixed inset-0 z-[55] pointer-events-none">
+              {/* 中心汇聚提示 */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-xs font-medium rounded-full shadow-lg"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                已固化到画布
+              </motion.div>
+
+              {/* 碎片飞向画布（右上方向，模拟节点区域） */}
+              {[...Array(6)].map((_, i) => {
+                // 飞向右上方随机散落，模拟落在画布节点区
+                const tx = 180 + i * 60 + Math.sin(i * 1.3) * 40
+                const ty = -(220 + i * 30 + Math.cos(i * 1.1) * 30)
+                const nodeColors = ['#F0FDF4', '#EFF6FF', '#FDF4FF', '#FFFBEB', '#FFF1F2', '#F0F9FF']
+                return (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 1, scale: 1, x: 0, y: 0, left: '50%', top: '50%' }}
+                    animate={{ opacity: 0, scale: 0.6, x: tx, y: ty }}
+                    transition={{ duration: 0.42, ease: [0.4, 0, 0.2, 1], delay: i * 0.04 }}
+                    className="absolute w-32 h-10 rounded-xl border border-gray-200 shadow-sm -ml-16 -mt-5 flex items-center px-3 gap-2"
+                    style={{ background: nodeColors[i % nodeColors.length] }}
+                  >
+                    <div className="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0" />
+                    <div className="h-1.5 bg-gray-200 rounded flex-1" />
+                  </motion.div>
+                )
+              })}
+            </div>
+          )}
+        </AnimatePresence>
+
         {/* 外层普通 div 负责 fixed 定位——Framer Motion 的 animate 不会覆盖它的 transform */}
         <div className="fixed bottom-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[64rem]" onClick={e => e.stopPropagation()}>
         <motion.div
           initial={{ opacity: 0, borderRadius: 32, y: 50 }}
-          animate={{ opacity: 1, borderRadius: 24, y: 0 }}
+          animate={isClosing
+            ? { opacity: 0, scale: 0.96, y: 30, transition: { duration: 0.4, ease: 'easeIn' } }
+            : { opacity: 1, borderRadius: 24, y: 0 }
+          }
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="w-full h-[85vh] bg-white/92 backdrop-blur-3xl shadow-[0_-20px_80px_rgba(0,0,0,0.12)] border-t border-l border-r border-white/60 flex flex-col overflow-hidden rounded-t-3xl"
+          className="w-full h-[85vh] bg-white shadow-[0_-8px_40px_rgba(0,0,0,0.08)] border-t border-gray-200 flex flex-col overflow-hidden rounded-t-3xl"
         >
-            {/* 头部导航 - 记忆引用条 */}
-            <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100/50 bg-white/40">
-               <div className="flex items-center gap-3">
-                 {/* 记忆引用展示 */}
-                 {relevantMemories.length > 0 && (
-                   <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50/50 rounded-full border border-blue-100/50 text-blue-600 text-xs font-semibold cursor-pointer hover:bg-blue-50 transition-colors">
-                     <Layers className="w-3.5 h-3.5" />
-                     <span>引用了 {relevantMemories.length} 条记忆</span>
-                     <span className="w-1 h-1 rounded-full bg-blue-400 mx-1" />
-                     <span className="opacity-70 truncate max-w-[150px]">{relevantMemories[0].conv.userMessage}</span>
-                   </div>
-                 )}
-               </div>
-               
-               <button 
+            {/* 头部导航 */}
+            <div className="flex items-center justify-end px-6 py-3 border-b border-gray-100 bg-white">
+               <button
                  onClick={handleClose}
                  className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400 hover:text-gray-600"
                >
@@ -621,9 +679,9 @@ export function AnswerModal() {
               <div className="max-w-2xl mx-auto space-y-10">
                 {turns.map((t, idx) => (
                   <div key={idx} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    {/* 用户消息：ChatGPT 风格浅色气泡 + 右下角编辑/复制 */}
+                    {/* 用户消息：ChatGPT 风格浅色气泡，操作按钮在气泡外下方 */}
                     <div className="flex justify-end mb-6">
-                      <div className="flex flex-col items-end gap-3 max-w-[85%]">
+                      <div className="flex flex-col items-end gap-1 max-w-[85%] group/usermsg">
                         {t.images && t.images.length > 0 && (
                           <div className="flex flex-wrap gap-2 justify-end">
                             {t.images.map((img, i) => (
@@ -642,13 +700,13 @@ export function AnswerModal() {
                           </div>
                         )}
 
-                        <div className="relative bg-white border border-gray-200 rounded-2xl rounded-tr-sm px-5 py-3.5 pr-24 text-[15px] leading-relaxed text-gray-900 shadow-sm min-w-[120px]">
+                        <div className="bg-[#F4F4F4] rounded-3xl px-5 py-3.5 text-[15px] leading-relaxed text-gray-900 min-w-[60px] max-w-full">
                            {editingIndex === idx ? (
                               <div className="flex flex-col gap-2">
                                 <textarea
                                   value={editingContent}
                                   onChange={(e) => setEditingContent(e.target.value)}
-                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-sm outline-none text-gray-900"
+                                  className="w-full bg-white border border-gray-200 rounded-lg p-2 text-sm outline-none text-gray-900"
                                   rows={3}
                                   autoFocus
                                   onKeyDown={(e) => {
@@ -669,29 +727,57 @@ export function AnswerModal() {
                            ) : (
                              <div>{t.user}</div>
                            )}
-                          {/* 右下角：编辑、复制（仅对已发送的该条） */}
-                          {!isStreaming && editingIndex !== idx && (
-                            <div className="absolute right-2 bottom-2 flex items-center gap-1 text-gray-400">
-                              <button onClick={() => handleStartEdit(idx, t.user)} className="p-1.5 rounded-md hover:bg-gray-100 hover:text-gray-700" title="编辑">编辑</button>
-                              <button onClick={() => handleCopyMessage(t.user, idx)} className="p-1.5 rounded-md hover:bg-gray-100 hover:text-gray-700" title="复制">
-                                {copiedIndex === idx ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                              </button>
-                            </div>
-                          )}
                         </div>
+
+                        {/* 本轮记忆引用标签：显示在气泡下方 */}
+                        {t.memories && t.memories.length > 0 && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="flex items-center gap-1.5 justify-end flex-wrap"
+                          >
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 rounded-full border border-gray-200 text-gray-600 text-[11px] font-medium">
+                              <Layers className="w-3 h-3 flex-shrink-0" />
+                              <span>引用了 {t.memories.length} 条记忆：</span>
+                              <span className="opacity-75 truncate max-w-[140px]">{t.memories[0].conv.userMessage.slice(0, 20)}{t.memories[0].conv.userMessage.length > 20 ? '…' : ''}</span>
+                            </div>
+                          </motion.div>
+                        )}
+
+                        {/* 气泡外下方：编辑、复制按钮，hover 时淡入 */}
+                        {!isStreaming && editingIndex !== idx && (
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover/usermsg:opacity-100 transition-opacity duration-150">
+                            <button
+                              onClick={() => handleStartEdit(idx, t.user)}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                              title="编辑"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => handleCopyMessage(t.user, idx)}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                              title="复制"
+                            >
+                              {copiedIndex === idx ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     {/* AI 回复 */}
-                    <div className="flex justify-start">
+                    <div className="flex justify-start mb-2">
                       <div className="max-w-[95%] w-full">
                         <ThinkingSection
                             content={t.reasoning || ''}
                             isStreaming={isStreaming && idx === turns.length - 1 && !t.assistant}
                             forceCollapsed={!!t.assistant || idx > 0}
                         />
-                        
-                        <div className="bg-white border border-gray-100 rounded-2xl rounded-tl-sm px-6 py-5 text-gray-800 text-[15px] leading-7 shadow-sm">
+
+                        <div className="text-gray-800 text-[15px] leading-7 group/aimsg">
                             {t.error ? (
                                 <div className="text-red-500 text-sm">{t.error}</div>
                             ) : (
@@ -701,19 +787,27 @@ export function AnswerModal() {
                                     </ReactMarkdown>
                                 </div>
                             )}
+
+                            {/* AI 回复外下方：操作按钮 */}
+                            {t.assistant && !isStreaming && (
+                              <div className="flex items-center gap-0.5 mt-2 opacity-0 group-hover/aimsg:opacity-100 transition-opacity duration-150">
+                                <button
+                                  onClick={() => handleCopyMessage(t.assistant, idx)}
+                                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                                  title="复制"
+                                >
+                                  {copiedIndex === idx ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                                </button>
+                                <button
+                                  onClick={() => handleRegenerate(idx)}
+                                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                                  title="重新生成"
+                                >
+                                  <RefreshCw className="w-4 h-4" />
+                                </button>
+                              </div>
+                            )}
                         </div>
-                        
-                        {/* Actions */}
-                        {t.assistant && !isStreaming && (
-                           <div className="flex gap-3 mt-2 ml-1">
-                               <button onClick={() => handleCopyMessage(t.assistant, idx)} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors">
-                                   {copiedIndex === idx ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                               </button>
-                               <button onClick={() => handleRegenerate(idx)} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors">
-                                   <RefreshCw className="w-4 h-4" />
-                               </button>
-                           </div>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -722,7 +816,7 @@ export function AnswerModal() {
             </div>
 
             {/* 底部输入区 (对话岛模式) */}
-            <div className="p-4 bg-white/60 backdrop-blur-md border-t border-white/50">
+            <div className="p-4 bg-white border-t border-gray-100">
               <div className="max-w-2xl mx-auto relative">
                  {/* Evolution Toast */}
                  <AnimatePresence>
@@ -741,7 +835,7 @@ export function AnswerModal() {
                     )}
                  </AnimatePresence>
 
-                 <div className="flex items-end gap-2 bg-white rounded-[24px] p-2 border border-gray-200 shadow-sm focus-within:ring-2 focus-within:ring-blue-100 transition-all relative">
+                 <div className="flex items-end gap-2 bg-white rounded-[24px] p-2 border border-gray-200 shadow-sm focus-within:border-gray-900 transition-all relative">
                     {/* File Previews */}
                     <AnimatePresence>
                       {(pendingFiles.length > 0 || pendingImages.length > 0) && (
@@ -772,7 +866,7 @@ export function AnswerModal() {
 
                     <button
                         onClick={() => fileInputRef.current?.click()}
-                        className="p-2.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-colors"
+                        className="p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
                     >
                         <Paperclip className="w-5 h-5" />
                     </button>
@@ -814,7 +908,7 @@ export function AnswerModal() {
                         <button
                             onClick={handleFeedbackSubmit}
                             disabled={(!feedbackMessage.trim() && pendingFiles.length === 0)}
-                            className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:bg-gray-200 transition-all shadow-md"
+                            className="p-2.5 bg-gray-900 text-white rounded-xl hover:bg-black disabled:opacity-40 disabled:bg-gray-200 transition-all shadow-sm"
                         >
                             <ArrowUp className="w-5 h-5 stroke-[3px]" />
                         </button>
