@@ -8,9 +8,12 @@ interface NodeCardProps {
 }
 
 export function NodeCard({ node }: NodeCardProps) {
-  const { nodes, openModalById, removeNode, updateNodePosition } = useCanvasStore()
+  const { nodes, removeNode, updateNodePosition, selectNode, highlightedNodeIds } = useCanvasStore()
   const [isDragging, setIsDragging] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
+  
+  // Highlight state
+  const isHighlighted = useMemo(() => highlightedNodeIds.includes(node.id), [highlightedNodeIds, node.id])
   
   const isDraggingRef = useRef(false)
   const dragStartRef = useRef({ x: 0, y: 0 })
@@ -26,6 +29,17 @@ export function NodeCard({ node }: NodeCardProps) {
     const ratio = index / Math.max(1, nodes.length - 1)
     return 0.75 + ratio * 0.25 // 0.75 ~ 1.0
   }, [nodes, node.id])
+
+  // 计算透明度过渡 (LOD)
+  // 引用 useCanvasStore.getState().scale 可能不触发更新，改用 props 传或者 store hook
+  const scale = useCanvasStore(state => state.scale)
+  const lodOpacity = useMemo(() => {
+     if (scale < 0.4) return 0 // Macro view: hide nodes
+     if (scale > 0.6) return 1 // Micro view: show nodes
+     return (scale - 0.4) / 0.2 // Transition
+  }, [scale])
+
+  const isVisible = lodOpacity > 0
 
   // 同步外部坐标变更
   useEffect(() => {
@@ -83,8 +97,9 @@ export function NodeCard({ node }: NodeCardProps) {
 
   const handleClick = useCallback(() => {
     if (isDragging || Date.now() - lastDragEndRef.current < 200) return
-    openModalById(node.conversationId)
-  }, [node.conversationId, openModalById, isDragging])
+    // openModalById(node.conversationId) // Old behavior
+    selectNode(node.id) // New behavior: Open detail panel
+  }, [node.id, selectNode, isDragging])
 
   const handleDelete = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -96,16 +111,23 @@ export function NodeCard({ node }: NodeCardProps) {
       id={`node-${node.id}`}
       initial={{ scale: 0.8, opacity: 0 }}
       animate={{ 
-        scale: isDragging ? 1.05 : depth, // 活跃节点更大
-        opacity: isDragging ? 1 : 0.6 + (depth - 0.75) * 1.6, // 活跃节点更亮 (0.6 ~ 1.0)
+        scale: isDragging ? 1.05 : (isHighlighted ? 1.1 : depth),
+        opacity: isVisible ? (isDragging ? 1 : (0.6 + (depth - 0.75) * 1.6) * lodOpacity) : 0,
         rotate: isDragging ? 2 : 0, 
-        transition: { type: "spring", stiffness: 400, damping: 25 }
+        y: isDragging ? 0 : [0, -3, 0],
+        transition: {
+          y: { duration: 3 + Math.random() * 2, repeat: Infinity, ease: "easeInOut" },
+          scale: { type: "spring", stiffness: 400, damping: 25 },
+          opacity: { type: "spring", stiffness: 400, damping: 25 },
+          rotate: { type: "spring", stiffness: 400, damping: 25 }
+        }
       }}
       className="absolute cursor-grab active:cursor-grabbing group z-10 pointer-events-auto"
       style={{
         left: `${node.x}px`,
         top: `${node.y}px`,
-        filter: isDragging ? 'none' : `blur(${(1 - depth) * 2}px)` // 远处节点轻微模糊
+        filter: isDragging ? 'none' : `blur(${(1 - depth) * 2}px)`, 
+        pointerEvents: isVisible ? 'auto' : 'none'
       }}
       onMouseDown={handleMouseDown}
       onClick={handleClick}
@@ -115,12 +137,14 @@ export function NodeCard({ node }: NodeCardProps) {
       <motion.div 
         layout
         className={`rounded-2xl transition-all duration-500 p-5 w-52 border backdrop-blur-sm ${
-          isDragging 
-            ? 'shadow-[0_20px_50px_rgba(0,0,0,0.1)] border-blue-200/50' 
-            : 'shadow-[0_4px_20px_rgba(0,0,0,0.03)] border-white/50 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-blue-100/30'
+          isHighlighted 
+            ? 'shadow-[0_0_30px_rgba(59,130,246,0.3)] border-blue-400 bg-white/80'
+            : isDragging 
+              ? 'shadow-[0_20px_50px_rgba(0,0,0,0.1)] border-blue-200/50' 
+              : 'shadow-[0_4px_20px_rgba(0,0,0,0.03)] border-white/50 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-blue-100/30'
         }`}
         style={{ 
-          backgroundColor: node.color ? node.color.replace('0.9', '0.4') : 'rgba(255,255,255,0.6)',
+          backgroundColor: isHighlighted ? undefined : (node.color ? node.color.replace('0.9', '0.4') : 'rgba(255,255,255,0.6)'),
         }}
       >
         {/* 删除按钮 (仅悬停时展示) */}

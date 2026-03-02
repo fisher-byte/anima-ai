@@ -47,10 +47,17 @@ interface CanvasState {
   // 方法：对话记录
   appendConversation: (conversation: Conversation) => Promise<void>
   
-  // 新增：全局对话历史管理，解决模态框关闭后丢失上下文的问题
+  // 新增：全局对话历史管理
   conversationHistory: import('@shared/types').AIMessage[]
   setConversationHistory: (history: import('@shared/types').AIMessage[]) => void
   resetConversationHistory: () => void
+
+  // 新增：UI 交互状态
+  selectedNodeId: string | null
+  highlightedCategory: string | null
+  highlightedNodeIds: string[]
+  selectNode: (id: string | null) => void
+  setHighlight: (category: string | null, nodeIds: string[]) => void
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
@@ -63,9 +70,17 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   offset: { x: 0, y: 0 },
   scale: 1,
   conversationHistory: [],
+  
+  // UI 状态初始化
+  selectedNodeId: null,
+  highlightedCategory: null,
+  highlightedNodeIds: [],
 
   setConversationHistory: (history) => set({ conversationHistory: history }),
   resetConversationHistory: () => set({ conversationHistory: [] }),
+
+  selectNode: (id) => set({ selectedNodeId: id }),
+  setHighlight: (category, nodeIds) => set({ highlightedCategory: category, highlightedNodeIds: nodeIds }),
 
   setOffset: (offset) => set({ offset }),
   setScale: (scale) => set({ scale: Math.max(0.2, Math.min(3, scale)) }),

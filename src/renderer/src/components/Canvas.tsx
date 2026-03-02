@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Settings, Search, History, Minus, Plus, LayoutGrid } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
@@ -8,9 +8,58 @@ import { ConversationSidebar } from './ConversationSidebar'
 import { SearchPanel } from './SearchPanel'
 import { SettingsModal } from './SettingsModal'
 
-export function Canvas() {
-  const { nodes, edges, offset, scale, setOffset, setScale, resetView } = useCanvasStore()
+import { AmbientBackground } from './AmbientBackground'
+import { ClusterLabel } from './ClusterLabel'
+
+// Helper for cluster calculation
+function getClusters(nodes: any[]) {
+  const map = new Map<string, { x: number; y: number; count: number; color: string }>()
+  nodes.forEach(n => {
+    const cat = n.category || '其他'
+    const curr = map.get(cat) || { x: 0, y: 0, count: 0, color: n.color || '#E2E8F0' }
+    curr.x += n.x
+    curr.y += n.y
+    curr.count += 1
+    map.set(cat, curr)
+  })
   
+  return Array.from(map.entries()).map(([cat, data]) => ({
+    id: `cluster-${cat}`,
+    category: cat,
+    x: data.x / data.count,
+    y: data.y / data.count,
+    color: data.color,
+    count: data.count
+  }))
+}
+
+export function Canvas() {
+  const { nodes, edges, offset, scale, setOffset, setScale, resetView, updateNodePosition, isModalOpen } = useCanvasStore()
+  
+  // Calculate clusters for Macro view
+  const clusters = useMemo(() => getClusters(nodes), [nodes])
+
+  // Cluster Interaction
+  const handleClusterClick = useCallback((cx: number, cy: number) => {
+      const viewW = typeof window !== 'undefined' ? window.innerWidth : 1280
+      const viewH = typeof window !== 'undefined' ? window.innerHeight : 800
+      // Calculate offset to center the cluster
+      const newOffsetX = 1.5 * viewW - cx
+      const newOffsetY = 1.5 * viewH - cy
+      
+      setOffset({ x: newOffsetX, y: newOffsetY })
+      setScale(0.8) // Zoom in slightly
+  }, [setOffset, setScale])
+  
+  const handleClusterDrag = useCallback((cat: string, dx: number, dy: number) => {
+    // Move all nodes in this category
+    nodes.forEach(n => {
+        if ((n.category || '其他') === cat) {
+            updateNodePosition(n.id, n.x + dx, n.y + dy)
+        }
+    })
+  }, [nodes, updateNodePosition])
+
   const canvasRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const dragStart = useRef({ x: 0, y: 0 })
@@ -208,65 +257,89 @@ export function Canvas() {
         </div>
       )}
 
-      {/* 画布：外层平移缩放，内层轻微伪 3D 循环旋转 */}
-      <div
-        ref={canvasRef}
-        className="absolute inset-0 dot-grid cursor-grab active:cursor-grabbing overflow-hidden"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onWheel={handleWheel}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        style={{
-          transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
-          width: '300%',
-          height: '300%',
-          left: '-100%',
-          top: '-100%',
-          transformOrigin: 'center center',
-          perspective: '1200px'
+      <AmbientBackground />
+
+      <motion.div
+        className="absolute inset-0 w-full h-full pointer-events-none"
+        animate={{ 
+          scale: isModalOpen ? 0.95 : 1, 
+          filter: isModalOpen ? 'blur(4px)' : 'none',
+          opacity: isModalOpen ? 0.7 : 1
         }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
       >
-        {/* 内层不拦截指针事件，保证空白处拖拽画布有效；节点需 pointer-events-auto */}
-        <motion.div
-          className="absolute inset-0 w-full h-full pointer-events-none"
-          style={{ transformStyle: 'preserve-3d', transformOrigin: '50% 50%' }}
-          animate={{ rotateY: [0, 4, 0] }}
-          transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+        {/* 画布：外层平移缩放，内层轻微伪 3D 循环旋转 */}
+        <div
+          ref={canvasRef}
+          className="absolute inset-0 dot-grid cursor-grab active:cursor-grabbing overflow-hidden"
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onWheel={handleWheel}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          style={{
+            transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+            width: '300%',
+            height: '300%',
+            left: '-100%',
+            top: '-100%',
+            transformOrigin: 'center center',
+            perspective: '1200px'
+          }}
         >
-          {/* 连线渲染 (SVG层) */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ transformStyle: 'preserve-3d' }}>
-            {edges.map((edge) => {
-              const sourceNode = nodes.find(n => n.id === edge.source)
-              const targetNode = nodes.find(n => n.id === edge.target)
-              if (!sourceNode || !targetNode) return null
-              return (
-                <Edge
-                  key={edge.id}
-                  sourceNode={sourceNode}
-                  targetNode={targetNode}
-                />
-              )
-            })}
-          </svg>
+          {/* 内层不拦截指针事件，保证空白处拖拽画布有效；节点需 pointer-events-auto */}
+          <motion.div
+            className="absolute inset-0 w-full h-full pointer-events-none"
+            style={{ transformStyle: 'preserve-3d', transformOrigin: '50% 50%' }}
+            animate={{ rotateY: [0, 4, 0] }}
+            transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            {/* 连线渲染 (SVG层) */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ transformStyle: 'preserve-3d' }}>
+              {edges.map((edge) => {
+                const sourceNode = nodes.find(n => n.id === edge.source)
+                const targetNode = nodes.find(n => n.id === edge.target)
+                if (!sourceNode || !targetNode) return null
+                return (
+                  <Edge
+                    key={edge.id}
+                    sourceNode={sourceNode}
+                    targetNode={targetNode}
+                    scale={scale}
+                  />
+                )
+              })}
+            </svg>
 
-          {nodes.map((node) => (
-            <NodeCard key={node.id} node={node} />
-          ))}
+            {nodes.map((node) => (
+              <NodeCard key={node.id} node={node} />
+            ))}
 
-          {/* empty state */}
-          {nodes.length === 0 && (
-            <div
-              className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-gray-300 text-sm select-none pointer-events-none"
-            >
-              画布空空如也，开始你的第一次对话吧
-            </div>
-          )}
-        </motion.div>
-      </div>
+            {/* Macro View Clusters */}
+            {clusters.map(c => (
+              <ClusterLabel 
+                key={c.id} 
+                cluster={c} 
+                scale={scale} 
+                onDrag={(dx, dy) => handleClusterDrag(c.category, dx, dy)}
+                onClick={() => handleClusterClick(c.x, c.y)}
+              />
+            ))}
+
+            {/* empty state */}
+            {nodes.length === 0 && (
+              <div
+                className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-gray-300 text-sm select-none pointer-events-none"
+              >
+                画布空空如也，开始你的第一次对话吧
+              </div>
+            )}
+          </motion.div>
+        </div>
+      </motion.div>
       
       {/* 缩放手势支持 (Touch) - 基础平移支持已在 handleMouseDown 涵盖，缩放需双指逻辑 */}
 

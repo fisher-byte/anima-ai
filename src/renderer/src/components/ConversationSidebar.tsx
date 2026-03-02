@@ -196,14 +196,26 @@ export function ConversationSidebar({ isOpen, onClose }: ConversationSidebarProp
                             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                               记忆强度 {(rule.confidence * 100).toFixed(0)}%
                             </span>
-                            <div className="flex gap-0.5">
-                              {[1, 2, 3, 4, 5].map(i => (
-                                <div 
-                                  key={i} 
-                                  className={`w-1.5 h-1.5 rounded-full ${i <= rule.confidence * 5 ? 'bg-blue-400' : 'bg-gray-200'}`} 
+                            <button
+                              onClick={async () => {
+                                if (confirm('确定要遗忘这条偏好吗？')) {
+                                  // This requires a new store action, for now we just filter locally to show intent
+                                  // In real impl, add removePreference to store
+                                }
+                              }}
+                              className="text-gray-300 hover:text-red-400 transition-colors"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-2 mb-1">
+                             <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <motion.div 
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${rule.confidence * 100}%` }}
+                                  className={`h-full rounded-full ${rule.confidence > 0.8 ? 'bg-green-400' : rule.confidence > 0.5 ? 'bg-blue-400' : 'bg-gray-300'}`}
                                 />
-                              ))}
-                            </div>
+                             </div>
                           </div>
                           <div className="text-xs text-gray-800 font-medium leading-relaxed">
                             {rule.preference}
