@@ -1,9 +1,8 @@
-import { motion } from 'framer-motion'
 import { useCanvasStore } from '../stores/canvasStore'
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 
 export function AmbientBackground() {
-  const { nodes } = useCanvasStore()
+  const { nodes, scale } = useCanvasStore()
   
   // Calculate the dominant category to set the aurora color
   // Simple logic: find the category with the most nodes
@@ -29,6 +28,11 @@ export function AmbientBackground() {
     return '#E2E8F0'
   }, [nodes])
 
+  // 低缩放时关闭背景层，避免“云感”与卡顿
+  if (scale < 0.7) {
+    return null
+  }
+
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
       {/* Noise Texture for Paper-like feel */}
@@ -41,13 +45,11 @@ export function AmbientBackground() {
       />
 
       {/* Aurora Gradient Layer — very subtle, just a hint of color */}
-      <motion.div
-        animate={{ rotate: 360 }}
-        transition={{ duration: 300, repeat: Infinity, ease: "linear" }}
+      <div
         className="absolute -top-[50%] -left-[50%] w-[200%] h-[200%]"
         style={{
-          opacity: 0.12,
-          filter: 'blur(80px)',
+          opacity: 0.08,
+          filter: 'blur(40px)',
           background: `conic-gradient(from 0deg at 50% 50%, ${activeColor} 0deg, transparent 80deg, ${activeColor} 150deg, transparent 220deg, ${activeColor} 290deg, transparent 360deg)`,
           transition: 'background 2s ease'
         }}

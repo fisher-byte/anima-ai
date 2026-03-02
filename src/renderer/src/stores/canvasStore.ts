@@ -28,6 +28,7 @@ interface CanvasState {
   scale: number
   setOffset: (offset: NodePosition) => void
   setScale: (scale: number) => void
+  setView: (offset: NodePosition, scale: number) => void
   focusNode: (id: string) => void
   resetView: () => void
   startConversation: (userMessage: string, images?: string[], files?: import('@shared/types').FileAttachment[], parentId?: string) => Promise<void>
@@ -84,6 +85,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   setOffset: (offset) => set({ offset }),
   setScale: (scale) => set({ scale: Math.max(0.2, Math.min(3, scale)) }),
+  setView: (offset, scale) => set({ offset, scale: Math.max(0.2, Math.min(3, scale)) }),
 
   resetView: () => set({ offset: { x: 0, y: 0 }, scale: 1 }),
 
@@ -711,10 +713,21 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         }
       }
       
-      // 提取查询关键词（排除常用助词）
-      const queryKeywords = query.toLowerCase().split(/[\s,，.。!！?？;；]+/)
-        .filter(k => k.length >= 2 && !['这个', '那个', '什么', '怎么', '如何'].includes(k))
-        
+      // 提取查询关键词：空格/标点分词 + 中文连续 2~4 字子串（便于「深圳美食」等无空格查询）
+      const stopWords = new Set(['这个', '那个', '什么', '怎么', '如何', '吗', '呢', '啊', '的', '了', '是', '有', '在'])
+      const bySplit = query.toLowerCase().split(/[\s,，.。!！?？;；]+/).filter(Boolean)
+      const keywordsFromSplit = bySplit.filter(k => k.length >= 2 && !stopWords.has(k))
+      const chineseSubstrings: string[] = []
+      const cjk = /[\u4e00-\u9fff\u3400-\u4dbf]/
+      for (let i = 0; i < query.length; i++) {
+        if (!cjk.test(query[i])) continue
+        for (let len = 2; len <= 4 && i + len <= query.length; len++) {
+          const sub = query.slice(i, i + len)
+          if (sub.length >= 2 && !stopWords.has(sub)) chineseSubstrings.push(sub)
+        }
+      }
+      const queryKeywords = [...new Set([...keywordsFromSplit, ...chineseSubstrings])].slice(0, 20)
+
       if (queryKeywords.length === 0) return []
       
       // 评分
@@ -723,7 +736,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         const text = (conv.userMessage + ' ' + conv.assistantMessage).toLowerCase()
         
         queryKeywords.forEach(k => {
-          if (text.includes(k)) {
+          if (text.includes(k.toLowerCase())) {
             score += 1
           }
         })
@@ -731,15 +744,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         return { conv, score }
       })
       
-      // 返回评分最高且不为0的最近3条记忆（节点用 conversationId 与对话 id 对应）
-      return scored
-        .filter(s => s.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 3)
-        .map(s => {
-          const node = nodes.find(n => n.conversationId === s.conv.id)
-          return { conv: s.conv, category: node?.category }
-        })
+      const top = scored.filter(s => s.score > 0).sort((a, b) => b.score - a.score).slice(0, 3)
+
+      return top.map(s => {
+        const node = nodes.find(n => n.conversationId === s.conv.id)
+        return { conv: s.conv, category: node?.category }
+      })
     } catch (error) {
       console.error('Failed to get relevant memories:', error)
       return []
