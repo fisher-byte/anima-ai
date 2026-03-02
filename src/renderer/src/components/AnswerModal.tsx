@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Send, CheckCircle2, Edit3, Copy, RefreshCw, Square, Paperclip, Cpu, ChevronDown, ChevronRight, X, Loader2, File as FileIcon } from 'lucide-react'
+import { Sparkles, Send, CheckCircle2, Edit3, Copy, RefreshCw, Square, Paperclip, ChevronDown, ChevronRight, X, Loader2, File as FileIcon } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useCanvasStore } from '../stores/canvasStore'
@@ -11,6 +11,9 @@ import type { PreferenceRule, Conversation, FileAttachment } from '@shared/types
 import type { AIMessage } from '@shared/types'
 import { parseFiles, formatFilesForAI } from '../../../services/fileParsing'
 
+const MEMORY_USER_MAX = 80
+const MEMORY_ASSISTANT_MAX = 150
+
 type Turn = {
   user: string
   assistant: string
@@ -18,6 +21,19 @@ type Turn = {
   images?: string[]
   files?: import('@shared/types').FileAttachment[]
   error?: string
+  memoryCategory?: string
+}
+
+/** 将相关记忆压缩为简短参考文本再注入 AI，避免全文灌入 */
+function compressMemoriesForPrompt(memories: { conv: Conversation; category?: string }[]): string {
+  if (!memories?.length) return ''
+  return memories
+    .map(({ conv }) => {
+      const u = (conv.userMessage || '').slice(0, MEMORY_USER_MAX)
+      const a = (conv.assistantMessage || '').slice(0, MEMORY_ASSISTANT_MAX)
+      return `用户：${u}${conv.userMessage.length > MEMORY_USER_MAX ? '…' : ''}\n助手：${a}${conv.assistantMessage.length > MEMORY_ASSISTANT_MAX ? '…' : ''}`
+    })
+    .join('\n\n')
 }
 
 function parseTurnsFromAssistantMessage(message: string, reasoning?: string, initialImages?: string[], initialFiles?: import('@shared/types').FileAttachment[]): Turn[] | null {
@@ -61,9 +77,9 @@ function parseTurnsFromAssistantMessage(message: string, reasoning?: string, ini
 }
 
 function ThinkingSection({ content, isStreaming, forceCollapsed }: { content: string; isStreaming: boolean; forceCollapsed?: boolean }) {
-  const [isExpanded, setIsExpanded] = useState(true)
+  // 有正文时默认折叠，避免先展开再收拢的闪动
+  const [isExpanded, setIsExpanded] = useState(() => !(forceCollapsed ?? false))
 
-  // 当内容开始输出且不再流式思考时，自动折叠
   useEffect(() => {
     if (forceCollapsed) {
       setIsExpanded(false)
@@ -94,7 +110,7 @@ function ThinkingSection({ content, isStreaming, forceCollapsed }: { content: st
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <div className="mt-2 pl-4 border-l-2 border-gray-100 text-sm text-gray-500 leading-relaxed italic">
+            <div className="mt-2 pl-4 border-l-2 border-gray-200/60 bg-gray-50/50 rounded-r-lg text-sm text-gray-500 leading-relaxed italic">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {content || (isStreaming ? '...' : '')}
               </ReactMarkdown>
@@ -116,8 +132,7 @@ export function AnswerModal() {
     addPreference,
     getPreferencesForPrompt,
     getRelevantMemories,
-    setConversationHistory,
-    startConversation
+    setConversationHistory
   } = useCanvasStore()
 
   const [turns, setTurns] = useState<Turn[]>([])
@@ -315,22 +330,24 @@ export function AnswerModal() {
       isReplayRef.current = false
       didMutateRef.current = false
       resetHistory()
+      const memories = await getRelevantMemories(currentConversation.userMessage)
+      setRelevantMemories(memories)
+      const compressed = compressMemoriesForPrompt(memories)
+
       setTurns([{
         user: currentConversation.userMessage,
         assistant: '',
         images: currentConversation.images,
-        files: currentConversation.files
+        files: currentConversation.files,
+        memoryCategory: memories[0]?.category
       }])
       setIsStreaming(true)
       setAppliedPreferences([])
       setFeedbackMessage('')
       setDetectedPreference(null)
 
-      const memories = await getRelevantMemories(currentConversation.userMessage)
-      setRelevantMemories(memories)
-
       const preferences = getPreferencesForPrompt()
-      sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images)
+      sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed)
     }
 
     prepareConversation()
@@ -429,7 +446,7 @@ export function AnswerModal() {
     }
   }, [detectFeedback])
 
-  // 提交反馈（连续对话）
+  // 提交反馈（连续对话）：按当前输入重查记忆并压缩注入
   const handleFeedbackSubmit = useCallback(async () => {
     const trimmed = feedbackMessage.trim()
     const hasImages = pendingImages.length > 0
@@ -446,6 +463,10 @@ export function AnswerModal() {
     setIsStreaming(true)
     setDetectedPreference(null)
 
+    const memories = await getRelevantMemories(trimmed)
+    setRelevantMemories(memories)
+    const compressed = compressMemoriesForPrompt(memories)
+
     // 组合消息内容
     let fullMessage = trimmed
     if (hasFiles) {
@@ -458,23 +479,31 @@ export function AnswerModal() {
       fullMessage = trimmed + fileContext
     }
 
-    const currentTurn: Turn = { user: trimmed, assistant: '', images: pendingImages, files: pendingFiles }
+    const history = turns.flatMap(t => [
+      { role: 'user' as const, content: t.user },
+      { role: 'assistant' as const, content: t.assistant }
+    ])
+    const currentTurn: Turn = {
+      user: trimmed,
+      assistant: '',
+      images: pendingImages,
+      files: pendingFiles,
+      memoryCategory: memories[0]?.category
+    }
     setTurns(prev => [...prev, currentTurn])
-    
-    const preferences = getPreferencesForPrompt()
 
-    // 连续对话：useAI 内部会保留历史，这里直接追加新一句即可
+    const preferences = getPreferencesForPrompt()
     didMutateRef.current = true
-    sendMessage(fullMessage, preferences, undefined, pendingImages)
-    
+    sendMessage(fullMessage, preferences, history, pendingImages, compressed)
+
     setFeedbackMessage('')
     setPendingImages([])
     setPendingFiles([])
-    
+
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
-  }, [feedbackMessage, pendingImages, pendingFiles, isStreaming, detectedPreference, addPreference, getPreferencesForPrompt, sendMessage])
+  }, [feedbackMessage, pendingImages, pendingFiles, isStreaming, detectedPreference, addPreference, getPreferencesForPrompt, sendMessage, turns, getRelevantMemories])
 
   // 关闭并保存（带平滑过渡）
   const handleClose = useCallback(async () => {
@@ -547,7 +576,7 @@ export function AnswerModal() {
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
             className="relative w-full h-full max-w-4xl flex flex-col shadow-[0_0_100px_rgba(0,0,0,0.05)]"
           >
-            {/* 头部导航 - 极简 */}
+            {/* 头部导航 - 仅返回 */}
             <div className="flex items-center justify-between px-8 py-6">
               <button
                 onClick={handleClose}
@@ -556,38 +585,19 @@ export function AnswerModal() {
                 <ChevronRight className="w-4 h-4 rotate-180 transform group-hover:-translate-x-1 transition-transform" />
                 <span className="text-sm font-bold uppercase tracking-widest">返回画布</span>
               </button>
-
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center">
-                  <Cpu className="w-4 h-4 text-blue-500" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">{AI_CONFIG.MODEL}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-blue-500/60 uppercase tracking-widest">
-                      {isStreaming ? '正在进化中...' : '深度对话'}
-                    </span>
-                    {relevantMemories.length > 0 && !isStreaming && (
-                      <div className="flex items-center gap-1 px-1.5 py-0.5 bg-purple-50 rounded-md border border-purple-100/50 animate-in fade-in zoom-in duration-500">
-                        <Sparkles className="w-2.5 h-2.5 text-purple-400" />
-                        <span className="text-[9px] font-black text-purple-400/80 uppercase tracking-wider">
-                          {relevantMemories[0].category || '全域'} 记忆联结
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="w-24" /> {/* Balance */}
+              <div className="w-24" />
             </div>
 
-            {/* 对话内容区 */}
+            {/* 对话内容区：左上角轻量模型标签 + 收窄内容 */}
             <div
               ref={scrollRef}
-              className="flex-1 overflow-y-auto px-8 py-4 scroll-smooth"
+              className="flex-1 overflow-y-auto px-8 py-4 scroll-smooth relative"
             >
-              <div className="max-w-2xl mx-auto space-y-12">
+              <div className="absolute left-8 top-4 z-10 text-[10px] text-gray-400 uppercase tracking-wider">
+                {AI_CONFIG.MODEL}
+                {isStreaming && <span className="ml-2 text-blue-500/70">正在进化中...</span>}
+              </div>
+              <div className="max-w-xl mx-auto space-y-12 pt-6">
                 {turns.map((t, idx) => (
                   <div key={idx} className="animate-in fade-in slide-in-from-bottom-8 duration-700">
                     {/* 用户消息 */}
@@ -629,20 +639,33 @@ export function AnswerModal() {
                                 </div>
                               </div>
                             ) : (
-                              t.user
+                              <>
+                                <div>{t.user}</div>
+                                {!isStreaming && (
+                                  <div className="flex justify-end gap-1 mt-2 opacity-0 group-hover/user:opacity-100 transition-opacity">
+                                    <button onClick={() => handleStartEdit(idx, t.user)} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-black/5 rounded-xl transition-all" title="编辑">
+                                      <Edit3 className="w-4 h-4" />
+                                    </button>
+                                    <button onClick={() => handleCopyMessage(t.user, idx)} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-black/5 rounded-xl transition-all" title="复制">
+                                      {copiedIndex === idx ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                                    </button>
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
-                          {!isStreaming && editingIndex !== idx && (
-                            <button
-                              onClick={() => handleStartEdit(idx, t.user)}
-                              className="absolute -left-12 top-1/2 -translate-y-1/2 opacity-0 group-hover/user:opacity-100 p-3 text-gray-300 hover:text-blue-500 transition-all"
-                            >
-                              <Edit3 className="w-5 h-5" />
-                            </button>
-                          )}
                         </div>
                       </div>
                     </div>
+
+                    {/* 该轮记忆联结轻量提示 */}
+                    {(t.memoryCategory || (idx === 0 && relevantMemories.length > 0)) && (
+                      <div className="flex justify-end mb-2">
+                        <span className="text-[10px] text-gray-400 uppercase tracking-wider">
+                          已联结 {(t.memoryCategory ?? relevantMemories[0]?.category) || '相关'} 记忆
+                        </span>
+                      </div>
+                    )}
 
                     {/* AI 回复 */}
                     <div className="flex justify-start">
@@ -660,44 +683,33 @@ export function AnswerModal() {
                                 {t.error}
                               </div>
                             ) : t.assistant ? (
-                              <div className="prose prose-slate max-w-none prose-base
-                                prose-headings:font-black prose-headings:text-gray-900 
-                                prose-p:text-gray-800 prose-p:leading-relaxed
-                                prose-pre:bg-gray-900/95 prose-pre:backdrop-blur-md prose-pre:text-gray-100 prose-pre:rounded-[24px]
-                                prose-code:text-blue-600 prose-code:bg-blue-50/50 prose-code:px-2 prose-code:py-0.5 prose-code:rounded-lg
-                                prose-table:border-collapse prose-table:w-full prose-table:my-10
-                                prose-th:border prose-th:border-gray-200/50 prose-th:bg-gray-50/50 prose-th:px-6 prose-th:py-4 prose-th:text-left
-                                prose-td:border prose-td:border-gray-200/50 prose-td:px-6 prose-td:py-4
-                                prose-img:rounded-[32px] prose-img:shadow-2xl">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                  {t.assistant}
-                                </ReactMarkdown>
-                              </div>
+                              <>
+                                <div className="prose prose-slate max-w-none prose-base
+                                  prose-headings:font-black prose-headings:text-gray-900 
+                                  prose-p:text-gray-800 prose-p:leading-relaxed
+                                  prose-pre:bg-gray-900/95 prose-pre:backdrop-blur-md prose-pre:text-gray-100 prose-pre:rounded-[24px]
+                                  prose-code:text-blue-600 prose-code:bg-blue-50/50 prose-code:px-2 prose-code:py-0.5 prose-code:rounded-lg
+                                  prose-table:border-collapse prose-table:w-full prose-table:my-10
+                                  prose-th:border prose-th:border-gray-200/50 prose-th:bg-gray-50/50 prose-th:px-6 prose-th:py-4 prose-th:text-left
+                                  prose-td:border prose-td:border-gray-200/50 prose-td:px-6 prose-td:py-4
+                                  prose-img:rounded-[32px] prose-img:shadow-2xl">
+                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    {t.assistant}
+                                  </ReactMarkdown>
+                                </div>
+                                {!isStreaming && (
+                                  <div className="flex justify-end gap-1 mt-2 opacity-0 group-hover/ai:opacity-100 transition-opacity">
+                                    <button onClick={() => handleCopyMessage(t.assistant, idx)} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-black/5 rounded-xl transition-all" title="复制">
+                                      {copiedIndex === idx ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                                    </button>
+                                    <button onClick={() => handleRegenerate(idx)} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-black/5 rounded-xl transition-all" title="重新生成">
+                                      <RefreshCw className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                )}
+                              </>
                             ) : null}
                           </div>
-
-                          {/* AI 回复工具栏 (悬浮) */}
-                          {t.assistant && !isStreaming && (
-                            <div className="flex items-center gap-2 mt-6 ml-4 opacity-0 group-hover/ai:opacity-100 transition-all duration-500">
-                              <button onClick={() => handleCopyMessage(t.assistant, idx)} className="p-3 text-gray-400 hover:text-blue-500 hover:bg-black/5 rounded-2xl transition-all">
-                                {copiedIndex === idx ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}
-                              </button>
-                              <button onClick={() => handleRegenerate(idx)} className="p-3 text-gray-400 hover:text-blue-500 hover:bg-black/5 rounded-2xl transition-all">
-                                <RefreshCw className="w-5 h-5" />
-                              </button>
-                              <button 
-                                onClick={async () => {
-                                  const userMsg = window.prompt('输入新分支的起始消息：', t.user)
-                                  if (userMsg && currentConversation) {
-                                    await startConversation(userMsg, t.images, t.files, currentConversation.id)
-                                  }
-                                }}
-                                className="p-3 text-gray-400 hover:text-purple-500 hover:bg-black/5 rounded-2xl transition-all"
-                              >
-                                <Sparkles className="w-5 h-5" />
-                              </button>
-                            </div>
-                          )}
                         </div>
                       </div>
                     </div>
@@ -720,7 +732,7 @@ export function AnswerModal() {
 
             {/* 底部反馈/输入区 */}
             <div className="p-10">
-              <div className="max-w-2xl mx-auto relative">
+              <div className="max-w-xl mx-auto relative">
                 <AnimatePresence mode="wait">
                   {isStreaming ? (
                     <motion.div

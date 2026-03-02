@@ -208,7 +208,7 @@ export function Canvas() {
         </div>
       )}
 
-      {/* 画布 */}
+      {/* 画布：外层平移缩放，内层轻微伪 3D 循环旋转 */}
       <div
         ref={canvasRef}
         className="absolute inset-0 dot-grid cursor-grab active:cursor-grabbing overflow-hidden"
@@ -222,45 +222,53 @@ export function Canvas() {
         onTouchEnd={handleTouchEnd}
         style={{
           transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
-          width: '300%', 
+          width: '300%',
           height: '300%',
           left: '-100%',
           top: '-100%',
-          transformOrigin: 'center center'
+          transformOrigin: 'center center',
+          perspective: '1200px'
         }}
       >
-        {/* 连线渲染 (SVG层) */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none">
-          {edges.map((edge) => {
-            const sourceNode = nodes.find(n => n.id === edge.source)
-            const targetNode = nodes.find(n => n.id === edge.target)
-            if (!sourceNode || !targetNode) return null
-            return (
-              <Edge 
-                key={edge.id}
-                sourceNode={sourceNode}
-                targetNode={targetNode}
-              />
-            )
-          })}
-        </svg>
+        <motion.div
+          className="absolute inset-0 w-full h-full"
+          style={{ transformStyle: 'preserve-3d', transformOrigin: '50% 50%' }}
+          animate={{ rotateY: [0, 4, 0] }}
+          transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          {/* 连线渲染 (SVG层) */}
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ transformStyle: 'preserve-3d' }}>
+            {edges.map((edge) => {
+              const sourceNode = nodes.find(n => n.id === edge.source)
+              const targetNode = nodes.find(n => n.id === edge.target)
+              if (!sourceNode || !targetNode) return null
+              return (
+                <Edge
+                  key={edge.id}
+                  sourceNode={sourceNode}
+                  targetNode={targetNode}
+                />
+              )
+            })}
+          </svg>
 
-        {/* 节点渲染 */}
-        {nodes.map((node) => (
-          <NodeCard 
-            key={node.id} 
-            node={node} 
-          />
-        ))}
-        
-        {/* 空状态提示 */}
-        {nodes.length === 0 && (
-          <div 
-            className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-gray-300 text-sm select-none pointer-events-none"
-          >
-            画布空空如也，开始你的第一次对话吧
-          </div>
-        )}
+          {/* 节点渲染 */}
+          {nodes.map((node) => (
+            <NodeCard
+              key={node.id}
+              node={node}
+            />
+          ))}
+
+          {/* 空状态提示 */}
+          {nodes.length === 0 && (
+            <div
+              className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-gray-300 text-sm select-none pointer-events-none"
+            >
+              画布空空如也，开始你的第一次对话吧
+            </div>
+          )}
+        </motion.div>
       </div>
       
       {/* 缩放手势支持 (Touch) - 基础平移支持已在 handleMouseDown 涵盖，缩放需双指逻辑 */}

@@ -16,7 +16,7 @@ interface CanvasState {
   loadProfile: () => Promise<void>
   
   // 方法：节点操作
-  addNode: (conversation: Conversation, position?: NodePosition) => Promise<void>
+  addNode: (conversation: Conversation, position?: NodePosition, explicitCategory?: string) => Promise<void>
   updateNodePosition: (id: string, x: number, y: number) => Promise<void>
   removeNode: (id: string) => Promise<void>
   
@@ -177,8 +177,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     }
   },
 
-  // 添加节点
-  addNode: async (conversation: Conversation, position?: NodePosition) => {
+  // 添加节点（explicitCategory 由 endConversation 传入时优先使用，保证话题拆分分类正确）
+  addNode: async (conversation: Conversation, position?: NodePosition, explicitCategory?: string) => {
     const { nodes } = get()
 
     // 生成标题
@@ -192,26 +192,32 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       .filter(word => !['用户', 'AI', '用户：', 'AI：'].includes(word))
       .slice(0, UI_CONFIG.NODE_KEYWORDS_COUNT)
 
-    // --- 增强分类与染色逻辑 ---
+    // --- 增强分类与染色逻辑：优先使用 explicitCategory，否则按全文关键词匹配 ---
     const CATEGORIES = [
       { name: '工作学习', keywords: ['代码', '开发', '学习', '论文', '总结', '计划', 'AI', '模型', '技术', '工作'], color: 'rgba(219, 234, 254, 0.9)' }, // 蓝色
-      { name: '生活日常', keywords: ['美食', '天气', '旅游', '电影', '运动', '健康', '深圳', '餐厅', '吃饭'], color: 'rgba(220, 252, 231, 0.9)' }, // 绿色
+      { name: '生活日常', keywords: ['美食', '天气', '旅游', '电影', '运动', '健康', '深圳', '餐厅', '吃饭', '好吃', '店铺'], color: 'rgba(220, 252, 231, 0.9)' }, // 绿色
       { name: '灵感创意', keywords: ['创意', '想法', '艺术', '写作', '小说', '绘画', '设计'], color: 'rgba(243, 232, 255, 0.9)' }, // 紫色
       { name: '其他', keywords: [], color: 'rgba(243, 244, 246, 0.9)' } // 灰色
     ]
 
-    let matchedCat = CATEGORIES[CATEGORIES.length - 1] // 默认“其他”
-    const fullContent = (conversation.userMessage + conversation.assistantMessage).toLowerCase()
-    
-    for (const cat of CATEGORIES) {
-      if (cat.keywords.some(k => fullContent.includes(k.toLowerCase()))) {
-        matchedCat = cat
-        break
+    let category: string
+    let color: string
+    if (explicitCategory) {
+      const found = CATEGORIES.find(c => c.name === explicitCategory)
+      category = found ? found.name : explicitCategory
+      color = found ? found.color : CATEGORIES[CATEGORIES.length - 1].color
+    } else {
+      let matchedCat = CATEGORIES[CATEGORIES.length - 1]
+      const fullContent = (conversation.userMessage + conversation.assistantMessage).toLowerCase()
+      for (const cat of CATEGORIES) {
+        if (cat.keywords.some(k => fullContent.includes(k.toLowerCase()))) {
+          matchedCat = cat
+          break
+        }
       }
+      category = matchedCat.name
+      color = matchedCat.color
     }
-
-    let category = matchedCat.name
-    let color = matchedCat.color
 
     // --- 聚类布局优化 (Category Island) ---
     const viewW = typeof window !== 'undefined' ? window.innerWidth : 1280
@@ -503,7 +509,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
       try {
         await appendConversation(conv)
-        await addNode(conv)
+        await addNode(conv, undefined, group.category)
       } catch (error) {
         console.error(`保存话题分组 ${i} 失败:`, error)
       }
@@ -623,7 +629,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const text = query.toLowerCase()
     const CATEGORIES = [
       { name: '工作学习', keywords: ['代码', '开发', '学习', '论文', '总结', '计划', 'AI', '模型', '技术', '工作', '文档', '项目', 'bug', '修', '写'] },
-      { name: '生活日常', keywords: ['美食', '天气', '旅游', '电影', '运动', '健康', '深圳', '餐厅', '吃饭', '心情', '八卦', '推荐', '怎么去'] },
+      { name: '生活日常', keywords: ['美食', '天气', '旅游', '电影', '运动', '健康', '深圳', '餐厅', '吃饭', '心情', '八卦', '推荐', '怎么去', '好吃', '店铺'] },
       { name: '灵感创意', keywords: ['创意', '想法', '艺术', '写作', '小说', '绘画', '设计', '灵感', '未来', '科幻', '编一个', '故事'] }
     ]
 

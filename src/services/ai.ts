@@ -159,11 +159,13 @@ export interface AIStreamChunk {
 
 /**
  * 调用AI API（流式）
+ * @param compressedMemory 压缩后的相关记忆文本，会追加到 systemPrompt
  */
 export async function* streamAI(
   messages: AIMessage[],
   preferences: string[] = [],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  compressedMemory?: string
 ): AsyncGenerator<AIStreamChunk, AIResponse, unknown> {
   try {
     const apiKey = await getApiKey()
@@ -178,6 +180,10 @@ export async function* streamAI(
       preferences.forEach((pref, idx) => {
         systemPrompt += `${idx + 1}. ${pref}\n`
       })
+    }
+    if (compressedMemory?.trim()) {
+      systemPrompt += '\n\n以下是用户之前的相关对话（已压缩），供参考：\n'
+      systemPrompt += compressedMemory.trim()
     }
 
     const fullMessages: AIMessage[] = [
