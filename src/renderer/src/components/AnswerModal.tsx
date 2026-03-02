@@ -601,11 +601,15 @@ export function AnswerModal() {
               <div className="w-24" />
             </div>
 
-            {/* 对话内容区：收窄内容，模型标签在 AI 输出块左上角 */}
+            {/* 对话内容区：顶部单行模型标签，不占块 */}
             <div
               ref={scrollRef}
               className="flex-1 overflow-y-auto px-8 py-4 scroll-smooth"
             >
+              <div className="max-w-xl mx-auto mb-4 text-[10px] text-gray-400 uppercase tracking-wider">
+                {AI_CONFIG.MODEL}
+                {isStreaming && <span className="ml-2 text-blue-500/70">正在进化中...</span>}
+              </div>
               <div className="max-w-xl mx-auto space-y-12">
                 {turns.map((t, idx) => (
                   <div key={idx} className="animate-in fade-in slide-in-from-bottom-8 duration-700">
@@ -631,7 +635,7 @@ export function AnswerModal() {
                           </div>
                         )}
 
-                        <div className="flex flex-col items-end gap-1">
+                        <div className="flex flex-col items-end gap-1 group/user">
                           <div className="bg-gray-100/80 backdrop-blur-sm rounded-2xl rounded-tr-sm px-5 py-3.5 text-gray-700 text-sm leading-relaxed shadow-sm border border-gray-200/20">
                             {editingIndex === idx ? (
                               <div className="flex flex-col gap-4 min-w-[320px]">
@@ -674,15 +678,10 @@ export function AnswerModal() {
                       </div>
                     )}
 
-                    {/* AI 回复：模型标签在输出块左上角，操作按钮在框外 */}
+                    {/* AI 回复：操作按钮在框外，不再在左侧占块 */}
                     <div className="flex justify-start">
                       <div className="max-w-[95%] w-full flex flex-col gap-1 group/ai">
-                        <div className="flex items-start gap-2">
-                          <span className="text-[10px] text-gray-400 uppercase tracking-wider shrink-0 pt-1">
-                            {idx === 0 ? AI_CONFIG.MODEL : ''}
-                            {isStreaming && idx === turns.length - 1 && <span className="ml-1 text-blue-500/70">正在进化中...</span>}
-                          </span>
-                          <div className="min-w-0 flex-1">
+                        <div className="min-w-0 flex-1">
                             <ThinkingSection
                               content={t.reasoning || ''}
                               isStreaming={isStreaming && idx === turns.length - 1 && !t.assistant}
@@ -710,7 +709,6 @@ export function AnswerModal() {
                               ) : null}
                             </div>
                           </div>
-                        </div>
                         {t.assistant && !isStreaming && (
                           <div className="flex items-center gap-1 opacity-0 group-hover/ai:opacity-100 transition-opacity pl-0">
                             <button onClick={() => handleCopyMessage(t.assistant, idx)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded transition-all" title="复制">
