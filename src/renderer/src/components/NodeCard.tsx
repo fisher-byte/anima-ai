@@ -12,6 +12,12 @@ export function NodeCard({ node }: NodeCardProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   
+  const isDraggingRef = useRef(false)
+  const dragStartRef = useRef({ x: 0, y: 0 })
+  const mouseDownPosRef = useRef({ x: 0, y: 0 })
+  const positionRef = useRef({ x: node.x, y: node.y })
+  const lastDragEndRef = useRef(0)
+
   // 计算深度感：基于节点的活跃程度（索引位置）
   const depth = useMemo(() => {
     const index = nodes.findIndex(n => n.id === node.id)
@@ -21,30 +27,24 @@ export function NodeCard({ node }: NodeCardProps) {
     return 0.75 + ratio * 0.25 // 0.75 ~ 1.0
   }, [nodes, node.id])
 
-  const dragStartRef = useRef({ x: 0, y: 0 })
-  const mouseDownPosRef = useRef({ x: 0, y: 0 })
-  const positionRef = useRef({ x: node.x, y: node.y })
-  const lastDragEndRef = useRef(0)
-
   // 同步外部坐标变更
   useEffect(() => {
-    if (!isDragging) {
+    if (!isDraggingRef.current) {
       positionRef.current = { x: node.x, y: node.y }
     }
-  }, [node.x, node.y, isDragging])
+  }, [node.x, node.y])
 
   const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
     const dx = e.clientX - mouseDownPosRef.current.x
     const dy = e.clientY - mouseDownPosRef.current.y
     const distance = Math.hypot(dx, dy)
 
-    if (!isDragging && distance > 10) {
+    if (!isDraggingRef.current && distance > 10) {
+      isDraggingRef.current = true
       setIsDragging(true)
     }
 
-    // 如果已经在拖拽，则更新位置
-    const currentIsDragging = isDragging || distance > 10
-    if (currentIsDragging) {
+    if (isDraggingRef.current) {
       const newX = e.clientX - dragStartRef.current.x
       const newY = e.clientY - dragStartRef.current.y
       positionRef.current = { x: newX, y: newY }
@@ -55,18 +55,19 @@ export function NodeCard({ node }: NodeCardProps) {
         el.style.top = `${newY}px`
       }
     }
-  }, [isDragging, node.id])
+  }, [node.id])
 
   const handleGlobalMouseUp = useCallback(() => {
     window.removeEventListener('mousemove', handleGlobalMouseMove)
     window.removeEventListener('mouseup', handleGlobalMouseUp)
     
-    if (isDragging) {
+    if (isDraggingRef.current) {
+      isDraggingRef.current = false
       setIsDragging(false)
       lastDragEndRef.current = Date.now()
       updateNodePosition(node.id, positionRef.current.x, positionRef.current.y)
     }
-  }, [isDragging, node.id, updateNodePosition, handleGlobalMouseMove])
+  }, [node.id, updateNodePosition, handleGlobalMouseMove])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
