@@ -151,6 +151,42 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           await window.electronAPI.storage.write(STORAGE_FILES.NODES, JSON.stringify(nodes, null, 2))
         }
 
+        // 全量按对话首句重新分类，修正历史错分（如美食归到生活日常）；类别名与 detectIntent 保持一致
+        try {
+          const convContent = await window.electronAPI.storage.read(STORAGE_FILES.CONVERSATIONS)
+          const conversationsById = new Map<string, string>()
+          if (convContent) {
+            for (const line of convContent.trim().split('\n').filter(Boolean)) {
+              try {
+                const conv = JSON.parse(line) as Conversation
+                if (conv.id && conv.userMessage) conversationsById.set(conv.id, conv.userMessage)
+              } catch { /* ignore */ }
+            }
+          }
+          const detectIntent = get().detectIntent
+          const CATEGORIES: { name: string; color: string }[] = [
+            { name: '工作学习', color: 'rgba(219, 234, 254, 0.9)' },
+            { name: '生活日常', color: 'rgba(220, 252, 231, 0.9)' },
+            { name: '灵感创意', color: 'rgba(243, 232, 255, 0.9)' },
+            { name: '其他', color: 'rgba(243, 244, 246, 0.9)' }
+          ]
+          let updated = false
+          nodes = nodes.map(n => {
+            const userMessage = conversationsById.get(n.conversationId)
+            if (!userMessage) return n
+            const newCategory = detectIntent(userMessage)
+            if (newCategory === n.category) return n
+            updated = true
+            const color = CATEGORIES.find(c => c.name === newCategory)?.color ?? CATEGORIES[3].color
+            return { ...n, category: newCategory, color }
+          })
+          if (updated) {
+            await window.electronAPI.storage.write(STORAGE_FILES.NODES, JSON.stringify(nodes, null, 2))
+          }
+        } catch (e) {
+          console.warn('Re-categorize nodes failed:', e)
+        }
+
         set({ nodes })
         get().updateEdges() // 加载后更新连线
         
@@ -195,7 +231,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     // --- 增强分类与染色逻辑：优先使用 explicitCategory，否则按全文关键词匹配 ---
     const CATEGORIES = [
       { name: '工作学习', keywords: ['代码', '开发', '学习', '论文', '总结', '计划', 'AI', '模型', '技术', '工作'], color: 'rgba(219, 234, 254, 0.9)' }, // 蓝色
-      { name: '生活日常', keywords: ['美食', '天气', '旅游', '电影', '运动', '健康', '深圳', '餐厅', '吃饭', '好吃', '店铺'], color: 'rgba(220, 252, 231, 0.9)' }, // 绿色
+      { name: '生活日常', keywords: ['美食', '天气', '旅游', '电影', '运动', '健康', '深圳', '餐厅', '吃饭', '好吃', '店铺', '非常好吃'], color: 'rgba(220, 252, 231, 0.9)' }, // 绿色
       { name: '灵感创意', keywords: ['创意', '想法', '艺术', '写作', '小说', '绘画', '设计'], color: 'rgba(243, 232, 255, 0.9)' }, // 紫色
       { name: '其他', keywords: [], color: 'rgba(243, 244, 246, 0.9)' } // 灰色
     ]
@@ -629,7 +665,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const text = query.toLowerCase()
     const CATEGORIES = [
       { name: '工作学习', keywords: ['代码', '开发', '学习', '论文', '总结', '计划', 'AI', '模型', '技术', '工作', '文档', '项目', 'bug', '修', '写'] },
-      { name: '生活日常', keywords: ['美食', '天气', '旅游', '电影', '运动', '健康', '深圳', '餐厅', '吃饭', '心情', '八卦', '推荐', '怎么去', '好吃', '店铺'] },
+      { name: '生活日常', keywords: ['美食', '天气', '旅游', '电影', '运动', '健康', '深圳', '餐厅', '吃饭', '心情', '八卦', '推荐', '怎么去', '好吃', '店铺', '非常好吃'] },
       { name: '灵感创意', keywords: ['创意', '想法', '艺术', '写作', '小说', '绘画', '设计', '灵感', '未来', '科幻', '编一个', '故事'] }
     ]
 
