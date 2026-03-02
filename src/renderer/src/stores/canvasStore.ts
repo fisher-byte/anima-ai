@@ -41,7 +41,7 @@ interface CanvasState {
   detectFeedback: (message: string) => PreferenceRule | null
   addPreference: (rule: PreferenceRule) => Promise<void>
   getPreferencesForPrompt: () => string[]
-  getRelevantMemories: (query: string) => Promise<Conversation[]>
+  getRelevantMemories: (query: string) => Promise<{ conv: Conversation; category?: string }[]>
   detectIntent: (message: string) => string
   
   // 方法：对话记录
@@ -407,12 +407,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         const memories = await getRelevantMemories(userMessage)
         // 如果有相关记忆且属于同一分类，自动作为该记忆的分支
         const bestMatch = memories.find(m => {
-          const n = nodes.find(node => node.id === m.id)
+          const n = nodes.find(node => node.id === m.conv.id)
           return n?.category === category
         })
         
         if (bestMatch) {
-          effectiveParentId = bestMatch.id
+          effectiveParentId = bestMatch.conv.id
         } else {
           // 如果没有语义非常接近的，则连接到该分类的最近一个节点（维持岛屿凝聚）
           effectiveParentId = catNodes[catNodes.length - 1].id
@@ -443,31 +443,73 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     }
   },
 
-  // 结束对话
+  // 结束对话 (增强：支持基于意图的话题拆分)
   endConversation: async (assistantMessage: string, appliedPreferences?: string[], reasoning_content?: string) => {
-    const { currentConversation, addNode, appendConversation } = get()
+    const { currentConversation, addNode, appendConversation, detectIntent } = get()
     if (!currentConversation) return
 
-    const updatedConversation: Conversation = {
-      ...currentConversation,
-      assistantMessage,
-      appliedPreferences,
-      reasoning_content
+    // 1. 解析回复中的多轮对话
+    const sectionRegex = /#\s*(\d+)\s*\n+\s*用户[：:]\s*([\s\S]*?)\n+\s*AI[：:]\s*([\s\S]*?)(?=\n+\s*#\s*\d+|$)/g
+    const turns: { user: string; ai: string; category: string }[] = []
+    let match
+    while ((match = sectionRegex.exec(assistantMessage)) !== null) {
+      const user = match[2].trim()
+      const ai = match[3].trim()
+      turns.push({ user, ai, category: detectIntent(user) })
     }
 
-    set({
-      currentConversation: updatedConversation,
-      isLoading: false
+    // 如果没解析出多轮（旧格式或单次对话），作为单轮处理
+    if (turns.length === 0) {
+      turns.push({ 
+        user: currentConversation.userMessage, 
+        ai: assistantMessage, 
+        category: detectIntent(currentConversation.userMessage) 
+      })
+    }
+
+    // 2. 根据连续的分类进行分组
+    const groups: { category: string; user: string; ai: string }[] = []
+    turns.forEach((turn, idx) => {
+      const lastGroup = groups[groups.length - 1]
+      // 只有在分类一致时才合并，否则开启新分组（拆分节点）
+      if (lastGroup && lastGroup.category === turn.category) {
+        lastGroup.user += `\n\n${turn.user}`
+        lastGroup.ai += `\n\n# ${idx + 1}\n用户：${turn.user}\nAI：${turn.ai}`
+      } else {
+        groups.push({
+          category: turn.category,
+          user: turn.user,
+          ai: `# ${idx + 1}\n用户：${turn.user}\nAI：${turn.ai}`
+        })
+      }
     })
 
-    try {
-      // 记录对话
-      await appendConversation(updatedConversation)
-      // 创建节点
-      await addNode(updatedConversation)
-    } catch (error) {
-      console.error('保存对话或节点失败:', error)
+    // 3. 为每个分组创建独立的对话记录和节点
+    for (let i = 0; i < groups.length; i++) {
+      const group = groups[i]
+      const isFirst = i === 0
+      
+      const conv: Conversation = {
+        id: isFirst ? currentConversation.id : crypto.randomUUID(),
+        parentId: isFirst ? currentConversation.parentId : currentConversation.id, // 后续话题作为第一话题的分支
+        createdAt: new Date().toISOString(),
+        userMessage: group.user,
+        assistantMessage: group.ai,
+        reasoning_content: isFirst ? reasoning_content : undefined, // 简单起见，只在第一话题保留全量推理
+        appliedPreferences,
+        images: isFirst ? currentConversation.images : [], // 文件通常只在第一轮
+        files: isFirst ? currentConversation.files : []
+      }
+
+      try {
+        await appendConversation(conv)
+        await addNode(conv)
+      } catch (error) {
+        console.error(`保存话题分组 ${i} 失败:`, error)
+      }
     }
+
+    set({ isLoading: false })
   },
 
   // 关闭模态框
@@ -594,8 +636,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   // 获取相关的历史记忆
-  getRelevantMemories: async (query: string): Promise<Conversation[]> => {
+  getRelevantMemories: async (query: string): Promise<{ conv: Conversation; category?: string }[]> => {
     try {
+      const { nodes } = get()
       const content = await window.electronAPI.storage.read(STORAGE_FILES.CONVERSATIONS)
       if (!content) return []
       
@@ -635,7 +678,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         .filter(s => s.score > 0)
         .sort((a, b) => b.score - a.score)
         .slice(0, 3)
-        .map(s => s.conv)
+        .map(s => {
+          const node = nodes.find(n => n.id === s.conv.id)
+          return { conv: s.conv, category: node?.category }
+        })
     } catch (error) {
       console.error('Failed to get relevant memories:', error)
       return []

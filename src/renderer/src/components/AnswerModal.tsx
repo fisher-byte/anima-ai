@@ -1,14 +1,15 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Send, CheckCircle2, Edit3, Copy, RefreshCw, Square, Paperclip, Cpu, ChevronDown, ChevronRight } from 'lucide-react'
+import { Sparkles, Send, CheckCircle2, Edit3, Copy, RefreshCw, Square, Paperclip, Cpu, ChevronDown, ChevronRight, X, Loader2, File as FileIcon } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useAI } from '../hooks/useAI'
 import { GrayHint } from './GrayHint'
 import { AI_CONFIG } from '@shared/constants'
-import type { PreferenceRule, Conversation } from '@shared/types'
+import type { PreferenceRule, Conversation, FileAttachment } from '@shared/types'
 import type { AIMessage } from '@shared/types'
+import { parseFiles, formatFilesForAI } from '../../../services/fileParsing'
 
 type Turn = {
   user: string
@@ -33,13 +34,22 @@ function parseTurnsFromAssistantMessage(message: string, reasoning?: string, ini
 
   while ((match = sectionRegex.exec(message)) !== null) {
     const userContent = match[2].trim()
-    const aiContent = match[3].trim()
+    let aiContent = match[3].trim()
     const index = parseInt(match[1])
+
+    // 提取思考内容
+    let turnReasoning = undefined
+    const reasoningMatch = aiContent.match(/^思考：([\s\S]*?)\n\n([\s\S]*)$/)
+    if (reasoningMatch) {
+      turnReasoning = reasoningMatch[1].trim()
+      aiContent = reasoningMatch[2].trim()
+    }
 
     if (userContent || aiContent) {
       turns.push({
         user: userContent,
         assistant: aiContent,
+        reasoning: turnReasoning,
         // 只有第一轮显示初始文件
         images: index === 1 ? initialImages : undefined,
         files: index === 1 ? initialFiles : undefined
@@ -50,8 +60,15 @@ function parseTurnsFromAssistantMessage(message: string, reasoning?: string, ini
   return turns.length > 0 ? turns : null
 }
 
-function ThinkingSection({ content, isStreaming }: { content: string; isStreaming: boolean }) {
+function ThinkingSection({ content, isStreaming, forceCollapsed }: { content: string; isStreaming: boolean; forceCollapsed?: boolean }) {
   const [isExpanded, setIsExpanded] = useState(true)
+
+  // 当内容开始输出且不再流式思考时，自动折叠
+  useEffect(() => {
+    if (forceCollapsed) {
+      setIsExpanded(false)
+    }
+  }, [forceCollapsed])
 
   if (!content && !isStreaming) return null
 
@@ -108,9 +125,72 @@ export function AnswerModal() {
   const [feedbackMessage, setFeedbackMessage] = useState('')
   const [detectedPreference, setDetectedPreference] = useState<PreferenceRule | null>(null)
   const [showEvolutionToast, setShowEvolutionToast] = useState(false)
-  const [relevantMemories, setRelevantMemories] = useState<Conversation[]>([])
+  const [relevantMemories, setRelevantMemories] = useState<{ conv: Conversation; category?: string }[]>([])
   const [appliedPreferences, setAppliedPreferences] = useState<string[]>([])
-  const [isClosing, setIsClosing] = useState(false)
+  const [pendingImages, setPendingImages] = useState<string[]>([])
+  const [pendingFiles, setPendingFiles] = useState<FileAttachment[]>([])
+  const [isProcessingFiles, setIsProcessingFiles] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // 处理文件上传
+  const handleFiles = useCallback(async (fileList: FileList | File[]) => {
+    const fileArray = Array.from(fileList)
+    if (fileArray.length === 0) return
+
+    setIsProcessingFiles(true)
+    try {
+      const parsedFiles = await parseFiles(fileArray)
+      
+      const newImages: string[] = []
+      const newFiles: FileAttachment[] = []
+
+      parsedFiles.forEach((f) => {
+        const id = crypto.randomUUID()
+        const attachment: FileAttachment = {
+          id,
+          name: f.name,
+          type: f.type,
+          size: f.size,
+          content: f.content,
+          preview: f.preview
+        }
+        
+        if (f.preview) {
+          newImages.push(f.preview)
+        }
+        newFiles.push(attachment)
+      })
+
+      setPendingImages(prev => [...prev, ...newImages].slice(0, 4))
+      setPendingFiles(prev => [...prev, ...newFiles].slice(0, 8))
+    } catch (error) {
+      console.error('文件上传失败:', error)
+      alert('文件解析失败，请重试')
+    } finally {
+      setIsProcessingFiles(false)
+    }
+  }, [])
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      handleFiles(e.target.files)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    if (e.dataTransfer.files) {
+      handleFiles(e.dataTransfer.files)
+    }
+  }
+
+  const removeFile = (id: string) => {
+    const fileToRemove = pendingFiles.find(f => f.id === id)
+    if (fileToRemove?.preview) {
+      setPendingImages(prev => prev.filter(img => img !== fileToRemove.preview))
+    }
+    setPendingFiles(prev => prev.filter(f => f.id !== id))
+  }
 
   // 编辑相关状态
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
@@ -351,7 +431,11 @@ export function AnswerModal() {
 
   // 提交反馈（连续对话）
   const handleFeedbackSubmit = useCallback(async () => {
-    if (!feedbackMessage.trim()) return
+    const trimmed = feedbackMessage.trim()
+    const hasImages = pendingImages.length > 0
+    const hasFiles = pendingFiles.length > 0
+
+    if ((!trimmed && !hasImages && !hasFiles) || isStreaming) return
 
     if (detectedPreference) {
       await addPreference(detectedPreference)
@@ -362,22 +446,38 @@ export function AnswerModal() {
     setIsStreaming(true)
     setDetectedPreference(null)
 
+    // 组合消息内容
+    let fullMessage = trimmed
+    if (hasFiles) {
+      const fileContext = formatFilesForAI(pendingFiles.map(f => ({
+        name: f.name,
+        type: f.type,
+        size: f.size,
+        content: f.content || ''
+      })))
+      fullMessage = trimmed + fileContext
+    }
+
+    const currentTurn: Turn = { user: trimmed, assistant: '', images: pendingImages, files: pendingFiles }
+    setTurns(prev => [...prev, currentTurn])
+    
     const preferences = getPreferencesForPrompt()
 
     // 连续对话：useAI 内部会保留历史，这里直接追加新一句即可
     didMutateRef.current = true
-    setTurns(prev => [...prev, { user: feedbackMessage, assistant: '' }])
-    sendMessage(feedbackMessage, preferences)
+    sendMessage(fullMessage, preferences, undefined, pendingImages)
+    
     setFeedbackMessage('')
-  }, [feedbackMessage, detectedPreference, addPreference, getPreferencesForPrompt, sendMessage])
+    setPendingImages([])
+    setPendingFiles([])
+    
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+    }
+  }, [feedbackMessage, pendingImages, pendingFiles, isStreaming, detectedPreference, addPreference, getPreferencesForPrompt, sendMessage])
 
   // 关闭并保存（带平滑过渡）
   const handleClose = useCallback(async () => {
-    setIsClosing(true)
-
-    // 等待动画完成
-    await new Promise(resolve => setTimeout(resolve, 300))
-
     const shouldSave = !!currentConversation && (!isReplayRef.current || didMutateRef.current)
 
     // 仅在“新对话或确实产生了新内容”时保存，避免回放重复建节点
@@ -391,7 +491,8 @@ export function AnswerModal() {
               .map((t, idx) => {
                 const isLastTurn = idx === turns.length - 1
                 const a = t.error ? `[API错误: ${t.error}]` : (t.assistant || (isLastTurn && stillStreaming ? '[正在生成中...]' : '[无回复]'))
-                return `#${idx + 1}\n用户：${t.user}\nAI：${a}`
+                const reasoning = t.reasoning ? `思考：${t.reasoning}\n\n` : ''
+                return `#${idx + 1}\n用户：${t.user}\nAI：\n${reasoning}${a}`
               })
               .join('\n\n')
           : (errorMessage ? `[API错误: ${errorMessage}]` : '[无回复]')
@@ -410,7 +511,6 @@ export function AnswerModal() {
     setFeedbackMessage('')
     setDetectedPreference(null)
     setAppliedPreferences([])
-    setIsClosing(false)
     closeModal()
   }, [turns, errorMessage, currentConversation, endConversation, closeModal, appliedPreferences])
 
@@ -432,260 +532,328 @@ export function AnswerModal() {
   if (!isModalOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/5 backdrop-blur-[2px]">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={isClosing ? { opacity: 0, scale: 0.95, y: 20 } : { opacity: 1, scale: 1, y: 0 }}
-        className="relative w-full max-w-3xl h-[85vh] bg-white/80 backdrop-blur-2xl rounded-[32px] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.12)] border border-white/40 overflow-hidden flex flex-col"
-      >
-        {/* 头部导航 - 极简 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100/50 bg-white/30 backdrop-blur-md">
-          <button
-            onClick={handleClose}
-            className="flex items-center gap-2 px-3 py-1.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100/50 rounded-xl transition-all duration-200 group"
-          >
-            <ChevronRight className="w-4 h-4 rotate-180 transform group-hover:-translate-x-0.5 transition-transform" />
-            <span className="text-xs font-bold uppercase tracking-wider">返回画布</span>
-          </button>
-
-          <div className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.2em]">
-            {errorMessage ? (
-              <span className="text-red-500">API Error</span>
-            ) : isStreaming ? (
-              <span className="text-blue-500 animate-pulse">AI Evolving...</span>
-            ) : (
-              <span>Dialogue Island</span>
-            )}
-          </div>
-
-          <div className="w-20" /> {/* Balance */}
-        </div>
-
-        {/* 对话内容区 */}
-        <div
-          ref={scrollRef}
-          className="flex-1 overflow-y-auto px-6 py-8 space-y-8 scroll-smooth"
+    <AnimatePresence>
+      {isModalOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-white/60 backdrop-blur-3xl"
         >
-          <div className="max-w-2xl mx-auto">
-            {turns.map((t, idx) => (
-              <div key={idx} className="mb-12 last:mb-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                {/* 用户消息 */}
-                <div className="flex justify-end mb-6">
-                  <div className="flex flex-col items-end gap-3 max-w-[85%]">
-                    {t.images && t.images.length > 0 && (
-                      <div className="flex flex-wrap gap-2 justify-end">
-                        {t.images.map((img, i) => (
-                          <img key={i} src={img} className="w-24 h-24 object-cover rounded-2xl border border-gray-100 shadow-sm" />
-                        ))}
-                      </div>
-                    )}
-                    
-                    {t.files && t.files.length > 0 && (
-                      <div className="flex flex-wrap gap-2 justify-end">
-                        {t.files.map((file, i) => (
-                          <div key={i} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-xl border border-gray-100 text-[11px]">
-                            <Paperclip className="w-3 h-3 text-gray-400" />
-                            <span className="text-gray-600 font-bold uppercase tracking-tight">{file.name}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+          <motion.div
+            initial={{ y: 20, opacity: 0, scale: 0.98 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 20, opacity: 0, scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            className="relative w-full h-full max-w-4xl flex flex-col shadow-[0_0_100px_rgba(0,0,0,0.05)]"
+          >
+            {/* 头部导航 - 极简 */}
+            <div className="flex items-center justify-between px-8 py-6">
+              <button
+                onClick={handleClose}
+                className="flex items-center gap-2 px-4 py-2 text-gray-500 hover:text-gray-900 hover:bg-black/5 rounded-2xl transition-all duration-300 group"
+              >
+                <ChevronRight className="w-4 h-4 rotate-180 transform group-hover:-translate-x-1 transition-transform" />
+                <span className="text-sm font-bold uppercase tracking-widest">返回画布</span>
+              </button>
 
-                    <div className="relative group/user">
-                      <div className="bg-gray-100/80 backdrop-blur-sm rounded-[24px] rounded-tr-sm px-6 py-4 text-gray-800 text-[15px] leading-relaxed shadow-sm border border-gray-200/20">
-                        {editingIndex === idx ? (
-                          <div className="flex flex-col gap-3 min-w-[280px]">
-                            <textarea
-                              value={editingContent}
-                              onChange={(e) => setEditingContent(e.target.value)}
-                              className="w-full bg-white border border-gray-200 rounded-2xl p-4 text-[15px] outline-none focus:ring-2 focus:ring-blue-100 text-gray-800 transition-all"
-                              rows={3}
-                              autoFocus
-                            />
-                            <div className="flex justify-end gap-2">
-                              <button onClick={() => setEditingIndex(null)} className="px-4 py-2 text-xs text-gray-400 hover:text-gray-600 transition-colors">取消</button>
-                              <button onClick={handleSaveEdit} className="px-5 py-2 text-xs bg-gray-900 text-white font-bold rounded-xl hover:bg-black transition-all shadow-lg">更新消息</button>
-                            </div>
-                          </div>
-                        ) : (
-                          t.user
-                        )}
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center">
+                  <Cpu className="w-4 h-4 text-blue-500" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">{AI_CONFIG.MODEL}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-blue-500/60 uppercase tracking-widest">
+                      {isStreaming ? '正在进化中...' : '深度对话'}
+                    </span>
+                    {relevantMemories.length > 0 && !isStreaming && (
+                      <div className="flex items-center gap-1 px-1.5 py-0.5 bg-purple-50 rounded-md border border-purple-100/50 animate-in fade-in zoom-in duration-500">
+                        <Sparkles className="w-2.5 h-2.5 text-purple-400" />
+                        <span className="text-[9px] font-black text-purple-400/80 uppercase tracking-wider">
+                          {relevantMemories[0].category || '全域'} 记忆联结
+                        </span>
                       </div>
-                      {!isStreaming && editingIndex !== idx && (
-                        <button
-                          onClick={() => handleStartEdit(idx, t.user)}
-                          className="absolute -left-10 top-1/2 -translate-y-1/2 opacity-0 group-hover/user:opacity-100 p-2 text-gray-400 hover:text-blue-500 transition-all"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
+                    )}
                   </div>
                 </div>
+              </div>
 
-                {/* AI 回复 */}
-                <div className="flex justify-start">
-                  <div className="max-w-[95%] w-full">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-7 h-7 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center">
-                        <Cpu className="w-4 h-4 text-blue-500" />
+              <div className="w-24" /> {/* Balance */}
+            </div>
+
+            {/* 对话内容区 */}
+            <div
+              ref={scrollRef}
+              className="flex-1 overflow-y-auto px-8 py-4 scroll-smooth"
+            >
+              <div className="max-w-2xl mx-auto space-y-12">
+                {turns.map((t, idx) => (
+                  <div key={idx} className="animate-in fade-in slide-in-from-bottom-8 duration-700">
+                    {/* 用户消息 */}
+                    <div className="flex justify-end mb-8">
+                      <div className="flex flex-col items-end gap-4 max-w-[85%]">
+                        {t.images && t.images.length > 0 && (
+                          <div className="flex flex-wrap gap-2 justify-end">
+                            {t.images.map((img, i) => (
+                              <img key={i} src={img} className="w-32 h-32 object-cover rounded-3xl border border-gray-100 shadow-sm" />
+                            ))}
+                          </div>
+                        )}
+                        
+                        {t.files && t.files.length > 0 && (
+                          <div className="flex flex-wrap gap-2 justify-end">
+                            {t.files.map((file, i) => (
+                              <div key={i} className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 rounded-2xl border border-gray-100">
+                                <Paperclip className="w-4 h-4 text-gray-400" />
+                                <span className="text-xs font-bold text-gray-600 uppercase tracking-tight">{file.name}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="relative group/user">
+                          <div className="bg-gray-100/80 backdrop-blur-sm rounded-[32px] rounded-tr-sm px-8 py-5 text-gray-800 text-[16px] leading-relaxed shadow-sm border border-gray-200/20">
+                            {editingIndex === idx ? (
+                              <div className="flex flex-col gap-4 min-w-[320px]">
+                                <textarea
+                                  value={editingContent}
+                                  onChange={(e) => setEditingContent(e.target.value)}
+                                  className="w-full bg-white border border-gray-200 rounded-2xl p-5 text-[16px] outline-none focus:ring-2 focus:ring-blue-100 text-gray-800 transition-all"
+                                  rows={4}
+                                  autoFocus
+                                />
+                                <div className="flex justify-end gap-3">
+                                  <button onClick={() => setEditingIndex(null)} className="px-5 py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors font-bold uppercase">取消</button>
+                                  <button onClick={handleSaveEdit} className="px-6 py-2.5 text-sm bg-gray-900 text-white font-bold rounded-2xl hover:bg-black transition-all shadow-xl">更新并重新进化</button>
+                                </div>
+                              </div>
+                            ) : (
+                              t.user
+                            )}
+                          </div>
+                          {!isStreaming && editingIndex !== idx && (
+                            <button
+                              onClick={() => handleStartEdit(idx, t.user)}
+                              className="absolute -left-12 top-1/2 -translate-y-1/2 opacity-0 group-hover/user:opacity-100 p-3 text-gray-300 hover:text-blue-500 transition-all"
+                            >
+                              <Edit3 className="w-5 h-5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{AI_CONFIG.MODEL}</span>
-                      {isStreaming && idx === turns.length - 1 && (
-                        <span className="flex gap-1 ml-1">
-                          <span className="w-1 h-1 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                          <span className="w-1 h-1 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                          <span className="w-1 h-1 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                        </span>
-                      )}
                     </div>
 
-                    <ThinkingSection 
-                      content={t.reasoning || ''} 
-                      isStreaming={isStreaming && idx === turns.length - 1 && !t.assistant} 
-                    />
+                    {/* AI 回复 */}
+                    <div className="flex justify-start">
+                      <div className="max-w-[95%] w-full">
+                        <ThinkingSection 
+                          content={t.reasoning || ''} 
+                          isStreaming={isStreaming && idx === turns.length - 1 && !t.assistant} 
+                          forceCollapsed={!!t.assistant}
+                        />
 
-                    <div className="relative group/ai">
-                      <div className="text-gray-800 text-[16px] leading-[1.7] px-2 py-1">
-                        {t.error ? (
-                          <div className="bg-red-50/50 border border-red-100 rounded-2xl p-5 text-red-600 text-sm italic">
-                            {t.error}
+                        <div className="relative group/ai">
+                          <div className="text-gray-800 text-[17px] leading-[1.8] px-4 py-2">
+                            {t.error ? (
+                              <div className="bg-red-50/50 border border-red-100 rounded-[32px] p-8 text-red-600 text-sm italic">
+                                {t.error}
+                              </div>
+                            ) : t.assistant ? (
+                              <div className="prose prose-slate max-w-none prose-base
+                                prose-headings:font-black prose-headings:text-gray-900 
+                                prose-p:text-gray-800 prose-p:leading-relaxed
+                                prose-pre:bg-gray-900/95 prose-pre:backdrop-blur-md prose-pre:text-gray-100 prose-pre:rounded-[24px]
+                                prose-code:text-blue-600 prose-code:bg-blue-50/50 prose-code:px-2 prose-code:py-0.5 prose-code:rounded-lg
+                                prose-table:border-collapse prose-table:w-full prose-table:my-10
+                                prose-th:border prose-th:border-gray-200/50 prose-th:bg-gray-50/50 prose-th:px-6 prose-th:py-4 prose-th:text-left
+                                prose-td:border prose-td:border-gray-200/50 prose-td:px-6 prose-td:py-4
+                                prose-img:rounded-[32px] prose-img:shadow-2xl">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {t.assistant}
+                                </ReactMarkdown>
+                              </div>
+                            ) : null}
                           </div>
-                        ) : t.assistant ? (
-                          <div className="prose prose-slate max-w-none prose-sm sm:prose-base 
-                            prose-headings:font-bold prose-headings:text-gray-900 
-                            prose-p:text-gray-800 prose-p:leading-relaxed
-                            prose-pre:bg-gray-900/90 prose-pre:backdrop-blur-md prose-pre:text-gray-100 
-                            prose-code:text-blue-600 prose-code:bg-blue-50/50 prose-code:px-1.5 prose-code:rounded-md
-                            prose-table:border-collapse prose-table:w-full prose-table:my-6
-                            prose-th:border prose-th:border-gray-200/50 prose-th:bg-gray-50/50 prose-th:px-4 prose-th:py-3 prose-th:text-left
-                            prose-td:border prose-td:border-gray-200/50 prose-td:px-4 prose-td:py-3
-                            prose-img:rounded-2xl prose-img:shadow-xl">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                              {t.assistant}
-                            </ReactMarkdown>
-                          </div>
-                        ) : null}
+
+                          {/* AI 回复工具栏 (悬浮) */}
+                          {t.assistant && !isStreaming && (
+                            <div className="flex items-center gap-2 mt-6 ml-4 opacity-0 group-hover/ai:opacity-100 transition-all duration-500">
+                              <button onClick={() => handleCopyMessage(t.assistant, idx)} className="p-3 text-gray-400 hover:text-blue-500 hover:bg-black/5 rounded-2xl transition-all">
+                                {copiedIndex === idx ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}
+                              </button>
+                              <button onClick={() => handleRegenerate(idx)} className="p-3 text-gray-400 hover:text-blue-500 hover:bg-black/5 rounded-2xl transition-all">
+                                <RefreshCw className="w-5 h-5" />
+                              </button>
+                              <button 
+                                onClick={async () => {
+                                  const userMsg = window.prompt('输入新分支的起始消息：', t.user)
+                                  if (userMsg && currentConversation) {
+                                    await startConversation(userMsg, t.images, t.files, currentConversation.id)
+                                  }
+                                }}
+                                className="p-3 text-gray-400 hover:text-purple-500 hover:bg-black/5 rounded-2xl transition-all"
+                              >
+                                <Sparkles className="w-5 h-5" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
+                    </div>
 
-                      {/* AI 回复工具栏 (悬浮) */}
-                      {t.assistant && !isStreaming && (
-                        <div className="flex items-center gap-1 mt-4 ml-2 opacity-0 group-hover/ai:opacity-100 transition-all">
-                          <button onClick={() => handleCopyMessage(t.assistant, idx)} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-gray-100 rounded-xl transition-all">
-                            {copiedIndex === idx ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                          </button>
-                          <button onClick={() => handleRegenerate(idx)} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-gray-100 rounded-xl transition-all">
-                            <RefreshCw className="w-4 h-4" />
-                          </button>
-                          <button 
-                            onClick={async () => {
-                              const userMsg = window.prompt('输入新分支的起始消息：', t.user)
-                              if (userMsg && currentConversation) {
-                                await startConversation(userMsg, t.images, t.files, currentConversation.id)
-                              }
-                            }}
-                            className="p-2 text-gray-400 hover:text-purple-500 hover:bg-gray-100 rounded-xl transition-all"
+                    {/* 记忆与偏好提示 */}
+                    {idx === turns.length - 1 && appliedPreferences.length > 0 && !isStreaming && (
+                      <div className="mt-8 ml-14">
+                        <GrayHint preferences={appliedPreferences} />
+                      </div>
+                    )}
+                    {idx === 0 && relevantMemories.length > 0 && !isStreaming && (
+                      <div className="mt-6 ml-14">
+                        <GrayHint preferences={[]} type="memory" message={`已联结关于 "${relevantMemories[0].conv.userMessage.slice(0, 10)}..." 的历史记忆`} />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 底部反馈/输入区 */}
+            <div className="p-10">
+              <div className="max-w-2xl mx-auto relative">
+                <AnimatePresence mode="wait">
+                  {isStreaming ? (
+                    <motion.div
+                      key="stop-btn"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      className="flex justify-center"
+                    >
+                      <button
+                        onClick={handleStopGeneration}
+                        className="flex items-center gap-3 px-8 py-3 bg-gray-900 text-white rounded-3xl font-black uppercase tracking-widest shadow-2xl hover:bg-black transition-all group"
+                      >
+                        <Square className="w-4 h-4 fill-white animate-pulse" />
+                        <span>停止生成</span>
+                      </button>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="input-area"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="space-y-6"
+                    >
+                      {/* 文件预览区 */}
+                      <AnimatePresence>
+                        {(pendingFiles.length > 0 || isProcessingFiles) && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 10 }}
+                            className="flex flex-wrap gap-3 mb-4"
                           >
-                            <Sparkles className="w-4 h-4" />
+                            {pendingFiles.map(file => (
+                              <div key={file.id} className="relative group">
+                                <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-2xl border border-gray-100 shadow-sm">
+                                  {file.preview ? (
+                                    <img src={file.preview} className="w-6 h-6 object-cover rounded-md" />
+                                  ) : (
+                                    <FileIcon className="w-4 h-4 text-gray-400" />
+                                  )}
+                                  <span className="text-[10px] font-bold text-gray-600 truncate max-w-[100px] uppercase tracking-tight">{file.name}</span>
+                                </div>
+                                <button
+                                  onClick={() => removeFile(file.id)}
+                                  className="absolute -top-2 -right-2 w-5 h-5 bg-white rounded-full shadow-md border border-gray-100 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-500"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ))}
+                            {isProcessingFiles && (
+                              <div className="flex items-center gap-2 px-4 py-2 bg-blue-50/50 rounded-2xl border border-blue-100/50 animate-pulse">
+                                <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
+                                <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">正在解析...</span>
+                              </div>
+                            )}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
+                      <div className="relative group" onDrop={handleDrop} onDragOver={(e) => e.preventDefault()}>
+                        <AnimatePresence>
+                          {showEvolutionToast && (
+                            <motion.div
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: 10 }}
+                              className="absolute -top-12 left-0 right-0 flex items-center justify-center gap-2 text-[11px] text-gray-400 font-black uppercase tracking-[0.2em]"
+                            >
+                              <Sparkles className="w-3.5 h-3.5" />
+                              <span>AI 正在根据你的反馈无声进化...</span>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                        
+                        <textarea
+                          ref={textareaRef}
+                          value={feedbackMessage}
+                          onChange={handleFeedbackChange}
+                          placeholder="发送反馈或继续进化话题..."
+                          className="w-full bg-white/50 border border-gray-200/50 rounded-[32px] px-14 py-5 pr-16 text-[16px] outline-none focus:ring-4 focus:ring-blue-500/5 focus:bg-white transition-all resize-none min-h-[68px] max-h-[200px] shadow-[0_10px_40px_rgba(0,0,0,0.02)]"
+                          rows={1}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault()
+                              handleFeedbackSubmit()
+                            }
+                          }}
+                        />
+
+                        {/* 附件按钮 */}
+                        <div className="absolute left-4 bottom-4">
+                          <button
+                            onClick={() => fileInputRef.current?.click()}
+                            className="p-3 text-gray-400 hover:text-blue-500 hover:bg-black/5 rounded-2xl transition-all"
+                            title="上传附件 (图片, PDF, Docx, 代码)"
+                          >
+                            <Paperclip className="w-5 h-5" />
                           </button>
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            multiple
+                            className="hidden"
+                            onChange={handleFileSelect}
+                            accept="image/*,.pdf,.doc,.docx,.js,.ts,.jsx,.tsx,.py,.java,.cpp,.c,.go,.rs,.swift,.rb,.php,.html,.css,.json,.xml,.yaml,.yml,.sql,.sh,.bat"
+                          />
+                        </div>
+
+                        <button
+                          onClick={handleFeedbackSubmit}
+                          disabled={(!feedbackMessage.trim() && pendingFiles.length === 0) || isStreaming}
+                          className="absolute right-4 bottom-4 p-3 bg-gray-900 text-white rounded-2xl hover:bg-black disabled:opacity-20 transition-all shadow-xl"
+                        >
+                          <Send className="w-5 h-5" />
+                        </button>
+                      </div>
+                      
+                      {detectedPreference && (
+                        <div className="flex items-center justify-center gap-3 text-[11px] text-gray-400 font-black uppercase tracking-[0.2em]">
+                          <Sparkles className="w-4 h-4 text-yellow-500" />
+                          <span>检测到新偏好：{detectedPreference.preference}</span>
                         </div>
                       )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* 记忆与偏好提示 */}
-                {idx === turns.length - 1 && appliedPreferences.length > 0 && !isStreaming && (
-                  <div className="mt-6 ml-10">
-                    <GrayHint preferences={appliedPreferences} />
-                  </div>
-                )}
-                {idx === 0 && relevantMemories.length > 0 && !isStreaming && (
-                  <div className="mt-4 ml-10">
-                    <GrayHint preferences={[]} type="memory" message={`已联结关于 "${relevantMemories[0].userMessage.slice(0, 10)}..." 的历史记忆`} />
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* 底部反馈/输入区 */}
-        <div className="p-6 bg-white/40 backdrop-blur-xl border-t border-gray-100/50">
-          <div className="max-w-2xl mx-auto relative">
-            <AnimatePresence mode="wait">
-              {isStreaming ? (
-                <motion.div
-                  key="stop-btn"
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  className="flex justify-center"
-                >
-                  <button
-                    onClick={handleStopGeneration}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-gray-900 text-white rounded-2xl font-bold shadow-xl hover:bg-black transition-all group"
-                  >
-                    <Square className="w-4 h-4 fill-white animate-pulse" />
-                    <span>停止生成</span>
-                  </button>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="input-area"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="space-y-4"
-                >
-                  <div className="relative group">
-                    <AnimatePresence>
-                      {showEvolutionToast && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 10 }}
-                          className="absolute -top-10 left-0 right-0 flex items-center justify-center gap-2 text-[10px] text-gray-400/60 font-bold uppercase tracking-[0.1em]"
-                        >
-                          <Sparkles className="w-3 h-3" />
-                          <span>AI 正在根据你的反馈无声进化...</span>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                    <textarea
-                      ref={textareaRef}
-                      value={feedbackMessage}
-                      onChange={handleFeedbackChange}
-                      placeholder="发送反馈或继续对话..."
-                      className="w-full bg-gray-50/50 border border-gray-200/50 rounded-[24px] px-6 py-4 pr-14 text-[15px] outline-none focus:ring-2 focus:ring-blue-100/50 focus:bg-white transition-all resize-none min-h-[60px] max-h-[160px] shadow-inner"
-                      rows={1}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault()
-                          handleFeedbackSubmit()
-                        }
-                      }}
-                    />
-                    <button
-                      onClick={handleFeedbackSubmit}
-                      disabled={!feedbackMessage.trim()}
-                      className="absolute right-3 bottom-3 p-2.5 bg-gray-900 text-white rounded-xl hover:bg-black disabled:opacity-20 transition-all shadow-lg"
-                    >
-                      <Send className="w-4 h-4" />
-                    </button>
-                  </div>
-                  
-                  {detectedPreference && (
-                    <div className="flex items-center justify-center gap-2 text-[10px] text-gray-400 font-bold uppercase tracking-widest">
-                      <Sparkles className="w-3 h-3 text-yellow-500" />
-                      <span>检测到新偏好：{detectedPreference.preference}</span>
-                    </div>
+                    </motion.div>
                   )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-      </motion.div>
-    </div>
+                </AnimatePresence>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
