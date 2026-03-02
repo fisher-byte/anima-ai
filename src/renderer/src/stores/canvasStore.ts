@@ -30,9 +30,9 @@ interface CanvasState {
   setScale: (scale: number) => void
   focusNode: (id: string) => void
   resetView: () => void
-  startConversation: (userMessage: string, images?: string[], files?: import('@shared/types').FileAttachment[], parentId?: string) => void
+  startConversation: (userMessage: string, images?: string[], files?: import('@shared/types').FileAttachment[], parentId?: string) => Promise<void>
   updateConversation: (conversationId: string, updates: Partial<Conversation>) => Promise<void>
-  endConversation: (assistantMessage: string, appliedPreferences?: string[]) => Promise<void>
+  endConversation: (assistantMessage: string, appliedPreferences?: string[], reasoning_content?: string) => Promise<void>
   closeModal: () => void
   openModal: (conversation: Conversation) => void
   openModalById: (conversationId: string) => Promise<void>
@@ -42,6 +42,7 @@ interface CanvasState {
   addPreference: (rule: PreferenceRule) => Promise<void>
   getPreferencesForPrompt: () => string[]
   getRelevantMemories: (query: string) => Promise<Conversation[]>
+  detectIntent: (message: string) => string
   
   // 方法：对话记录
   appendConversation: (conversation: Conversation) => Promise<void>
@@ -389,11 +390,39 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     }
   },
 
-  // 开始对话
-  startConversation: (userMessage: string, images?: string[], files?: import('@shared/types').FileAttachment[], parentId?: string) => {
+  // 开始对话 (增强：检测意图并智能分支)
+  startConversation: async (userMessage: string, images?: string[], files?: import('@shared/types').FileAttachment[], parentId?: string) => {
+    const { nodes, detectIntent, getRelevantMemories } = get()
+    
+    // 1. 检测当前意图分类
+    const category = detectIntent(userMessage)
+    
+    // 2. 只有在没有明确 parentId（即不是用户手动点击分支）时，才尝试自动联结
+    let effectiveParentId = parentId
+    if (!effectiveParentId) {
+      // 找寻关于这个分类的“最近活跃节点”
+      const catNodes = nodes.filter(n => n.category === category)
+      if (catNodes.length > 0) {
+        // 尝试找寻语义最相关的记忆
+        const memories = await getRelevantMemories(userMessage)
+        // 如果有相关记忆且属于同一分类，自动作为该记忆的分支
+        const bestMatch = memories.find(m => {
+          const n = nodes.find(node => node.id === m.id)
+          return n?.category === category
+        })
+        
+        if (bestMatch) {
+          effectiveParentId = bestMatch.id
+        } else {
+          // 如果没有语义非常接近的，则连接到该分类的最近一个节点（维持岛屿凝聚）
+          effectiveParentId = catNodes[catNodes.length - 1].id
+        }
+      }
+    }
+
     const conversation: Conversation = {
       id: crypto.randomUUID(),
-      parentId, // 支持对话分支
+      parentId: effectiveParentId, // 支持对话分支
       createdAt: new Date().toISOString(),
       userMessage,
       assistantMessage: '',
@@ -415,14 +444,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   // 结束对话
-  endConversation: async (assistantMessage: string, appliedPreferences?: string[]) => {
+  endConversation: async (assistantMessage: string, appliedPreferences?: string[], reasoning_content?: string) => {
     const { currentConversation, addNode, appendConversation } = get()
     if (!currentConversation) return
 
     const updatedConversation: Conversation = {
       ...currentConversation,
       assistantMessage,
-      appliedPreferences
+      appliedPreferences,
+      reasoning_content
     }
 
     set({
@@ -544,6 +574,23 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       .filter(r => r.confidence > 0.5)
       .sort((a, b) => b.confidence - a.confidence)
       .map(r => r.preference)
+  },
+
+  // 检测查询意图
+  detectIntent: (query: string): string => {
+    const text = query.toLowerCase()
+    const CATEGORIES = [
+      { name: '工作学习', keywords: ['代码', '开发', '学习', '论文', '总结', '计划', 'AI', '模型', '技术', '工作', '文档', '项目', 'bug', '修', '写'] },
+      { name: '生活日常', keywords: ['美食', '天气', '旅游', '电影', '运动', '健康', '深圳', '餐厅', '吃饭', '心情', '八卦', '推荐', '怎么去'] },
+      { name: '灵感创意', keywords: ['创意', '想法', '艺术', '写作', '小说', '绘画', '设计', '灵感', '未来', '科幻', '编一个', '故事'] }
+    ]
+
+    for (const cat of CATEGORIES) {
+      if (cat.keywords.some(k => text.includes(k))) {
+        return cat.name
+      }
+    }
+    return '其他'
   },
 
   // 获取相关的历史记忆

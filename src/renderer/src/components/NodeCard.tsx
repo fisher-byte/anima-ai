@@ -8,9 +8,19 @@ interface NodeCardProps {
 }
 
 export function NodeCard({ node }: NodeCardProps) {
-  const { openModalById, removeNode, updateNodePosition } = useCanvasStore()
+  const { nodes, openModalById, removeNode, updateNodePosition } = useCanvasStore()
   const [isDragging, setIsDragging] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
+  
+  // 计算深度感：基于节点的活跃程度（索引位置）
+  const depth = useMemo(() => {
+    const index = nodes.findIndex(n => n.id === node.id)
+    if (index === -1) return 1
+    // 越新的节点（在数组末尾）越靠前
+    const ratio = index / Math.max(1, nodes.length - 1)
+    return 0.75 + ratio * 0.25 // 0.75 ~ 1.0
+  }, [nodes, node.id])
+
   const dragStartRef = useRef({ x: 0, y: 0 })
   const mouseDownPosRef = useRef({ x: 0, y: 0 })
   const positionRef = useRef({ x: node.x, y: node.y })
@@ -85,15 +95,16 @@ export function NodeCard({ node }: NodeCardProps) {
       id={`node-${node.id}`}
       initial={{ scale: 0.8, opacity: 0 }}
       animate={{ 
-        scale: isDragging ? 1.05 : 1, 
-        opacity: 1,
-        rotate: isDragging ? 2 : 0, // 拖动时轻微倾斜，增加物理感
+        scale: isDragging ? 1.05 : depth, // 活跃节点更大
+        opacity: isDragging ? 1 : 0.6 + (depth - 0.75) * 1.6, // 活跃节点更亮 (0.6 ~ 1.0)
+        rotate: isDragging ? 2 : 0, 
         transition: { type: "spring", stiffness: 400, damping: 25 }
       }}
       className={`absolute cursor-grab active:cursor-grabbing group z-10`}
       style={{
         left: `${node.x}px`,
         top: `${node.y}px`,
+        filter: isDragging ? 'none' : `blur(${(1 - depth) * 2}px)` // 远处节点轻微模糊
       }}
       onMouseDown={handleMouseDown}
       onClick={handleClick}

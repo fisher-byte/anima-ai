@@ -152,6 +152,11 @@ export async function callAI(
   }
 }
 
+export interface AIStreamChunk {
+  type: 'content' | 'reasoning'
+  content: string
+}
+
 /**
  * 调用AI API（流式）
  */
@@ -159,7 +164,7 @@ export async function* streamAI(
   messages: AIMessage[],
   preferences: string[] = [],
   signal?: AbortSignal
-): AsyncGenerator<string, AIResponse, unknown> {
+): AsyncGenerator<AIStreamChunk, AIResponse, unknown> {
   try {
     const apiKey = await getApiKey()
     if (!apiKey) {
@@ -259,15 +264,16 @@ export async function* streamAI(
             const delta = parsed.choices[0]?.delta
             const finishReason = parsed.choices[0]?.finish_reason
             
-            // 处理内容
-            if (delta?.content) {
-              fullContent += delta.content
-              yield delta.content
-            }
-
             // 处理推理内容 (Kimi 2.5 Thinking)
             if (delta?.reasoning_content) {
               reasoningContent += delta.reasoning_content
+              yield { type: 'reasoning', content: delta.reasoning_content }
+            }
+
+            // 处理内容
+            if (delta?.content) {
+              fullContent += delta.content
+              yield { type: 'content', content: delta.content }
             }
 
             // 处理工具调用
@@ -307,8 +313,10 @@ export async function* streamAI(
               const nextMessages = [...messages, assistantMessage, ...toolMessages]
               for await (const nextChunk of streamAI(nextMessages, preferences, signal)) {
                 yield nextChunk
-                if (typeof nextChunk === 'string') {
-                  fullContent += nextChunk
+                if (nextChunk.type === 'content') {
+                  fullContent += nextChunk.content
+                } else if (nextChunk.type === 'reasoning') {
+                  reasoningContent += nextChunk.content
                 }
               }
             }

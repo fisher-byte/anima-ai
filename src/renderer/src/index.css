@@ -78,3 +78,47 @@ html, body, #root {
 .animate-slide-up {
   animation: slideUp 0.4s ease-out;
 }
+
+/* Premium Markdown Table Styles */
+.prose table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.prose th {
+  background-color: rgba(248, 250, 252, 0.8);
+  padding: 12px 16px;
+  font-weight: 700;
+  text-align: left;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #475569;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.prose td {
+  padding: 12px 16px;
+  font-size: 0.875rem;
+  border-bottom: 1px solid rgba(241, 245, 249, 0.8);
+  color: #1e293b;
+}
+
+.prose tr:last-child td {
+  border-bottom: none;
+}
+
+.prose tr:nth-child(even) {
+  background-color: rgba(248, 250, 252, 0.5);
+}
+
+.prose tr:hover td {
+  background-color: rgba(241, 245, 249, 0.5);
+}
