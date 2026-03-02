@@ -34,8 +34,7 @@ function getClusters(nodes: any[]) {
 }
 
 export function Canvas() {
-  const { nodes, edges, offset, scale, setOffset, setScale, resetView, updateNodePosition, isModalOpen } = useCanvasStore()
-  
+  const { nodes, edges, offset, scale, setOffset, setScale, setView, resetView, updateNodePosition, isModalOpen } = useCanvasStore()
   // Calculate clusters for Macro view
   const clusters = useMemo(() => getClusters(nodes), [nodes])
 
@@ -66,7 +65,10 @@ export function Canvas() {
   const velocity = useRef({ x: 0, y: 0 })
   const lastPos = useRef({ x: 0, y: 0 })
   const animationFrameId = useRef<number | null>(null)
-  
+  const pendingOffsetRef = useRef({ x: 0, y: 0 })
+  const isDraggingRef = useRef(false)
+  const dragRafId = useRef<number | null>(null)
+
   // 侧边栏、搜索和设置面板状态
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
@@ -114,59 +116,76 @@ export function Canvas() {
       const mouseX = e.clientX - rect.left
       const mouseY = e.clientY - rect.top
       const scaleDiff = newScale / currentScale
+      const viewW = typeof window !== 'undefined' ? window.innerWidth : 1280
+      const viewH = typeof window !== 'undefined' ? window.innerHeight : 800
+      const contentOriginX = -viewW
+      const contentOriginY = -viewH
+      const mouseInContentX = mouseX - contentOriginX
+      const mouseInContentY = mouseY - contentOriginY
 
-      useCanvasStore.getState().setOffset({
-        x: mouseX - scaleDiff * (mouseX - currentOffset.x),
-        y: mouseY - scaleDiff * (mouseY - currentOffset.y),
-      })
-      useCanvasStore.getState().setScale(newScale)
+      const newOffset = {
+        x: mouseInContentX - scaleDiff * (mouseInContentX - currentOffset.x),
+        y: mouseInContentY - scaleDiff * (mouseInContentY - currentOffset.y),
+      }
+      useCanvasStore.getState().setView(newOffset, newScale)
     }
 
     canvas.addEventListener('wheel', handleWheel, { passive: false })
     return () => canvas.removeEventListener('wheel', handleWheel)
   }, [])  // empty deps — reads latest state from store directly
 
-  // 画布拖拽逻辑
+  // 画布拖拽逻辑（RAF 合并更新，避免每 move 一次就 setState 卡顿）
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    // 允许通过左键平移，或者空格+左键
     if (e.target === canvasRef.current || (e.target as HTMLElement).classList.contains('dot-grid')) {
       if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current)
-      const currentOffset = useCanvasStore.getState().offset  // 从 store 读最新值，避免 wheel 事件后闭包旧值
+      const currentOffset = useCanvasStore.getState().offset
+      pendingOffsetRef.current = { ...currentOffset }
+      isDraggingRef.current = true
       setIsDragging(true)
       dragStart.current = { x: e.clientX - currentOffset.x, y: e.clientY - currentOffset.y }
       lastPos.current = { x: e.clientX, y: e.clientY }
       velocity.current = { x: 0, y: 0 }
     }
-  }, [])  // 去掉 offset 依赖，始终从 store 读最新值
+  }, [])
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (isDragging) {
-      const dx = e.clientX - lastPos.current.x
-      const dy = e.clientY - lastPos.current.y
-      
-      // 平滑速度计算 (加权平均)
-      velocity.current = {
-        x: velocity.current.x * 0.2 + dx * 0.8,
-        y: velocity.current.y * 0.2 + dy * 0.8
-      }
-      
-      lastPos.current = { x: e.clientX, y: e.clientY }
-      
-      setOffset({
-        x: e.clientX - dragStart.current.x,
-        y: e.clientY - dragStart.current.y
-      })
+    if (!isDraggingRef.current) return
+    const dx = e.clientX - lastPos.current.x
+    const dy = e.clientY - lastPos.current.y
+    velocity.current = {
+      x: velocity.current.x * 0.2 + dx * 0.8,
+      y: velocity.current.y * 0.2 + dy * 0.8
     }
-  }, [isDragging, setOffset])
+    lastPos.current = { x: e.clientX, y: e.clientY }
+    pendingOffsetRef.current = { x: e.clientX - dragStart.current.x, y: e.clientY - dragStart.current.y }
+  }, [])
 
   const handleMouseUp = useCallback(() => {
-    if (isDragging) {
+    if (isDraggingRef.current) {
+      isDraggingRef.current = false
       setIsDragging(false)
       if (Math.abs(velocity.current.x) > 2 || Math.abs(velocity.current.y) > 2) {
         startInertia()
       }
     }
-  }, [isDragging, startInertia])
+  }, [startInertia])
+
+  // 拖拽时仅按帧同步 offset，减少 setState 次数
+  useEffect(() => {
+    if (!isDragging) {
+      if (dragRafId.current) cancelAnimationFrame(dragRafId.current)
+      dragRafId.current = null
+      return
+    }
+    const loop = () => {
+      setOffset(pendingOffsetRef.current)
+      if (isDraggingRef.current) dragRafId.current = requestAnimationFrame(loop)
+    }
+    dragRafId.current = requestAnimationFrame(loop)
+    return () => {
+      if (dragRafId.current) cancelAnimationFrame(dragRafId.current)
+    }
+  }, [isDragging, setOffset])
 
   // 处理手势缩放 (Touch)
   const touchStartDistRef = useRef<number | null>(null)
@@ -316,7 +335,7 @@ export function Canvas() {
               left: '-100vw',
               top: '-100vh',
               transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
-              transformOrigin: 'center center',
+              transformOrigin: '0 0',
               pointerEvents: 'none',
             }}
           >

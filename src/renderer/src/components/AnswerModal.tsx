@@ -83,8 +83,9 @@ function stripLeadingNumberHeading(text: string): string {
   return s
 }
 
+const THINK_MIN_LEN = 50 // 短于此处不展示“思考”，复刻“简单不用 think”
+
 function ThinkingSection({ content, isStreaming, forceCollapsed }: { content: string; isStreaming: boolean; forceCollapsed?: boolean }) {
-  // 有正文时默认折叠，避免先展开再收拢的闪动
   const [isExpanded, setIsExpanded] = useState(() => !(forceCollapsed ?? false))
 
   useEffect(() => {
@@ -94,6 +95,7 @@ function ThinkingSection({ content, isStreaming, forceCollapsed }: { content: st
   }, [forceCollapsed])
 
   if (!content && !isStreaming) return null
+  if (content && content.length < THINK_MIN_LEN && !isStreaming) return null
 
   return (
     <div className="mb-3">
@@ -139,7 +141,9 @@ export function AnswerModal() {
     addPreference,
     getPreferencesForPrompt,
     getRelevantMemories,
-    setConversationHistory
+    setConversationHistory,
+    setHighlight,
+    focusNode
   } = useCanvasStore()
 
   const [turns, setTurns] = useState<Turn[]>([])
@@ -472,6 +476,10 @@ export function AnswerModal() {
 
     const memories = await getRelevantMemories(trimmed)
     setRelevantMemories(memories)
+    const category = memories[0]?.category ?? null
+    const highlightedIds = memories.map(m => m.conv.id)
+    setHighlight(category, highlightedIds)
+    if (highlightedIds.length > 0) focusNode(highlightedIds[0])
     const compressed = compressMemoriesForPrompt(memories)
 
     // 组合消息内容
@@ -510,7 +518,7 @@ export function AnswerModal() {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
-  }, [feedbackMessage, pendingImages, pendingFiles, isStreaming, detectedPreference, addPreference, getPreferencesForPrompt, sendMessage, turns, getRelevantMemories])
+  }, [feedbackMessage, pendingImages, pendingFiles, isStreaming, detectedPreference, addPreference, getPreferencesForPrompt, sendMessage, turns, getRelevantMemories, setHighlight, focusNode])
 
   // 关闭并保存（同步关闭 UI，endConversation 后台异步运行，彻底防止冻结）
   const handleClose = useCallback(() => {
@@ -568,8 +576,15 @@ export function AnswerModal() {
   return (
     <AnimatePresence>
       {isModalOpen && (
-        // 外层普通 div 负责 fixed 定位——Framer Motion 的 animate 不会覆盖它的 transform
-        <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', zIndex: 50, width: '100%', maxWidth: '48rem' }}>
+        <>
+        {/* 遮罩层：点击空白处关闭 */}
+        <div
+          className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px]"
+          aria-hidden
+          onClick={handleClose}
+        />
+        {/* 外层普通 div 负责 fixed 定位——Framer Motion 的 animate 不会覆盖它的 transform */}
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[64rem]" onClick={e => e.stopPropagation()}>
         <motion.div
           initial={{ opacity: 0, borderRadius: 32, y: 50 }}
           animate={{ opacity: 1, borderRadius: 24, y: 0 }}
@@ -606,10 +621,9 @@ export function AnswerModal() {
               <div className="max-w-2xl mx-auto space-y-10">
                 {turns.map((t, idx) => (
                   <div key={idx} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    {/* 用户消息 */}
+                    {/* 用户消息：ChatGPT 风格浅色气泡 + 右下角编辑/复制 */}
                     <div className="flex justify-end mb-6">
                       <div className="flex flex-col items-end gap-3 max-w-[85%]">
-                        {/* Images & Files Rendering (Same as before) */}
                         {t.images && t.images.length > 0 && (
                           <div className="flex flex-wrap gap-2 justify-end">
                             {t.images.map((img, i) => (
@@ -628,13 +642,13 @@ export function AnswerModal() {
                           </div>
                         )}
 
-                        <div className="bg-blue-600 text-white rounded-2xl rounded-tr-sm px-5 py-3.5 text-[15px] leading-relaxed shadow-md shadow-blue-500/20">
+                        <div className="relative bg-white border border-gray-200 rounded-2xl rounded-tr-sm px-5 py-3.5 pr-24 text-[15px] leading-relaxed text-gray-900 shadow-sm min-w-[120px]">
                            {editingIndex === idx ? (
                               <div className="flex flex-col gap-2">
                                 <textarea
                                   value={editingContent}
                                   onChange={(e) => setEditingContent(e.target.value)}
-                                  className="w-full bg-white/10 border border-white/20 rounded-lg p-2 text-sm outline-none text-white placeholder-white/50"
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-sm outline-none text-gray-900"
                                   rows={3}
                                   autoFocus
                                   onKeyDown={(e) => {
@@ -655,14 +669,16 @@ export function AnswerModal() {
                            ) : (
                              <div>{t.user}</div>
                            )}
-                        </div>
-                        
-                        {/* Edit Actions (Hidden by default, show on hover) */}
-                        {!isStreaming && editingIndex !== idx && (
-                            <div className="flex gap-2 opacity-0 hover:opacity-100 transition-opacity">
-                                <button onClick={() => handleStartEdit(idx, t.user)} className="text-xs text-gray-400 hover:text-blue-500">编辑</button>
+                          {/* 右下角：编辑、复制（仅对已发送的该条） */}
+                          {!isStreaming && editingIndex !== idx && (
+                            <div className="absolute right-2 bottom-2 flex items-center gap-1 text-gray-400">
+                              <button onClick={() => handleStartEdit(idx, t.user)} className="p-1.5 rounded-md hover:bg-gray-100 hover:text-gray-700" title="编辑">编辑</button>
+                              <button onClick={() => handleCopyMessage(t.user, idx)} className="p-1.5 rounded-md hover:bg-gray-100 hover:text-gray-700" title="复制">
+                                {copiedIndex === idx ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                              </button>
                             </div>
-                        )}
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -672,7 +688,7 @@ export function AnswerModal() {
                         <ThinkingSection
                             content={t.reasoning || ''}
                             isStreaming={isStreaming && idx === turns.length - 1 && !t.assistant}
-                            forceCollapsed={!!t.assistant}
+                            forceCollapsed={!!t.assistant || idx > 0}
                         />
                         
                         <div className="bg-white border border-gray-100 rounded-2xl rounded-tl-sm px-6 py-5 text-gray-800 text-[15px] leading-7 shadow-sm">
@@ -809,6 +825,7 @@ export function AnswerModal() {
 
           </motion.div>
         </div>
+        </>
         )}
       </AnimatePresence>
   )

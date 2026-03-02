@@ -70,20 +70,6 @@ export function ClusterLabel({ cluster, scale, onDrag, onClick }: ClusterLabelPr
       }}
     >
       <div className="relative flex flex-col items-center group">
-        <div
-          className="absolute rounded-full transition-opacity group-hover:opacity-[0.35]"
-          style={{
-            width: 400,
-            height: 400,
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            backgroundColor: categoryColor,
-            filter: 'blur(100px)',
-            opacity: 0.25,
-            overflow: 'visible'
-          }}
-        />
         <h1
           className="relative text-5xl font-black tracking-tighter text-gray-800 mb-2 drop-shadow-sm group-hover:scale-105 transition-transform select-none"
           style={{ textShadow: '0 2px 10px rgba(255,255,255,0.9)' }}
