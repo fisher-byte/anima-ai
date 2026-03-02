@@ -101,7 +101,7 @@ export function NodeCard({ node }: NodeCardProps) {
         rotate: isDragging ? 2 : 0, 
         transition: { type: "spring", stiffness: 400, damping: 25 }
       }}
-      className={`absolute cursor-grab active:cursor-grabbing group z-10`}
+      className="absolute cursor-grab active:cursor-grabbing group z-10 pointer-events-auto"
       style={{
         left: `${node.x}px`,
         top: `${node.y}px`,

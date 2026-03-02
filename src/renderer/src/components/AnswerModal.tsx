@@ -76,6 +76,15 @@ function parseTurnsFromAssistantMessage(message: string, reasoning?: string, ini
   return turns.length > 0 ? turns : null
 }
 
+/** 展示时去掉内容里开头的 #数字 行，避免被渲染成巨大标题 */
+function stripLeadingNumberHeading(text: string): string {
+  let s = text.replace(/^#\s*\d+\s*\n?/, '').trim()
+  // 多轮或单轮错位时可能带「用户：… AI：」前缀，只保留 AI 输出部分
+  const userAiPrefix = /^[\s\S]*?AI[：:]\s*/
+  if (userAiPrefix.test(s)) s = s.replace(userAiPrefix, '').trim()
+  return s
+}
+
 function ThinkingSection({ content, isStreaming, forceCollapsed }: { content: string; isStreaming: boolean; forceCollapsed?: boolean }) {
   // 有正文时默认折叠，避免先展开再收拢的闪动
   const [isExpanded, setIsExpanded] = useState(() => !(forceCollapsed ?? false))
@@ -290,16 +299,20 @@ export function AnswerModal() {
         didMutateRef.current = false
         const parsedTurns = parseTurnsFromAssistantMessage(
           currentConversation.assistantMessage,
-          '', // TODO: 如果以后 Conversation 支持保存 reasoning，这里需要传
+          currentConversation.reasoning_content ?? '',
           currentConversation.images,
           currentConversation.files
         )
-        const finalTurns = parsedTurns ?? [{
+        let finalTurns = parsedTurns ?? [{
           user: currentConversation.userMessage,
           assistant: currentConversation.assistantMessage,
+          reasoning: currentConversation.reasoning_content,
           images: currentConversation.images,
           files: currentConversation.files
         }]
+        if (finalTurns.length === 1 && !finalTurns[0].user && currentConversation.userMessage) {
+          finalTurns = [{ ...finalTurns[0], user: currentConversation.userMessage }]
+        }
         setTurns(finalTurns)
         
         // --- 核心修复：回放时重建对话历史，支持后续对话继承上下文 ---
@@ -588,16 +601,12 @@ export function AnswerModal() {
               <div className="w-24" />
             </div>
 
-            {/* 对话内容区：左上角轻量模型标签 + 收窄内容 */}
+            {/* 对话内容区：收窄内容，模型标签在 AI 输出块左上角 */}
             <div
               ref={scrollRef}
-              className="flex-1 overflow-y-auto px-8 py-4 scroll-smooth relative"
+              className="flex-1 overflow-y-auto px-8 py-4 scroll-smooth"
             >
-              <div className="absolute left-8 top-4 z-10 text-[10px] text-gray-400 uppercase tracking-wider">
-                {AI_CONFIG.MODEL}
-                {isStreaming && <span className="ml-2 text-blue-500/70">正在进化中...</span>}
-              </div>
-              <div className="max-w-xl mx-auto space-y-12 pt-6">
+              <div className="max-w-xl mx-auto space-y-12">
                 {turns.map((t, idx) => (
                   <div key={idx} className="animate-in fade-in slide-in-from-bottom-8 duration-700">
                     {/* 用户消息 */}
@@ -622,38 +631,36 @@ export function AnswerModal() {
                           </div>
                         )}
 
-                        <div className="relative group/user">
-                          <div className="bg-gray-100/80 backdrop-blur-sm rounded-[32px] rounded-tr-sm px-8 py-5 text-gray-800 text-[16px] leading-relaxed shadow-sm border border-gray-200/20">
+                        <div className="flex flex-col items-end gap-1">
+                          <div className="bg-gray-100/80 backdrop-blur-sm rounded-2xl rounded-tr-sm px-5 py-3.5 text-gray-700 text-sm leading-relaxed shadow-sm border border-gray-200/20">
                             {editingIndex === idx ? (
                               <div className="flex flex-col gap-4 min-w-[320px]">
                                 <textarea
                                   value={editingContent}
                                   onChange={(e) => setEditingContent(e.target.value)}
-                                  className="w-full bg-white border border-gray-200 rounded-2xl p-5 text-[16px] outline-none focus:ring-2 focus:ring-blue-100 text-gray-800 transition-all"
+                                  className="w-full bg-white/90 border border-gray-200 rounded-xl p-4 text-sm outline-none focus:ring-2 focus:ring-gray-200 text-gray-800 transition-all"
                                   rows={4}
                                   autoFocus
                                 />
-                                <div className="flex justify-end gap-3">
-                                  <button onClick={() => setEditingIndex(null)} className="px-5 py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors font-bold uppercase">取消</button>
-                                  <button onClick={handleSaveEdit} className="px-6 py-2.5 text-sm bg-gray-900 text-white font-bold rounded-2xl hover:bg-black transition-all shadow-xl">更新并重新进化</button>
+                                <div className="flex justify-end gap-2">
+                                  <button onClick={() => setEditingIndex(null)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">取消</button>
+                                  <button onClick={handleSaveEdit} className="px-4 py-2 text-sm bg-gray-600 text-white hover:bg-gray-700 rounded-lg transition-colors">更新并重新进化</button>
                                 </div>
                               </div>
                             ) : (
-                              <>
-                                <div>{t.user}</div>
-                                {!isStreaming && (
-                                  <div className="flex justify-end gap-1 mt-2 opacity-0 group-hover/user:opacity-100 transition-opacity">
-                                    <button onClick={() => handleStartEdit(idx, t.user)} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-black/5 rounded-xl transition-all" title="编辑">
-                                      <Edit3 className="w-4 h-4" />
-                                    </button>
-                                    <button onClick={() => handleCopyMessage(t.user, idx)} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-black/5 rounded-xl transition-all" title="复制">
-                                      {copiedIndex === idx ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                                    </button>
-                                  </div>
-                                )}
-                              </>
+                              <div>{t.user}</div>
                             )}
                           </div>
+                          {!isStreaming && editingIndex !== idx && (
+                            <div className="flex items-center gap-1 opacity-0 group-hover/user:opacity-100 transition-opacity -mt-0.5">
+                              <button onClick={() => handleStartEdit(idx, t.user)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded transition-all" title="编辑">
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => handleCopyMessage(t.user, idx)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded transition-all" title="复制">
+                                {copiedIndex === idx ? <CheckCircle2 className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -667,50 +674,53 @@ export function AnswerModal() {
                       </div>
                     )}
 
-                    {/* AI 回复 */}
+                    {/* AI 回复：模型标签在输出块左上角，操作按钮在框外 */}
                     <div className="flex justify-start">
-                      <div className="max-w-[95%] w-full">
-                        <ThinkingSection 
-                          content={t.reasoning || ''} 
-                          isStreaming={isStreaming && idx === turns.length - 1 && !t.assistant} 
-                          forceCollapsed={!!t.assistant}
-                        />
-
-                        <div className="relative group/ai">
-                          <div className="text-gray-800 text-[17px] leading-[1.8] px-4 py-2">
-                            {t.error ? (
-                              <div className="bg-red-50/50 border border-red-100 rounded-[32px] p-8 text-red-600 text-sm italic">
-                                {t.error}
-                              </div>
-                            ) : t.assistant ? (
-                              <>
-                                <div className="prose prose-slate max-w-none prose-base
-                                  prose-headings:font-black prose-headings:text-gray-900 
-                                  prose-p:text-gray-800 prose-p:leading-relaxed
-                                  prose-pre:bg-gray-900/95 prose-pre:backdrop-blur-md prose-pre:text-gray-100 prose-pre:rounded-[24px]
+                      <div className="max-w-[95%] w-full flex flex-col gap-1 group/ai">
+                        <div className="flex items-start gap-2">
+                          <span className="text-[10px] text-gray-400 uppercase tracking-wider shrink-0 pt-1">
+                            {idx === 0 ? AI_CONFIG.MODEL : ''}
+                            {isStreaming && idx === turns.length - 1 && <span className="ml-1 text-blue-500/70">正在进化中...</span>}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <ThinkingSection
+                              content={t.reasoning || ''}
+                              isStreaming={isStreaming && idx === turns.length - 1 && !t.assistant}
+                              forceCollapsed={!!t.assistant}
+                            />
+                            <div className="text-gray-700 text-sm leading-relaxed px-0 py-1">
+                              {t.error ? (
+                                <div className="bg-red-50/50 border border-red-100 rounded-xl p-4 text-red-600 text-sm italic">
+                                  {t.error}
+                                </div>
+                              ) : t.assistant ? (
+                                <div className="prose prose-slate max-w-none prose-sm
+                                  prose-headings:font-semibold prose-headings:text-gray-800 prose-headings:text-base
+                                  prose-p:text-gray-700 prose-p:leading-relaxed prose-p:text-sm
+                                  prose-pre:bg-gray-900/95 prose-pre:backdrop-blur-md prose-pre:text-gray-100 prose-pre:rounded-xl
                                   prose-code:text-blue-600 prose-code:bg-blue-50/50 prose-code:px-2 prose-code:py-0.5 prose-code:rounded-lg
-                                  prose-table:border-collapse prose-table:w-full prose-table:my-10
-                                  prose-th:border prose-th:border-gray-200/50 prose-th:bg-gray-50/50 prose-th:px-6 prose-th:py-4 prose-th:text-left
-                                  prose-td:border prose-td:border-gray-200/50 prose-td:px-6 prose-td:py-4
-                                  prose-img:rounded-[32px] prose-img:shadow-2xl">
+                                  prose-table:border-collapse prose-table:w-full prose-table:my-6
+                                  prose-th:border prose-th:border-gray-200/50 prose-th:bg-gray-50/50 prose-th:px-4 prose-th:py-3 prose-th:text-left
+                                  prose-td:border prose-td:border-gray-200/50 prose-td:px-4 prose-td:py-3
+                                  prose-img:rounded-xl prose-img:shadow-lg">
                                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                    {t.assistant}
+                                    {stripLeadingNumberHeading(t.assistant)}
                                   </ReactMarkdown>
                                 </div>
-                                {!isStreaming && (
-                                  <div className="flex justify-end gap-1 mt-2 opacity-0 group-hover/ai:opacity-100 transition-opacity">
-                                    <button onClick={() => handleCopyMessage(t.assistant, idx)} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-black/5 rounded-xl transition-all" title="复制">
-                                      {copiedIndex === idx ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                                    </button>
-                                    <button onClick={() => handleRegenerate(idx)} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-black/5 rounded-xl transition-all" title="重新生成">
-                                      <RefreshCw className="w-4 h-4" />
-                                    </button>
-                                  </div>
-                                )}
-                              </>
-                            ) : null}
+                              ) : null}
+                            </div>
                           </div>
                         </div>
+                        {t.assistant && !isStreaming && (
+                          <div className="flex items-center gap-1 opacity-0 group-hover/ai:opacity-100 transition-opacity pl-0">
+                            <button onClick={() => handleCopyMessage(t.assistant, idx)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded transition-all" title="复制">
+                              {copiedIndex === idx ? <CheckCircle2 className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
+                            <button onClick={() => handleRegenerate(idx)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded transition-all" title="重新生成">
+                              <RefreshCw className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
 

@@ -230,8 +230,9 @@ export function Canvas() {
           perspective: '1200px'
         }}
       >
+        {/* 内层不拦截指针事件，保证空白处拖拽画布有效；节点需 pointer-events-auto */}
         <motion.div
-          className="absolute inset-0 w-full h-full"
+          className="absolute inset-0 w-full h-full pointer-events-none"
           style={{ transformStyle: 'preserve-3d', transformOrigin: '50% 50%' }}
           animate={{ rotateY: [0, 4, 0] }}
           transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
@@ -252,15 +253,11 @@ export function Canvas() {
             })}
           </svg>
 
-          {/* 节点渲染 */}
           {nodes.map((node) => (
-            <NodeCard
-              key={node.id}
-              node={node}
-            />
+            <NodeCard key={node.id} node={node} />
           ))}
 
-          {/* 空状态提示 */}
+          {/* empty state */}
           {nodes.length === 0 && (
             <div
               className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-gray-300 text-sm select-none pointer-events-none"
