@@ -17,7 +17,7 @@ export function InputBox() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   
-  const { startConversation, isModalOpen, detectIntent, getRelevantMemories, setHighlight } = useCanvasStore()
+  const { nodes, startConversation, isModalOpen, detectIntent, getRelevantMemories, setHighlight } = useCanvasStore()
   
   // Semantic Highlight State
   const [matchCount, setMatchCount] = useState(0)
@@ -38,13 +38,15 @@ export function InputBox() {
           const memories = await getRelevantMemories(message)
           setMatchCount(memories.length)
           
-          // Trigger Canvas Highlight
-          const highlightedIds = memories.map(m => m.conv.id)
+          // 3. Map conversation ids to node ids for canvas highlight
+          const highlightedIds = memories
+            .map(m => nodes.find(n => n.conversationId === m.conv.id)?.id)
+            .filter((id): id is string => id != null)
           setHighlight(category, highlightedIds)
           
       }, 300)
       return () => clearTimeout(timer)
-  }, [message, detectIntent, getRelevantMemories, setHighlight])
+  }, [message, nodes, detectIntent, getRelevantMemories, setHighlight])
 
   // 处理文件拖入和选择
   const handleFiles = useCallback(async (fileList: FileList | File[]) => {

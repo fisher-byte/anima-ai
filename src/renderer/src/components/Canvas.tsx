@@ -268,10 +268,10 @@ export function Canvas() {
         }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
       >
-        {/* 画布：外层平移缩放，内层轻微伪 3D 循环旋转 */}
+        {/* 画布：外层平移缩放 */}
         <div
           ref={canvasRef}
-          className="absolute inset-0 dot-grid cursor-grab active:cursor-grabbing overflow-hidden"
+          className="absolute inset-0 dot-grid cursor-grab active:cursor-grabbing overflow-hidden pointer-events-auto"
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -294,8 +294,6 @@ export function Canvas() {
           <motion.div
             className="absolute inset-0 w-full h-full pointer-events-none"
             style={{ transformStyle: 'preserve-3d', transformOrigin: '50% 50%' }}
-            animate={{ rotateY: [0, 4, 0] }}
-            transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
           >
             {/* 连线渲染 (SVG层) */}
             <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ transformStyle: 'preserve-3d' }}>

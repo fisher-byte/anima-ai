@@ -35,12 +35,16 @@ export function ClusterLabel({ cluster, scale, onDrag, onClick }: ClusterLabelPr
   const opacity = getOpacity(scale, 0.4, 0.6, 'fade-out')
   const isVisible = opacity > 0
 
+  // Inverse scale to keep label readable when zoomed out
+  // When scale is 0.2, we want to scale up by roughly 2x-3x (not full 5x to keep some depth feel)
+  const inverseScale = Math.max(1, (1 / Math.max(scale, 0.1)) * 0.6)
+
   return (
     <motion.div
       initial={{ scale: 0.5 }}
       animate={{ 
         opacity: opacity,
-        scale: opacity === 0 ? 0.5 : 1,
+        scale: opacity === 0 ? 0.5 : inverseScale,
         // Center the label (assuming average node width/height adjustments if needed, 
         // here we place it at cluster center)
         left: cluster.x, 
