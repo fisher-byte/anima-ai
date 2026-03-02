@@ -17,9 +17,9 @@ html, body, #root {
 
 /* Dot grid background for canvas */
 .dot-grid {
-  background-color: #ffffff;
-  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
-  background-size: 20px 20px;
+  background-color: #F8F9FB;
+  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.055) 1px, transparent 1px);
+  background-size: 24px 24px;
 }
 
 /* Glass morphism effect */

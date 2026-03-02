@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles, CheckCircle2, Copy, RefreshCw, Square, Paperclip, ChevronDown, ChevronRight, X, Layers, ArrowUp, File as FileIcon } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -512,43 +512,41 @@ export function AnswerModal() {
     }
   }, [feedbackMessage, pendingImages, pendingFiles, isStreaming, detectedPreference, addPreference, getPreferencesForPrompt, sendMessage, turns, getRelevantMemories])
 
-  // 关闭并保存（带平滑过渡）
-  const handleClose = useCallback(async () => {
+  // 关闭并保存（同步关闭 UI，endConversation 后台异步运行，彻底防止冻结）
+  const handleClose = useCallback(() => {
     const shouldSave = !!currentConversation && (!isReplayRef.current || didMutateRef.current)
 
-    // 仅在“新对话或确实产生了新内容”时保存，避免回放重复建节点
-    if (shouldSave && currentConversation) {
-      // 检查当前是否仍在流式传输中
-      const stillStreaming = isStreaming
-      
-      const finalResponse =
-        turns.length > 0
-          ? turns
-              .map((t, idx) => {
-                const isLastTurn = idx === turns.length - 1
-                const a = t.error ? `[API错误: ${t.error}]` : (t.assistant || (isLastTurn && stillStreaming ? '[正在生成中...]' : '[无回复]'))
-                const reasoning = t.reasoning ? `思考：${t.reasoning}\n\n` : ''
-                return `#${idx + 1}\n用户：${t.user}\nAI：\n${reasoning}${a}`
-              })
-              .join('\n\n')
-          : (errorMessage ? `[API错误: ${errorMessage}]` : '[无回复]')
-      // 提取最新的推理内容（来自最后一轮）
-      const lastReasoning = turns.length > 0 ? turns[turns.length - 1].reasoning : ''
+    // 1. 在 closeModal 之前先保存所有需要的数据快照（closeModal 会把 currentConversation 置 null）
+    const conversationSnapshot = currentConversation
+    const stillStreaming = isStreaming
+    const finalResponse =
+      turns.length > 0
+        ? turns
+            .map((t, idx) => {
+              const isLastTurn = idx === turns.length - 1
+              const a = t.error ? `[API错误: ${t.error}]` : (t.assistant || (isLastTurn && stillStreaming ? '[正在生成中...]' : '[无回复]'))
+              const reasoning = t.reasoning ? `思考：${t.reasoning}\n\n` : ''
+              return `#${idx + 1}\n用户：${t.user}\nAI：\n${reasoning}${a}`
+            })
+            .join('\n\n')
+        : (errorMessage ? `[API错误: ${errorMessage}]` : '[无回复]')
+    const lastReasoning = turns.length > 0 ? turns[turns.length - 1].reasoning : ''
+    const savedAppliedPreferences = [...appliedPreferences]
 
-      // 关闭后继续保存，保留错误处理
-      endConversation(finalResponse, appliedPreferences, lastReasoning).catch(err => {
-        console.error('保存对话失败:', err)
-      })
-    }
-
-    // 重置状态
+    // 2. 立即重置 UI 状态并关闭 modal（画布立即解冻，不等 IPC）
     setTurns([])
     setErrorMessage(null)
     setFeedbackMessage('')
     setDetectedPreference(null)
     setAppliedPreferences([])
     closeModal()
-  }, [turns, errorMessage, currentConversation, endConversation, closeModal, appliedPreferences])
+
+    // 3. 后台保存（传入显式 conversationSnapshot，不依赖 store 里已被置 null 的 currentConversation）
+    if (shouldSave && conversationSnapshot) {
+      endConversation(finalResponse, savedAppliedPreferences, lastReasoning, conversationSnapshot)
+        .catch(err => console.error('后台保存对话失败:', err))
+    }
+  }, [turns, errorMessage, isStreaming, currentConversation, endConversation, closeModal, appliedPreferences])
 
   // ESC键关闭
   useEffect(() => {
@@ -568,17 +566,16 @@ export function AnswerModal() {
   if (!isModalOpen) return null
 
   return (
-    <LayoutGroup>
-      <AnimatePresence>
-        {isModalOpen && (
-          <motion.div
-            layoutId="container"
-            initial={{ opacity: 0, borderRadius: 32, y: 50 }}
-            animate={{ opacity: 1, borderRadius: 24, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            className="fixed bottom-0 left-0 right-0 mx-auto z-50 w-full max-w-3xl h-[85vh] bg-white/90 backdrop-blur-3xl shadow-[0_-20px_80px_rgba(0,0,0,0.15)] border-t border-l border-r border-white/60 flex flex-col overflow-hidden"
-            style={{ borderTopLeftRadius: 24, borderTopRightRadius: 24 }}
-          >
+    <AnimatePresence>
+      {isModalOpen && (
+        // 外层普通 div 负责 fixed 定位——Framer Motion 的 animate 不会覆盖它的 transform
+        <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', zIndex: 50, width: '100%', maxWidth: '48rem' }}>
+        <motion.div
+          initial={{ opacity: 0, borderRadius: 32, y: 50 }}
+          animate={{ opacity: 1, borderRadius: 24, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 20 }}
+          className="w-full h-[85vh] bg-white/92 backdrop-blur-3xl shadow-[0_-20px_80px_rgba(0,0,0,0.12)] border-t border-l border-r border-white/60 flex flex-col overflow-hidden rounded-t-3xl"
+        >
             {/* 头部导航 - 记忆引用条 */}
             <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100/50 bg-white/40">
                <div className="flex items-center gap-3">
@@ -811,8 +808,8 @@ export function AnswerModal() {
             </div>
 
           </motion.div>
+        </div>
         )}
       </AnimatePresence>
-    </LayoutGroup>
   )
 }

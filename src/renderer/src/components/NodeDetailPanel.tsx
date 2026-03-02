@@ -33,16 +33,23 @@ export function NodeDetailPanel() {
       className="fixed top-4 bottom-4 right-4 w-[360px] z-40 bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/60 flex flex-col overflow-hidden"
     >
       {/* Header */}
-      <div className="relative h-32 bg-gradient-to-br from-blue-50 to-indigo-50 p-6 flex flex-col justify-end">
-        <button 
+      <div className="relative bg-white border-b border-gray-100/80 p-6 flex flex-col justify-end">
+        <button
           onClick={() => selectNode(null)}
-          className="absolute top-4 right-4 p-2 bg-white/50 hover:bg-white rounded-full transition-colors"
+          className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition-colors"
         >
-          <X className="w-4 h-4 text-gray-500" />
+          <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
         </button>
-        
-        <div className="flex items-center gap-2 mb-2">
-          <span className="px-2.5 py-0.5 bg-white/60 backdrop-blur-md rounded-lg text-[10px] font-bold uppercase tracking-wider text-blue-600 border border-blue-100/50">
+
+        <div className="flex items-center gap-2 mb-2 mt-2">
+          <span
+            className="px-2.5 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border"
+            style={{
+              backgroundColor: node.color?.replace('0.9', '0.15') || 'rgba(226,232,240,0.15)',
+              color: '#374151',
+              borderColor: node.color?.replace('0.9', '0.3') || 'rgba(226,232,240,0.3)'
+            }}
+          >
             {node.category || '未分类'}
           </span>
         </div>
@@ -78,9 +85,9 @@ export function NodeDetailPanel() {
 
         {/* Actions */}
         <div className="grid grid-cols-2 gap-3 pt-4 border-t border-gray-100">
-          <button 
+          <button
             onClick={handleContinue}
-            className="col-span-2 flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl font-medium text-sm hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
+            className="col-span-2 flex items-center justify-center gap-2 py-3 bg-gray-900 text-white rounded-xl font-medium text-sm hover:bg-black transition-all shadow-lg"
           >
             <MessageSquare className="w-4 h-4" />
             继续这个话题

@@ -8,7 +8,7 @@ interface NodeCardProps {
 }
 
 export function NodeCard({ node }: NodeCardProps) {
-  const { nodes, removeNode, updateNodePosition, selectNode, highlightedNodeIds } = useCanvasStore()
+  const { nodes, removeNode, updateNodePosition, openModalById, highlightedNodeIds } = useCanvasStore()
   const [isDragging, setIsDragging] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   
@@ -16,7 +16,6 @@ export function NodeCard({ node }: NodeCardProps) {
   const isHighlighted = useMemo(() => highlightedNodeIds.includes(node.id), [highlightedNodeIds, node.id])
   
   const isDraggingRef = useRef(false)
-  const dragStartRef = useRef({ x: 0, y: 0 })
   const mouseDownPosRef = useRef({ x: 0, y: 0 })
   const positionRef = useRef({ x: node.x, y: node.y })
   const lastDragEndRef = useRef(0)
@@ -59,10 +58,13 @@ export function NodeCard({ node }: NodeCardProps) {
     }
 
     if (isDraggingRef.current) {
-      const newX = e.clientX - dragStartRef.current.x
-      const newY = e.clientY - dragStartRef.current.y
+      // 鼠标屏幕坐标 delta 需要除以当前画布 scale，才能转成画布坐标 delta
+      const currentScale = useCanvasStore.getState().scale
+      const newX = positionRef.current.x + (e.clientX - mouseDownPosRef.current.x) / currentScale
+      const newY = positionRef.current.y + (e.clientY - mouseDownPosRef.current.y) / currentScale
+      mouseDownPosRef.current = { x: e.clientX, y: e.clientY }
       positionRef.current = { x: newX, y: newY }
-      
+
       const el = document.getElementById(`node-${node.id}`)
       if (el) {
         el.style.left = `${newX}px`
@@ -86,47 +88,45 @@ export function NodeCard({ node }: NodeCardProps) {
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     mouseDownPosRef.current = { x: e.clientX, y: e.clientY }
-    dragStartRef.current = {
-      x: e.clientX - positionRef.current.x,
-      y: e.clientY - positionRef.current.y
-    }
-    
+
     window.addEventListener('mousemove', handleGlobalMouseMove)
     window.addEventListener('mouseup', handleGlobalMouseUp)
   }, [handleGlobalMouseMove, handleGlobalMouseUp])
 
   const handleClick = useCallback(() => {
     if (isDragging || Date.now() - lastDragEndRef.current < 200) return
-    // openModalById(node.conversationId) // Old behavior
-    selectNode(node.id) // New behavior: Open detail panel
-  }, [node.id, selectNode, isDragging])
+    openModalById(node.conversationId)
+  }, [node.conversationId, openModalById, isDragging])
 
   const handleDelete = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation()
     await removeNode(node.id)
   }, [removeNode, node.id])
 
+  // 随机浮动相位（每个节点不同）
+  const floatDuration = useMemo(() => 3 + (node.id.charCodeAt(0) % 20) * 0.1, [node.id])
+  const floatDelay = useMemo(() => (node.id.charCodeAt(1) || 0) % 20 * 0.1, [node.id])
+
   return (
     <motion.div
       id={`node-${node.id}`}
-      initial={{ scale: 0.8, opacity: 0 }}
-      animate={{ 
-        scale: isDragging ? 1.05 : (isHighlighted ? 1.1 : depth),
+      initial={{ scale: 0.7, opacity: 0, filter: 'blur(8px)' }}
+      animate={{
+        scale: isDragging ? 1.06 : (isHighlighted ? 1.08 : depth),
         opacity: isVisible ? (isDragging ? 1 : (0.6 + (depth - 0.75) * 1.6) * lodOpacity) : 0,
-        rotate: isDragging ? 2 : 0, 
-        y: isDragging ? 0 : [0, -3, 0],
-        transition: {
-          y: { duration: 3 + Math.random() * 2, repeat: Infinity, ease: "easeInOut" },
-          scale: { type: "spring", stiffness: 400, damping: 25 },
-          opacity: { type: "spring", stiffness: 400, damping: 25 },
-          rotate: { type: "spring", stiffness: 400, damping: 25 }
-        }
+        rotate: isDragging ? 2 : 0,
+        filter: isDragging ? 'blur(0px)' : `blur(${(1 - depth) * 1.5}px)`,
+      }}
+      transition={{
+        scale: { type: "spring", stiffness: 400, damping: 25 },
+        opacity: { duration: 0.4 },
+        rotate: { type: "spring", stiffness: 400, damping: 25 },
+        filter: { duration: 0.4 },
       }}
       className="absolute cursor-grab active:cursor-grabbing group z-10 pointer-events-auto"
       style={{
         left: `${node.x}px`,
         top: `${node.y}px`,
-        filter: isDragging ? 'none' : `blur(${(1 - depth) * 2}px)`, 
         pointerEvents: isVisible ? 'auto' : 'none'
       }}
       onMouseDown={handleMouseDown}
@@ -134,17 +134,24 @@ export function NodeCard({ node }: NodeCardProps) {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <motion.div 
+      {/* 微浮动层：只在非拖拽时活跃，每个节点相位不同 */}
+      <motion.div
+        animate={isDragging ? { y: 0 } : { y: [0, -4, 0] }}
+        transition={{
+          y: { duration: floatDuration, repeat: Infinity, ease: "easeInOut", delay: floatDelay }
+        }}
+      >
+      <motion.div
         layout
-        className={`rounded-2xl transition-all duration-500 p-5 w-52 border backdrop-blur-sm ${
-          isHighlighted 
-            ? 'shadow-[0_0_30px_rgba(59,130,246,0.3)] border-blue-400 bg-white/80'
-            : isDragging 
-              ? 'shadow-[0_20px_50px_rgba(0,0,0,0.1)] border-blue-200/50' 
-              : 'shadow-[0_4px_20px_rgba(0,0,0,0.03)] border-white/50 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-blue-100/30'
+        className={`rounded-2xl transition-shadow duration-500 p-5 w-52 border backdrop-blur-sm ${
+          isHighlighted
+            ? 'shadow-[0_0_30px_rgba(59,130,246,0.25)] border-blue-300/60 bg-white/80'
+            : isDragging
+              ? 'shadow-[0_20px_50px_rgba(0,0,0,0.12)] border-blue-200/50'
+              : 'shadow-[0_4px_20px_rgba(0,0,0,0.04)] border-white/60 hover:shadow-[0_8px_32px_rgba(0,0,0,0.08)] hover:border-blue-100/40'
         }`}
-        style={{ 
-          backgroundColor: isHighlighted ? undefined : (node.color ? node.color.replace('0.9', '0.4') : 'rgba(255,255,255,0.6)'),
+        style={{
+          backgroundColor: isHighlighted ? undefined : (node.color ? node.color.replace('0.9', '0.45') : 'rgba(255,255,255,0.65)'),
         }}
       >
         {/* 删除按钮 (仅悬停时展示) */}
@@ -193,12 +200,13 @@ export function NodeCard({ node }: NodeCardProps) {
         {/* 日期 */}
         <div className="flex items-center justify-between text-[10px] text-gray-400 font-medium">
           <span>{node.date}</span>
-          <motion.div 
+          <motion.div
             animate={{ scale: [1, 1.2, 1] }}
             transition={{ repeat: Infinity, duration: 3 }}
-            className="w-1.5 h-1.5 rounded-full bg-blue-400/20" 
+            className="w-1.5 h-1.5 rounded-full bg-blue-400/20"
           />
         </div>
+      </motion.div>
       </motion.div>
     </motion.div>
   )

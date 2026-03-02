@@ -30,48 +30,67 @@ function getOpacity(scale: number, min: number, max: number, type: 'fade-in' | '
   }
 }
 
+// Map category to a deeper color for visibility
+function getCategoryColor(category: string): string {
+  if (category === '工作学习') return '#3B82F6' // blue-500
+  if (category === '生活日常') return '#10B981' // green-500
+  if (category === '灵感创意') return '#8B5CF6' // purple-500
+  return '#6B7280' // gray-500
+}
+
 export function ClusterLabel({ cluster, scale, onDrag, onClick }: ClusterLabelProps) {
   // Fade out between 0.4 and 0.6 scale
   const opacity = getOpacity(scale, 0.4, 0.6, 'fade-out')
   const isVisible = opacity > 0
 
   // Inverse scale to keep label readable when zoomed out
-  // When scale is 0.2, we want to scale up by roughly 2x-3x (not full 5x to keep some depth feel)
   const inverseScale = Math.max(1, (1 / Math.max(scale, 0.1)) * 0.6)
+
+  const categoryColor = getCategoryColor(cluster.category)
 
   return (
     <motion.div
-      initial={{ scale: 0.5 }}
-      animate={{ 
+      animate={{
         opacity: opacity,
         scale: opacity === 0 ? 0.5 : inverseScale,
-        // Center the label (assuming average node width/height adjustments if needed, 
-        // here we place it at cluster center)
-        left: cluster.x, 
-        top: cluster.y,
-        pointerEvents: isVisible ? 'auto' : 'none'
       }}
-      drag={isVisible} 
+      drag={isVisible}
       dragMomentum={false}
-      onDrag={(_, info) => onDrag(info.delta.x, info.delta.y)}
+      onDrag={(_, info) => onDrag(info.delta.x / inverseScale, info.delta.y / inverseScale)}
       onClick={(e) => {
         e.stopPropagation()
         onClick()
       }}
-      className="absolute z-20 flex items-center justify-center w-[300px] h-[100px] cursor-grab active:cursor-grabbing -translate-x-1/2 -translate-y-1/2"
+      className="absolute flex items-center justify-center w-[400px] h-[200px] cursor-grab active:cursor-grabbing -translate-x-1/2 -translate-y-1/2"
+      style={{
+        left: cluster.x,
+        top: cluster.y,
+        pointerEvents: isVisible ? 'auto' : 'none',
+        zIndex: 20,
+      }}
     >
       <div className="relative flex flex-col items-center group">
-        <div 
-          className="absolute inset-0 rounded-full blur-[60px] opacity-40 transition-opacity group-hover:opacity-60"
-          style={{ backgroundColor: cluster.color }}
+        <div
+          className="absolute rounded-full transition-opacity group-hover:opacity-[0.35]"
+          style={{
+            width: 400,
+            height: 400,
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            backgroundColor: categoryColor,
+            filter: 'blur(100px)',
+            opacity: 0.25,
+            overflow: 'visible'
+          }}
         />
-        <h1 
-          className="text-4xl font-black tracking-tighter text-gray-800/80 mb-2 drop-shadow-sm group-hover:scale-105 transition-transform select-none"
-          style={{ textShadow: '0 2px 10px rgba(255,255,255,0.8)' }}
+        <h1
+          className="relative text-5xl font-black tracking-tighter text-gray-800 mb-2 drop-shadow-sm group-hover:scale-105 transition-transform select-none"
+          style={{ textShadow: '0 2px 10px rgba(255,255,255,0.9)' }}
         >
           {cluster.category}
         </h1>
-        <div className="flex items-center gap-2 text-sm font-medium text-gray-500/80 uppercase tracking-widest bg-white/40 px-3 py-1 rounded-full backdrop-blur-sm border border-white/20 select-none">
+        <div className="relative flex items-center gap-2 text-sm font-medium text-gray-600 uppercase tracking-widest bg-white/60 px-3 py-1 rounded-full backdrop-blur-sm border border-gray-200/60 select-none">
           <Layers className="w-3 h-3" />
           <span>{cluster.count} MEMORIES</span>
         </div>

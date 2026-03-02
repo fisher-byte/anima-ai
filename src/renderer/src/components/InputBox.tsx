@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useCanvasStore } from '../stores/canvasStore'
 import { UI_CONFIG } from '@shared/constants'
 import { X, Paperclip, FileText, FileCode, File as FileIcon, Loader2, ArrowUp, Command, Sparkles } from 'lucide-react'
@@ -255,16 +255,17 @@ export function InputBox() {
   if (isModalOpen) return null
 
   return (
-    <LayoutGroup>
-        <motion.div
-        layoutId="container"
-        initial={{ opacity: 0, y: 20, x: "-50%" }}
-        animate={{ opacity: 1, y: 0, x: "-50%" }}
-        exit={{ opacity: 0, scale: 0.9 }}
-        className="fixed bottom-12 left-1/2 z-50 w-full max-w-2xl px-4"
+      // 外层普通 div 负责 fixed 定位——Framer Motion 的 animate 不会覆盖它的 transform
+      <div
+        style={{ position: 'fixed', bottom: 48, left: '50%', transform: 'translateX(-50%)', zIndex: 50, width: '100%', maxWidth: '42rem', paddingLeft: '1rem', paddingRight: '1rem' }}
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
-        >
+      >
+      {/* 内层 motion.div 只做 opacity/y 入场动画，不含任何定位属性 */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
         {/* 文件预览区 */}
         <AnimatePresence>
             {(filePreviews.length > 0 || images.length > 0) && (
@@ -402,10 +403,10 @@ export function InputBox() {
 
         {/* 快捷键提示 */}
         <div className="flex justify-center gap-4 mt-3 text-[10px] text-gray-300 font-bold uppercase tracking-widest pointer-events-none">
-            <span className="bg-gray-50 px-2 py-0.5 rounded border border-gray-100">Enter Send</span>
-            <span className="bg-gray-50 px-2 py-0.5 rounded border border-gray-100">Shift + Enter Newline</span>
+            <span className="bg-gray-50 px-2 py-0.5 rounded border border-gray-100">Enter 发送</span>
+            <span className="bg-gray-50 px-2 py-0.5 rounded border border-gray-100">Shift+Enter 换行</span>
         </div>
-        </motion.div>
-    </LayoutGroup>
+      </motion.div>
+      </div>
   )
 }
