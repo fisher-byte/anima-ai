@@ -2,7 +2,7 @@
 
 > 一个记住你偏好的本地AI画布。
 
-![版本](https://img.shields.io/badge/version-0.2.5-blue)
+![版本](https://img.shields.io/badge/version-0.3.1-blue)
 ![Electron](https://img.shields.io/badge/Electron-29.1.4-47848F?logo=electron)
 ![React](https://img.shields.io/badge/React-18.2.0-61DAFB?logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.4.2-3178C6?logo=typescript)
@@ -28,6 +28,9 @@
 
 ### 已实现 (v0.2.5)
 
+- [x] **缩放性能彻底修复（v0.3.1）** — 三层根因：① NodeCard 用细粒度 selector 替代全 store 订阅；② 漂浮动画改为纯 CSS `@keyframes`（compositor thread，零主线程开销）；③ 根容器改为 `<div>` + CSS transition 消除 Framer Motion 常驻 rAF 上下文。滚动/缩放全程零 React 重渲染
+- [x] **Web 全栈化（v0.3.0）** — Hono 后端 + SQLite 存储，AI 调用走后端代理（API Key 不出浏览器），支持 Docker 部署
+- [x] **缩放性能优化（Web）** - wheel 事件按帧合并；offset/scale 脱离 React state，直操 DOM transform；useLodScale 隔离 zoom 重渲染
 - [x] **滚轮缩放修复** - 用原生 `addEventListener('wheel', { passive: false })` 替代 React 合成事件，`preventDefault()` 真正生效；区分触控板与鼠标滚轮灵敏度（`Math.pow(1.001, delta)`）
 - [x] **ClusterLabel 交互修复** - 内容层 div 正确设置 `pointerEvents: 'none'`，ClusterLabel 的点击与拖拽不再被父层阻断
 - [x] **输入框与对话面板居中修复** - 去掉 Framer Motion `x: "-50%"` 导致的 transform 冲突，改用纯 CSS `left-1/2 -translate-x-1/2`，Morph 动画与居中不再打架
@@ -141,6 +144,7 @@ evocanvas/
 - [API文档](./docs/api.md) - 服务API说明
 - [变更日志](./docs/changelog.md) - 版本迭代记录
 - [开发笔记](./docs/dev-notes.md) - 实现细节和踩坑记录
+- [版本备份](./docs/backup-20260303-canvas.tsx) - Web 缩放性能修复的关键文件快照
 
 ## 数据存储
 
