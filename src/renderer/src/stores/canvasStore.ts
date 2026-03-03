@@ -43,7 +43,7 @@ interface CanvasState {
   detectFeedback: (message: string) => PreferenceRule | null
   addPreference: (rule: PreferenceRule) => Promise<void>
   getPreferencesForPrompt: () => string[]
-  getRelevantMemories: (query: string) => Promise<{ conv: Conversation; category?: string }[]>
+  getRelevantMemories: (query: string) => Promise<{ conv: Conversation; category?: string; nodeId?: string }[]>
   detectIntent: (message: string) => string
   
   // 方法：对话记录
@@ -770,7 +770,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
       return top.map(s => {
         const node = nodes.find(n => n.conversationId === s.conv.id)
-        return { conv: s.conv, category: node?.category }
+        return { conv: s.conv, category: node?.category, nodeId: node?.id }
       })
     } catch (error) {
       console.error('Failed to get relevant memories:', error)

@@ -17,7 +17,6 @@ export function InputBox() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   
-  const nodes = useCanvasStore(state => state.nodes)
   const startConversation = useCanvasStore(state => state.startConversation)
   const isModalOpen = useCanvasStore(state => state.isModalOpen)
   const detectIntent = useCanvasStore(state => state.detectIntent)
@@ -45,13 +44,13 @@ export function InputBox() {
           
           // 3. Map conversation ids to node ids for canvas highlight
           const highlightedIds = memories
-            .map(m => nodes.find(n => n.conversationId === m.conv.id)?.id)
-            .filter((id): id is string => id != null)
+            .map(m => m.nodeId)
+            .filter((id): id is string => !!id)
           setHighlight(category, highlightedIds)
           
       }, 300)
       return () => clearTimeout(timer)
-  }, [message, nodes, detectIntent, getRelevantMemories, setHighlight])
+  }, [message, detectIntent, getRelevantMemories, setHighlight])
 
   // 处理文件拖入和选择
   const handleFiles = useCallback(async (fileList: FileList | File[]) => {
