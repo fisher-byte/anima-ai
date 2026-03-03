@@ -1,5 +1,5 @@
 import { memo, useMemo } from 'react'
-import { useCanvasStore } from '../stores/canvasStore'
+import { useLodScale } from '../hooks/useLodScale'
 import type { Node } from '@shared/types'
 
 interface EdgeProps {
@@ -8,7 +8,8 @@ interface EdgeProps {
 }
 
 export const Edge = memo(function Edge({ sourceNode, targetNode }: EdgeProps) {
-  const scale = useCanvasStore(state => state.scale)
+  // 只在 LOD 阈值跨越时触发重渲染，zoom 中不重渲染
+  const scale = useLodScale([0.3, 0.5])
   const lodOpacity = scale < 0.3 ? 0 : scale > 0.5 ? 1 : (scale - 0.3) / 0.2
 
   const { path, strokeWidth, opacity, color } = useMemo(() => {
