@@ -105,6 +105,7 @@ function getClusters(nodes: any[]) {
   }))
 }
 
+
 export function Canvas() {
   // 細粒度订阅：只订阅会引起 UI 变化的数据，函数用 getState() 避免触发重渲染
   const nodes = useCanvasStore(state => state.nodes)
@@ -205,8 +206,8 @@ export function Canvas() {
   }, [applyTransform, setOffset])
 
   // 滚轮缩放 — 直接操作 DOM，每帧最多一次，完全不触发 React 重渲染
-  // 只存目标 scale，offset 在 RAF 里用一次 getBoundingClientRect 再算，避免每事件强制布局
-  const pendingWheelRef = useRef<{ scale: number } | null>(null)
+  // wheel 事件按帧合并，避免事件洪泛
+  const pendingWheelDeltaRef = useRef(0)
   const lastWheelClientRef = useRef<{ clientX: number; clientY: number } | null>(null)
   const wheelRafRef = useRef<number | null>(null)
   const scaleDisplayRafRef = useRef<number | null>(null)
@@ -220,21 +221,20 @@ export function Canvas() {
       if (animationFrameId.current) { cancelAnimationFrame(animationFrameId.current); animationFrameId.current = null }
 
       lastWheelClientRef.current = { clientX: e.clientX, clientY: e.clientY }
-      const currentScale = viewRef.current.scale
       const rawDelta = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY
-      const factor = Math.pow(1.001, -rawDelta)
-      const newScale = Math.max(0.2, Math.min(3, currentScale * factor))
-      pendingWheelRef.current = { scale: newScale }
+      pendingWheelDeltaRef.current += rawDelta
 
       if (!wheelRafRef.current) {
         wheelRafRef.current = requestAnimationFrame(() => {
           const canvasEl = canvasRef.current
-          if (pendingWheelRef.current && lastWheelClientRef.current && canvasEl) {
+          if (lastWheelClientRef.current && canvasEl) {
+            const currentScale = viewRef.current.scale
+            const factor = Math.pow(1.001, -pendingWheelDeltaRef.current)
+            const newScaleRaf = Math.max(0.2, Math.min(3, currentScale * factor))
             const rect = canvasEl.getBoundingClientRect()
             const mouseX = lastWheelClientRef.current.clientX - rect.left
             const mouseY = lastWheelClientRef.current.clientY - rect.top
             const { offset, scale: prevScale } = viewRef.current
-            const newScaleRaf = pendingWheelRef.current.scale
             const scaleDiff = newScaleRaf / prevScale
             const vw = typeof window !== 'undefined' ? window.innerWidth : 1280
             const vh = typeof window !== 'undefined' ? window.innerHeight : 800
@@ -246,19 +246,19 @@ export function Canvas() {
             }
             applyTransform(newOffset, newScaleRaf)
           }
-          pendingWheelRef.current = null
+          pendingWheelDeltaRef.current = 0
           wheelRafRef.current = null
         })
       }
 
-      // zoom 停止 300ms 后 store 同步一次 → useLodScale 触发 (LOD 切换) + 工具栏 % 更新
+      // zoom 停止 120ms 后 store 同步一次 → useLodScale 触发 (LOD 切换) + 工具栏 % 更新
       if (scaleDisplayRafRef.current) clearTimeout(scaleDisplayRafRef.current)
       scaleDisplayRafRef.current = window.setTimeout(() => {
         const { offset, scale } = viewRef.current
         useCanvasStore.setState({ offset, scale: Math.max(0.2, Math.min(3, scale)) })
         setScaleDisplay(scale)
         scaleDisplayRafRef.current = null
-      }, 300)
+      }, 120)
     }
 
     canvas.addEventListener('wheel', handleWheel, { passive: false })
@@ -490,7 +490,7 @@ export function Canvas() {
               pointerEvents: 'none',
             }}
           >
-            {/* 连线渲染 (SVG层) */}
+          {/* 连线渲染 (SVG层) */}
             <svg
               style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }}
             >
