@@ -1,4 +1,4 @@
-# EvoCanvas 问题排查指南
+# Anima 问题排查指南
 
 ## 常见问题速查
 
@@ -50,15 +50,15 @@
 
 1. **检查数据目录**
    ```bash
-   ls ~/Library/Application\ Support/evocanvas/data/
-   # 应该有 nodes.json, profile.json, conversations.jsonl
+   ls ~/Library/Application\ Support/anima/data/
+   # 应有 anima.db（SQLite）及可能存在的 nodes.json 等
    ```
 
 2. **检查存储权限**
    ```bash
    # 确保目录可写
-   touch ~/Library/Application\ Support/evocanvas/data/test.txt
-   rm ~/Library/Application\ Support/evocanvas/data/test.txt
+   touch ~/Library/Application\ Support/anima/data/test.txt
+   rm ~/Library/Application\ Support/anima/data/test.txt
    ```
 
 3. **查看主进程日志**
@@ -104,13 +104,13 @@
 2. **重启应用**
    ```bash
    pkill -f "electron-vite"
-   pkill -f "EvoCanvas"
+   pkill -f "Anima"
    npm run dev
    ```
 
 3. **清除缓存**
    ```bash
-   rm -rf ~/Library/Application\ Support/evocanvas/Cache
+   rm -rf ~/Library/Application\ Support/anima/Cache
    ```
 
 ---
@@ -137,7 +137,7 @@
 
 ```bash
 #!/bin/bash
-echo "=== EvoCanvas 环境检查 ==="
+echo "=== Anima 环境检查 ==="
 echo ""
 echo "1. Node.js版本:"
 node --version
@@ -149,7 +149,7 @@ echo "3. 项目目录:"
 pwd
 echo ""
 echo "4. 数据目录:"
-ls -la ~/Library/Application\ Support/evocanvas/data/ 2>/dev/null || echo "不存在"
+ls -la ~/Library/Application\ Support/anima/data/ 2>/dev/null || echo "不存在"
 echo ""
 echo "5. .env配置:"
 cat .env 2>/dev/null | grep -v KEY | head -5 || echo "不存在"

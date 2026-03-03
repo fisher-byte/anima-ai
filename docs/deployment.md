@@ -1,4 +1,4 @@
-# EvoCanvas 部署运维指南
+# Anima 部署运维指南
 
 ## 开发环境
 
@@ -72,16 +72,16 @@ NODE_ENV=production PORT=3000 npm start
 
 ```bash
 # 构建镜像
-docker build -t evocanvas .
+docker build -t anima .
 
 # 启动容器（数据持久化到主机目录）
 docker run -d \
   -p 3000:3000 \
-  -v ~/evocanvas-data:/app/data \
+  -v ~/anima-data:/app/data \
   -e AUTH_ENABLED=true \
   -e ACCESS_TOKEN=your-secret-token \
-  --name evocanvas \
-  evocanvas:latest
+  --name anima \
+  anima:latest
 ```
 
 **环境变量说明**：
@@ -125,7 +125,7 @@ server {
 
 ### 数据文件
 
-所有数据保存在 SQLite 单文件（`DATA_DIR/evocanvas.db`）的两张表：
+所有数据保存在 SQLite 单文件（`DATA_DIR/anima.db`）的两张表：
 
 | 表 | 内容 |
 |----|------|
@@ -136,17 +136,17 @@ server {
 
 ```bash
 # 直接复制 SQLite 文件即可完整备份
-cp ~/evocanvas-data/evocanvas.db evocanvas-backup-$(date +%Y%m%d).db
+cp ~/anima-data/anima.db anima-backup-$(date +%Y%m%d).db
 
 # Docker 环境
-docker exec evocanvas cp /app/data/evocanvas.db /app/data/backup-$(date +%Y%m%d).db
+docker exec anima cp /app/data/anima.db /app/data/backup-$(date +%Y%m%d).db
 ```
 
 ### 恢复
 
 ```bash
 # 停止服务，替换数据库文件，重启
-cp evocanvas-backup-20260301.db ~/evocanvas-data/evocanvas.db
+cp anima-backup-20260301.db ~/anima-data/anima.db
 ```
 
 ---
@@ -194,7 +194,7 @@ npm version patch   # 或 minor / major
 git push origin main --tags
 
 # 3. 构建 Docker 镜像
-docker build -t evocanvas:$(node -p "require('./package.json').version") .
+docker build -t anima:$(node -p "require('./package.json').version") .
 ```
 
 ---

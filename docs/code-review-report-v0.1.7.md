@@ -1,4 +1,4 @@
-# EvoCanvas Code Review Report (v0.1.7)
+# Anima Code Review Report (v0.1.7，曾用名 EvoCanvas)
 
 **Review Date**: 2026-03-02
 **Version**: v0.1.7
