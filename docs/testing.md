@@ -1,4 +1,4 @@
-# EvoCanvas 测试手册
+# Anima 测试手册
 
 ## 测试策略
 
@@ -77,9 +77,9 @@ curl -X POST https://api.moonshot.cn/v1/chat/completions \
 
 | 测试项 | 验证方法 |
 |--------|---------|
-| 节点持久化 | 检查 `~/Library/Application Support/evocanvas/data/nodes.json` |
-| 偏好持久化 | 检查 `~/Library/Application Support/evocanvas/data/profile.json` |
-| 对话记录 | 检查 `~/Library/Application Support/evocanvas/data/conversations.jsonl` |
+| 节点持久化 | 检查 `~/Library/Application Support/anima/data/anima.db` 或 `./data/anima.db`（Web 模式） |
+| 偏好/配置 | 同上，存于 SQLite `config` / `storage` 表 |
+| 对话与记忆 | 同上，存于 `anima.db` |
 
 ### 5. UI/UX测试清单
 

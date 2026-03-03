@@ -129,7 +129,7 @@ evocanvas/
 
 ```bash
 # 启动后，数据在 SQLite 中
-sqlite3 data/evocanvas.db
+sqlite3 data/anima.db
 
 # 查看存储内容
 SELECT filename, length(content), updated_at FROM storage;
@@ -191,7 +191,7 @@ curl -X POST http://localhost:3000/api/ai/stream \
 
 ### 数据在哪里？
 
-`DATA_DIR`（默认 `./data/`）目录下的 `evocanvas.db` SQLite 文件。
+`DATA_DIR`（默认 `./data/`）目录下的 `anima.db` SQLite 文件。
 
 ### 如何切换回 Electron 模式？
 

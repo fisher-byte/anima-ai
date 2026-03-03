@@ -339,4 +339,4 @@ CREATE TABLE config (
 );
 ```
 
-数据库文件位置由 `DATA_DIR` 环境变量控制（默认 `./data/evocanvas.db`）。
+数据库文件位置由 `DATA_DIR` 环境变量控制（默认 `./data/anima.db`）。

@@ -1,4 +1,4 @@
-# EvoCanvas 开发笔记
+# Anima 开发笔记
 
 ## 设计决策
 
@@ -214,13 +214,13 @@ describe('conversation flow', () => {
 
 ```bash
 # macOS
-open ~/Library/Application\ Support/evocanvas/data/
+open ~/Library/Application\ Support/anima/data/
 
 # Windows
-explorer %APPDATA%/evocanvas/data/
+explorer %APPDATA%\anima\data\
 
 # Linux
-xdg-open ~/.config/evocanvas/data/
+xdg-open ~/.config/anima/data/
 ```
 
 ### 调试主进程
@@ -260,7 +260,7 @@ console.log(state.profile)
    - 完全离线运行
 
 5. **导入/导出**
-   - 导出所有数据为 .evocanvas 文件
+   - 导出所有数据为 Anima 画布文件（如 .anima）
    - 支持分享给其他用户
 
 ### 不做的功能（克制）
