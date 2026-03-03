@@ -16,14 +16,14 @@ import type { Node as CanvasNode } from '@shared/types'
 function MemoryLines({
   nodes,
   highlightedNodeIds,
-  offset,
-  scale,
 }: {
   nodes: CanvasNode[]
   highlightedNodeIds: string[]
-  offset: { x: number; y: number }
-  scale: number
 }) {
+  // 直接订阅 store，offset/scale 变化时自动重算（不用 viewRef，避免 stale 坐标）
+  const offset = useCanvasStore(state => state.offset)
+  const scale = useCanvasStore(state => state.scale)
+
   if (highlightedNodeIds.length === 0) return null
 
   const vw = typeof window !== 'undefined' ? window.innerWidth : 1280
@@ -33,24 +33,26 @@ function MemoryLines({
   const targetX = vw / 2
   const targetY = vh - 80
 
-  // Canvas 内容层偏移：left=-100vw, top=-100vh，再加 translate(offset.x, offset.y) scale(scale)
-  // 节点屏幕坐标 = node.canvasPos * scale + offset - [vw, vh]
-  const NODE_W = 208  // NodeCard 固定宽度 w-52
-  const NODE_H = 100  // 节点大致高度（估算）
+  // contentLayer: left=-vw, top=-vh, transform=translate(offset.x,offset.y) scale(scale), transformOrigin='0 0'
+  // 节点屏幕坐标公式（transformOrigin 为左上角）：
+  //   screenX = (node.x + (-vw)) * scale + offset.x  =  node.x * scale - vw * scale + offset.x
+  //   screenY = (node.y + (-vh)) * scale + offset.y  =  node.y * scale - vh * scale + offset.y
+  const NODE_W = 208  // NodeCard w-52
+  const NODE_H = 120  // 节点大致高度
   const lines = highlightedNodeIds
     .map(id => nodes.find(n => n.id === id))
     .filter((n): n is CanvasNode => !!n)
     .map(node => {
       // 节点左上角屏幕坐标
-      const nx = node.x * scale + offset.x - vw
-      const ny = node.y * scale + offset.y - vh
+      const nx = node.x * scale - vw * scale + offset.x
+      const ny = node.y * scale - vh * scale + offset.y
       // 节点中心屏幕坐标
       const sx = nx + (NODE_W / 2) * scale
       const sy = ny + (NODE_H / 2) * scale
       return { id: node.id, sx, sy }
     })
-    // 只画节点中心严格在屏幕可视区内的连线，避免"悬空线"
-    .filter(({ sx, sy }) => sx >= 0 && sx <= vw && sy >= 0 && sy <= vh - 100)
+    // 节点中心必须严格在可视区内才画线，避免"悬空线"
+    .filter(({ sx, sy }) => sx >= 10 && sx <= vw - 10 && sy >= 10 && sy <= vh - 120)
 
   if (lines.length === 0) return null
 
@@ -559,8 +561,6 @@ export function Canvas() {
           <MemoryLines
             nodes={nodes}
             highlightedNodeIds={highlightedNodeIds}
-            offset={viewRef.current.offset}
-            scale={viewRef.current.scale}
           />
         )}
       </AnimatePresence>

@@ -122,7 +122,7 @@ const _envApiUrl = (() => {
 })() || (typeof process !== 'undefined' ? process.env.VITE_API_URL : undefined)
 
 export const API_CONFIG = {
-  BASE_URL: _envApiUrl || 'https://api.openai.com/v1',
+  BASE_URL: _envApiUrl || 'https://api.moonshot.cn/v1',
   API_KEY: '', // 将在应用启动时加载
   TIMEOUT: 60000 // 增加到60秒，因为联网搜索可能较慢
 }
