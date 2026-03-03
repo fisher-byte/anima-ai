@@ -1,5 +1,5 @@
 /**
- * EvoCanvas Hono Server
+ * Anima Hono Server
  *
  * Serves:
  * - /api/*          → REST API routes (storage, config, AI proxy)
@@ -62,7 +62,7 @@ if (process.env.NODE_ENV === 'production') {
 const PORT = parseInt(process.env.PORT ?? '3000', 10)
 
 serve({ fetch: app.fetch, port: PORT }, () => {
-  console.log(`EvoCanvas server running at http://localhost:${PORT}`)
+  console.log(`Anima server running at http://localhost:${PORT}`)
   // 启动后台 Agent Worker（画像提取、记忆索引等）
   startAgentWorker()
 })

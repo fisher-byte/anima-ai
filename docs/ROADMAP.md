@@ -1,4 +1,4 @@
-# EvoCanvas 更新路线图
+# Anima 更新路线图
 
 ## 版本规划
 
@@ -293,4 +293,4 @@
 ---
 
 *最后更新: 2026-03-02*
-*维护者: EvoCanvas Team*
+*维护者: Anima Team*

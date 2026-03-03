@@ -1,8 +1,8 @@
-# EvoCanvas 架构文档
+# Anima 架构文档
 
 ## 项目概述
 
-EvoCanvas 是一个本地优先的AI画布应用，核心功能是**记住用户的偏好**，在每次对话中体现这些偏好，让用户感到"被记住"。
+Anima 是一个本地优先的 AI 画布应用，核心功能是**积累用户的记忆与偏好**，在每次对话中体现这些理解，让用户感到"被真正记住"。
 
 ## 技术栈
 
@@ -198,7 +198,7 @@ evocanvas/
 ```bash
 # AI API配置
 EVOCANVAS_API_URL=https://api.openai.com/v1
-EVOCANVAS_API_KEY=your_api_key
+RENDERER_VITE_API_KEY=your_api_key
 ```
 
 ### 开发运行

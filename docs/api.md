@@ -1,8 +1,8 @@
-# EvoCanvas API 文档
+# Anima API 文档
 
 ## 架构说明
 
-v0.3.0 起，EvoCanvas 重构为 Web 全栈应用。所有存储和 AI 调用均通过 HTTP API 完成，API Key 永不暴露给浏览器。
+v0.3.0 起，Anima 重构为 Web 全栈应用。所有存储和 AI 调用均通过 HTTP API 完成，API Key 永不暴露给浏览器。
 
 **前端访问方式**：通过 `storageService` / `configService` 抽象层，自动适配 Web（HTTP）和 Electron（IPC）两种运行环境。
 

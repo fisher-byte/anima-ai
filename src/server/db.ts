@@ -13,7 +13,7 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true })
 }
 
-const DB_PATH = path.join(DATA_DIR, 'evocanvas.db')
+const DB_PATH = path.join(DATA_DIR, 'anima.db')
 
 export const db = new Database(DB_PATH)
 

@@ -1,4 +1,4 @@
-# EvoCanvas 开发指南
+# Anima 开发指南
 
 ## 环境准备
 

@@ -97,7 +97,7 @@ storageRoutes.get('/export', (_c) => {
     status: 200,
     headers: {
       'Content-Type': 'application/json',
-      'Content-Disposition': 'attachment; filename="evocanvas-export.json"'
+      'Content-Disposition': 'attachment; filename="anima-export.json"'
     }
   })
 })
