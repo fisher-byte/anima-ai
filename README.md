@@ -2,7 +2,7 @@
 
 > 一个记住你偏好的本地AI画布。
 
-![版本](https://img.shields.io/badge/version-0.2.9-blue)
+![版本](https://img.shields.io/badge/version-0.4.0-blue)
 ![Electron](https://img.shields.io/badge/Electron-29.1.4-47848F?logo=electron)
 ![React](https://img.shields.io/badge/React-18.2.0-61DAFB?logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.4.2-3178C6?logo=typescript)
@@ -26,7 +26,7 @@
 
 ## 功能特性
 
-### 已实现 (v0.2.5)
+### 已实现 (v0.4.0)
 
 - [x] **缩放性能彻底修复（v0.3.1）** — 三层根因：① NodeCard 用细粒度 selector 替代全 store 订阅；② 漂浮动画改为纯 CSS `@keyframes`（compositor thread，零主线程开销）；③ 根容器改为 `<div>` + CSS transition 消除 Framer Motion 常驻 rAF 上下文。滚动/缩放全程零 React 重渲染
 - [x] **Web 全栈化（v0.3.0）** — Hono 后端 + SQLite 存储，AI 调用走后端代理（API Key 不出浏览器），支持 Docker 部署
@@ -41,6 +41,12 @@
 - [x] **极光背景与 LOD** - 极光背景随主导分类变色；缩小画布时节点淡出、显示宏观聚类标签（ClusterLabel），标签反向缩放保持可读
 - [x] **语义高亮** - 输入时实时检测意图并检索相关记忆，画布上对应节点高亮；高亮使用节点 id 与 conversationId 正确映射
 - [x] **记忆高亮稳定性修复（v0.3.3）** - 过滤无节点的记忆结果，确保画布高亮与连线可见
+- [x] **自然新手引导（v0.4.0）** - 完全去除引导弹窗，改为 AI 在主对话框主动发消息（问候 → 首轮交互 → 引导关闭），X 按钮脉冲提示，关闭触发节点"分裂"动画，最终弹窗仅保留最后一步
+- [x] **记忆系统独立（v0.4.0）** - Memory 成为与进化基因同级的独立面板；每次对话后 AI 自动提取事实存入 `memory_facts` 表，支持查看/删除单条记忆
+- [x] **真实文件存储与 Embedding（v0.4.0）** - 上传文件和图片真实写入 SQLite `uploaded_files` 表（二进制 BLOB），同时触发 embedding 向量化入库；全面去除 mock
+- [x] **文件气泡 UI（v0.4.0）** - 文件以小气泡形式环绕对话大气泡展示，点击展开显示详情和下载链接
+- [x] **导出功能（v0.4.0）** - 右上角新增导出菜单：「导出对话 MD」（客户端生成）+ 「导出全量数据 JSON」（后端 `/api/storage/export`）
+- [x] **进化基因前置（v0.4.0）** - 首轮引导消息即涵盖进化基因介绍，自然引导用户填写偏好，不后置、不独立成模块
 - [x] **新手引导流程修复（v0.2.9）** - sent1/open2 阶段新增"关闭对话窗口触发下一步"的明确提示，引导不再卡死
 - [x] **用户画像面板（v0.2.9）** - 进化日志 Tab 新增画像卡片，展示职业/城市/兴趣/工具/目标/风格，由 agentWorker 后台静默提取
 - [x] **进化更新提示系统（v0.2.9）** - 新节点写入后菜单「进化日志」亮蓝点；对话关闭动画升级为「记忆节点已固化 + 偏好应用」双层提示
@@ -125,11 +131,12 @@ evocanvas/
 │   ├── main/           # Electron 主进程
 │   ├── preload/        # Preload 脚本
 │   ├── renderer/       # React 渲染进程
-│   │   ├── components/ # UI组件
+│   │   ├── components/ # UI组件（含 FileBubble / ThinkingSection / OnboardingCompletePopup）
 │   │   ├── hooks/      # 自定义Hooks
-│   │   └── stores/     # Zustand状态
+│   │   ├── stores/     # Zustand状态
+│   │   └── utils/      # 工具函数（conversationUtils 等）
 │   ├── shared/         # 类型和常量
-│   └── services/       # 业务逻辑
+│   └── services/       # 业务逻辑（fileParsing / embedding）
 ├── data/               # 本地数据（自动生成）
 │   ├── profile.json    # 用户偏好
 │   ├── nodes.json      # 画布节点
@@ -193,7 +200,14 @@ evocanvas/
 
 ## Roadmap
 
-### v0.2.5 (当前) ✓
+### v0.4.0 (当前) ✓
+- 自然新手引导：主对话框内三阶段引导 + 节点分裂动画 + X 按钮脉冲
+- 记忆系统独立：`memory_facts` 表 + 自动提取 + 独立 Memory Tab
+- 真实文件存储：SQLite BLOB + 真实 Embedding 入库 + 文件气泡 UI
+- 全量数据导出：MD 对话导出 + JSON 全量导出
+- 文件规范：所有组件文件控制在 1000 行以内
+
+### v0.2.5 ✓
 - 5 个核心 Bug 全量修复：滚轮缩放（passive wheel）、ClusterLabel 交互（pointerEvents 层级）、输入框/对话面板居中（Framer Motion transform 冲突）、NodeDetailPanel 风格统一、ClusterLabel + 极光背景可见度增强
 
 ### v0.2.4 ✓

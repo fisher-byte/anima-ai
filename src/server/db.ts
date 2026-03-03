@@ -69,6 +69,29 @@ db.exec(`
     error       TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_agent_tasks_status ON agent_tasks(status);
+
+  -- 从对话中自动摘取的用户记忆事实（独立记忆板块）
+  CREATE TABLE IF NOT EXISTS memory_facts (
+    id             TEXT NOT NULL,
+    fact           TEXT NOT NULL,
+    source_conv_id TEXT,
+    created_at     TEXT NOT NULL,
+    PRIMARY KEY(id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_memory_facts_created ON memory_facts(created_at DESC);
+
+  -- 用户上传的文件（真实二进制存储）
+  CREATE TABLE IF NOT EXISTS uploaded_files (
+    id           TEXT NOT NULL,
+    filename     TEXT NOT NULL,
+    mimetype     TEXT NOT NULL DEFAULT '',
+    size         INTEGER NOT NULL DEFAULT 0,
+    content      BLOB,
+    text_content TEXT,
+    conv_id      TEXT,
+    created_at   TEXT NOT NULL,
+    PRIMARY KEY(id)
+  );
 `)
 
 export type StorageRow = { filename: string; content: string; updated_at: string }
@@ -82,4 +105,11 @@ export type UserProfileRow = {
 export type AgentTaskRow = {
   id: number; type: string; payload: string; status: string;
   created_at: string; started_at: string | null; finished_at: string | null; error: string | null
+}
+export type MemoryFactRow = {
+  id: string; fact: string; source_conv_id: string | null; created_at: string
+}
+export type UploadedFileRow = {
+  id: string; filename: string; mimetype: string; size: number;
+  content: Buffer | null; text_content: string | null; conv_id: string | null; created_at: string
 }

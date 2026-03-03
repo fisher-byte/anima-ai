@@ -60,6 +60,16 @@ interface CanvasState {
   highlightedNodeIds: string[]
   selectNode: (id: string | null) => void
   setHighlight: (category: string | null, nodeIds: string[]) => void
+
+  // 新增：新手引导状态
+  isOnboardingMode: boolean
+  onboardingPhase: number
+  openOnboarding: () => void
+  setOnboardingPhase: (phase: number) => void
+  completeOnboarding: () => void
+
+  // 新增：移除偏好规则
+  removePreference: (index: number) => Promise<void>
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
@@ -78,11 +88,37 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   highlightedCategory: null,
   highlightedNodeIds: [],
 
+  // 新手引导初始化
+  isOnboardingMode: false,
+  onboardingPhase: 0,
+
   setConversationHistory: (history) => set({ conversationHistory: history }),
   resetConversationHistory: () => set({ conversationHistory: [] }),
 
   selectNode: (id) => set({ selectedNodeId: id }),
   setHighlight: (category, nodeIds) => set({ highlightedCategory: category, highlightedNodeIds: nodeIds }),
+
+  openOnboarding: () => {
+    const conv: import('@shared/types').Conversation = {
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      userMessage: '',
+      assistantMessage: '',
+      images: [],
+      files: []
+    }
+    set({ isOnboardingMode: true, onboardingPhase: 0, currentConversation: conv, isModalOpen: true, isLoading: false })
+  },
+  setOnboardingPhase: (phase) => set({ onboardingPhase: phase }),
+  completeOnboarding: () => set({ isOnboardingMode: false, onboardingPhase: 0 }),
+
+  removePreference: async (index: number) => {
+    const { profile } = get()
+    const updatedRules = profile.rules.filter((_, i) => i !== index)
+    const updatedProfile = { ...profile, rules: updatedRules }
+    set({ profile: updatedProfile })
+    await storageService.write(STORAGE_FILES.PROFILE, JSON.stringify(updatedProfile, null, 2))
+  },
 
   setOffset: (offset) => set({ offset }),
   setScale: (scale) => set({ scale: Math.max(0.2, Math.min(3, scale)) }),
@@ -837,5 +873,18 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         }
       })
     }).catch(() => { /* 静默忽略 */ })
+
+    // fire-and-forget：从对话中摘取用户记忆事实（独立记忆板块）
+    if (conversation.userMessage?.trim().length > 5) {
+      fetch('/api/memory/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId: conversation.id,
+          userMessage: conversation.userMessage,
+          assistantMessage: conversation.assistantMessage.slice(0, 400)
+        })
+      }).catch(() => { /* 静默忽略 */ })
+    }
   }
 }))
