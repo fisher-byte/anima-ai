@@ -64,6 +64,16 @@ textarea {
   scrollbar-width: none;
 }
 
+/* Node float animations — run on compositor thread (transform only), zero JS overhead */
+@keyframes nodeFloatY {
+  from { transform: translateY(0px); }
+  to   { transform: translateY(-4px); }
+}
+@keyframes nodeFloatX {
+  from { transform: translateX(-3px); }
+  to   { transform: translateX(3px); }
+}
+
 /* Animations */
 @keyframes fadeIn {
   from {
