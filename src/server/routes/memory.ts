@@ -290,16 +290,70 @@ ${assistantMessage ? `AI回复：${assistantMessage.slice(0, 200)}` : ''}
       INSERT INTO memory_facts (id, fact, source_conv_id, created_at)
       VALUES (lower(hex(randomblob(16))), ?, ?, ?)
     `)
-    const checkDup = db.prepare(`SELECT COUNT(*) as cnt FROM memory_facts WHERE fact = ?`)
-    let inserted = 0
-    for (const fact of facts.slice(0, 5)) {
-      if (fact?.trim().length > 2) {
-        const trimmed = fact.trim()
-        const { cnt } = checkDup.get(trimmed) as { cnt: number }
-        if (cnt === 0) {
-          insert.run(trimmed, conversationId ?? null, now)
-          inserted++
+
+    // 获取候选 facts（先做基础过滤）
+    const candidates = facts
+      .slice(0, 5)
+      .map((f: string) => f?.trim())
+      .filter((f: string) => f && f.length > 2)
+
+    if (candidates.length === 0) return c.json({ ok: true, extracted: 0 })
+
+    // 读取最近 30 条已有 facts 做语义去重
+    const existingRows = db.prepare(
+      'SELECT fact FROM memory_facts ORDER BY created_at DESC LIMIT 30'
+    ).all() as { fact: string }[]
+    const existingFacts = existingRows.map(r => r.fact)
+
+    let toInsert: string[] = candidates
+
+    if (existingFacts.length > 0) {
+      // 用轻量模型做语义去重，避免重复存储同义信息
+      try {
+        const dedupeResp = await fetch(`${baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify({
+            model: isMoonshot ? 'moonshot-v1-8k' : 'gpt-4o-mini',
+            messages: [{
+              role: 'user',
+              content: `已有记忆：\n${existingFacts.map((f, i) => `${i + 1}. ${f}`).join('\n')}\n\n新候选：\n${candidates.map((f, i) => `${i + 1}. ${f}`).join('\n')}\n\n请返回新候选中与已有记忆**语义不重复**的部分（完全相同或意思相同的去掉）。只返回JSON：{"keep": ["事实1", "事实2"]}`
+            }],
+            temperature: 0,
+            max_tokens: 300
+          })
+        })
+        if (dedupeResp.ok) {
+          const dedupeData = (await dedupeResp.json()) as { choices: { message: { content: string } }[] }
+          const dedupeContent = dedupeData.choices?.[0]?.message?.content || ''
+          const jsonMatch = dedupeContent.match(/\{[\s\S]*\}/)
+          if (jsonMatch) {
+            try {
+              const { keep } = JSON.parse(jsonMatch[0]) as { keep: string[] }
+              if (Array.isArray(keep)) {
+                // 只保留原始 candidates 中的条目，防止模型 hallucinate 新内容
+                const candidateSet = new Set(candidates)
+                toInsert = keep.map((f: string) => f?.trim()).filter(f => f && candidateSet.has(f))
+              }
+            } catch {
+              // JSON 解析失败降级为精确匹配去重
+              const exactSet = new Set(existingFacts)
+              toInsert = candidates.filter((f: string) => !exactSet.has(f))
+            }
+          }
         }
+      } catch {
+        // 去重失败降级为精确匹配去重
+        const exactSet = new Set(existingFacts)
+        toInsert = candidates.filter((f: string) => !exactSet.has(f))
+      }
+    }
+
+    let inserted = 0
+    for (const fact of toInsert) {
+      if (fact.length > 2) {
+        insert.run(fact, conversationId ?? null, now)
+        inserted++
       }
     }
 

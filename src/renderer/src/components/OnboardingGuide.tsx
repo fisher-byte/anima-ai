@@ -1,10 +1,11 @@
 /**
- * OnboardingGuide — 新手引导触发器 v4
+ * OnboardingGuide — 新手引导触发器 v5
  *
  * 不再渲染任何 UI，只在首次访问时自动调用 openOnboarding()
  * 所有引导交互都在 AnswerModal 内以 AI 主动发消息的方式完成。
  *
  * 完成标记：localStorage.evo_onboarding_v3
+ * 断点续引导：localStorage.evo_onboarding_phase（中途退出时写入，恢复时读取）
  */
 
 import { useEffect, useRef } from 'react'
@@ -16,14 +17,14 @@ export function OnboardingGuide() {
 
   useEffect(() => {
     if (decided.current) return
-    // 等待 loadNodes 异步完成后再决定（800ms 门控，与原逻辑保持一致）
     const timer = setTimeout(() => {
       if (decided.current) return
       decided.current = true
 
+      // 已完成，不再打开
       if (localStorage.getItem('evo_onboarding_v3')) return
-      if (useCanvasStore.getState().nodes.length > 0) return
 
+      // 首次进入 或 中途退出后恢复（无节点数量限制）
       openOnboarding()
     }, 800)
     return () => clearTimeout(timer)

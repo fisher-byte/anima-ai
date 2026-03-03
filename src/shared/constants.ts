@@ -82,9 +82,51 @@ export const AI_CONFIG = {
 } as const
 
 /**
+ * 简单查询快速模型（问候、短句、单一事实问）
+ * 不启用深度思考，响应更快
+ */
+export const FAST_MODEL = 'moonshot-v1-8k'
+export const FAST_MODEL_MAX_TOKENS = 800
+
+/**
+ * 简单查询判定关键词（任意命中则路由到快速模型）
+ */
+export const SIMPLE_QUERY_GREETINGS = ['你好', '嗨', 'hi', 'hello', '早上好', '晚安', '早', '在吗']
+export const SIMPLE_QUERY_FACT_PATTERNS = ['什么是', '谁是', '怎么定义', '哪年', '是什么意思', '什么意思']
+
+/**
  * 具备多模态和联网能力的模型列表
  */
 export const MULTIMODAL_MODELS = ['kimi-k2.5', 'gpt-4o', 'gpt-4o-mini'] as const
+
+/**
+ * 导入外部记忆功能 — 各平台 Prompt
+ */
+export const IMPORT_MEMORY_PROMPTS = {
+  chatgpt: `请帮我总结你目前对我的了解，包括：
+1. 我是谁（职业、背景、常用工具等）
+2. 我们聊过的主要话题和结论
+3. 你观察到的我的思维方式、偏好或习惯
+4. 任何你认为另一个 AI 应该知道的上下文
+
+请以结构化文字输出，不要用 Markdown 标题，方便我直接粘贴使用。`,
+
+  claude: `请帮我总结你目前对我的了解，包括：
+1. 我是谁（职业、背景、常用工具等）
+2. 我们聊过的主要话题和结论
+3. 你观察到的我的思维方式、偏好或习惯
+4. 任何你认为另一个 AI 应该知道的上下文
+
+请以结构化文字输出，不要用 Markdown 标题，方便我直接粘贴使用。`,
+
+  gemini: `请帮我总结你目前对我的了解，包括：
+1. 我是谁（职业、背景、常用工具等）
+2. 我们聊过的主要话题和结论
+3. 你观察到的我的思维方式、偏好或习惯
+4. 任何你认为另一个 AI 应该知道的上下文
+
+请以结构化文字输出，不要用 Markdown 标题，方便我直接粘贴使用。`
+} as const
 
 /**
  * 支持的模型列表

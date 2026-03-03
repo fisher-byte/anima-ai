@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Import } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useLodScale } from '../hooks/useLodScale'
 import type { Node } from '@shared/types'
@@ -9,7 +10,13 @@ interface NodeCardProps {
   depth: number
 }
 
+/** 纯分发器：根据 nodeType 选择子组件，自身不持有任何 hooks，避免条件 hooks 违规 */
 export const NodeCard = memo(function NodeCard({ node, depth }: NodeCardProps) {
+  if (node.nodeType === 'capability') return <CapabilityNodeCard node={node} />
+  return <RegularNodeCard node={node} depth={depth} />
+})
+
+function RegularNodeCard({ node, depth }: NodeCardProps) {
   // 细粒度 selector，不订阅整个 store（否则任何 store 变化都会重渲染所有 NodeCard）
   const removeNode = useCanvasStore(state => state.removeNode)
   const updateNodePosition = useCanvasStore(state => state.updateNodePosition)
@@ -214,4 +221,65 @@ export const NodeCard = memo(function NodeCard({ node, depth }: NodeCardProps) {
       </div>
     </motion.div>
   )
-})
+}
+
+// ── 能力节点渲染 ──────────────────────────────────────────────────────────────
+
+function CapabilityNodeCard({ node }: { node: Node }) {
+  const openCapability = useCanvasStore(state => state.openCapability)
+  const updateNodePosition = useCanvasStore(state => state.updateNodePosition)
+  const scale = useCanvasStore(state => state.scale)
+
+  const isDragging = useRef(false)
+  const dragStart = useRef<{ mx: number; my: number; nx: number; ny: number } | null>(null)
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    isDragging.current = false
+    dragStart.current = { mx: e.clientX, my: e.clientY, nx: node.x, ny: node.y }
+  }, [node.x, node.y])
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragStart.current) return
+    const dx = e.clientX - dragStart.current.mx
+    const dy = e.clientY - dragStart.current.my
+    if (Math.hypot(dx, dy) > 4) {
+      isDragging.current = true
+      updateNodePosition(node.id, dragStart.current.nx + dx / scale, dragStart.current.ny + dy / scale)
+    }
+  }, [node.id, scale, updateNodePosition])
+
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    e.currentTarget.releasePointerCapture(e.pointerId)
+    if (!isDragging.current) openCapability(node.id)
+    dragStart.current = null
+    isDragging.current = false
+  }, [node.id, openCapability])
+
+  const ICONS: Record<string, React.ReactNode> = {
+    'import-memory': <Import className="w-5 h-5 text-violet-500" />
+  }
+  const capId = node.capabilityData?.capabilityId ?? 'import-memory'
+
+  return (
+    <motion.div
+      initial={{ scale: 0.85, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+      style={{ position: 'absolute', left: node.x, top: node.y, transform: 'translate(-50%,-50%)' }}
+      className="select-none touch-none"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+    >
+      <div className="flex flex-col items-center gap-1 px-4 py-3 bg-violet-50 border-2 border-violet-200 border-dashed rounded-2xl shadow-sm hover:shadow-md transition-shadow cursor-pointer w-36 text-center">
+        <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center">
+          {ICONS[capId]}
+        </div>
+        <div className="text-[12px] font-semibold text-violet-700 leading-tight">{node.title}</div>
+        <div className="text-[10px] text-violet-400">点击使用</div>
+      </div>
+    </motion.div>
+  )
+}

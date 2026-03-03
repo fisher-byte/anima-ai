@@ -19,10 +19,10 @@ export function OnboardingCompletePopup({ onDismiss }: OnboardingCompletePopupPr
     >
       <div className="absolute inset-0 bg-black/30" onClick={onDismiss} />
       <motion.div
-        initial={{ scale: 0.9, opacity: 0, y: 20 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.95, opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+        initial={{ scale: 0.94, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.97, opacity: 0 }}
+        transition={{ duration: 0.15, ease: 'easeOut' }}
         className="relative bg-white rounded-3xl shadow-2xl px-8 py-7 w-80 text-center z-10"
       >
         <div className="w-12 h-12 mx-auto mb-4 rounded-2xl bg-gray-900 flex items-center justify-center">
