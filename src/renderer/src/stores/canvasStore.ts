@@ -718,9 +718,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   // 获取相关的历史记忆
-  getRelevantMemories: async (query: string): Promise<{ conv: Conversation; category?: string }[]> => {
+  getRelevantMemories: async (query: string): Promise<{ conv: Conversation; category?: string; nodeId?: string }[]> => {
     try {
       const { nodes } = get()
+      const nodeByConvId = new Map<string, Node>()
+      const nodeById = new Map<string, Node>()
+      nodes.forEach(n => {
+        nodeByConvId.set(n.conversationId, n)
+        nodeById.set(n.id, n)
+      })
       const content = await storageService.read(STORAGE_FILES.CONVERSATIONS)
       if (!content) return []
       
@@ -766,12 +772,18 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         return { conv, score }
       })
       
-      const top = scored.filter(s => s.score > 0).sort((a, b) => b.score - a.score).slice(0, 3)
+      const top = scored
+        .filter(s => s.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3)
 
-      return top.map(s => {
-        const node = nodes.find(n => n.conversationId === s.conv.id)
-        return { conv: s.conv, category: node?.category, nodeId: node?.id }
-      })
+      return top
+        .map(s => {
+          const node = nodeByConvId.get(s.conv.id) ?? nodeById.get(s.conv.id)
+          if (!node) return null
+          return { conv: s.conv, category: node.category, nodeId: node.id }
+        })
+        .filter((m): m is { conv: Conversation; category?: string; nodeId?: string } => m != null)
     } catch (error) {
       console.error('Failed to get relevant memories:', error)
       return []

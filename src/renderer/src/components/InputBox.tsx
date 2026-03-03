@@ -44,7 +44,7 @@ export function InputBox() {
           
           // 3. Map conversation ids to node ids for canvas highlight
           const highlightedIds = memories
-            .map(m => m.nodeId)
+            .map(m => m.nodeId ?? m.conv.id)
             .filter((id): id is string => !!id)
           setHighlight(category, highlightedIds)
           
