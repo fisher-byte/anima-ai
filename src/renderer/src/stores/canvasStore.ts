@@ -468,6 +468,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       } catch (err) {
         console.error('Failed to sync conversation deletion:', err)
       }
+
+      // fire-and-forget：删除向量索引
+      fetch(`/api/memory/index/${nodeToRemove.conversationId}`, { method: 'DELETE' })
+        .catch(() => { /* 静默忽略 */ })
     }
   },
 
@@ -717,7 +721,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     return '其他'
   },
 
-  // 获取相关的历史记忆
+  // 获取相关的历史记忆（后端向量检索，降级到关键词搜索）
   getRelevantMemories: async (query: string): Promise<{ conv: Conversation; category?: string; nodeId?: string }[]> => {
     try {
       const { nodes } = get()
@@ -727,21 +731,49 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         nodeByConvId.set(n.conversationId, n)
         nodeById.set(n.id, n)
       })
+
+      // 读取对话内容（用于本地降级 + 向量结果补全全文）
       const content = await storageService.read(STORAGE_FILES.CONVERSATIONS)
       if (!content) return []
-      
+
       const lines = content.trim().split('\n').filter(Boolean)
-      const conversations: Conversation[] = []
-      
+      const convMap = new Map<string, Conversation>()
       for (const line of lines) {
         try {
-          conversations.push(JSON.parse(line))
-        } catch {
-          // ignore
-        }
+          const c = JSON.parse(line) as Conversation
+          if (c.id) convMap.set(c.id, c)
+        } catch { /* ignore */ }
       }
-      
-      // 提取查询关键词：空格/标点分词 + 中文连续 2~4 字子串（便于「深圳美食」等无空格查询）
+
+      // 1. 尝试后端向量检索
+      try {
+        const resp = await fetch('/api/memory/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, topK: 5 })
+        })
+        if (resp.ok) {
+          const data = (await resp.json()) as { results: { conversationId: string; score: number }[]; fallback?: boolean }
+
+          if (!data.fallback && data.results.length > 0) {
+            // 向量检索成功，用结果补全 Conversation 全文
+            const results: { conv: Conversation; category?: string; nodeId?: string }[] = []
+            for (const r of data.results) {
+              const conv = convMap.get(r.conversationId)
+              if (!conv) continue
+              const node = nodeByConvId.get(conv.id) ?? nodeById.get(conv.id)
+              if (!node) continue
+              results.push({ conv, category: node.category, nodeId: node.id })
+            }
+
+            if (results.length > 0) return results
+          }
+        }
+      } catch {
+        // 向量检索失败，降级
+      }
+
+      // 2. 降级：关键词搜索（保持原逻辑）
       const stopWords = new Set(['这个', '那个', '什么', '怎么', '如何', '吗', '呢', '啊', '的', '了', '是', '有', '在'])
       const bySplit = query.toLowerCase().split(/[\s,，.。!！?？;；]+/).filter(Boolean)
       const keywordsFromSplit = bySplit.filter(k => k.length >= 2 && !stopWords.has(k))
@@ -755,46 +787,55 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         }
       }
       const queryKeywords = [...new Set([...keywordsFromSplit, ...chineseSubstrings])].slice(0, 20)
-
       if (queryKeywords.length === 0) return []
-      
-      // 评分
+
+      const conversations = Array.from(convMap.values())
       const scored = conversations.map(conv => {
         let score = 0
         const text = (conv.userMessage + ' ' + conv.assistantMessage).toLowerCase()
-        
-        queryKeywords.forEach(k => {
-          if (text.includes(k.toLowerCase())) {
-            score += 1
-          }
-        })
-        
+        queryKeywords.forEach(k => { if (text.includes(k.toLowerCase())) score += 1 })
         return { conv, score }
       })
-      
-      const top = scored
-        .filter(s => s.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 3)
 
-      return top
-        .map(s => {
-          const node = nodeByConvId.get(s.conv.id) ?? nodeById.get(s.conv.id)
-          if (!node) return null
-          return { conv: s.conv, category: node.category, nodeId: node.id }
-        })
-        .filter((m): m is { conv: Conversation; category?: string; nodeId?: string } => m != null)
+      const fallbackResults: { conv: Conversation; category?: string; nodeId?: string }[] = []
+      for (const s of scored.filter(s => s.score > 0).sort((a, b) => b.score - a.score).slice(0, 3)) {
+        const node = nodeByConvId.get(s.conv.id) ?? nodeById.get(s.conv.id)
+        if (!node) continue
+        fallbackResults.push({ conv: s.conv, category: node.category, nodeId: node.id })
+      }
+      return fallbackResults
     } catch (error) {
       console.error('Failed to get relevant memories:', error)
       return []
     }
   },
 
-  // 追加对话记录
+  // 追加对话记录（同时触发后端向量索引 + 画像提取任务）
   appendConversation: async (conversation: Conversation) => {
     await storageService.append(
       STORAGE_FILES.CONVERSATIONS,
       JSON.stringify(conversation)
     )
+
+    // fire-and-forget：向量索引
+    const indexText = conversation.userMessage + ' ' + conversation.assistantMessage
+    fetch('/api/memory/index', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversationId: conversation.id, text: indexText })
+    }).catch(() => { /* 静默忽略，不影响主流程 */ })
+
+    // fire-and-forget：画像提取（排入 Agent 队列）
+    fetch('/api/memory/queue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'extract_profile',
+        payload: {
+          userMessage: conversation.userMessage,
+          assistantMessage: conversation.assistantMessage.slice(0, 600)
+        }
+      })
+    }).catch(() => { /* 静默忽略 */ })
   }
 }))

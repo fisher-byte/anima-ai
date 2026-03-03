@@ -16,6 +16,8 @@ import { authMiddleware } from './middleware/auth'
 import { storageRoutes } from './routes/storage'
 import { configRoutes } from './routes/config'
 import { aiRoutes } from './routes/ai'
+import { memoryRoutes } from './routes/memory'
+import { startAgentWorker } from './agentWorker'
 
 const app = new Hono()
 
@@ -37,6 +39,7 @@ app.use('/api/*', authMiddleware)
 app.route('/api/storage', storageRoutes)
 app.route('/api/config', configRoutes)
 app.route('/api/ai', aiRoutes)
+app.route('/api/memory', memoryRoutes)
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/api/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }))
@@ -59,4 +62,6 @@ const PORT = parseInt(process.env.PORT ?? '3000', 10)
 
 serve({ fetch: app.fetch, port: PORT }, () => {
   console.log(`EvoCanvas server running at http://localhost:${PORT}`)
+  // 启动后台 Agent Worker（画像提取、记忆索引等）
+  startAgentWorker()
 })

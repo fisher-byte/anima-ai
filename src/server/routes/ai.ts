@@ -67,6 +67,34 @@ aiRoutes.post('/stream', async (c) => {
     systemPrompt += compressedMemory.trim()
   }
 
+  // 注入用户画像
+  try {
+    const profile = db.prepare('SELECT * FROM user_profile WHERE id = 1').get() as Record<string, string | null> | undefined
+    if (profile) {
+      const parts: string[] = []
+      if (profile.occupation) parts.push(`职业：${profile.occupation}`)
+      if (profile.interests) {
+        const arr = JSON.parse(profile.interests)
+        if (arr.length) parts.push(`兴趣：${arr.join('、')}`)
+      }
+      if (profile.tools) {
+        const arr = JSON.parse(profile.tools)
+        if (arr.length) parts.push(`常用工具：${arr.join('、')}`)
+      }
+      if (profile.goals) {
+        const arr = JSON.parse(profile.goals)
+        if (arr.length) parts.push(`当前关注：${arr.join('、')}`)
+      }
+      if (profile.location) parts.push(`位置：${profile.location}`)
+      if (profile.writing_style) parts.push(`偏好回答风格：${profile.writing_style}`)
+      if (parts.length > 0) {
+        systemPrompt += '\n\n用户画像（请据此个性化回答）：\n' + parts.join('\n')
+      }
+    }
+  } catch {
+    // 画像注入失败不影响主流程
+  }
+
   const fullMessages: AIMessage[] = [
     { role: 'system', content: systemPrompt },
     ...messages
