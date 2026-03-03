@@ -111,6 +111,18 @@ evocanvas/
 
 ---
 
+## 画布性能设计
+
+### Zoom 节流
+
+`Canvas.tsx` 的 wheel 事件使用 RAF（requestAnimationFrame）节流：同一帧内的多次 wheel 事件只合并提交一次 `setView`，避免每像素触发 React 全量重渲染。
+
+### NodeCard memo
+
+`NodeCard` 用 `React.memo` 包裹，`scale` 和 `depth` 作为 prop 传入而非在组件内订阅 store.scale。zoom 时只有 `Canvas` 层 re-render，所有 `NodeCard` 通过 memo 跳过。`depth`（节点深度感）在 Canvas 层统一用 `Map` 预计算（O(n)），避免每个 NodeCard 各自 `findIndex`（O(n²)）。
+
+---
+
 ## 调试技巧
 
 ### 查看后端数据
