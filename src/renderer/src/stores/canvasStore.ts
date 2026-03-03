@@ -73,6 +73,13 @@ interface CanvasState {
 
   // 全量清空（用户画像 + 记忆 + 进化基因）并开启新手教程
   clearAllForOnboarding: () => Promise<void>
+
+  // 能力节点
+  activeCapabilityId: string | null
+  openCapability: (nodeId: string) => void
+  closeCapability: () => void
+  addCapabilityNode: (capabilityId: 'import-memory') => Promise<void>
+  saveMemoryImport: (content: string, sourceName: string) => Promise<void>
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
@@ -94,6 +101,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   // 新手引导初始化
   isOnboardingMode: false,
   onboardingPhase: 0,
+
+  // 能力节点初始化
+  activeCapabilityId: null,
 
   setConversationHistory: (history) => set({ conversationHistory: history }),
   resetConversationHistory: () => set({ conversationHistory: [] }),
@@ -144,6 +154,72 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       storageService.write(STORAGE_FILES.CONVERSATIONS, '')
     ])
     get().openOnboarding()
+  },
+
+  openCapability: (nodeId) => set({ activeCapabilityId: nodeId }),
+  closeCapability: () => set({ activeCapabilityId: null }),
+
+  addCapabilityNode: async (capabilityId) => {
+    const { nodes } = get()
+    // 避免重复添加同类能力节点
+    if (nodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === capabilityId)) return
+    const viewW = typeof window !== 'undefined' ? window.innerWidth : 1280
+    const viewH = typeof window !== 'undefined' ? window.innerHeight : 800
+    const centerX = 1.5 * viewW
+    const centerY = 1.5 * viewH
+
+    // 放置在画布中心偏右下，避开现有节点
+    let x = centerX + 320
+    let y = centerY + 160
+    const nodeGap = 200
+    for (let i = 0; i < 20; i++) {
+      const angle = (i / 8) * Math.PI * 2
+      const r = 80 + Math.floor(i / 8) * 80
+      const tx = centerX + 320 + Math.cos(angle) * r
+      const ty = centerY + 160 + Math.sin(angle) * r
+      if (nodes.every(n => Math.hypot(n.x - tx, n.y - ty) >= nodeGap)) {
+        x = tx; y = ty; break
+      }
+    }
+
+    const capabilityNodeId = `capability:${capabilityId}:${Date.now()}`
+    const LABELS: Record<string, { title: string; keywords: string[] }> = {
+      'import-memory': { title: '导入外部记忆', keywords: ['ChatGPT', 'Claude', '迁移'] }
+    }
+    const label = LABELS[capabilityId] ?? { title: '能力', keywords: [] }
+
+    const newNode: import('@shared/types').Node = {
+      id: capabilityNodeId,
+      title: label.title,
+      keywords: label.keywords,
+      date: new Date().toISOString().split('T')[0],
+      conversationId: capabilityNodeId,
+      x, y,
+      category: '__capability__',
+      color: 'rgba(237, 233, 254, 0.9)',
+      nodeType: 'capability',
+      capabilityData: { capabilityId, state: 'active' }
+    }
+
+    const updatedNodes = [...nodes, newNode]
+    set({ nodes: updatedNodes })
+    get().updateEdges()
+    await storageService.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
+  },
+
+  saveMemoryImport: async (content, sourceName) => {
+    // 把粘贴内容作为一次 assistant 单条对话节点保存到画布
+    const { endConversation } = get()
+    const convId = `import:${Date.now()}`
+    const conv: import('@shared/types').Conversation = {
+      id: convId,
+      createdAt: new Date().toISOString(),
+      userMessage: `来自 ${sourceName} 的记忆导入`,
+      assistantMessage: content,
+      images: [],
+      files: []
+    }
+    await endConversation(content, [], undefined, conv)
   },
 
   setOffset: (offset) => set({ offset }),
@@ -479,6 +555,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const categories = new Map<string, Node[]>()
     nodes.forEach(n => {
       if (connectedNodeIds.has(n.id)) return // 已经有分支连线的不再参与板块星型连线
+      if (n.nodeType === 'capability') return // 能力节点不参与分组连线
       const cat = n.category || '其他'
       if (!categories.has(cat)) categories.set(cat, [])
       categories.get(cat)!.push(n)

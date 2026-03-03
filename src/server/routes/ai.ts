@@ -18,7 +18,10 @@
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import { db } from '../db'
-import { DEFAULT_SYSTEM_PROMPT, ONBOARDING_SYSTEM_PROMPT, AI_CONFIG, MULTIMODAL_MODELS } from '../../shared/constants'
+import {
+  DEFAULT_SYSTEM_PROMPT, ONBOARDING_SYSTEM_PROMPT, AI_CONFIG, MULTIMODAL_MODELS,
+  FAST_MODEL, FAST_MODEL_MAX_TOKENS, SIMPLE_QUERY_GREETINGS, SIMPLE_QUERY_FACT_PATTERNS
+} from '../../shared/constants'
 import type { AIMessage } from '../../shared/types'
 
 export const aiRoutes = new Hono()
@@ -47,7 +50,22 @@ aiRoutes.post('/stream', async (c) => {
   const modelRow = db.prepare('SELECT value FROM config WHERE key = ?').get('model') as
     | { value: string }
     | undefined
-  const model = modelRow?.value ?? AI_CONFIG.MODEL
+  const configuredModel = modelRow?.value ?? AI_CONFIG.MODEL
+
+  // 智能路由：简单查询使用快速模型，跳过深度思考
+  const lastUserMsg = messages.filter(m => m.role === 'user').pop()
+  const lastText = typeof lastUserMsg?.content === 'string'
+    ? lastUserMsg.content
+    : (Array.isArray(lastUserMsg?.content)
+        ? (lastUserMsg!.content as any[]).find(c => c.type === 'text')?.text ?? ''
+        : '')
+  const isSimpleQuery = isOnboarding ||
+    lastText.length < 40 ||
+    SIMPLE_QUERY_GREETINGS.some(w => lastText.includes(w)) ||
+    (lastText.length < 80 && SIMPLE_QUERY_FACT_PATTERNS.some(p => lastText.includes(p)))
+
+  const model = isSimpleQuery ? FAST_MODEL : configuredModel
+  const maxTokens = isSimpleQuery ? FAST_MODEL_MAX_TOKENS : AI_CONFIG.MAX_TOKENS
 
   const baseUrlRow = db.prepare('SELECT value FROM config WHERE key = ?').get('baseUrl') as
     | { value: string }
@@ -115,13 +133,13 @@ aiRoutes.post('/stream', async (c) => {
   const requestBody: Record<string, unknown> = {
     model,
     messages: fullMessages,
-    max_tokens: AI_CONFIG.MAX_TOKENS,
+    max_tokens: maxTokens,
     temperature: AI_CONFIG.TEMPERATURE,
     stream: true
   }
 
-  // Enable web search for capable models
-  if (MULTIMODAL_MODELS.includes(model as typeof MULTIMODAL_MODELS[number])) {
+  // Enable web search for capable models (only non-simple queries)
+  if (!isSimpleQuery && MULTIMODAL_MODELS.includes(model as typeof MULTIMODAL_MODELS[number])) {
     requestBody.tools = [{ type: 'builtin_function', function: { name: '$web_search' } }]
   }
 

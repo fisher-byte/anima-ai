@@ -1,51 +1,5 @@
 # EvoCanvas 变更日志
 
-## [0.2.10] - 2026-03-03
-
-### 能力节点体系 + 新手引导优化 + 记忆系统强化
-
-#### 能力节点（Capability Node）体系（全新架构）
-
-**背景**：画布上除记忆节点外，还需要支持"可重复使用的功能入口"形态。
-
-- `shared/types.ts`：`Node` 新增 `nodeType?: 'memory' | 'capability'` 和 `capabilityData?: { capabilityId, state }` 字段
-- `canvasStore.ts`：新增 `activeCapabilityId` 状态，`openCapability / closeCapability / addCapabilityNode / saveMemoryImport` 方法；`updateEdges` 跳过能力节点的分组连线
-- `NodeCard.tsx`：重构为纯分发器（`NodeCard` → `RegularNodeCard | CapabilityNodeCard`），避免 React Hooks 规则违反；能力节点采用紫色虚线外框样式
-- 新建 `ImportMemoryModal.tsx`：「导入外部记忆」三步流程（选平台 → 复制提示词跳转 → 粘贴保存为节点）
-- `Canvas.tsx`：挂载 `<ImportMemoryModal />`
-- `constants.ts`：新增 `IMPORT_MEMORY_PROMPTS`（ChatGPT / Claude / Gemini 三平台提示词）
-
-#### 新手引导持久化与完成后生成能力节点
-
-- `OnboardingGuide.tsx`：移除 `nodes.length > 0` 限制，未完成引导的用户每次打开均重新进入
-- `AnswerModal.tsx`：引导完成后调用 `addCapabilityNode('import-memory')`，在画布生成能力节点入口
-- `canvasStore.ts`：`addCapabilityNode` 内置重复检查，同类节点不会重复生成
-
-#### Toast 结构化（AnswerModal.tsx）
-
-- 替换 `showEvolutionToast: boolean` 为 `evolutionToast: { label, detail } | null`
-- 区分三类场景：人物信息更新（提取姓名/职业）/ 进化基因记录（显示规则内容）/ 偏好生效（显示应用数量）
-- 新增 `extractUserInfo()` 辅助函数，从自我介绍中提取姓名和职业关键词
-
-#### 智能模型路由（constants.ts + server/routes/ai.ts）
-
-- 短句（<40 字）/ 问候语 / 简单事实问 → 自动路由到 `FAST_MODEL`（`moonshot-v1-8k`，800 token 上限）
-- 引导模式统一走快速模型
-- 复杂查询保持原有深度模型，且不附带 web search 工具
-
-#### 记忆语义去重（server/routes/memory.ts）
-
-- 提取新 facts 后，先与近 30 条已有记忆做语义比较（轻量 LLM 调用）
-- 返回 keep 数组严格过滤：只保留原始候选中的条目，防止模型幻觉写入
-- JSON 解析失败 fallback 精确匹配；API 调用失败 fallback 精确匹配
-- 触发条件：仅当已有 facts > 0 时触发去重 API（空库直接插入）
-
-#### 完成弹窗提速（OnboardingCompletePopup.tsx）
-
-- 动画从 Spring（~400ms）改为 `150ms easeOut`，弹出更即时
-
----
-
 ## [0.2.9b] - 2026-03-03
 
 ### 引导流程四阶段重设计 + 关闭提示轻量化 + System Prompt 去激进化
@@ -88,19 +42,6 @@
 - 「偏好已应用并进化」→「已记住你的偏好」
 
 **测试**：115 个测试全部通过，TypeScript 无新增错误。
-
----
-
-## [0.2.9c] - 2026-03-03
-
-### 全量重置入口（重新体验新手教程）
-
-**背景**：用户画像/记忆/进化基因残留会影响引导期体验，导致“不是第一次打开”的感觉。
-
-**新增/修复**：
-- 新增清空接口：`DELETE /api/memory/profile`、`DELETE /api/memory/facts`、`DELETE /api/memory/index`
-- 修复「用户画像-清空」：由 PUT 合并写入改为 DELETE 真清空
-- 侧栏新增按钮「全量清空并开启新手教程」：同时清空用户画像、记忆事实、向量检索索引、进化基因，以及画布节点/对话记录，再以全新状态打开新手教程
 
 ---
 

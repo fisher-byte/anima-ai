@@ -5,6 +5,14 @@
  */
 
 /**
+ * 能力节点数据（区别于记忆节点）
+ */
+export interface CapabilityData {
+  capabilityId: 'import-memory'  // 可扩展为更多能力类型
+  state: 'active' | 'completed'
+}
+
+/**
  * 画布节点
  */
 export interface Node {
@@ -19,6 +27,9 @@ export interface Node {
   category?: string
   color?: string
   groupId?: string // 支持节点分组
+  // 能力节点扩展字段（普通记忆节点不设此字段）
+  nodeType?: 'memory' | 'capability'
+  capabilityData?: CapabilityData
 }
 
 /**

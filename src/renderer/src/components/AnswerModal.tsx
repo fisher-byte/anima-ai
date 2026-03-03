@@ -8,7 +8,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useAI } from '../hooks/useAI'
-import type { PreferenceRule, FileAttachment } from '@shared/types'
+import type { PreferenceRule, FileAttachment, Conversation } from '@shared/types'
 import type { AIMessage } from '@shared/types'
 import { parseFiles, formatFilesForAI } from '../../../services/fileParsing'
 import { ThinkingSection } from './ThinkingSection'
@@ -16,7 +16,7 @@ import { FileBubble } from './FileBubble'
 import { OnboardingCompletePopup } from './OnboardingCompletePopup'
 import {
   ONBOARDING_GREETING,
-  ONBOARDING_STYLE_PROMPT,
+  ONBOARDING_DEFAULT_RESPONSE,
   ONBOARDING_GENE_SAVED,
   ONBOARDING_CLOSE_HINT,
   type Turn,
@@ -25,6 +25,17 @@ import {
   stripLeadingNumberHeading,
   buildAIHistory
 } from '../utils/conversationUtils'
+
+/** 从用户自我介绍消息中提取姓名/职业关键词，用于 toast 展示 */
+function extractUserInfo(message: string): string {
+  const nameMatch = message.match(/(?:我(?:叫|是|名(?:字)?叫?)|叫做?)\s*([^\s，,。！!？?]{1,8})/)
+  const roleKeywords = ['产品', '设计', '开发', '工程师', '经理', '创业', '学生', '运营', '市场', '销售', '研究', '咨询', '教师', '医生', '律师', '写作', '创作']
+  const foundRole = roleKeywords.find(k => message.includes(k))
+  const parts: string[] = []
+  if (nameMatch?.[1]) parts.push(`名字：${nameMatch[1]}`)
+  if (foundRole) parts.push(`职业方向：${foundRole}`)
+  return parts.length > 0 ? parts.join('，') : message.slice(0, 30)
+}
 
 export function AnswerModal() {
   const isModalOpen = useCanvasStore(state => state.isModalOpen)
@@ -40,13 +51,20 @@ export function AnswerModal() {
   const focusNode = useCanvasStore(state => state.focusNode)
   const isOnboardingMode = useCanvasStore(state => state.isOnboardingMode)
   const completeOnboarding = useCanvasStore(state => state.completeOnboarding)
+  const addCapabilityNode = useCanvasStore(state => state.addCapabilityNode)
 
   const [turns, setTurns] = useState<Turn[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [isClosing, setIsClosing] = useState(false)
   const [feedbackMessage, setFeedbackMessage] = useState('')
   const [detectedPreference, setDetectedPreference] = useState<PreferenceRule | null>(null)
-  const [showEvolutionToast, setShowEvolutionToast] = useState(false)
+  const [evolutionToast, setEvolutionToast] = useState<{ label: string; detail: string } | null>(null)
+  const evolutionToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const showToast = useCallback((label: string, detail: string, duration = 4000) => {
+    if (evolutionToastTimerRef.current) clearTimeout(evolutionToastTimerRef.current)
+    setEvolutionToast({ label, detail })
+    evolutionToastTimerRef.current = setTimeout(() => setEvolutionToast(null), duration)
+  }, [])
   const [appliedPreferences, setAppliedPreferences] = useState<string[]>([])
   const [pendingImages, setPendingImages] = useState<string[]>([])
   const [pendingFiles, setPendingFiles] = useState<FileAttachment[]>([])
@@ -158,27 +176,11 @@ export function AnswerModal() {
       setAppliedPreferences(prefs)
 
       if (prefs.length >= 2 && !isReplayRef.current) {
-        setShowEvolutionToast(true)
-        setTimeout(() => setShowEvolutionToast(false), 4000)
+        showToast('✦ 进化基因生效', `已应用 ${prefs.length} 条偏好规则`)
       }
 
       // 新手引导阶段推进
-      // phase 1 → AI 回应用户介绍后：追加风格偏好问题
-      if (isOnboardingMode && onboardingPhaseRef.current === 1) {
-        onboardingPhaseRef.current = 2
-        setTimeout(() => {
-          setTurns(prev => {
-            const next = [...prev]
-            const last = next[next.length - 1]
-            next[next.length - 1] = { ...last, assistant: (last.assistant || '') + ONBOARDING_STYLE_PROMPT }
-            return next
-          })
-          setTimeout(() => {
-            if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-          }, 100)
-        }, 400)
-      }
-      // phase 3 → AI 回答用户随意问题后：注入关闭提示
+      // phase 3 → AI 回答用户话题后：注入关闭提示
       if (isOnboardingMode && onboardingPhaseRef.current === 3) {
         onboardingPhaseRef.current = 4
         setTimeout(() => {
@@ -362,8 +364,7 @@ export function AnswerModal() {
 
     if (detectedPreference) {
       await addPreference(detectedPreference)
-      setShowEvolutionToast(true)
-      setTimeout(() => setShowEvolutionToast(false), 3000)
+      showToast('✦ 进化基因已更新', detectedPreference.preference.slice(0, 45))
     }
 
     setFeedbackMessage('')
@@ -381,8 +382,7 @@ export function AnswerModal() {
       const isSubstantiveFeedback = trimmed.length >= 8 && !/^(可以|好的|好|ok|okay|嗯|对|是的|没问题|行|棒|不错|了解|收到|明白|知道了|随便|都行|whatever)$/i.test(trimmed)
       if (!detectedPreference && isSubstantiveFeedback) {
         await addPreference({ trigger: trimmed, preference: trimmed, confidence: 0.7, updatedAt: new Date().toISOString().split('T')[0] })
-        setShowEvolutionToast(true)
-        setTimeout(() => setShowEvolutionToast(false), 3000)
+        showToast('✦ 进化基因已记录', trimmed.slice(0, 45))
       }
       setTimeout(() => {
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
@@ -390,12 +390,44 @@ export function AnswerModal() {
       return
     }
 
+    // phase 0：模拟流式输出预设样例回复，不调 AI，完成后跳到 phase 2 等待风格反馈
+    if (isOnboardingMode && onboardingPhaseRef.current === 0) {
+      onboardingPhaseRef.current = 2
+      setIsStreaming(true)
+      setTurns(prev => [...prev, { user: trimmed, assistant: '' }])
+
+      const fullText = ONBOARDING_DEFAULT_RESPONSE
+      let charIndex = 0
+      const CHUNK = 10
+
+      // 短暂"思考"停顿后再开始输出
+      setTimeout(() => {
+        const intervalId = setInterval(() => {
+          charIndex = Math.min(charIndex + CHUNK, fullText.length)
+          const slice = fullText.slice(0, charIndex)
+          setTurns(prev => {
+            if (!prev.length) return prev
+            const next = [...prev]
+            next[next.length - 1] = { ...next[next.length - 1], assistant: slice }
+            return next
+          })
+          if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+
+          if (charIndex >= fullText.length) {
+            clearInterval(intervalId)
+            setIsStreaming(false)
+            // 提取用户介绍中的关键信息作为 toast 说明
+            const infoDetail = extractUserInfo(trimmed)
+            showToast('✦ 人物信息已更新', infoDetail, 4000)
+          }
+        }, 18)
+      }, 700)
+
+      return
+    }
+
     setIsStreaming(true)
     setDetectedPreference(null)
-
-    if (isOnboardingMode && onboardingPhaseRef.current === 0) {
-      onboardingPhaseRef.current = 1
-    }
 
     const memories = await getRelevantMemories(trimmed)
     const category = memories[0]?.category ?? null
@@ -461,6 +493,8 @@ export function AnswerModal() {
     const lastReasoning = turns.length > 0 ? turns[turns.length - 1].reasoning : ''
     const savedAppliedPreferences = [...appliedPreferences]
     const wasOnboarding = isOnboardingMode && onboardingPhaseRef.current >= 2
+    // 在 setTimeout 之前拍一个快照，避免被后续 setTurns([]) 影响
+    const savedTurns = [...turns]
 
     setIsClosing(true)
     setTimeout(() => {
@@ -473,22 +507,39 @@ export function AnswerModal() {
       setShowXPulse(false)
       closeModal()
 
-      if (shouldSave && conversationSnapshot && conversationSnapshot.userMessage) {
-        endConversation(finalResponse, savedAppliedPreferences, lastReasoning, conversationSnapshot)
-          .catch(err => console.error('后台保存对话失败:', err))
-      }
-
       if (wasOnboarding) {
+        // 引导完成：将每段真实对话独立保存为节点
+        const realTurns = savedTurns.filter(t =>
+          t.user?.trim() && !t.assistant?.includes('✦ 进化基因已记录')
+        )
+        realTurns.forEach((t, i) => {
+          const cleanAssistant = (t.assistant || '').replace(ONBOARDING_CLOSE_HINT, '').trim()
+          const conv: Conversation = {
+            id: i === 0 && conversationSnapshot ? conversationSnapshot.id : crypto.randomUUID(),
+            createdAt: new Date().toISOString(),
+            userMessage: t.user,
+            assistantMessage: cleanAssistant,
+            images: t.images || [],
+            files: t.files || []
+          }
+          endConversation(cleanAssistant, [], t.reasoning, conv)
+            .catch(err => console.error('引导对话节点保存失败:', err))
+        })
         localStorage.setItem('evo_onboarding_v3', 'true')
         completeOnboarding()
         setShowOnboardingComplete(true)
-      } else if (isOnboardingMode) {
-        localStorage.setItem('evo_onboarding_v3', 'true')
-        completeOnboarding()
+        // 引导完成后在画布生成「导入外部记忆」能力节点
+        addCapabilityNode('import-memory').catch(() => {})
+      } else {
+        if (shouldSave && conversationSnapshot && conversationSnapshot.userMessage) {
+          endConversation(finalResponse, savedAppliedPreferences, lastReasoning, conversationSnapshot)
+            .catch(err => console.error('后台保存对话失败:', err))
+        }
+        // 中途退出引导：不标记完成，下次重新打开时 OnboardingGuide 会再次触发
       }
     }, 500)
   }, [isClosing, turns, errorMessage, isStreaming, currentConversation, isOnboardingMode,
-      endConversation, closeModal, appliedPreferences, completeOnboarding])
+      endConversation, closeModal, appliedPreferences, completeOnboarding, addCapabilityNode])
 
   // ESC 关闭
   useEffect(() => {
@@ -728,7 +779,7 @@ export function AnswerModal() {
                   pendingFiles={pendingFiles}
                   isStreaming={isStreaming}
                   isOnboardingMode={isOnboardingMode}
-                  showEvolutionToast={showEvolutionToast}
+                  evolutionToast={evolutionToast}
                   fileInputRef={fileInputRef}
                   textareaRef={textareaRef}
                   onFeedbackChange={handleFeedbackChange}
@@ -790,7 +841,7 @@ interface InputAreaProps {
   pendingFiles: FileAttachment[]
   isStreaming: boolean
   isOnboardingMode: boolean
-  showEvolutionToast: boolean
+  evolutionToast: { label: string; detail: string } | null
   fileInputRef: React.RefObject<HTMLInputElement>
   textareaRef: React.RefObject<HTMLTextAreaElement>
   onFeedbackChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
@@ -803,20 +854,26 @@ interface InputAreaProps {
 
 function InputArea({
   feedbackMessage, pendingImages, pendingFiles, isStreaming, isOnboardingMode,
-  showEvolutionToast, fileInputRef, textareaRef,
+  evolutionToast, fileInputRef, textareaRef,
   onFeedbackChange, onFeedbackSubmit, onStopGeneration, onFileSelect, onDrop, onRemoveFile
 }: InputAreaProps) {
   return (
     <div className="p-4 bg-white border-t border-gray-100">
       <div className="max-w-2xl mx-auto relative">
         <AnimatePresence>
-          {showEvolutionToast && (
+          {evolutionToast && (
             <motion.div
               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
-              className="absolute -top-10 left-0 right-0 flex justify-center"
+              className="absolute -top-14 left-0 right-0 flex justify-center"
             >
-              <div className="flex items-center gap-2 px-3 py-1 bg-gray-900 text-white text-[11px] font-medium rounded-full shadow-lg">
-                <Sparkles className="w-3 h-3 text-yellow-400" />已记住你的偏好
+              <div className="flex flex-col items-center gap-0.5 px-4 py-2 bg-gray-900 text-white rounded-2xl shadow-lg max-w-xs text-center">
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold">
+                  <Sparkles className="w-3 h-3 text-yellow-400 flex-shrink-0" />
+                  {evolutionToast.label}
+                </div>
+                {evolutionToast.detail && (
+                  <div className="text-[10px] text-white/60 leading-snug truncate max-w-[220px]">{evolutionToast.detail}</div>
+                )}
               </div>
             </motion.div>
           )}

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { NodeCard } from './NodeCard'
+import { ImportMemoryModal } from './ImportMemoryModal'
 import { Edge } from './Edge'
 import { ConversationSidebar } from './ConversationSidebar'
 import { SearchPanel } from './SearchPanel'
@@ -596,6 +597,7 @@ export function Canvas() {
           />
         )}
       </AnimatePresence>
+      <ImportMemoryModal />
     </>
   )
 }
