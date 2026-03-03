@@ -490,7 +490,7 @@ export function AnswerModal() {
     const category = memories[0]?.category ?? null
     // 正确映射：conv.id → node.id（NodeCard 读的是 node.id）
     const highlightedNodeIds = memories
-      .map(m => nodes.find(n => n.conversationId === m.conv.id)?.id)
+      .map(m => m.nodeId ?? m.conv.id)
       .filter((id): id is string => id != null)
     setHighlight(category, highlightedNodeIds)
     if (highlightedNodeIds.length > 0) focusNode(highlightedNodeIds[0])
