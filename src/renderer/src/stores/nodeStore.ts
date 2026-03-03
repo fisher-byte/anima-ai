@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Node, NodePosition, Conversation } from '@shared/types'
 import { STORAGE_FILES, UI_CONFIG } from '@shared/constants'
+import { storageService } from '../services/storageService'
 
 /**
  * 节点数据管理
@@ -28,7 +29,7 @@ export const useNodeStore = create<NodeState>((set, get) => ({
 
   loadNodes: async () => {
     try {
-      const content = await window.electronAPI.storage.read(STORAGE_FILES.NODES)
+      const content = await storageService.read(STORAGE_FILES.NODES)
       if (content) {
         const nodes = JSON.parse(content) as Node[]
         set({ nodes })
@@ -67,8 +68,8 @@ export const useNodeStore = create<NodeState>((set, get) => ({
     const updatedNodes = [...nodes, newNode]
     set({ nodes: updatedNodes })
     
-    await window.electronAPI.storage.write(
-      STORAGE_FILES.NODES, 
+    await storageService.write(
+      STORAGE_FILES.NODES,
       JSON.stringify(updatedNodes, null, 2)
     )
   },
@@ -77,8 +78,8 @@ export const useNodeStore = create<NodeState>((set, get) => ({
     const { nodes } = get()
     const updatedNodes = nodes.filter(n => n.id !== id)
     set({ nodes: updatedNodes })
-    await window.electronAPI.storage.write(
-      STORAGE_FILES.NODES, 
+    await storageService.write(
+      STORAGE_FILES.NODES,
       JSON.stringify(updatedNodes, null, 2)
     )
   },

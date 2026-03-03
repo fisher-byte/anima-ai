@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { History, Sparkles, X, Calendar, MessageSquare, BrainCircuit } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import type { Conversation } from '@shared/types'
+import { storageService } from '../services/storageService'
 
 interface ConversationSidebarProps {
   isOpen: boolean
@@ -22,7 +23,7 @@ export function ConversationSidebar({ isOpen, onClose }: ConversationSidebarProp
     const loadConversations = async () => {
       setIsLoading(true)
       try {
-        const content = await window.electronAPI.storage.read('conversations.jsonl')
+        const content = await storageService.read('conversations.jsonl')
         if (content) {
           const lines = content.trim().split('\n').filter(Boolean)
           const idMap = new Map<string, Conversation>()

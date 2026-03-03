@@ -111,8 +111,18 @@ export const CONFIDENCE_CONFIG = {
  * API配置
  * API Key将在运行时从主进程或环境变量获取
  */
+// Safe env access: works in both Vite (import.meta.env) and Node (process.env)
+const _envApiUrl = (() => {
+  try {
+    // Vite injects import.meta.env; in Node this property is undefined
+    return (import.meta as any).env?.VITE_API_URL as string | undefined
+  } catch {
+    return undefined
+  }
+})() || process.env.VITE_API_URL
+
 export const API_CONFIG = {
-  BASE_URL: import.meta.env.RENDERER_VITE_API_URL || 'https://api.openai.com/v1',
+  BASE_URL: _envApiUrl || 'https://api.openai.com/v1',
   API_KEY: '', // 将在应用启动时加载
   TIMEOUT: 60000 // 增加到60秒，因为联网搜索可能较慢
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import { streamAI, callAI } from '../../../services/ai'
+import { streamAI, callAI } from '../services/ai'
 import type { AIMessage } from '../../../shared/types'
 import { useCanvasStore } from '../stores/canvasStore'
 

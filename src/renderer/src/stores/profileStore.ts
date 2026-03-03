@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Profile, PreferenceRule } from '@shared/types'
 import { STORAGE_FILES, FEEDBACK_TRIGGERS, CONFIDENCE_CONFIG } from '@shared/constants'
+import { storageService } from '../services/storageService'
 
 /**
  * 用户偏好管理
@@ -28,7 +29,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
 
   loadProfile: async () => {
     try {
-      const content = await window.electronAPI.storage.read(STORAGE_FILES.PROFILE)
+      const content = await storageService.read(STORAGE_FILES.PROFILE)
       if (content) {
         const profile = JSON.parse(content) as Profile
         set({ profile })
@@ -88,8 +89,8 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     const updatedProfile = { ...profile, rules: updatedRules }
     set({ profile: updatedProfile })
     
-    await window.electronAPI.storage.write(
-      STORAGE_FILES.PROFILE, 
+    await storageService.write(
+      STORAGE_FILES.PROFILE,
       JSON.stringify(updatedProfile, null, 2)
     )
   },
@@ -99,8 +100,8 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     const updatedRules = profile.rules.filter(r => r.preference !== preferenceText)
     const updatedProfile = { ...profile, rules: updatedRules }
     set({ profile: updatedProfile })
-    await window.electronAPI.storage.write(
-      STORAGE_FILES.PROFILE, 
+    await storageService.write(
+      STORAGE_FILES.PROFILE,
       JSON.stringify(updatedProfile, null, 2)
     )
   },

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Settings, X, Save, Shield, Cpu, Link } from 'lucide-react'
 import { API_CONFIG, AI_CONFIG, SUPPORTED_MODELS } from '@shared/constants'
+import { configService, storageService } from '../services/storageService'
 
 interface SettingsModalProps {
   isOpen: boolean
@@ -19,15 +20,29 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   useEffect(() => {
     if (isOpen) {
       const loadConfig = async () => {
-        const savedKey = await window.electronAPI.config.getApiKey()
+        const savedKey = await configService.getApiKey()
         if (savedKey) setApiKey(savedKey)
-        
-        // 从 storage 加载其他设置
-        const settingsJson = await window.electronAPI.storage.read('settings.json')
-        if (settingsJson) {
-          const settings = JSON.parse(settingsJson)
-          if (settings.baseUrl) setBaseUrl(settings.baseUrl)
-          if (settings.model) setModel(settings.model)
+
+        // Web mode: load model/baseUrl from config service (backend DB)
+        // Electron mode: falls back to settings.json via storageService
+        const backendSettings = await configService.getSettings()
+        if (backendSettings.model) {
+          setModel(backendSettings.model)
+        } else {
+          const settingsJson = await storageService.read('settings.json')
+          if (settingsJson) {
+            const settings = JSON.parse(settingsJson)
+            if (settings.model) setModel(settings.model)
+          }
+        }
+        if (backendSettings.baseUrl) {
+          setBaseUrl(backendSettings.baseUrl)
+        } else {
+          const settingsJson = await storageService.read('settings.json')
+          if (settingsJson) {
+            const settings = JSON.parse(settingsJson)
+            if (settings.baseUrl) setBaseUrl(settings.baseUrl)
+          }
         }
       }
       loadConfig()
@@ -38,11 +53,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setIsSaving(true)
     try {
       // 保存 API Key 到安全存储
-      await window.electronAPI.config.setApiKey(apiKey)
-      
-      // 保存其他设置到 settings.json
+      await configService.setApiKey(apiKey)
+
+      // Save model/baseUrl to config service (backend DB in web mode)
+      await configService.saveSettings({ baseUrl, model })
+
+      // Also keep settings.json for Electron mode compatibility
       const settings = { baseUrl, model }
-      await window.electronAPI.storage.write('settings.json', JSON.stringify(settings, null, 2))
+      await storageService.write('settings.json', JSON.stringify(settings, null, 2))
       
       // 更新内存中的配置（简易处理，实际应用可能需要更复杂的同步）
       API_CONFIG.BASE_URL = baseUrl
@@ -111,7 +129,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-100 focus:bg-white outline-none transition-all"
               />
               <p className="text-[10px] text-gray-400 px-1">
-                你的密钥会通过系统级加密 (SafeStorage) 保存在本地。
+                你的密钥加密保存在服务端数据库，不会暴露给浏览器。
               </p>
             </div>
 
