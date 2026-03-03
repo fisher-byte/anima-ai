@@ -1,11 +1,26 @@
 import { app, shell, BrowserWindow, ipcMain, safeStorage } from 'electron'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { join } from 'path'
-import { readFile, writeFile, mkdir } from 'fs/promises'
+import { readFile, writeFile, mkdir, copyFile } from 'fs/promises'
 import { existsSync } from 'fs'
 
 const DATA_DIR = join(app.getPath('userData'), 'data')
 const API_KEY_FILE = join(app.getPath('userData'), 'api_key.enc')
+
+/** 品牌改名后：若当前数据目录为空且存在旧 EvoCanvas 数据，则迁移一次 */
+async function migrateFromEvocanvasIfNeeded(): Promise<void> {
+  const hasAnyData = ALLOWED_FILENAMES.some((f) => existsSync(join(DATA_DIR, f)))
+  if (hasAnyData) return
+  const oldDataDir = join(app.getPath('userData'), '..', 'evocanvas', 'data')
+  if (!existsSync(oldDataDir)) return
+  await mkdir(DATA_DIR, { recursive: true })
+  for (const filename of ALLOWED_FILENAMES) {
+    const src = join(oldDataDir, filename)
+    if (existsSync(src)) {
+      await copyFile(src, join(DATA_DIR, filename))
+    }
+  }
+}
 
 // 允许的文件名白名单（防止路径遍历）
 const ALLOWED_FILENAMES = ['profile.json', 'nodes.json', 'conversations.jsonl', 'settings.json']
@@ -61,8 +76,9 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.electron.anima')
+  await migrateFromEvocanvasIfNeeded()
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
