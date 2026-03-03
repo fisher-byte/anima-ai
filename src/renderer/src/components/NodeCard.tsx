@@ -234,38 +234,65 @@ function CapabilityNodeCard({ node }: { node: Node }) {
   const positionRef = useRef({ x: node.x, y: node.y })
   const lastDragEndRef = useRef(0)
 
+  // 同步外部坐标（仅非拖拽状态下）
   useEffect(() => {
     if (!isDraggingRef.current) {
       positionRef.current = { x: node.x, y: node.y }
+      const el = document.getElementById(`cap-node-${node.id}`)
+      if (el) { el.style.left = `${node.x}px`; el.style.top = `${node.y}px` }
     }
-  }, [node.x, node.y])
+  }, [node.x, node.y, node.id])
+
+  // 组件卸载时清理 window 监听器
+  useEffect(() => {
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalMouseMoveRef.current)
+      window.removeEventListener('mouseup', handleGlobalMouseUpRef.current)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 用 ref 存最新的 handler，供 useEffect cleanup 使用
+  const handleGlobalMouseMoveRef = useRef<(e: MouseEvent) => void>(() => {})
+  const handleGlobalMouseUpRef = useRef<() => void>(() => {})
 
   const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
     const dx = e.clientX - mouseDownPosRef.current.x
     const dy = e.clientY - mouseDownPosRef.current.y
+
     if (!isDraggingRef.current && Math.hypot(dx, dy) > 8) {
       isDraggingRef.current = true
+      // 重置起点到当前位置，避免首帧跳跃
+      mouseDownPosRef.current = { x: e.clientX, y: e.clientY }
+      return
     }
+
     if (isDraggingRef.current) {
+      const ddx = e.clientX - mouseDownPosRef.current.x
+      const ddy = e.clientY - mouseDownPosRef.current.y
       const currentScale = useCanvasStore.getState().scale
-      const newX = positionRef.current.x + dx / currentScale
-      const newY = positionRef.current.y + dy / currentScale
+      const newX = positionRef.current.x + ddx / currentScale
+      const newY = positionRef.current.y + ddy / currentScale
       mouseDownPosRef.current = { x: e.clientX, y: e.clientY }
       positionRef.current = { x: newX, y: newY }
-      const el = document.getElementById(`node-${node.id}`)
+      // 直接操作外层定位 div（不走 framer-motion，避免冲突）
+      const el = document.getElementById(`cap-node-${node.id}`)
       if (el) { el.style.left = `${newX}px`; el.style.top = `${newY}px` }
     }
   }, [node.id])
 
   const handleGlobalMouseUp = useCallback(() => {
     window.removeEventListener('mousemove', handleGlobalMouseMove)
-    window.removeEventListener('mouseup', handleGlobalMouseUp)
+    window.removeEventListener('mouseup', handleGlobalMouseUpRef.current)
     if (isDraggingRef.current) {
       isDraggingRef.current = false
       lastDragEndRef.current = Date.now()
       updateNodePosition(node.id, positionRef.current.x, positionRef.current.y)
     }
   }, [node.id, updateNodePosition, handleGlobalMouseMove])
+
+  // 保持 ref 同步
+  useEffect(() => { handleGlobalMouseMoveRef.current = handleGlobalMouseMove }, [handleGlobalMouseMove])
+  useEffect(() => { handleGlobalMouseUpRef.current = handleGlobalMouseUp }, [handleGlobalMouseUp])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -285,23 +312,28 @@ function CapabilityNodeCard({ node }: { node: Node }) {
   }
 
   return (
-    <motion.div
-      id={`node-${node.id}`}
-      initial={{ scale: 0.85, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+    // 外层 div 仅负责定位，直接 DOM 操作不会被 framer-motion 干扰
+    <div
+      id={`cap-node-${node.id}`}
       style={{ position: 'absolute', left: `${node.x}px`, top: `${node.y}px` }}
       className="select-none z-10 pointer-events-auto cursor-grab active:cursor-grabbing"
       onMouseDown={handleMouseDown}
       onClick={handleClick}
     >
-      <div className="flex flex-col items-center gap-1.5 px-4 py-3.5 bg-white border-2 border-dashed border-gray-300 rounded-2xl shadow-sm hover:shadow-md hover:border-gray-400 transition-all w-36 text-center">
-        <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center">
-          {ICONS[capId]}
+      {/* 内层 motion.div 只管入场动画，不管位置 */}
+      <motion.div
+        initial={{ scale: 0.85, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+      >
+        <div className="flex flex-col items-center gap-1.5 px-4 py-3.5 bg-white border-2 border-dashed border-gray-300 rounded-2xl shadow-sm hover:shadow-md hover:border-gray-400 transition-all w-36 text-center">
+          <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center">
+            {ICONS[capId]}
+          </div>
+          <div className="text-[12px] font-semibold text-gray-700 leading-tight">{node.title}</div>
+          <div className="text-[10px] text-gray-400">点击使用</div>
         </div>
-        <div className="text-[12px] font-semibold text-gray-700 leading-tight">{node.title}</div>
-        <div className="text-[10px] text-gray-400">点击使用</div>
-      </div>
-    </motion.div>
+      </motion.div>
+    </div>
   )
 }
