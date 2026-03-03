@@ -10,13 +10,16 @@ interface NodeCardProps {
 }
 
 export const NodeCard = memo(function NodeCard({ node, depth }: NodeCardProps) {
-  const { removeNode, updateNodePosition, openModalById, highlightedNodeIds } = useCanvasStore()
+  // 细粒度 selector，不订阅整个 store（否则任何 store 变化都会重渲染所有 NodeCard）
+  const removeNode = useCanvasStore(state => state.removeNode)
+  const updateNodePosition = useCanvasStore(state => state.updateNodePosition)
+  const openModalById = useCanvasStore(state => state.openModalById)
+  const isHighlighted = useCanvasStore(state => state.highlightedNodeIds.includes(node.id))
+
   // 只在 LOD 阈值(0.4/0.6)跨越时触发重渲染，zoom 中不重渲染
   const scale = useLodScale([0.4, 0.6])
   const [isDragging, setIsDragging] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
-
-  const isHighlighted = useMemo(() => highlightedNodeIds.includes(node.id), [highlightedNodeIds, node.id])
 
   const isDraggingRef = useRef(false)
   const mouseDownPosRef = useRef({ x: 0, y: 0 })
@@ -49,7 +52,6 @@ export const NodeCard = memo(function NodeCard({ node, depth }: NodeCardProps) {
     }
 
     if (isDraggingRef.current) {
-      // 鼠标屏幕坐标 delta 需要除以当前画布 scale，才能转成画布坐标 delta
       const currentScale = useCanvasStore.getState().scale
       const newX = positionRef.current.x + (e.clientX - mouseDownPosRef.current.x) / currentScale
       const newY = positionRef.current.y + (e.clientY - mouseDownPosRef.current.y) / currentScale
@@ -67,7 +69,7 @@ export const NodeCard = memo(function NodeCard({ node, depth }: NodeCardProps) {
   const handleGlobalMouseUp = useCallback(() => {
     window.removeEventListener('mousemove', handleGlobalMouseMove)
     window.removeEventListener('mouseup', handleGlobalMouseUp)
-    
+
     if (isDraggingRef.current) {
       isDraggingRef.current = false
       setIsDragging(false)
@@ -94,12 +96,17 @@ export const NodeCard = memo(function NodeCard({ node, depth }: NodeCardProps) {
     await removeNode(node.id)
   }, [removeNode, node.id])
 
-  // 随机浮动相位（每个节点不同）
-  const floatDuration = useMemo(() => 4 + (node.id.charCodeAt(0) % 20) * 0.15, [node.id])
-  const floatDelay = useMemo(() => (node.id.charCodeAt(1) || 0) % 20 * 0.15, [node.id])
-  // x 轴漂移：与 y 轴错相位，形成轨道漂浮感
-  const floatDurationX = useMemo(() => 5.5 + (node.id.charCodeAt(2) || 0) % 20 * 0.12, [node.id])
-  const floatDelayX = useMemo(() => ((node.id.charCodeAt(3) || 0) % 20 * 0.15) + floatDuration * 0.5, [node.id, floatDuration])
+  // 漂浮动画用 CSS animation（compositor thread，不占主线程）
+  // 每个节点用 id 派生出不同的 duration/delay，实现错相位效果
+  const floatStyle = useMemo(() => {
+    const seed0 = node.id.charCodeAt(0) % 20
+    const seed1 = (node.id.charCodeAt(1) || 0) % 20
+    const durY = 4 + seed0 * 0.15
+    const delayY = seed1 * 0.15
+    const durX = 5.5 + ((node.id.charCodeAt(2) || 0) % 20) * 0.12
+    const delayX = ((node.id.charCodeAt(3) || 0) % 20) * 0.15 + durY * 0.5
+    return { durY, delayY, durX, delayX }
+  }, [node.id])
 
   return (
     <motion.div
@@ -128,12 +135,11 @@ export const NodeCard = memo(function NodeCard({ node, depth }: NodeCardProps) {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* 微浮动层：x+y 错相位漂移，产生轨道流动感；scale<0.6时隐藏节点，无需漂浮 */}
-      <motion.div
-        animate={isDragging || scale < 0.6 ? { x: 0, y: 0 } : { x: [0, 3, 0, -3, 0], y: [0, -4, 0] }}
-        transition={{
-          x: { duration: floatDurationX, repeat: Infinity, ease: "easeInOut", delay: floatDelayX },
-          y: { duration: floatDuration, repeat: Infinity, ease: "easeInOut", delay: floatDelay }
+      {/* 漂浮层：纯 CSS animation（compositor thread），拖拽时或缩小时停止 */}
+      <div
+        style={isDragging || scale < 0.6 ? undefined : {
+          animation: `nodeFloatY ${floatStyle.durY}s ${floatStyle.delayY}s ease-in-out infinite alternate,
+                      nodeFloatX ${floatStyle.durX}s ${floatStyle.delayX}s ease-in-out infinite alternate`,
         }}
       >
       {/* 高亮时的外发光圈 */}
@@ -189,11 +195,11 @@ export const NodeCard = memo(function NodeCard({ node, depth }: NodeCardProps) {
         <h3 className="font-medium text-gray-800 mb-2.5 truncate text-[15px]">
           {node.title}
         </h3>
-        
+
         {/* 关键词 */}
         <div className="flex flex-wrap gap-1.5 mb-4">
           {node.keywords.map((keyword, idx) => (
-            <span 
+            <span
               key={idx}
               className="text-[10px] px-2 py-0.5 bg-white/50 text-gray-500 rounded-lg border border-gray-100/50"
             >
@@ -201,14 +207,14 @@ export const NodeCard = memo(function NodeCard({ node, depth }: NodeCardProps) {
             </span>
           ))}
         </div>
-        
+
         {/* 日期 */}
         <div className="flex items-center justify-between text-[10px] text-gray-400 font-medium">
           <span>{node.date}</span>
           <div className="w-1.5 h-1.5 rounded-full bg-blue-400/20" />
         </div>
       </motion.div>
-      </motion.div>
+      </div>
     </motion.div>
   )
 })
