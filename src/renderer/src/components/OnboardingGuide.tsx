@@ -1,18 +1,17 @@
 /**
- * OnboardingGuide — 交互式新手引导 v2
+ * OnboardingGuide — 交互式新手引导 v3
  *
- * 关键设计原则：
- * 1. 等 loadNodes 完成后再判断是否展示（避免异步数据还没到就错误触发）
- * 2. 记录引导开始时的节点基准数，用"新增几个节点"而非绝对数量驱动状态机
- * 3. 只在首次（localStorage 无 key + 加载后仍无节点）展示
+ * 状态机（4步，无竞态）：
  *
- * 状态机：
- *   idle      → 欢迎，引导自我介绍
- *   sent1     → 节点基准+1（第一轮对话节点落下），引导评价
- *   sent2     → 节点基准+2（第二轮对话节点落下），提示关闭对话框
- *   closed    → 对话框从开→关，引导再发一句话
- *   highlight → 输入框出现记忆连线高亮，收尾
- *   done      → 结束，不渲染
+ *   idle      → 欢迎，引导自我介绍（等待 nodes +1）
+ *   sent1     → 第一轮节点落下，引导评价（等待 nodes +2）
+ *   open2     → 第二轮节点落下，提示偏好学习（等待 highlightedNodeIds > 0）
+ *   highlight → 记忆连线出现，收尾
+ *   done      → 不渲染
+ *
+ * 时序说明：
+ *   endConversation() 总在 handleClose() 后 ~500ms 才写节点
+ *   所以"节点写入"时模态框必然已关，不再需要监听 modal close
  */
 
 import { useState, useEffect, useRef } from 'react'
@@ -20,97 +19,46 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles, X } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 
-type Phase = 'idle' | 'sent1' | 'sent2' | 'closed' | 'highlight' | 'done'
+type Phase = 'idle' | 'sent1' | 'open2' | 'highlight' | 'done'
 
 export function OnboardingGuide() {
   const nodes = useCanvasStore(state => state.nodes)
-  const isModalOpen = useCanvasStore(state => state.isModalOpen)
   const highlightedNodeIds = useCanvasStore(state => state.highlightedNodeIds)
 
-  // 三态：null = 还没判断, false = 不需要, true = 需要展示
   const [show, setShow] = useState<boolean | null>(null)
   const [phase, setPhase] = useState<Phase>('idle')
 
-  // 引导开始时的节点基准数
-  const baseNodesLen = useRef<number>(0)
-  // 对话框"曾经打开过"标记（用于检测 open→close 这个边沿）
-  const modalWasOpen = useRef(false)
-  // highlight 只触发一次
+  const baseLen = useRef(0)
   const highlightTriggered = useRef(false)
-
-  // ── Step A: loadNodes 完成后决定是否展示 ─────────────────────────────────
-  // isLoading 从 true → false 时，nodes 已经从文件加载进来了
-  // 用一个 ref 跟踪"是否已做过判断"，避免重复触发
   const decided = useRef(false)
+
+  // ── 等 loadNodes 完成再决定是否展示（800ms 门控）────────────────────────────
   useEffect(() => {
     if (decided.current) return
-    // isLoading 初始值是 false，loadNodes 调用后会变成 false（它不用 isLoading 标志）
-    // 所以改用"nodes 状态稳定"来判断：等待 500ms 无变化即认为加载完毕
     const timer = setTimeout(() => {
       if (decided.current) return
       decided.current = true
-      const alreadyDone = localStorage.getItem('evo_onboarding_v2')
-      if (alreadyDone) {
-        setShow(false)
-        return
-      }
-      // 加载完成后节点数 > 0，说明有历史数据，跳过引导
-      const currentNodes = useCanvasStore.getState().nodes
-      if (currentNodes.length > 0) {
-        setShow(false)
-        return
-      }
-      // 真正的新用户
-      baseNodesLen.current = 0
+      if (localStorage.getItem('evo_onboarding_v2')) { setShow(false); return }
+      if (useCanvasStore.getState().nodes.length > 0) { setShow(false); return }
+      baseLen.current = 0
       setShow(true)
-    }, 800) // 800ms 足够 loadNodes 完成（网络存储一般 <200ms）
-
+    }, 800)
     return () => clearTimeout(timer)
-  }, []) // 只在 mount 时运行一次
+  }, [])
 
-  // ── Step B: 状态机 ─────────────────────────────────────────────────────────
+  // ── 状态机：全部由 nodes.length 驱动（无竞态）──────────────────────────────
   useEffect(() => {
     if (!show || phase === 'done') return
+    const added = nodes.length - baseLen.current
 
-    const added = nodes.length - baseNodesLen.current
-
-    // idle → sent1：第一轮对话后有新节点落下
-    if (phase === 'idle' && added >= 1) {
-      setPhase('sent1')
-      return
-    }
-    // sent1 → sent2：第二轮对话后又有新节点
-    if (phase === 'sent1' && added >= 2) {
-      setPhase('sent2')
-      return
-    }
+    if (phase === 'idle' && added >= 1) { setPhase('sent1'); return }
+    if (phase === 'sent1' && added >= 2) { setPhase('open2'); return }
   }, [nodes.length, show, phase])
 
-  // 监听 modal open/close
+  // ── 记忆连线高亮 ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!show || phase === 'done') return
-
-    if (isModalOpen) {
-      modalWasOpen.current = true
-    }
-
-    // sent2 → closed：对话框从开 → 关
-    if (phase === 'sent2' && modalWasOpen.current && !isModalOpen) {
-      setPhase('closed')
-      modalWasOpen.current = false
-      return
-    }
-
-    // idle/sent1 阶段，对话框关闭时更新 modalWasOpen 状态（不推进 phase）
-    if (!isModalOpen) {
-      modalWasOpen.current = false
-    }
-  }, [isModalOpen, show, phase])
-
-  // 监听高亮（记忆连线）
-  useEffect(() => {
-    if (!show || phase === 'done') return
-    if (phase === 'closed' && highlightedNodeIds.length > 0 && !highlightTriggered.current) {
+    if (!show || phase !== 'open2') return
+    if (highlightedNodeIds.length > 0 && !highlightTriggered.current) {
       highlightTriggered.current = true
       setPhase('highlight')
     }
@@ -163,7 +111,7 @@ function Bubble({ phase, onDismiss }: { phase: Phase; onDismiss: () => void }) {
           <X className="w-3.5 h-3.5" />
         </button>
 
-        {/* 进度点 */}
+        {/* 进度点：4步 */}
         <div className="flex items-center gap-1 mb-3">
           {PHASES.map((p) => (
             <div
@@ -179,7 +127,7 @@ function Bubble({ phase, onDismiss }: { phase: Phase; onDismiss: () => void }) {
           ))}
         </div>
 
-        {/* 内容行 */}
+        {/* 内容 */}
         <div className="flex items-start gap-3">
           <div className="flex-shrink-0 w-7 h-7 rounded-xl bg-gray-50 flex items-center justify-center mt-0.5">
             <Sparkles className="w-3.5 h-3.5 text-gray-500" />
@@ -190,7 +138,7 @@ function Bubble({ phase, onDismiss }: { phase: Phase; onDismiss: () => void }) {
           </div>
         </div>
 
-        {/* 最后一步：完成按钮 */}
+        {/* 最后一步完成按钮 */}
         {phase === 'highlight' && (
           <button
             onClick={onDismiss}
@@ -200,7 +148,7 @@ function Bubble({ phase, onDismiss }: { phase: Phase; onDismiss: () => void }) {
           </button>
         )}
 
-        {/* 下方尖角指向输入框 */}
+        {/* 尖角 */}
         <div
           style={{
             position: 'absolute',
@@ -221,30 +169,26 @@ function Bubble({ phase, onDismiss }: { phase: Phase; onDismiss: () => void }) {
 
 // ── 常量 ─────────────────────────────────────────────────────────────────────
 
-const PHASES: Phase[] = ['idle', 'sent1', 'sent2', 'closed', 'highlight']
+const PHASES: Phase[] = ['idle', 'sent1', 'open2', 'highlight']
 const PHASE_IDX: Record<Phase, number> = {
-  idle: 0, sent1: 1, sent2: 2, closed: 3, highlight: 4, done: 5
+  idle: 0, sent1: 1, open2: 2, highlight: 3, done: 4
 }
 
 const CONTENT: Partial<Record<Phase, { title: string; desc: string }>> = {
   idle: {
     title: '你好，我是 EvoCanvas',
-    desc: '我会把你说的每件事变成可以生长的记忆节点。\n先来认识你——在下面输入框跟我介绍一下自己吧。'
+    desc: '我会把你说的每件事变成可以生长的记忆节点。\n先来认识你——在下面跟我介绍一下自己吧。'
   },
   sent1: {
     title: '第一个记忆节点诞生了 ✦',
     desc: '你的自我介绍已经存下来了。\n现在告诉我：你觉得我刚才回答得怎么样？'
   },
-  sent2: {
-    title: '我记住你的口味了',
-    desc: '我从你的评价里学到了偏好，以后按这个风格回答。\n现在点对话框右上角的 × 关掉它。'
-  },
-  closed: {
-    title: '看，两段记忆自动分开了',
-    desc: '介绍和评价变成了两个独立节点，这就是 EvoCanvas 的生长方式。\n现在随便说一句话试试，比如"你好"。'
+  open2: {
+    title: '偏好学到了，节点分开了',
+    desc: '我从你的评价里学到了你的口味，以后按这个风格回答。\n两段对话自动变成了两个节点——这就是 EvoCanvas 的生长。\n\n现在随便说一句话试试，比如"你好"。'
   },
   highlight: {
     title: '看到那条虚线了吗 ✦',
-    desc: '我想起了你之前说的自我介绍，记忆连线自动亮起。\n点右上角 ⊞ 可以搜索和回顾所有记忆。就这些，开始吧。'
+    desc: '我想起了你的自我介绍，记忆连线自动亮起。\n点右上角 ⊞ 可以搜索和回顾所有记忆。就这些，开始吧。'
   }
 }
