@@ -145,20 +145,18 @@ function ThinkingSection({ content, isStreaming, forceCollapsed }: { content: st
 }
 
 export function AnswerModal() {
-  const {
-    isModalOpen,
-    currentConversation,
-    closeModal,
-    endConversation,
-    detectFeedback,
-    addPreference,
-    getPreferencesForPrompt,
-    getRelevantMemories,
-    setConversationHistory,
-    setHighlight,
-    focusNode,
-    nodes
-  } = useCanvasStore()
+  const isModalOpen = useCanvasStore(state => state.isModalOpen)
+  const currentConversation = useCanvasStore(state => state.currentConversation)
+  const closeModal = useCanvasStore(state => state.closeModal)
+  const endConversation = useCanvasStore(state => state.endConversation)
+  const detectFeedback = useCanvasStore(state => state.detectFeedback)
+  const addPreference = useCanvasStore(state => state.addPreference)
+  const getPreferencesForPrompt = useCanvasStore(state => state.getPreferencesForPrompt)
+  const getRelevantMemories = useCanvasStore(state => state.getRelevantMemories)
+  const setConversationHistory = useCanvasStore(state => state.setConversationHistory)
+  const setHighlight = useCanvasStore(state => state.setHighlight)
+  const focusNode = useCanvasStore(state => state.focusNode)
+  const nodes = useCanvasStore(state => state.nodes)
 
   const [turns, setTurns] = useState<Turn[]>([])
   const [isStreaming, setIsStreaming] = useState(false)

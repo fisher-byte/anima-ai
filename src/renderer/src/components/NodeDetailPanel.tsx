@@ -4,7 +4,11 @@ import { useCanvasStore } from '../stores/canvasStore'
 import { useMemo } from 'react'
 
 export function NodeDetailPanel() {
-  const { nodes, selectedNodeId, selectNode, openModalById, removeNode } = useCanvasStore()
+  const nodes = useCanvasStore(state => state.nodes)
+  const selectedNodeId = useCanvasStore(state => state.selectedNodeId)
+  const selectNode = useCanvasStore(state => state.selectNode)
+  const openModalById = useCanvasStore(state => state.openModalById)
+  const removeNode = useCanvasStore(state => state.removeNode)
   
   const node = useMemo(() => 
     nodes.find(n => n.id === selectedNodeId), 

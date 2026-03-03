@@ -142,13 +142,10 @@ export const NodeCard = memo(function NodeCard({ node, depth }: NodeCardProps) {
                       nodeFloatX ${floatStyle.durX}s ${floatStyle.delayX}s ease-in-out infinite alternate`,
         }}
       >
-      {/* 高亮时的外发光圈 */}
+      {/* 高亮时的外发光圈（纯 CSS animation，compositor thread） */}
       {isHighlighted && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.85 }}
-          animate={{ opacity: [0.5, 0.9, 0.5], scale: [1, 1.12, 1] }}
-          transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute inset-0 rounded-2xl pointer-events-none"
+        <div
+          className="absolute inset-0 rounded-2xl pointer-events-none node-highlight-glow"
           style={{ boxShadow: '0 0 0 2px rgba(0,0,0,0.15), 0 0 24px 6px rgba(0,0,0,0.1)', zIndex: -1 }}
         />
       )}

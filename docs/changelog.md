@@ -1,5 +1,26 @@
 # EvoCanvas 变更日志
 
+## [0.3.2] - 2026-03-03
+
+### 全组件 useCanvasStore 全量订阅修复 + 高亮动画性能化
+
+**问题**：组件订阅整个 store（无 selector），任何 store 字段变化都导致这些组件重渲染；NodeCard 高亮发光仍在 Framer Motion 主线程无限循环
+
+**受影响组件**：`InputBox`、`AnswerModal`、`SearchPanel`、`NodeDetailPanel`、`NodeCard`（highlight glow）
+
+**修复**：
+
+- `InputBox.tsx`：`useCanvasStore()` 拆为 6 个独立细粒度 selector
+- `AnswerModal.tsx`：`useCanvasStore()` 拆为 12 个独立细粒度 selector
+- `SearchPanel.tsx`：`useCanvasStore()` 拆为 3 个独立细粒度 selector
+- `NodeDetailPanel.tsx`：`useCanvasStore()` 拆为 5 个独立细粒度 selector
+- `NodeCard.tsx`：高亮发光 `motion.div` 的 `repeat: Infinity` 改为 CSS class `.node-highlight-glow`
+- `index.css`：新增 `@keyframes nodeHighlightPulse` + `.node-highlight-glow` CSS 类（compositor thread）
+
+**效果**：所有主 UI 组件现在仅在各自依赖的字段变化时才重渲染，彻底消除 store 变化级联重渲染风险。
+
+---
+
 ## [0.3.1] - 2026-03-03
 
 ### Web 版缩放性能彻底修复
