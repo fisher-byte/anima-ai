@@ -16,7 +16,9 @@ import { FileBubble } from './FileBubble'
 import { OnboardingCompletePopup } from './OnboardingCompletePopup'
 import {
   ONBOARDING_GREETING,
-  ONBOARDING_FOLLOWUP,
+  ONBOARDING_STYLE_PROMPT,
+  ONBOARDING_GENE_SAVED,
+  ONBOARDING_CLOSE_HINT,
   type Turn,
   compressMemoriesForPrompt,
   parseTurnsFromAssistantMessage,
@@ -160,17 +162,37 @@ export function AnswerModal() {
         setTimeout(() => setShowEvolutionToast(false), 4000)
       }
 
-      // 新手引导：第一次真实 AI 回复后注入收束引导消息
+      // 新手引导阶段推进
+      // phase 1 → AI 回应用户介绍后：追加风格偏好问题
       if (isOnboardingMode && onboardingPhaseRef.current === 1) {
         onboardingPhaseRef.current = 2
         setTimeout(() => {
-          setTurns(prev => [...prev, { user: '', assistant: ONBOARDING_FOLLOWUP }])
-          setShowXPulse(true)
-          onboardingPhaseRef.current = 3
+          setTurns(prev => {
+            const next = [...prev]
+            const last = next[next.length - 1]
+            next[next.length - 1] = { ...last, assistant: (last.assistant || '') + ONBOARDING_STYLE_PROMPT }
+            return next
+          })
           setTimeout(() => {
             if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
           }, 100)
-        }, 600)
+        }, 400)
+      }
+      // phase 3 → AI 回答用户随意问题后：注入关闭提示
+      if (isOnboardingMode && onboardingPhaseRef.current === 3) {
+        onboardingPhaseRef.current = 4
+        setTimeout(() => {
+          setTurns(prev => {
+            const next = [...prev]
+            const last = next[next.length - 1]
+            next[next.length - 1] = { ...last, assistant: (last.assistant || '') + ONBOARDING_CLOSE_HINT }
+            return next
+          })
+          setShowXPulse(true)
+          setTimeout(() => {
+            if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+          }, 100)
+        }, 400)
       }
     },
     onError: (error) => {
@@ -273,7 +295,7 @@ export function AnswerModal() {
       setDetectedPreference(null)
 
       const preferences = getPreferencesForPrompt()
-      sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed)
+      sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false)
     }
 
     prepareConversation()
@@ -344,6 +366,28 @@ export function AnswerModal() {
       setTimeout(() => setShowEvolutionToast(false), 3000)
     }
 
+    setFeedbackMessage('')
+    setPendingImages([])
+    setPendingFiles([])
+    if (textareaRef.current) textareaRef.current.style.height = 'auto'
+
+    // ── 引导 phase 2：用户给出风格反馈 → 保存偏好 + 直接注入 GENE_SAVED，不调 AI ──
+    if (isOnboardingMode && onboardingPhaseRef.current === 2) {
+      onboardingPhaseRef.current = 3
+      const userTurn: Turn = { user: trimmed, assistant: ONBOARDING_GENE_SAVED }
+      setTurns(prev => [...prev, userTurn])
+      // 将用户反馈作为偏好保存（如果还没被 detectedPreference 捕获）
+      if (!detectedPreference && trimmed) {
+        await addPreference({ trigger: trimmed, preference: trimmed, confidence: 0.7, updatedAt: new Date().toISOString() })
+        setShowEvolutionToast(true)
+        setTimeout(() => setShowEvolutionToast(false), 3000)
+      }
+      setTimeout(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      }, 100)
+      return
+    }
+
     setIsStreaming(true)
     setDetectedPreference(null)
 
@@ -381,12 +425,7 @@ export function AnswerModal() {
 
     const preferences = getPreferencesForPrompt()
     didMutateRef.current = true
-    sendMessage(fullMessage, preferences, history, pendingImages, compressed)
-
-    setFeedbackMessage('')
-    setPendingImages([])
-    setPendingFiles([])
-    if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    sendMessage(fullMessage, preferences, history, pendingImages, compressed, isOnboardingMode)
   }, [feedbackMessage, pendingImages, pendingFiles, isStreaming, detectedPreference, isOnboardingMode,
       addPreference, getPreferencesForPrompt, sendMessage, turns, getRelevantMemories, setHighlight, focusNode])
 
@@ -507,9 +546,11 @@ export function AnswerModal() {
               onClick={handleClose}
             />
 
-            {/* 关闭动画 */}
+            {/* 关闭动画：仅对新内容生效，跳过纯回放 */}
             <AnimatePresence>
-              {isClosing && <ClosingAnimation isOnboarding={isOnboardingMode} appliedPreferences={appliedPreferences} />}
+              {isClosing && !isReplayRef.current && didMutateRef.current && (
+                <ClosingAnimation isOnboarding={isOnboardingMode} appliedPreferences={appliedPreferences} />
+              )}
             </AnimatePresence>
 
             {/* 对话框主体 */}
@@ -711,70 +752,31 @@ export function AnswerModal() {
   )
 }
 
-// ── 关闭动画子组件 ────────────────────────────────────────────────────────────
+// ── 关闭动画子组件（左上角轻量提示）────────────────────────────────────────────
 
 function ClosingAnimation({ isOnboarding, appliedPreferences }: { isOnboarding: boolean; appliedPreferences: string[] }) {
+  const label = isOnboarding ? '记忆已生成 ✦' : '已记下来了'
   return (
-    <div className="fixed inset-0 z-[55] pointer-events-none">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.15 }}
-        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1.5"
-      >
-        <div className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-xs font-medium rounded-full shadow-lg">
-          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          {isOnboarding ? '记忆节点已诞生 ✦' : '记忆节点已固化'}
+    <motion.div
+      initial={{ opacity: 0, x: -8, y: -4 }}
+      animate={{ opacity: 1, x: 0, y: 0 }}
+      exit={{ opacity: 0, x: -8 }}
+      transition={{ duration: 0.22, ease: 'easeOut' }}
+      className="fixed top-4 left-4 z-[55] pointer-events-none flex flex-col gap-1.5"
+    >
+      <div className="flex items-center gap-2 px-3.5 py-2 bg-gray-900 text-white text-[12px] font-medium rounded-2xl shadow-lg">
+        <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        {label}
+      </div>
+      {appliedPreferences.length > 0 && (
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-[11px] font-medium rounded-2xl shadow-md">
+          <Sparkles className="w-3 h-3 text-yellow-300 flex-shrink-0" />
+          已应用 {appliedPreferences.length} 条偏好
         </div>
-        {appliedPreferences.length > 0 && (
-          <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-600 text-white text-[10px] font-bold rounded-full shadow">
-            <Sparkles className="w-3 h-3 text-yellow-300" />
-            已应用 {appliedPreferences.length} 条偏好 · 进化日志已更新
-          </div>
-        )}
-      </motion.div>
-
-      {isOnboarding ? (
-        [
-          { tx: -260, ty: -160, label: '自我介绍', color: '#EFF6FF' },
-          { tx: 200, ty: -200, label: '进化基因', color: '#F0FDF4' }
-        ].map((item, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 1, scale: 0.9, x: 0, y: 0, left: '50%', top: '50%' }}
-            animate={{ opacity: 0, scale: 1.05, x: item.tx, y: item.ty }}
-            transition={{ duration: 0.52, ease: [0.4, 0, 0.2, 1], delay: i * 0.06 }}
-            className="absolute w-36 h-12 rounded-2xl border border-gray-200 shadow-md flex items-center px-3 gap-2"
-            style={{ background: item.color, marginLeft: -72, marginTop: -24 }}
-          >
-            <div className="w-2.5 h-2.5 rounded-full bg-blue-300 flex-shrink-0" />
-            <span className="text-[11px] font-medium text-gray-600">{item.label}</span>
-          </motion.div>
-        ))
-      ) : (
-        [...Array(6)].map((_, i) => {
-          const tx = 180 + i * 60 + Math.sin(i * 1.3) * 40
-          const ty = -(220 + i * 30 + Math.cos(i * 1.1) * 30)
-          const nodeColors = ['#F0FDF4', '#EFF6FF', '#FDF4FF', '#FFFBEB', '#FFF1F2', '#F0F9FF']
-          return (
-            <motion.div
-              key={i}
-              initial={{ opacity: 1, scale: 1, x: 0, y: 0, left: '50%', top: '50%' }}
-              animate={{ opacity: 0, scale: 0.6, x: tx, y: ty }}
-              transition={{ duration: 0.42, ease: [0.4, 0, 0.2, 1], delay: i * 0.04 }}
-              className="absolute w-32 h-10 rounded-xl border border-gray-200 shadow-sm -ml-16 -mt-5 flex items-center px-3 gap-2"
-              style={{ background: nodeColors[i % nodeColors.length] }}
-            >
-              <div className="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0" />
-              <div className="h-1.5 bg-gray-200 rounded flex-1" />
-            </motion.div>
-          )
-        })
       )}
-    </div>
+    </motion.div>
   )
 }
 
@@ -811,8 +813,8 @@ function InputArea({
               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
               className="absolute -top-10 left-0 right-0 flex justify-center"
             >
-              <div className="flex items-center gap-2 px-3 py-1 bg-gray-900 text-white text-[10px] font-bold uppercase tracking-wider rounded-full shadow-lg">
-                <Sparkles className="w-3 h-3 text-yellow-400" />偏好已应用并进化
+              <div className="flex items-center gap-2 px-3 py-1 bg-gray-900 text-white text-[11px] font-medium rounded-full shadow-lg">
+                <Sparkles className="w-3 h-3 text-yellow-400" />已记住你的偏好
               </div>
             </motion.div>
           )}

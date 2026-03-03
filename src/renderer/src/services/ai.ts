@@ -28,7 +28,8 @@ export async function* streamAI(
   messages: AIMessage[],
   preferences: string[] = [],
   signal?: AbortSignal,
-  compressedMemory?: string
+  compressedMemory?: string,
+  isOnboarding?: boolean
 ): AsyncGenerator<AIStreamChunk, AIResponse, unknown> {
   const controller = new AbortController()
   const combinedSignal = signal
@@ -44,7 +45,7 @@ export async function* streamAI(
     const res = await fetch('/api/ai/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages, preferences, compressedMemory }),
+      body: JSON.stringify({ messages, preferences, compressedMemory, isOnboarding }),
       signal: combinedSignal
     })
 

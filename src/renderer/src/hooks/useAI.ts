@@ -40,7 +40,8 @@ export function useAI(options: UseAIOptions = {}) {
     preferences: string[] = [],
     history?: AIMessage[],
     images: string[] = [],
-    compressedMemory?: string
+    compressedMemory?: string,
+    isOnboarding?: boolean
   ) => {
     // 创建新的 AbortController
     abortControllerRef.current = new AbortController()
@@ -66,7 +67,7 @@ export function useAI(options: UseAIOptions = {}) {
     let fullReasoning = ''
 
     try {
-      for await (const chunk of streamAI(messages, preferences, signal, compressedMemory)) {
+      for await (const chunk of streamAI(messages, preferences, signal, compressedMemory, isOnboarding)) {
         if (chunk.type === 'content') {
           fullText += chunk.content
           callbacksRef.current.onStream?.(chunk.content)
