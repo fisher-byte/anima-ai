@@ -1,13 +1,14 @@
 import { memo, useMemo } from 'react'
+import { useCanvasStore } from '../stores/canvasStore'
 import type { Node } from '@shared/types'
 
 interface EdgeProps {
   sourceNode: Node
   targetNode: Node
-  scale: number
 }
 
-export const Edge = memo(function Edge({ sourceNode, targetNode, scale }: EdgeProps) {
+export const Edge = memo(function Edge({ sourceNode, targetNode }: EdgeProps) {
+  const scale = useCanvasStore(state => state.scale)
   const lodOpacity = scale < 0.3 ? 0 : scale > 0.5 ? 1 : (scale - 0.3) / 0.2
   if (lodOpacity <= 0) return null
 

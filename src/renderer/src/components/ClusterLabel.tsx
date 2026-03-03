@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import { Layers } from 'lucide-react'
+import { useCanvasStore } from '../stores/canvasStore'
 
 interface Cluster {
   id: string
@@ -12,12 +13,10 @@ interface Cluster {
 
 interface ClusterLabelProps {
   cluster: Cluster
-  scale: number
   onDrag: (dx: number, dy: number) => void
   onClick: () => void
 }
 
-// Helper for opacity transition
 function getOpacity(scale: number, min: number, max: number, type: 'fade-in' | 'fade-out') {
   if (type === 'fade-in') {
     if (scale < min) return 0
@@ -30,7 +29,8 @@ function getOpacity(scale: number, min: number, max: number, type: 'fade-in' | '
   }
 }
 
-export function ClusterLabel({ cluster, scale, onDrag, onClick }: ClusterLabelProps) {
+export function ClusterLabel({ cluster, onDrag, onClick }: ClusterLabelProps) {
+  const scale = useCanvasStore(state => state.scale)
   // Fade out between 0.4 and 0.6 scale
   const opacity = getOpacity(scale, 0.4, 0.6, 'fade-out')
   const isVisible = opacity > 0
