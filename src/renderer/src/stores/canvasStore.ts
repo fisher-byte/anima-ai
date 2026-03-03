@@ -70,6 +70,9 @@ interface CanvasState {
 
   // 新增：移除偏好规则
   removePreference: (index: number) => Promise<void>
+
+  // 全量清空（用户画像 + 记忆 + 进化基因）并开启新手教程
+  clearAllForOnboarding: () => Promise<void>
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
@@ -118,6 +121,29 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const updatedProfile = { ...profile, rules: updatedRules }
     set({ profile: updatedProfile })
     await storageService.write(STORAGE_FILES.PROFILE, JSON.stringify(updatedProfile, null, 2))
+  },
+
+  clearAllForOnboarding: async () => {
+    const emptyProfile = { rules: [] }
+    // 目标：以“新用户”状态打开新手教程，避免任何历史数据影响体验
+    set({
+      nodes: [],
+      edges: [],
+      profile: emptyProfile,
+      conversationHistory: [],
+      selectedNodeId: null,
+      highlightedCategory: null,
+      highlightedNodeIds: [],
+      offset: { x: 0, y: 0 },
+      scale: 1
+    })
+
+    await Promise.all([
+      storageService.write(STORAGE_FILES.PROFILE, JSON.stringify(emptyProfile, null, 2)),
+      storageService.write(STORAGE_FILES.NODES, JSON.stringify([], null, 2)),
+      storageService.write(STORAGE_FILES.CONVERSATIONS, '')
+    ])
+    get().openOnboarding()
   },
 
   setOffset: (offset) => set({ offset }),

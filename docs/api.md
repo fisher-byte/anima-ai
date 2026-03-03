@@ -137,6 +137,62 @@ curl -X POST http://localhost:3000/api/ai/stream \
 
 ---
 
+### 记忆 / 画像 API
+
+用于「记忆面板」「用户画像」「全量重置（新手教程体验）」。
+
+#### POST /api/memory/index
+
+为一条对话建立向量索引（RAG 检索用）。
+
+- **请求 Body**：`application/json { conversationId: string, text: string }`
+- **响应**：`200 { ok: true, dim: number }`
+
+#### DELETE /api/memory/index/:id
+
+删除一条对话的向量索引（按 `conversationId`）。
+
+#### DELETE /api/memory/index
+
+清空全部向量索引（用于全量重置/重新体验新手教程）。
+
+#### POST /api/memory/search
+
+向量检索。
+
+- **请求 Body**：`application/json { query: string, topK?: number }`
+- **响应**：`200 { results: { conversationId: string, score: number }[] }`
+
+#### GET /api/memory/profile
+
+读取用户画像（singleton）。
+
+#### PUT /api/memory/profile
+
+更新用户画像（merge 语义，适合增量写入）。
+
+#### DELETE /api/memory/profile
+
+清空用户画像（用于全量重置/重新体验新手教程）。
+
+#### GET /api/memory/facts
+
+读取全部记忆事实（最多 200 条，按时间倒序）。
+
+#### DELETE /api/memory/facts/:id
+
+删除单条记忆事实。
+
+#### DELETE /api/memory/facts
+
+清空全部记忆事实（用于全量重置/重新体验新手教程）。
+
+#### POST /api/memory/extract
+
+从对话中自动摘取「关于用户的记忆事实」（写入 `memory_facts`）。
+
+---
+
 ### 健康检查
 
 #### GET /api/health

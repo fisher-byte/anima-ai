@@ -30,18 +30,20 @@ function getApiConfig(): { apiKey: string; baseUrl: string; model: string } {
 /** AI 提取画像增量，返回 partial UserProfile JSON */
 async function extractProfileFromConversation(
   userMessage: string,
-  assistantMessage: string
+  _assistantMessage: string
 ): Promise<Record<string, unknown> | null> {
   const { apiKey, baseUrl, model } = getApiConfig()
   if (!apiKey) return null
+  if (userMessage.trim().length < 20) return null
 
-  const prompt = `你是用户画像提取器。阅读下面这段对话，从用户的发言中提取能直接推断的信息。
+  const prompt = `你是用户画像提取器。只读取【用户的发言】，忽略助手的回答部分。
 
-对话：
-用户：${userMessage.slice(0, 500)}
-助手：${assistantMessage.slice(0, 300)}
+用户说的话：
+${userMessage.slice(0, 500)}
 
-只提取对话中能直接推断的字段，返回 JSON。如果某字段无法推断就省略该字段。
+（助手的回复仅供参考，不要从中提取任何字段。）
+
+只提取用户发言中能直接推断的信息，返回 JSON。如果某字段无法从用户发言推断就省略该字段。
 格式：
 {
   "occupation": "职业（如程序员、设计师、学生等）",

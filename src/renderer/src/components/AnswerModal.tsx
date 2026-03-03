@@ -377,8 +377,10 @@ export function AnswerModal() {
       const userTurn: Turn = { user: trimmed, assistant: ONBOARDING_GENE_SAVED }
       setTurns(prev => [...prev, userTurn])
       // 将用户反馈作为偏好保存（如果还没被 detectedPreference 捕获）
-      if (!detectedPreference && trimmed) {
-        await addPreference({ trigger: trimmed, preference: trimmed, confidence: 0.7, updatedAt: new Date().toISOString() })
+      // 过滤掉太短或纯确认的无意义内容
+      const isSubstantiveFeedback = trimmed.length >= 8 && !/^(可以|好的|好|ok|okay|嗯|对|是的|没问题|行|棒|不错|了解|收到|明白|知道了|随便|都行|whatever)$/i.test(trimmed)
+      if (!detectedPreference && isSubstantiveFeedback) {
+        await addPreference({ trigger: trimmed, preference: trimmed, confidence: 0.7, updatedAt: new Date().toISOString().split('T')[0] })
         setShowEvolutionToast(true)
         setTimeout(() => setShowEvolutionToast(false), 3000)
       }
@@ -450,7 +452,7 @@ export function AnswerModal() {
             const a = t.error
               ? `[API错误: ${t.error}]`
               : (t.assistant || (isLastTurn && stillStreaming ? '[正在生成中...]' : '[无回复]'))
-            const reasoning = t.reasoning ? `思考：${t.reasoning}\n\n` : ''
+            const reasoning = t.reasoning ? `思考：${t.reasoning}\n\n[/THINKING]\n\n` : ''
             return `#${idx + 1}\n用户：${t.user}\nAI：\n${reasoning}${a}`
           })
           .join('\n\n')

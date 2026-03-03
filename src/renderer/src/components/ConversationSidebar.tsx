@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   History, Sparkles, X, Calendar, MessageSquare, BrainCircuit,
-  User, MapPin, Briefcase, Wrench, Target, Heart, BookOpen, Trash2
+  User, MapPin, Briefcase, Wrench, Target, Heart, BookOpen, Trash2,
+  Pencil, Check, RotateCcw
 } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import type { Conversation } from '@shared/types'
@@ -32,13 +33,17 @@ interface ConversationSidebarProps {
 }
 
 export function ConversationSidebar({ isOpen, onClose }: ConversationSidebarProps) {
-  const { nodes, profile, openModalById, focusNode, removePreference } = useCanvasStore()
+  const { nodes, profile, openModalById, focusNode, removePreference, clearAllForOnboarding } = useCanvasStore()
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeTab, setActiveTab] = useState<'history' | 'memory' | 'evolution'>('history')
   const [isLoading, setIsLoading] = useState(false)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [memoryFacts, setMemoryFacts] = useState<MemoryFact[]>([])
   const [isMemoryLoading, setIsMemoryLoading] = useState(false)
+
+  // Profile editing state
+  const [isEditingProfile, setIsEditingProfile] = useState(false)
+  const [editProfileDraft, setEditProfileDraft] = useState<UserProfile>({})
 
   // 加载对话历史
   useEffect(() => {
@@ -104,7 +109,63 @@ export function ConversationSidebar({ isOpen, onClose }: ConversationSidebarProp
     focusNode(conversation.id)
   }, [onClose, openModalById, focusNode])
 
+  const handleStartEditProfile = useCallback(() => {
+    if (!userProfile) return
+    setEditProfileDraft({
+      occupation: userProfile.occupation ?? '',
+      location: userProfile.location ?? '',
+      writingStyle: userProfile.writingStyle ?? '',
+      interests: userProfile.interests ?? [],
+      tools: userProfile.tools ?? [],
+      goals: userProfile.goals ?? [],
+    })
+    setIsEditingProfile(true)
+  }, [userProfile])
+
+  const handleSaveProfile = useCallback(async () => {
+    try {
+      const payload = {
+        occupation: editProfileDraft.occupation || null,
+        location: editProfileDraft.location || null,
+        writingStyle: editProfileDraft.writingStyle || null,
+        interests: editProfileDraft.interests ?? [],
+        tools: editProfileDraft.tools ?? [],
+        goals: editProfileDraft.goals ?? [],
+      }
+      const resp = await fetch('/api/memory/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (resp.ok) {
+        // 后端 PUT /profile 返回 { ok: true }，这里重新拉取最新画像以刷新 UI
+        const latest = await fetch('/api/memory/profile')
+        if (latest.ok) {
+          const data = await latest.json()
+          setUserProfile(data)
+        }
+      }
+    } catch {}
+    setIsEditingProfile(false)
+  }, [editProfileDraft])
+
+  const handleCancelEditProfile = useCallback(() => {
+    setIsEditingProfile(false)
+    setEditProfileDraft({})
+  }, [])
+
+  const parseArrField = (val: string): string[] =>
+    val.split(',').map(s => s.trim()).filter(Boolean)
+
   if (!isOpen) return null
+
+  const hasProfileData = userProfile && (
+    userProfile.occupation != null ||
+    (userProfile.interests?.length ?? 0) > 0 ||
+    (userProfile.tools?.length ?? 0) > 0 ||
+    (userProfile.goals?.length ?? 0) > 0 ||
+    userProfile.location != null
+  )
 
   return (
     <>
@@ -206,7 +267,7 @@ export function ConversationSidebar({ isOpen, onClose }: ConversationSidebarProp
               </motion.div>
             )}
 
-            {/* ── 记忆板块 Tab（独立，与进化基因同级） ── */}
+            {/* ── 记忆板块 Tab ── */}
             {activeTab === 'memory' && (
               <motion.div
                 key="memory"
@@ -278,79 +339,172 @@ export function ConversationSidebar({ isOpen, onClose }: ConversationSidebarProp
                 exit={{ opacity: 0, x: -10 }}
                 className="space-y-4"
               >
-                <div className="p-4 bg-blue-50/30 border border-blue-100/50 rounded-2xl">
-                  <h3 className="text-xs font-bold text-blue-600 mb-1 flex items-center gap-2">
-                    <BrainCircuit className="w-3.5 h-3.5" />
-                    自进化状态
-                  </h3>
-                  <p className="text-[10px] text-blue-500/80 leading-relaxed">
-                    AI 正在通过你的对话纠错和反馈，在本地静默构建专属的"表达与逻辑规则库"。
-                  </p>
-                </div>
-
                 {/* 用户画像区块 */}
-                {userProfile && (
-                  userProfile.occupation != null ||
-                  (userProfile.interests?.length ?? 0) > 0 ||
-                  (userProfile.tools?.length ?? 0) > 0 ||
-                  (userProfile.goals?.length ?? 0) > 0
-                ) && (
+                {hasProfileData && (
                   <div className="p-4 bg-gray-50/80 border border-gray-100 rounded-2xl space-y-3">
-                    <div className="flex items-center gap-2">
-                      <User className="w-3.5 h-3.5 text-gray-500" />
-                      <span className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">用户画像</span>
-                    </div>
-                    <div className="space-y-2">
-                      {userProfile.occupation && (
-                        <div className="flex items-start gap-2">
-                          <Briefcase className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
-                          <span className="text-[11px] text-gray-700">{userProfile.occupation}</span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <User className="w-3.5 h-3.5 text-gray-500" />
+                        <span className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">用户画像</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {!isEditingProfile ? (
+                          <>
+                            <button
+                              onClick={handleStartEditProfile}
+                              className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-700 transition-colors"
+                            >
+                              <Pencil className="w-2.5 h-2.5" />
+                              编辑
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (confirm('确定清空用户画像？')) {
+                                  await fetch('/api/memory/profile', { method: 'DELETE' })
+                                  setUserProfile(null)
+                                }
+                              }}
+                              className="text-[10px] text-gray-300 hover:text-red-400 transition-colors"
+                            >
+                              清空
+                            </button>
+                          </>
+                        ) : (
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handleSaveProfile}
+                            className="flex items-center gap-1 text-[10px] text-green-600 hover:text-green-700 font-medium transition-colors"
+                          >
+                            <Check className="w-2.5 h-2.5" />
+                            保存
+                          </button>
+                          <button
+                            onClick={handleCancelEditProfile}
+                            className="text-[10px] text-gray-400 hover:text-gray-600 transition-colors"
+                          >
+                            取消
+                          </button>
                         </div>
-                      )}
-                      {userProfile.location && (
-                        <div className="flex items-start gap-2">
-                          <MapPin className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
-                          <span className="text-[11px] text-gray-700">{userProfile.location}</span>
-                        </div>
-                      )}
-                      {(userProfile.interests?.length ?? 0) > 0 && (
-                        <div className="flex items-start gap-2">
-                          <Heart className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
-                          <div className="flex flex-wrap gap-1">
-                            {userProfile.interests!.map((item, i) => (
-                              <span key={i} className="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded-md text-[10px] font-medium">{item}</span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {(userProfile.tools?.length ?? 0) > 0 && (
-                        <div className="flex items-start gap-2">
-                          <Wrench className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
-                          <div className="flex flex-wrap gap-1">
-                            {userProfile.tools!.map((item, i) => (
-                              <span key={i} className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded-md text-[10px] font-medium">{item}</span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {(userProfile.goals?.length ?? 0) > 0 && (
-                        <div className="flex items-start gap-2">
-                          <Target className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
-                          <div className="flex flex-wrap gap-1">
-                            {userProfile.goals!.map((item, i) => (
-                              <span key={i} className="px-1.5 py-0.5 bg-green-50 text-green-600 rounded-md text-[10px] font-medium">{item}</span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {userProfile.writingStyle && (
-                        <div className="mt-1 text-[10px] text-gray-400 italic">回答风格：{userProfile.writingStyle}</div>
                       )}
                     </div>
-                    {userProfile.lastExtracted && (
-                      <div className="text-[10px] text-gray-300 flex items-center gap-1 pt-1 border-t border-gray-100">
-                        <Calendar className="w-2.5 h-2.5" />
-                        最近更新：{userProfile.lastExtracted.split('T')[0]}
+                  </div>
+
+                    {isEditingProfile ? (
+                      <div className="space-y-2">
+                        {/* occupation */}
+                        <div className="flex items-center gap-2">
+                          <Briefcase className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                          <input
+                            className="flex-1 text-[11px] text-gray-700 border border-gray-200 rounded-md px-2 py-1 outline-none focus:border-gray-400"
+                            placeholder="职业"
+                            value={editProfileDraft.occupation ?? ''}
+                            onChange={e => setEditProfileDraft(d => ({ ...d, occupation: e.target.value }))}
+                          />
+                        </div>
+                        {/* location */}
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                          <input
+                            className="flex-1 text-[11px] text-gray-700 border border-gray-200 rounded-md px-2 py-1 outline-none focus:border-gray-400"
+                            placeholder="城市/地区"
+                            value={editProfileDraft.location ?? ''}
+                            onChange={e => setEditProfileDraft(d => ({ ...d, location: e.target.value }))}
+                          />
+                        </div>
+                        {/* writingStyle */}
+                        <div className="flex items-center gap-2">
+                          <BookOpen className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                          <input
+                            className="flex-1 text-[11px] text-gray-700 border border-gray-200 rounded-md px-2 py-1 outline-none focus:border-gray-400"
+                            placeholder="回答风格（如简洁、详细）"
+                            value={editProfileDraft.writingStyle ?? ''}
+                            onChange={e => setEditProfileDraft(d => ({ ...d, writingStyle: e.target.value }))}
+                          />
+                        </div>
+                        {/* interests */}
+                        <div className="flex items-start gap-2">
+                          <Heart className="w-3 h-3 text-gray-400 mt-1.5 flex-shrink-0" />
+                          <input
+                            className="flex-1 text-[11px] text-gray-700 border border-gray-200 rounded-md px-2 py-1 outline-none focus:border-gray-400"
+                            placeholder="兴趣（逗号分隔）"
+                            value={(editProfileDraft.interests ?? []).join(', ')}
+                            onChange={e => setEditProfileDraft(d => ({ ...d, interests: parseArrField(e.target.value) }))}
+                          />
+                        </div>
+                        {/* tools */}
+                        <div className="flex items-start gap-2">
+                          <Wrench className="w-3 h-3 text-gray-400 mt-1.5 flex-shrink-0" />
+                          <input
+                            className="flex-1 text-[11px] text-gray-700 border border-gray-200 rounded-md px-2 py-1 outline-none focus:border-gray-400"
+                            placeholder="工具/技术（逗号分隔）"
+                            value={(editProfileDraft.tools ?? []).join(', ')}
+                            onChange={e => setEditProfileDraft(d => ({ ...d, tools: parseArrField(e.target.value) }))}
+                          />
+                        </div>
+                        {/* goals */}
+                        <div className="flex items-start gap-2">
+                          <Target className="w-3 h-3 text-gray-400 mt-1.5 flex-shrink-0" />
+                          <input
+                            className="flex-1 text-[11px] text-gray-700 border border-gray-200 rounded-md px-2 py-1 outline-none focus:border-gray-400"
+                            placeholder="目标（逗号分隔）"
+                            value={(editProfileDraft.goals ?? []).join(', ')}
+                            onChange={e => setEditProfileDraft(d => ({ ...d, goals: parseArrField(e.target.value) }))}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {userProfile!.occupation && (
+                          <div className="flex items-start gap-2">
+                            <Briefcase className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
+                            <span className="text-[11px] text-gray-700">{userProfile!.occupation}</span>
+                          </div>
+                        )}
+                        {userProfile!.location && (
+                          <div className="flex items-start gap-2">
+                            <MapPin className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
+                            <span className="text-[11px] text-gray-700">{userProfile!.location}</span>
+                          </div>
+                        )}
+                        {(userProfile!.interests?.length ?? 0) > 0 && (
+                          <div className="flex items-start gap-2">
+                            <Heart className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
+                            <div className="flex flex-wrap gap-1">
+                              {userProfile!.interests!.map((item, i) => (
+                                <span key={i} className="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded-md text-[10px] font-medium">{item}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {(userProfile!.tools?.length ?? 0) > 0 && (
+                          <div className="flex items-start gap-2">
+                            <Wrench className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
+                            <div className="flex flex-wrap gap-1">
+                              {userProfile!.tools!.map((item, i) => (
+                                <span key={i} className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded-md text-[10px] font-medium">{item}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {(userProfile!.goals?.length ?? 0) > 0 && (
+                          <div className="flex items-start gap-2">
+                            <Target className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
+                            <div className="flex flex-wrap gap-1">
+                              {userProfile!.goals!.map((item, i) => (
+                                <span key={i} className="px-1.5 py-0.5 bg-green-50 text-green-600 rounded-md text-[10px] font-medium">{item}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {userProfile!.writingStyle && (
+                          <div className="mt-1 text-[10px] text-gray-400 italic">回答风格：{userProfile!.writingStyle}</div>
+                        )}
+                        {userProfile!.lastExtracted && (
+                          <div className="text-[10px] text-gray-300 flex items-center gap-1 pt-1 border-t border-gray-100">
+                            <Calendar className="w-2.5 h-2.5" />
+                            最近更新：{userProfile!.lastExtracted.split('T')[0]}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -358,6 +512,9 @@ export function ConversationSidebar({ isOpen, onClose }: ConversationSidebarProp
 
                 {/* 偏好规则列表 */}
                 <div className="space-y-3">
+                  <p className="text-[11px] text-gray-400 leading-relaxed pb-1">
+                    每次你觉得回答不对劲，说出来，我就会记住。这里是已经记下来的规则。
+                  </p>
                   {profile.rules.length === 0 ? (
                     <div className="text-center text-gray-400 py-12 space-y-2">
                       <Sparkles className="w-8 h-8 mx-auto opacity-20" />
@@ -367,41 +524,60 @@ export function ConversationSidebar({ isOpen, onClose }: ConversationSidebarProp
                     profile.rules
                       .sort((a, b) => b.confidence - a.confidence)
                       .map((rule, idx) => (
-                        <div key={idx} className="p-4 bg-gray-50/50 border border-gray-100 rounded-2xl space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                              记忆强度 {(rule.confidence * 100).toFixed(0)}%
-                            </span>
+                        <div key={idx} className="p-3 bg-gray-50/50 border border-gray-100 rounded-2xl">
+                          <div className="flex items-start gap-2">
+                            <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-1 ${rule.confidence > 0.8 ? 'bg-green-400' : rule.confidence > 0.5 ? 'bg-blue-400' : 'bg-gray-300'}`} />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs text-gray-800 font-medium leading-relaxed">
+                                {rule.preference}
+                              </div>
+                              <div className="text-[10px] text-gray-400 flex items-center gap-1 mt-1">
+                                <Calendar className="w-2.5 h-2.5" />
+                                最后活跃：{rule.updatedAt.split('T')[0]}
+                              </div>
+                            </div>
                             <button
                               onClick={async () => {
                                 if (confirm('确定要遗忘这条偏好吗？')) {
                                   await removePreference(idx)
                                 }
                               }}
-                              className="text-gray-300 hover:text-red-400 transition-colors"
+                              className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0 mt-0.5"
                             >
                               <X className="w-3 h-3" />
                             </button>
                           </div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                              <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${rule.confidence * 100}%` }}
-                                className={`h-full rounded-full ${rule.confidence > 0.8 ? 'bg-green-400' : rule.confidence > 0.5 ? 'bg-blue-400' : 'bg-gray-300'}`}
-                              />
-                            </div>
-                          </div>
-                          <div className="text-xs text-gray-800 font-medium leading-relaxed">
-                            {rule.preference}
-                          </div>
-                          <div className="text-[10px] text-gray-400 flex items-center gap-1">
-                            <Calendar className="w-2.5 h-2.5" />
-                            最后活跃：{rule.updatedAt}
-                          </div>
                         </div>
                       ))
                   )}
+                </div>
+
+                {/* 全量清空并开启新手教程 */}
+                <div className="pt-4 border-t border-gray-100">
+                  <button
+                    onClick={async () => {
+                      if (!confirm('将清空：用户画像、全部记忆（含检索索引）、全部进化基因、画布节点与对话记录，然后以全新状态打开新手教程。确定继续？')) return
+                      try {
+                        await Promise.all([
+                          fetch('/api/memory/profile', { method: 'DELETE' }),
+                          fetch('/api/memory/facts', { method: 'DELETE' }),
+                          fetch('/api/memory/index', { method: 'DELETE' })
+                        ])
+                        setUserProfile(null)
+                        setMemoryFacts([])
+                        setConversations([])
+                        await clearAllForOnboarding()
+                        onClose()
+                      } catch (e) {
+                        console.error('清空失败:', e)
+                        alert('清空失败，请重试')
+                      }
+                    }}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 text-xs text-gray-500 hover:text-amber-600 hover:bg-amber-50/80 border border-gray-200 hover:border-amber-200 rounded-xl transition-colors"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    全量清空并开启新手教程
+                  </button>
                 </div>
               </motion.div>
             )}
