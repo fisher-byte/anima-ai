@@ -16,15 +16,20 @@ import type { Node as CanvasNode } from '@shared/types'
 function MemoryLines({
   nodes,
   highlightedNodeIds,
+  getViewState,
 }: {
   nodes: CanvasNode[]
   highlightedNodeIds: string[]
+  getViewState: () => { offset: { x: number; y: number }; scale: number }
 }) {
-  // 直接订阅 store，offset/scale 变化时自动重算（不用 viewRef，避免 stale 坐标）
-  const offset = useCanvasStore(state => state.offset)
-  const scale = useCanvasStore(state => state.scale)
+  // 订阅 store offset/scale 来触发重渲染（store 写入有 debounce，但能保证最终一致）
+  // 读取时用 getViewState() 获取 viewRef 中的实时值，避免 debounce 期间的短暂偏差
+  useCanvasStore(state => state.offset)
+  useCanvasStore(state => state.scale)
 
   if (highlightedNodeIds.length === 0) return null
+
+  const { offset, scale } = getViewState()
 
   const vw = typeof window !== 'undefined' ? window.innerWidth : 1280
   const vh = typeof window !== 'undefined' ? window.innerHeight : 800
@@ -33,26 +38,24 @@ function MemoryLines({
   const targetX = vw / 2
   const targetY = vh - 80
 
-  // contentLayer: left=-vw, top=-vh, transform=translate(offset.x,offset.y) scale(scale), transformOrigin='0 0'
-  // 节点屏幕坐标公式（transformOrigin 为左上角）：
-  //   screenX = (node.x + (-vw)) * scale + offset.x  =  node.x * scale - vw * scale + offset.x
-  //   screenY = (node.y + (-vh)) * scale + offset.y  =  node.y * scale - vh * scale + offset.y
+  // contentLayer CSS: left=-vw, top=-vh, transform=translate(offset.x, offset.y) scale(scale), transformOrigin='0 0'
+  // CSS transform 从右到左：先 scale 再 translate（translate 值不受 scale 影响）
+  // 节点屏幕坐标：screenX = node.x * scale + offset.x - vw
+  //              screenY = node.y * scale + offset.y - vh
   const NODE_W = 208  // NodeCard w-52
   const NODE_H = 120  // 节点大致高度
   const lines = highlightedNodeIds
     .map(id => nodes.find(n => n.id === id))
     .filter((n): n is CanvasNode => !!n)
     .map(node => {
-      // 节点左上角屏幕坐标
-      const nx = node.x * scale - vw * scale + offset.x
-      const ny = node.y * scale - vh * scale + offset.y
-      // 节点中心屏幕坐标
+      const nx = node.x * scale + offset.x - vw
+      const ny = node.y * scale + offset.y - vh
       const sx = nx + (NODE_W / 2) * scale
       const sy = ny + (NODE_H / 2) * scale
       return { id: node.id, sx, sy }
     })
-    // 节点中心必须严格在可视区内才画线，避免"悬空线"
-    .filter(({ sx, sy }) => sx >= 10 && sx <= vw - 10 && sy >= 10 && sy <= vh - 120)
+    // 节点中心必须在可视区内才画线，避免"悬空线"（留宽裕边距）
+    .filter(({ sx, sy }) => sx >= -100 && sx <= vw + 100 && sy >= -100 && sy <= vh)
 
   if (lines.length === 0) return null
 
@@ -133,6 +136,9 @@ export function Canvas() {
     }
     viewRef.current = { offset, scale }
   }, [])
+
+  // MemoryLines 用：读取 viewRef 实时值（避免 debounce 期间的 stale store 值）
+  const getViewState = useCallback(() => viewRef.current, [])
 
   // Calculate clusters for Macro view
   const clusters = useMemo(() => getClusters(nodes), [nodes])
@@ -561,6 +567,7 @@ export function Canvas() {
           <MemoryLines
             nodes={nodes}
             highlightedNodeIds={highlightedNodeIds}
+            getViewState={getViewState}
           />
         )}
       </AnimatePresence>
