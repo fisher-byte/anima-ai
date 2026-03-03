@@ -1,41 +1,32 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCanvasStore } from '../stores/canvasStore'
 import type { Node } from '@shared/types'
 
 interface NodeCardProps {
   node: Node
+  scale: number
+  depth: number
 }
 
-export function NodeCard({ node }: NodeCardProps) {
-  const { nodes, removeNode, updateNodePosition, openModalById, highlightedNodeIds } = useCanvasStore()
+export const NodeCard = memo(function NodeCard({ node, scale, depth }: NodeCardProps) {
+  const { removeNode, updateNodePosition, openModalById, highlightedNodeIds } = useCanvasStore()
   const [isDragging, setIsDragging] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
-  
+
   // Highlight state
   const isHighlighted = useMemo(() => highlightedNodeIds.includes(node.id), [highlightedNodeIds, node.id])
-  
+
   const isDraggingRef = useRef(false)
   const mouseDownPosRef = useRef({ x: 0, y: 0 })
   const positionRef = useRef({ x: node.x, y: node.y })
   const lastDragEndRef = useRef(0)
 
-  // 计算深度感：基于节点的活跃程度（索引位置）
-  const depth = useMemo(() => {
-    const index = nodes.findIndex(n => n.id === node.id)
-    if (index === -1) return 1
-    // 越新的节点（在数组末尾）越靠前
-    const ratio = index / Math.max(1, nodes.length - 1)
-    return 0.75 + ratio * 0.25 // 0.75 ~ 1.0
-  }, [nodes, node.id])
-
   // 计算透明度过渡 (LOD)
-  // 引用 useCanvasStore.getState().scale 可能不触发更新，改用 props 传或者 store hook
-  const scale = useCanvasStore(state => state.scale)
   const lodOpacity = useMemo(() => {
-     if (scale < 0.4) return 0 // Macro view: hide nodes
-     if (scale > 0.6) return 1 // Micro view: show nodes
-     return (scale - 0.4) / 0.2 // Transition
+     if (scale < 0.4) return 0
+     if (scale > 0.6) return 1
+     return (scale - 0.4) / 0.2
   }, [scale])
 
   const isVisible = lodOpacity > 0
@@ -224,4 +215,4 @@ export function NodeCard({ node }: NodeCardProps) {
       </motion.div>
     </motion.div>
   )
-}
+})
