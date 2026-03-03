@@ -5,16 +5,16 @@ import type { Node } from '@shared/types'
 
 interface NodeCardProps {
   node: Node
-  scale: number
   depth: number
 }
 
-export const NodeCard = memo(function NodeCard({ node, scale, depth }: NodeCardProps) {
+export const NodeCard = memo(function NodeCard({ node, depth }: NodeCardProps) {
   const { removeNode, updateNodePosition, openModalById, highlightedNodeIds } = useCanvasStore()
+  // scale은 zoom 종료 후(100ms debounce)에만 업데이트되므로 구독해도 zoom 중 재렌더링 없음
+  const scale = useCanvasStore(state => state.scale)
   const [isDragging, setIsDragging] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
 
-  // Highlight state
   const isHighlighted = useMemo(() => highlightedNodeIds.includes(node.id), [highlightedNodeIds, node.id])
 
   const isDraggingRef = useRef(false)
@@ -22,11 +22,10 @@ export const NodeCard = memo(function NodeCard({ node, scale, depth }: NodeCardP
   const positionRef = useRef({ x: node.x, y: node.y })
   const lastDragEndRef = useRef(0)
 
-  // 计算透明度过渡 (LOD)
   const lodOpacity = useMemo(() => {
-     if (scale < 0.4) return 0
-     if (scale > 0.6) return 1
-     return (scale - 0.4) / 0.2
+    if (scale < 0.4) return 0
+    if (scale > 0.6) return 1
+    return (scale - 0.4) / 0.2
   }, [scale])
 
   const isVisible = lodOpacity > 0

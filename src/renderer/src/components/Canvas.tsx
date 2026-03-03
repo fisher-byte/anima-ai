@@ -106,11 +106,31 @@ function getClusters(nodes: any[]) {
 }
 
 export function Canvas() {
-  const { nodes, edges, offset, scale, setOffset, setScale, resetView, updateNodePosition, isModalOpen, highlightedNodeIds } = useCanvasStore()
+  // 细粒度订阅：只取 nodes/edges/isModalOpen/highlightedNodeIds，不订阅 offset/scale
+  const nodes = useCanvasStore(state => state.nodes)
+  const edges = useCanvasStore(state => state.edges)
+  const isModalOpen = useCanvasStore(state => state.isModalOpen)
+  const highlightedNodeIds = useCanvasStore(state => state.highlightedNodeIds)
+  const { setOffset, setScale, resetView, updateNodePosition } = useCanvasStore()
+
+  // offset/scale 完全用 ref 管理，不走 React state，避免 zoom 触发任何重渲染
+  const viewRef = useRef({ offset: useCanvasStore.getState().offset, scale: useCanvasStore.getState().scale })
+  const contentLayerRef = useRef<HTMLDivElement>(null)
+  // 仅用于工具栏百分比显示（低频更新）
+  const [scaleDisplay, setScaleDisplay] = useState(useCanvasStore.getState().scale)
+
+  // 直接操作 content layer 的 transform，完全绕过 React 渲染
+  const applyTransform = useCallback((offset: { x: number; y: number }, scale: number) => {
+    if (contentLayerRef.current) {
+      contentLayerRef.current.style.transform = `translate(${offset.x}px, ${offset.y}px) scale(${scale})`
+    }
+    viewRef.current = { offset, scale }
+  }, [])
+
   // Calculate clusters for Macro view
   const clusters = useMemo(() => getClusters(nodes), [nodes])
 
-  // 预计算每个节点的 depth（避免每个 NodeCard 自己做 findIndex）
+  // 预计算每个节点的 depth
   const nodeDepthMap = useMemo(() => {
     const map = new Map<string, number>()
     nodes.forEach((n, index) => {
@@ -120,7 +140,7 @@ export function Canvas() {
     return map
   }, [nodes])
 
-  // 预计算节点 id → node 的 Map，避免 edge 渲染时 O(n) find
+  // 预计算节点 id → node Map，edge 渲染 O(1)
   const nodeMap = useMemo(() => {
     const map = new Map<string, typeof nodes[0]>()
     nodes.forEach(n => map.set(n.id, n))
@@ -129,22 +149,19 @@ export function Canvas() {
 
   // Cluster Interaction
   const handleClusterClick = useCallback((cx: number, cy: number) => {
-      const viewW = typeof window !== 'undefined' ? window.innerWidth : 1280
-      const viewH = typeof window !== 'undefined' ? window.innerHeight : 800
-      // Calculate offset to center the cluster
-      const newOffsetX = 1.5 * viewW - cx
-      const newOffsetY = 1.5 * viewH - cy
-      
-      setOffset({ x: newOffsetX, y: newOffsetY })
-      setScale(0.8) // Zoom in slightly
-  }, [setOffset, setScale])
-  
+    const viewW = window.innerWidth
+    const viewH = window.innerHeight
+    const newOffset = { x: 1.5 * viewW - cx, y: 1.5 * viewH - cy }
+    const newScale = 0.8
+    applyTransform(newOffset, newScale)
+    setScaleDisplay(newScale)
+    setOffset(newOffset)
+    setScale(newScale)
+  }, [applyTransform, setOffset, setScale])
+
   const handleClusterDrag = useCallback((cat: string, dx: number, dy: number) => {
-    // Move all nodes in this category
     nodes.forEach(n => {
-        if ((n.category || '其他') === cat) {
-            updateNodePosition(n.id, n.x + dx, n.y + dy)
-        }
+      if ((n.category || '其他') === cat) updateNodePosition(n.id, n.x + dx, n.y + dy)
     })
   }, [nodes, updateNodePosition])
 
@@ -158,36 +175,35 @@ export function Canvas() {
   const isDraggingRef = useRef(false)
   const dragRafId = useRef<number | null>(null)
 
-  // 侧边栏、搜索和设置面板状态
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
-  // 惯性动画
+  // 惯性动画 — 直接操作 DOM，不 setState
   const startInertia = useCallback(() => {
     const damping = 0.95
     const step = () => {
       velocity.current.x *= damping
       velocity.current.y *= damping
-
       if (Math.abs(velocity.current.x) > 0.1 || Math.abs(velocity.current.y) > 0.1) {
-        setOffset({
-          x: useCanvasStore.getState().offset.x + velocity.current.x,
-          y: useCanvasStore.getState().offset.y + velocity.current.y
-        })
+        const { offset } = viewRef.current
+        const newOffset = { x: offset.x + velocity.current.x, y: offset.y + velocity.current.y }
+        applyTransform(newOffset, viewRef.current.scale)
         animationFrameId.current = requestAnimationFrame(step)
       } else {
         animationFrameId.current = null
+        // 惯性结束后同步到 store（持久化）
+        setOffset(viewRef.current.offset)
       }
     }
     animationFrameId.current = requestAnimationFrame(step)
-  }, [setOffset])
+  }, [applyTransform, setOffset])
 
-  // 滚轮缩放处理（以鼠标位置为中心缩放）—— 用原生事件以便 preventDefault() 真正生效
-  // RAF 节流：连续 wheel 事件合并成一帧，避免每像素触发 setState
+  // 滚轮缩放 — 直接操作 DOM，每帧最多一次，完全不触发 React 重渲染
   const pendingWheelRef = useRef<{ offset: { x: number; y: number }; scale: number } | null>(null)
   const wheelRafRef = useRef<number | null>(null)
+  const scaleDisplayRafRef = useRef<number | null>(null)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -195,12 +211,9 @@ export function Canvas() {
 
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
-      if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current)
+      if (animationFrameId.current) { cancelAnimationFrame(animationFrameId.current); animationFrameId.current = null }
 
-      // 读取最新状态（可能是上一帧已积累的值）
-      const { scale: currentScale, offset: currentOffset } =
-        pendingWheelRef.current ?? useCanvasStore.getState()
-
+      const { scale: currentScale, offset: currentOffset } = pendingWheelRef.current ?? viewRef.current
       const rawDelta = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY
       const factor = Math.pow(1.001, -rawDelta)
       const newScale = Math.max(0.2, Math.min(3, currentScale * factor))
@@ -209,24 +222,31 @@ export function Canvas() {
       const mouseX = e.clientX - rect.left
       const mouseY = e.clientY - rect.top
       const scaleDiff = newScale / currentScale
-      const viewW = window.innerWidth
-      const viewH = window.innerHeight
-      const mouseInContentX = mouseX + viewW
-      const mouseInContentY = mouseY + viewH
-
+      const mouseInContentX = mouseX + window.innerWidth
+      const mouseInContentY = mouseY + window.innerHeight
       const newOffset = {
         x: mouseInContentX - scaleDiff * (mouseInContentX - currentOffset.x),
         y: mouseInContentY - scaleDiff * (mouseInContentY - currentOffset.y),
       }
 
-      // 积累本帧内所有 wheel 事件，只提交一次 setState
       pendingWheelRef.current = { offset: newOffset, scale: newScale }
 
       if (!wheelRafRef.current) {
         wheelRafRef.current = requestAnimationFrame(() => {
           if (pendingWheelRef.current) {
-            useCanvasStore.getState().setView(pendingWheelRef.current.offset, pendingWheelRef.current.scale)
+            const { offset, scale } = pendingWheelRef.current
+            applyTransform(offset, scale)
             pendingWheelRef.current = null
+            // 工具栏百分比每 100ms 刷新一次（低频 setState）
+            if (!scaleDisplayRafRef.current) {
+              scaleDisplayRafRef.current = window.setTimeout(() => {
+                setScaleDisplay(viewRef.current.scale)
+                // 同步到 store（供 MemoryLines 等读取实际 scale）
+                setOffset(viewRef.current.offset)
+                setScale(viewRef.current.scale)
+                scaleDisplayRafRef.current = null
+              }, 100)
+            }
           }
           wheelRafRef.current = null
         })
@@ -237,18 +257,19 @@ export function Canvas() {
     return () => {
       canvas.removeEventListener('wheel', handleWheel)
       if (wheelRafRef.current) cancelAnimationFrame(wheelRafRef.current)
+      if (scaleDisplayRafRef.current) clearTimeout(scaleDisplayRafRef.current)
     }
-  }, [])  // empty deps — reads latest state from store directly
+  }, [applyTransform, setOffset, setScale])
 
-  // 画布拖拽逻辑（RAF 合并更新，避免每 move 一次就 setState 卡顿）
+  // 拖拽 — 直接操作 DOM
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.target === canvasRef.current || (e.target as HTMLElement).classList.contains('dot-grid')) {
       if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current)
-      const currentOffset = useCanvasStore.getState().offset
-      pendingOffsetRef.current = { ...currentOffset }
+      const { offset } = viewRef.current
+      pendingOffsetRef.current = { ...offset }
       isDraggingRef.current = true
       setIsDragging(true)
-      dragStart.current = { x: e.clientX - currentOffset.x, y: e.clientY - currentOffset.y }
+      dragStart.current = { x: e.clientX - offset.x, y: e.clientY - offset.y }
       lastPos.current = { x: e.clientX, y: e.clientY }
       velocity.current = { x: 0, y: 0 }
     }
@@ -258,10 +279,7 @@ export function Canvas() {
     if (!isDraggingRef.current) return
     const dx = e.clientX - lastPos.current.x
     const dy = e.clientY - lastPos.current.y
-    velocity.current = {
-      x: velocity.current.x * 0.2 + dx * 0.8,
-      y: velocity.current.y * 0.2 + dy * 0.8
-    }
+    velocity.current = { x: velocity.current.x * 0.2 + dx * 0.8, y: velocity.current.y * 0.2 + dy * 0.8 }
     lastPos.current = { x: e.clientX, y: e.clientY }
     pendingOffsetRef.current = { x: e.clientX - dragStart.current.x, y: e.clientY - dragStart.current.y }
   }, [])
@@ -272,11 +290,13 @@ export function Canvas() {
       setIsDragging(false)
       if (Math.abs(velocity.current.x) > 2 || Math.abs(velocity.current.y) > 2) {
         startInertia()
+      } else {
+        setOffset(viewRef.current.offset)
       }
     }
-  }, [startInertia])
+  }, [startInertia, setOffset])
 
-  // 拖拽时仅按帧同步 offset，减少 setState 次数
+  // 拖拽 RAF loop — 直接操作 DOM，不 setState
   useEffect(() => {
     if (!isDragging) {
       if (dragRafId.current) cancelAnimationFrame(dragRafId.current)
@@ -284,24 +304,21 @@ export function Canvas() {
       return
     }
     const loop = () => {
-      setOffset(pendingOffsetRef.current)
+      applyTransform(pendingOffsetRef.current, viewRef.current.scale)
       if (isDraggingRef.current) dragRafId.current = requestAnimationFrame(loop)
     }
     dragRafId.current = requestAnimationFrame(loop)
-    return () => {
-      if (dragRafId.current) cancelAnimationFrame(dragRafId.current)
-    }
-  }, [isDragging, setOffset])
+    return () => { if (dragRafId.current) cancelAnimationFrame(dragRafId.current) }
+  }, [isDragging, applyTransform])
 
   // 处理手势缩放 (Touch)
   const touchStartDistRef = useRef<number | null>(null)
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (e.touches.length === 2) {
-      const dist = Math.hypot(
+      touchStartDistRef.current = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY
       )
-      touchStartDistRef.current = dist
     }
   }, [])
 
@@ -312,16 +329,18 @@ export function Canvas() {
         e.touches[0].clientY - e.touches[1].clientY
       )
       const factor = dist / touchStartDistRef.current
-      setScale(scale * factor)
+      const newScale = Math.max(0.2, Math.min(3, viewRef.current.scale * factor))
+      applyTransform(viewRef.current.offset, newScale)
+      setScaleDisplay(newScale)
       touchStartDistRef.current = dist
-    } else if (e.touches.length === 1 && !isSidebarOpen) {
-      // 单指平移逻辑可在必要时添加
     }
-  }, [scale, setScale, isSidebarOpen])
+  }, [applyTransform])
 
   const handleTouchEnd = useCallback(() => {
     touchStartDistRef.current = null
-  }, [])
+    setOffset(viewRef.current.offset)
+    setScale(viewRef.current.scale)
+  }, [setOffset, setScale])
 
   return (
     <>
@@ -329,22 +348,37 @@ export function Canvas() {
       <div className="fixed top-6 right-6 z-30 flex items-center gap-3">
         {/* 视图控制挂件 */}
         <div className="flex items-center bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 overflow-hidden px-1 py-1">
-          <button 
-            onClick={() => setScale(scale * 0.8)} 
+          <button
+            onClick={() => {
+              const newScale = Math.max(0.2, viewRef.current.scale * 0.8)
+              applyTransform(viewRef.current.offset, newScale)
+              setScaleDisplay(newScale)
+              setScale(newScale)
+            }}
             className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
             title="缩小"
           >
             <Minus className="w-4 h-4" />
           </button>
-          <div 
+          <div
             className="px-2 min-w-[50px] text-center cursor-pointer hover:bg-gray-50 rounded-lg py-1 transition-all"
-            onClick={resetView}
+            onClick={() => {
+              const initOffset = { x: 0, y: 0 }
+              applyTransform(initOffset, 1)
+              setScaleDisplay(1)
+              resetView()
+            }}
             title="重置视图"
           >
-            <span className="text-[11px] font-bold text-gray-500 uppercase">{Math.round(scale * 100)}%</span>
+            <span className="text-[11px] font-bold text-gray-500 uppercase">{Math.round(scaleDisplay * 100)}%</span>
           </div>
-          <button 
-            onClick={() => setScale(scale * 1.2)} 
+          <button
+            onClick={() => {
+              const newScale = Math.min(3, viewRef.current.scale * 1.2)
+              applyTransform(viewRef.current.offset, newScale)
+              setScaleDisplay(newScale)
+              setScale(newScale)
+            }}
             className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
             title="放大"
           >
@@ -432,16 +466,18 @@ export function Canvas() {
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
-          {/* 内容层：平移+缩放变换 */}
+          {/* 内容层：平移+缩放变换，transform 由 applyTransform 直接操作 DOM，不走 React state */}
           <div
+            ref={contentLayerRef}
             style={{
               position: 'absolute',
               width: '300vw',
               height: '300vh',
               left: '-100vw',
               top: '-100vh',
-              transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+              transform: `translate(${useCanvasStore.getState().offset.x}px, ${useCanvasStore.getState().offset.y}px) scale(${useCanvasStore.getState().scale})`,
               transformOrigin: '0 0',
+              willChange: 'transform',
               pointerEvents: 'none',
             }}
           >
@@ -458,14 +494,13 @@ export function Canvas() {
                     key={edge.id}
                     sourceNode={sourceNode}
                     targetNode={targetNode}
-                    scale={scale}
                   />
                 )
               })}
             </svg>
 
             {nodes.map((node) => (
-              <NodeCard key={node.id} node={node} scale={scale} depth={nodeDepthMap.get(node.id) ?? 1} />
+              <NodeCard key={node.id} node={node} depth={nodeDepthMap.get(node.id) ?? 1} />
             ))}
 
             {/* Macro View Clusters */}
@@ -473,7 +508,6 @@ export function Canvas() {
               <ClusterLabel
                 key={c.id}
                 cluster={c}
-                scale={scale}
                 onDrag={(dx, dy) => handleClusterDrag(c.category, dx, dy)}
                 onClick={() => handleClusterClick(c.x, c.y)}
               />
@@ -512,8 +546,8 @@ export function Canvas() {
           <MemoryLines
             nodes={nodes}
             highlightedNodeIds={highlightedNodeIds}
-            offset={offset}
-            scale={scale}
+            offset={viewRef.current.offset}
+            scale={viewRef.current.scale}
           />
         )}
       </AnimatePresence>
