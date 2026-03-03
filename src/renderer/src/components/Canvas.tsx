@@ -110,6 +110,16 @@ export function Canvas() {
   // Calculate clusters for Macro view
   const clusters = useMemo(() => getClusters(nodes), [nodes])
 
+  // 预计算每个节点的 depth（避免每个 NodeCard 自己做 findIndex）
+  const nodeDepthMap = useMemo(() => {
+    const map = new Map<string, number>()
+    nodes.forEach((n, index) => {
+      const ratio = index / Math.max(1, nodes.length - 1)
+      map.set(n.id, 0.75 + ratio * 0.25)
+    })
+    return map
+  }, [nodes])
+
   // Cluster Interaction
   const handleClusterClick = useCallback((cx: number, cy: number) => {
       const viewW = typeof window !== 'undefined' ? window.innerWidth : 1280
@@ -168,6 +178,10 @@ export function Canvas() {
   }, [setOffset])
 
   // 滚轮缩放处理（以鼠标位置为中心缩放）—— 用原生事件以便 preventDefault() 真正生效
+  // RAF 节流：连续 wheel 事件合并成一帧，避免每像素触发 setState
+  const pendingWheelRef = useRef<{ offset: { x: number; y: number }; scale: number } | null>(null)
+  const wheelRafRef = useRef<number | null>(null)
+
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -176,34 +190,47 @@ export function Canvas() {
       e.preventDefault()
       if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current)
 
-      // deltaMode: 0=px, 1=line, 2=page
+      // 读取最新状态（可能是上一帧已积累的值）
+      const { scale: currentScale, offset: currentOffset } =
+        pendingWheelRef.current ?? useCanvasStore.getState()
+
       const rawDelta = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY
-      const delta = -rawDelta
-      // 区分触控板（小 delta）和鼠标滚轮（大 delta）用同一个公式
-      const factor = Math.pow(1.001, delta)
-      const { scale: currentScale, offset: currentOffset } = useCanvasStore.getState()
+      const factor = Math.pow(1.001, -rawDelta)
       const newScale = Math.max(0.2, Math.min(3, currentScale * factor))
 
       const rect = canvas.getBoundingClientRect()
       const mouseX = e.clientX - rect.left
       const mouseY = e.clientY - rect.top
       const scaleDiff = newScale / currentScale
-      const viewW = typeof window !== 'undefined' ? window.innerWidth : 1280
-      const viewH = typeof window !== 'undefined' ? window.innerHeight : 800
-      const contentOriginX = -viewW
-      const contentOriginY = -viewH
-      const mouseInContentX = mouseX - contentOriginX
-      const mouseInContentY = mouseY - contentOriginY
+      const viewW = window.innerWidth
+      const viewH = window.innerHeight
+      const mouseInContentX = mouseX + viewW
+      const mouseInContentY = mouseY + viewH
 
       const newOffset = {
         x: mouseInContentX - scaleDiff * (mouseInContentX - currentOffset.x),
         y: mouseInContentY - scaleDiff * (mouseInContentY - currentOffset.y),
       }
-      useCanvasStore.getState().setView(newOffset, newScale)
+
+      // 积累本帧内所有 wheel 事件，只提交一次 setState
+      pendingWheelRef.current = { offset: newOffset, scale: newScale }
+
+      if (!wheelRafRef.current) {
+        wheelRafRef.current = requestAnimationFrame(() => {
+          if (pendingWheelRef.current) {
+            useCanvasStore.getState().setView(pendingWheelRef.current.offset, pendingWheelRef.current.scale)
+            pendingWheelRef.current = null
+          }
+          wheelRafRef.current = null
+        })
+      }
     }
 
     canvas.addEventListener('wheel', handleWheel, { passive: false })
-    return () => canvas.removeEventListener('wheel', handleWheel)
+    return () => {
+      canvas.removeEventListener('wheel', handleWheel)
+      if (wheelRafRef.current) cancelAnimationFrame(wheelRafRef.current)
+    }
   }, [])  // empty deps — reads latest state from store directly
 
   // 画布拖拽逻辑（RAF 合并更新，避免每 move 一次就 setState 卡顿）
@@ -431,7 +458,7 @@ export function Canvas() {
             </svg>
 
             {nodes.map((node) => (
-              <NodeCard key={node.id} node={node} />
+              <NodeCard key={node.id} node={node} scale={scale} depth={nodeDepthMap.get(node.id) ?? 1} />
             ))}
 
             {/* Macro View Clusters */}
