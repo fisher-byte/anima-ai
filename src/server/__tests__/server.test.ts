@@ -145,7 +145,9 @@ async function req(
   return app.fetch(new Request(`http://localhost${path}`, { method, headers, body }))
 }
 
-afterAll(() => testDb.close())
+afterAll(() => {
+  testDb.close()
+})
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 

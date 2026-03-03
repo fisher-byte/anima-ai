@@ -26,7 +26,8 @@ app.use('*', logger())
 app.use(
   '/api/*',
   cors({
-    origin: process.env.NODE_ENV === 'production' ? false : '*',
+    // 生产环境默认不开放跨域；开发环境允许任意来源（本地 Vite / Electron 调试）
+    origin: () => (process.env.NODE_ENV === 'production' ? null : '*'),
     allowHeaders: ['Content-Type', 'Authorization'],
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
   })

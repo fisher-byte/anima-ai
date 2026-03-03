@@ -114,6 +114,12 @@ memoryRoutes.delete('/index/:id', (c) => {
   return c.json({ ok: true })
 })
 
+/** 清空全部向量索引（用于重置/体验新手教程） */
+memoryRoutes.delete('/index', (c) => {
+  db.prepare('DELETE FROM embeddings').run()
+  return c.json({ ok: true })
+})
+
 /** 向量检索 */
 memoryRoutes.post('/search', async (c) => {
   const { query, topK = 5 } = await c.req.json<{ query: string; topK?: number }>()
@@ -284,11 +290,16 @@ ${assistantMessage ? `AI回复：${assistantMessage.slice(0, 200)}` : ''}
       INSERT INTO memory_facts (id, fact, source_conv_id, created_at)
       VALUES (lower(hex(randomblob(16))), ?, ?, ?)
     `)
+    const checkDup = db.prepare(`SELECT COUNT(*) as cnt FROM memory_facts WHERE fact = ?`)
     let inserted = 0
     for (const fact of facts.slice(0, 5)) {
       if (fact?.trim().length > 2) {
-        insert.run(fact.trim(), conversationId ?? null, now)
-        inserted++
+        const trimmed = fact.trim()
+        const { cnt } = checkDup.get(trimmed) as { cnt: number }
+        if (cnt === 0) {
+          insert.run(trimmed, conversationId ?? null, now)
+          inserted++
+        }
       }
     }
 
@@ -311,5 +322,27 @@ memoryRoutes.get('/facts', (c) => {
 memoryRoutes.delete('/facts/:id', (c) => {
   const id = c.req.param('id')
   db.prepare('DELETE FROM memory_facts WHERE id = ?').run(id)
+  return c.json({ ok: true })
+})
+
+/** 清空全部记忆事实（用于重置/体验新手教程） */
+memoryRoutes.delete('/facts', (c) => {
+  db.prepare('DELETE FROM memory_facts').run()
+  return c.json({ ok: true })
+})
+
+/** 清空用户画像（用于重置/体验新手教程） */
+memoryRoutes.delete('/profile', (c) => {
+  const now = new Date().toISOString()
+  const existing = db.prepare('SELECT id FROM user_profile WHERE id = 1').get()
+  if (existing) {
+    db.prepare(`
+      UPDATE user_profile SET
+        occupation = NULL, interests = NULL, tools = NULL,
+        writing_style = NULL, goals = NULL, location = NULL,
+        raw_notes = NULL, last_extracted = NULL, updated_at = ?
+      WHERE id = 1
+    `).run(now)
+  }
   return c.json({ ok: true })
 })

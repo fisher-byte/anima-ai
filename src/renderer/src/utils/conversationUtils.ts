@@ -95,7 +95,9 @@ export function parseTurnsFromAssistantMessage(
     let aiContent = match[3].trim()
     const index = parseInt(match[1])
     let turnReasoning: string | undefined
-    const reasoningMatch = aiContent.match(/^思考：([\s\S]*?)\n\n([\s\S]*)$/)
+    const reasoningMatch = aiContent.includes('[/THINKING]')
+      ? aiContent.match(/^思考：([\s\S]*?)\n\n\[\/THINKING\]\n\n([\s\S]*)$/)
+      : aiContent.match(/^思考：([\s\S]*)\n\n([\s\S]+)$/)
     if (reasoningMatch) {
       turnReasoning = reasoningMatch[1].trim()
       aiContent = reasoningMatch[2].trim()
@@ -118,7 +120,18 @@ export function parseTurnsFromAssistantMessage(
 
 export function stripLeadingNumberHeading(text: string): string {
   if (!text) return text
-  let s = text.replace(/^#+\s*\d+\s*\n?/, '').trim()
+  // 哨兵格式（已关闭对话）
+  let s = text.replace(/^思考：[\s\S]*?\[\/THINKING\]\n\n/, '').trim()
+  // 流式/旧格式：思考内容未加哨兵时也剥掉
+  if (s.startsWith('思考：')) {
+    // 有哨兵时已处理，这里处理无哨兵的流式情况：剥掉整个思考块到第一个双换行
+    s = s.replace(/^思考：[\s\S]*?\n\n/, '').trim()
+    // 如果整段都是思考（还没有正文），暂时返回空串
+    if (s.startsWith('思考：')) s = ''
+  }
+  // 多轮格式兜底：#N\n用户：...\nAI：\n...
+  s = s.replace(/^#\s*\d+\s*\n+用户[：:][\s\S]*?AI[：:]\s*\n?/m, '').trim()
+  s = s.replace(/^#+\s*\d+\s*\n?/, '').trim()
   if (/AI[：:]/.test(s)) {
     s = s.replace(/^[\s\S]*?AI[：:]\s*/, '').trim()
   }
