@@ -1,9 +1,11 @@
 import { useCanvasStore } from '../stores/canvasStore'
+import { useLodScale } from '../hooks/useLodScale'
 import { useMemo } from 'react'
 
 export function AmbientBackground() {
   const nodes = useCanvasStore(state => state.nodes)
-  const scale = useCanvasStore(state => state.scale)
+  // 只在 LOD 阈值跨越时触发重渲染
+  const scale = useLodScale([0.7])
 
   const activeColor = useMemo(() => {
     if (nodes.length === 0) return '#E2E8F0'

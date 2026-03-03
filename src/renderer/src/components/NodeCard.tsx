@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCanvasStore } from '../stores/canvasStore'
+import { useLodScale } from '../hooks/useLodScale'
 import type { Node } from '@shared/types'
 
 interface NodeCardProps {
@@ -10,8 +11,8 @@ interface NodeCardProps {
 
 export const NodeCard = memo(function NodeCard({ node, depth }: NodeCardProps) {
   const { removeNode, updateNodePosition, openModalById, highlightedNodeIds } = useCanvasStore()
-  // scale은 zoom 종료 후(100ms debounce)에만 업데이트되므로 구독해도 zoom 중 재렌더링 없음
-  const scale = useCanvasStore(state => state.scale)
+  // 只在 LOD 阈值(0.4/0.6)跨越时触发重渲染，zoom 中不重渲染
+  const scale = useLodScale([0.4, 0.6])
   const [isDragging, setIsDragging] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
 

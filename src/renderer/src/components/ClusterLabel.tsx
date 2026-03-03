@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import { Layers } from 'lucide-react'
-import { useCanvasStore } from '../stores/canvasStore'
+import { useLodScale } from '../hooks/useLodScale'
 
 interface Cluster {
   id: string
@@ -30,7 +30,7 @@ function getOpacity(scale: number, min: number, max: number, type: 'fade-in' | '
 }
 
 export function ClusterLabel({ cluster, onDrag, onClick }: ClusterLabelProps) {
-  const scale = useCanvasStore(state => state.scale)
+  const scale = useLodScale([0.4, 0.6])
   // Fade out between 0.4 and 0.6 scale
   const opacity = getOpacity(scale, 0.4, 0.6, 'fade-out')
   const isVisible = opacity > 0

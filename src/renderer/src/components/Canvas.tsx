@@ -106,12 +106,16 @@ function getClusters(nodes: any[]) {
 }
 
 export function Canvas() {
-  // 细粒度订阅：只取 nodes/edges/isModalOpen/highlightedNodeIds，不订阅 offset/scale
+  // 細粒度订阅：只订阅会引起 UI 变化的数据，函数用 getState() 避免触发重渲染
   const nodes = useCanvasStore(state => state.nodes)
   const edges = useCanvasStore(state => state.edges)
   const isModalOpen = useCanvasStore(state => state.isModalOpen)
   const highlightedNodeIds = useCanvasStore(state => state.highlightedNodeIds)
-  const { setOffset, setScale, resetView, updateNodePosition } = useCanvasStore()
+  // actions 从 getState() 取，不订阅 store，不触发重渲染
+  const setOffset = useCallback((o: {x:number;y:number}) => useCanvasStore.getState().setOffset(o), [])
+  const setScale = useCallback((s: number) => useCanvasStore.getState().setScale(s), [])
+  const resetView = useCallback(() => useCanvasStore.getState().resetView(), [])
+  const updateNodePosition = useCallback((id: string, x: number, y: number) => useCanvasStore.getState().updateNodePosition(id, x, y), [])
 
   // offset/scale 完全用 ref 管理，不走 React state，避免 zoom 触发任何重渲染
   const viewRef = useRef({ offset: useCanvasStore.getState().offset, scale: useCanvasStore.getState().scale })
@@ -237,20 +241,20 @@ export function Canvas() {
             const { offset, scale } = pendingWheelRef.current
             applyTransform(offset, scale)
             pendingWheelRef.current = null
-            // 工具栏百分比每 100ms 刷新一次（低频 setState）
-            if (!scaleDisplayRafRef.current) {
-              scaleDisplayRafRef.current = window.setTimeout(() => {
-                setScaleDisplay(viewRef.current.scale)
-                // 同步到 store（供 MemoryLines 等读取实际 scale）
-                setOffset(viewRef.current.offset)
-                setScale(viewRef.current.scale)
-                scaleDisplayRafRef.current = null
-              }, 100)
-            }
           }
           wheelRafRef.current = null
         })
       }
+
+      // zoom 정지 300ms 후 store에 한 번만 동기화
+      // → useLodScale subscribe 트리거 (LOD 전환) + 공구바 % 갱신
+      if (scaleDisplayRafRef.current) clearTimeout(scaleDisplayRafRef.current)
+      scaleDisplayRafRef.current = window.setTimeout(() => {
+        const { offset, scale } = viewRef.current
+        useCanvasStore.setState({ offset, scale: Math.max(0.2, Math.min(3, scale)) })
+        setScaleDisplay(scale)
+        scaleDisplayRafRef.current = null
+      }, 300)
     }
 
     canvas.addEventListener('wheel', handleWheel, { passive: false })
