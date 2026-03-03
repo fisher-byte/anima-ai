@@ -2,7 +2,7 @@
 
 > 一个记住你偏好的本地AI画布。
 
-![版本](https://img.shields.io/badge/version-0.4.0-blue)
+![版本](https://img.shields.io/badge/version-0.2.9-blue)
 ![Electron](https://img.shields.io/badge/Electron-29.1.4-47848F?logo=electron)
 ![React](https://img.shields.io/badge/React-18.2.0-61DAFB?logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.4.2-3178C6?logo=typescript)
@@ -26,7 +26,12 @@
 
 ## 功能特性
 
-### 已实现 (v0.4.0)
+### 已实现 (v0.2.9)
+
+- [x] **引导流程四阶段重设计（v0.2.9）** — AI 问候 → 用户自我介绍 → AI 自然回应 + 追问风格偏好 → 偏好保存为进化基因 → 引导自由提问 → 关闭提示；全程无弹窗，像朋友对话
+- [x] **关闭提示轻量化（v0.2.9）** — 从全屏飞散动画改为左上角小 toast；文案从「固化」改为「已记下来了」；纯回放打开不触发提示
+- [x] **System Prompt 去激进化（v0.2.9）** — 删除「极高智力水平」等强约束，改为自然对话基调；引导模式单独用轻量 ONBOARDING_SYSTEM_PROMPT，不注入偏好/记忆/画像
+- [x] **isOnboarding 标志贯穿（v0.2.9）** — 前端到后端完整链路：ai.ts → useAI → AnswerModal；引导模式与正常模式 system prompt 完全隔离
 
 - [x] **缩放性能彻底修复（v0.3.1）** — 三层根因：① NodeCard 用细粒度 selector 替代全 store 订阅；② 漂浮动画改为纯 CSS `@keyframes`（compositor thread，零主线程开销）；③ 根容器改为 `<div>` + CSS transition 消除 Framer Motion 常驻 rAF 上下文。滚动/缩放全程零 React 重渲染
 - [x] **Web 全栈化（v0.3.0）** — Hono 后端 + SQLite 存储，AI 调用走后端代理（API Key 不出浏览器），支持 Docker 部署

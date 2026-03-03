@@ -1,5 +1,50 @@
 # EvoCanvas 变更日志
 
+## [0.2.9b] - 2026-03-03
+
+### 引导流程四阶段重设计 + 关闭提示轻量化 + System Prompt 去激进化
+
+#### 新手引导流程重设计（`AnswerModal.tsx` + `conversationUtils.ts`）
+
+**问题**：旧引导 AI 第一句话直接飙出 React 介绍、能力展示，不像朋友对话；phase 2（用户给出风格偏好）会触发 AI 调用，体验脱节。
+
+**重设计**：
+- 引导分 4 个阶段：phase 0（问候）→ phase 1（AI 自然回应自我介绍）→ phase 2（用户给偏好 → 直接保存不调 AI）→ phase 3（自由提问 AI 真实回答）→ phase 4（关闭提示）
+- `ONBOARDING_STYLE_PROMPT`：phase 1 完成后追加到 AI 回复末尾，问用户风格感觉是否合适
+- `ONBOARDING_GENE_SAVED`：phase 2 完成后直接作为静态回复注入，无 AI 调用
+- `ONBOARDING_CLOSE_HINT`：phase 3 完成后追加到 AI 回复末尾，引导关闭
+- phase 2 处理：用户反馈直接存为 `addPreference`（confidence 0.7），跳过 AI，显示「已记住你的偏好」toast
+
+#### System Prompt 去激进化（`constants.ts` + `server/routes/ai.ts`）
+
+**问题**：`DEFAULT_SYSTEM_PROMPT` 要求「极高智力水平」「必须用 Markdown 表格」等，导致引导期 AI 输出过多格式化内容。
+
+**修复**：
+- `DEFAULT_SYSTEM_PROMPT`：改为自然对话基调，跟随问题决定长度和格式
+- 新增 `ONBOARDING_SYSTEM_PROMPT`：轻量版，引导时 AI 像初次见面的朋友，简短温暖，不分析不建议
+- 后端 `isOnboarding` 标志：引导模式只用 `ONBOARDING_SYSTEM_PROMPT`，不注入偏好/记忆/用户画像
+
+#### isOnboarding 标志贯穿前后端（`ai.ts` → `useAI.ts` → `AnswerModal.tsx`）
+
+- `streamAI` 新增 `isOnboarding?: boolean` 参数，传入请求体
+- `useAI.sendMessage` 新增 `isOnboarding?: boolean` 参数，向下透传
+- `AnswerModal.handleFeedbackSubmit` 在 AI 调用时传入 `isOnboardingMode`
+
+#### 关闭提示轻量化（`AnswerModal.tsx`）
+
+**问题**：每次关闭都在中间显示全屏飞散动画；历史对话重新打开也会触发；"固化"措辞生硬。
+
+**修复**：
+- `ClosingAnimation` 改为左上角小 toast（`fixed top-4 left-4`），快速淡入淡出
+- 条件：`!isReplayRef.current && didMutateRef.current`，纯回放不触发
+- 文案：「记忆节点已固化」→「已记下来了」/ 引导时「记忆已生成 ✦」
+- 去掉全屏飞散 node 碎片动画
+- 「偏好已应用并进化」→「已记住你的偏好」
+
+**测试**：115 个测试全部通过，TypeScript 无新增错误。
+
+---
+
 ## [0.2.9] - 2026-03-03
 
 ### 新手引导完善 + 用户画像面板 + 进化提示系统
