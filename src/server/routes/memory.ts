@@ -230,3 +230,86 @@ memoryRoutes.post('/queue', async (c) => {
   enqueueTask(type, payload ?? {})
   return c.json({ ok: true })
 })
+
+// ─── memory facts (独立记忆板块) ─────────────────────────────────────────────
+
+/** 从对话中 AI 摘取有价值的用户记忆事实 */
+memoryRoutes.post('/extract', async (c) => {
+  const { conversationId, userMessage, assistantMessage } = await c.req.json<{
+    conversationId?: string; userMessage: string; assistantMessage?: string
+  }>()
+  if (!userMessage?.trim()) return c.json({ ok: false, reason: 'userMessage required' })
+
+  const { apiKey, baseUrl } = getApiConfig()
+  if (!apiKey) return c.json({ ok: false, reason: 'no api key' })
+
+  const isMoonshot = baseUrl.includes('moonshot')
+  const model = isMoonshot ? 'moonshot-v1-8k' : 'gpt-4o-mini'
+
+  const prompt = `从以下对话中提取用户透露的关于自己的有价值信息（职业/习惯/偏好/目标/经历/个人信息等），以简短的事实句子列出。要求：
+- 每条不超过20字
+- 只提取用户主动透露的信息，不要推测
+- 如果没有有价值的个人信息，返回空数组
+- 只返回JSON，不要其他文字
+
+用户说：${userMessage.slice(0, 400)}
+${assistantMessage ? `AI回复：${assistantMessage.slice(0, 200)}` : ''}
+
+返回格式：{"facts": ["事实1", "事实2"]}`
+
+  try {
+    const resp = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0,
+        max_tokens: 300
+      })
+    })
+    if (!resp.ok) return c.json({ ok: false, reason: 'api error' })
+
+    const data = (await resp.json()) as { choices: { message: { content: string } }[] }
+    const content = data.choices?.[0]?.message?.content || ''
+
+    const jsonMatch = content.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) return c.json({ ok: true, extracted: 0 })
+
+    const { facts } = JSON.parse(jsonMatch[0]) as { facts: string[] }
+    if (!Array.isArray(facts) || facts.length === 0) return c.json({ ok: true, extracted: 0 })
+
+    const now = new Date().toISOString()
+    const insert = db.prepare(`
+      INSERT INTO memory_facts (id, fact, source_conv_id, created_at)
+      VALUES (lower(hex(randomblob(16))), ?, ?, ?)
+    `)
+    let inserted = 0
+    for (const fact of facts.slice(0, 5)) {
+      if (fact?.trim().length > 2) {
+        insert.run(fact.trim(), conversationId ?? null, now)
+        inserted++
+      }
+    }
+
+    return c.json({ ok: true, extracted: inserted })
+  } catch (e) {
+    console.warn('[memory/extract] failed:', e)
+    return c.json({ ok: false, reason: 'internal error' })
+  }
+})
+
+/** 读取所有记忆事实 */
+memoryRoutes.get('/facts', (c) => {
+  const rows = db.prepare(
+    'SELECT id, fact, source_conv_id, created_at FROM memory_facts ORDER BY created_at DESC LIMIT 200'
+  ).all() as { id: string; fact: string; source_conv_id: string | null; created_at: string }[]
+  return c.json({ facts: rows })
+})
+
+/** 删除单条记忆事实 */
+memoryRoutes.delete('/facts/:id', (c) => {
+  const id = c.req.param('id')
+  db.prepare('DELETE FROM memory_facts WHERE id = ?').run(id)
+  return c.json({ ok: true })
+})
