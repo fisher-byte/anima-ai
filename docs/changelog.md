@@ -1,6 +1,43 @@
 # EvoCanvas 变更日志
 
-## [0.2.8] - 2026-03-03
+## [0.3.1] - 2026-03-03
+
+### Web 版缩放性能彻底修复
+
+**问题**：多次来回滚动后画布卡死，滚动时节点闪烁消失
+
+**根因（三层，按严重程度排序）**：
+
+1. **NodeCard 订阅全 store（最严重）** — `useCanvasStore()` 无 selector，任何 store 变化（scale/offset/highlights）都触发所有 NodeCard 重渲染
+2. **Framer Motion `repeat: Infinity` 漂浮动画** — 每个节点的 Framer Motion 无限循环动画在 JS 主线程持续跑 rAF 插值，17 个节点 = 17 个并行主线程循环，与缩放 rAF 竞争
+3. **根容器 `motion.div` 持续动画上下文** — `animate={{ filter, scale, opacity }}` + spring transition 让 Framer Motion 永久持有 rAF 循环，整个画布子树保持"需要合成"状态
+
+**修复**：
+
+- `NodeCard.tsx`：`useCanvasStore()` 改为细粒度 selector（`removeNode`/`updateNodePosition`/`openModalById`/`isHighlighted` 各自独立订阅）
+- `NodeCard.tsx`：漂浮动画从 Framer Motion `repeat: Infinity` 改为纯 CSS `@keyframes`（compositor thread，零主线程开销）
+- `Canvas.tsx`：根包装层从 `motion.div` 改为普通 `<div>` + CSS `transition`，消除 Framer Motion 常驻动画上下文
+- `Canvas.tsx`：删除 `ZoomPreviewLayer` + `zoomPhase` 状态机（该方案在缩放时销毁重建整棵 DOM，造成节点闪烁），恢复节点始终存在、transform 直操 DOM 的正确架构
+- `index.css`：新增 `@keyframes nodeFloatY / nodeFloatX`
+
+---
+
+
+### Web 版缩放卡顿治理（滚轮/手势）
+
+**问题**：缩小/放大过程中依旧卡顿，长时间滚轮后偶发卡死
+
+**根因**：
+- wheel 事件过密，重复计算导致主线程被持续占用
+- 缩放时仍在跑大批量节点/连线的动效与渲染
+
+**修复**（`Canvas.tsx`）：
+- wheel 事件按帧合并：单帧累计 delta，再在 RAF 内一次性计算 scale/offset
+- 缩放期间暂停重渲染层（节点/连线/ClusterLabel），缩放结束后恢复
+- 缩放预览层：缩放中只渲染轻量节点点位与分类标题，避免白屏与卡顿并存
+- 版本备份：`docs/backup-20260303-canvas.tsx`
+
+---
 
 ### 节点坐标钳制：修复节点飞离画布中心问题
 

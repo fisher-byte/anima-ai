@@ -68,32 +68,24 @@ evocanvas/
 ### 3. 组件层 (React)
 
 **Canvas** (`components/Canvas.tsx`)
-- 无限画布，支持拖拽（画布层使用 pointer-events-auto 保证事件可达）
+- 无限画布，支持拖拽、缩放（wheel/touch pinch）、惯性滑动
 - 极光背景（AmbientBackground）+ 点阵背景
-- 平移、缩放、惯性滑动；LOD：缩小显示聚类标签，放大显示节点
+- LOD：`scale < 0.6` 时节点淡出并显示 ClusterLabel 宏观视图
 - 渲染 NodeCard、Edge、ClusterLabel
 
-**AmbientBackground** (`components/AmbientBackground.tsx`)
-- 极光渐变背景，颜色随主导节点分类变化（工作蓝/生活绿/创意紫）
-- 噪声纹理层，pointer-events-none
-
-**ClusterLabel** (`components/ClusterLabel.tsx`)
-- 宏观视图下显示的聚类标签（生活日常、工作学习等）
-- 随 scale 淡入淡出；反向缩放保持可读；支持拖拽整组、点击聚焦
-
-**InputBox** (`components/InputBox.tsx`)
-- 底部居中输入框，毛玻璃效果
-- 防抖语义检测：detectIntent + getRelevantMemories，结果 setHighlight 驱动画布高亮
-- 支持 Enter 发送，Shift+Enter 换行；附件与多行
-
-**AnswerModal** (`components/AnswerModal.tsx`)
-- 对话岛形态：从输入框 Morph 展开的半屏面板，非全屏
-- 顶部记忆引用条，流式 AI 回复，负反馈输入，文件上传与停止生成
-- 检测并记录偏好
+**Canvas 缩放性能架构**（关键设计，请勿随意改动）：
+- `offset` / `scale` **完全存在 `viewRef`**，不走 React state；缩放期间零重渲染
+- `applyTransform()` 直接操作 `contentLayerRef.current.style.transform`，绕过 React
+- wheel 事件在 useEffect 里用 `{ passive: false }` 监听，按帧累计 delta，每帧只触发一次 RAF
+- **300ms debounce** 后才做唯一一次 `useCanvasStore.setState`，驱动 useLodScale LOD 切换
+- `useLodScale`：用 `useCanvasStore.subscribe()`（非 React hook）订阅 scale；只在跨越 LOD bucket 时才 `setState`，zoom 过程中完全不触发重渲染
+- 根包装层用普通 `<div>` + CSS `transition`（非 `motion.div`），消除 Framer Motion 常驻 rAF 上下文
 
 **NodeCard** (`components/NodeCard.tsx`)
 - 显示标题、关键词、日期；LOD 透明度；高亮态（highlightedNodeIds）
-- 点击打开 NodeDetailPanel（不再直接打开 AnswerModal）
+- **细粒度 selector**：`removeNode`/`updateNodePosition`/`openModalById`/`isHighlighted` 各自独立订阅，不订阅全 store
+- **漂浮动画用纯 CSS `@keyframes`**（compositor thread），不用 Framer Motion `repeat: Infinity`（主线程）
+- 拖拽通过 `window.addEventListener` + DOM 直写坐标实现，不 setState
 
 **NodeDetailPanel** (`components/NodeDetailPanel.tsx`)
 - 节点详情侧边面板：继续话题、重命名、删除
