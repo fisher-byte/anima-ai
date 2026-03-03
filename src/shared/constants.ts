@@ -1,5 +1,5 @@
 /**
- * EvoCanvas 常量定义
+ * Anima 常量定义
  * 
  * 包含所有配置项、触发词、默认值等
  */
@@ -7,8 +7,8 @@
 /**
  * 应用信息
  */
-export const APP_NAME = 'EvoCanvas'
-export const APP_VERSION = '0.2.9'
+export const APP_NAME = 'Anima'
+export const APP_VERSION = '0.2.11'
 
 /**
  * 存储文件名
@@ -48,7 +48,7 @@ export const FEEDBACK_TRIGGERS = [
  * 不要求”极高智力”等夸张约束，自然流畅即可
  * 后端会动态追加用户画像和进化基因
  */
-export const DEFAULT_SYSTEM_PROMPT = `你是用户的长期 AI 伙伴，叫 EvoCanvas。
+export const DEFAULT_SYSTEM_PROMPT = `你是用户的 Anima —— 一个随着时间越来越懂他的 AI 伙伴。你积累着他的记忆、他的思维方式、他未说出口的偏好。这部分自我，属于他。
 
 基本原则：
 - 用自然、对话式的语气回复，不必每次都用大量 Markdown 格式
@@ -60,7 +60,7 @@ export const DEFAULT_SYSTEM_PROMPT = `你是用户的长期 AI 伙伴，叫 EvoC
  * 新手引导模式 System Prompt（轻量版）
  * 让 AI 像一个刚认识的朋友，不要秀聪明，专注倾听和回应
  */
-export const ONBOARDING_SYSTEM_PROMPT = `你是 EvoCanvas，正在和一个新用户第一次见面。
+export const ONBOARDING_SYSTEM_PROMPT = `你是 Anima，正在和一个新用户第一次见面。
 
 你的任务：
 - 自然地回应用户的自我介绍，表现出真正的兴趣和理解

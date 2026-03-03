@@ -560,7 +560,7 @@ export function AnswerModal() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `evocanvas-chat-${new Date().toISOString().split('T')[0]}.md`
+    a.download = `anima-chat-${new Date().toISOString().split('T')[0]}.md`
     a.click()
     URL.revokeObjectURL(url)
     setShowExportMenu(false)
@@ -574,7 +574,7 @@ export function AnswerModal() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `evocanvas-export-${new Date().toISOString().split('T')[0]}.json`
+      a.download = `anima-export-${new Date().toISOString().split('T')[0]}.json`
       a.click()
       URL.revokeObjectURL(url)
     } catch {}

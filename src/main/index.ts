@@ -62,7 +62,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.electron.evocanvas')
+  electronApp.setAppUserModelId('com.electron.anima')
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)

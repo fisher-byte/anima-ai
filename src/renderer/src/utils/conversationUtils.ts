@@ -13,7 +13,7 @@ import type { Conversation, FileAttachment } from '@shared/types'
 //   phase 3 → 用户回答 → AI 正常处理 + 引导关窗
 
 /** phase 0：打招呼，请用户自我介绍 */
-export const ONBOARDING_GREETING = `你好，我是 EvoCanvas。这里是你的一个创造空间——每次你跟我说话，这段对话就会被记录下来，慢慢连成一张只属于你的图。
+export const ONBOARDING_GREETING = `你好，我是 Anima。这里是你的一个创造空间——每次你跟我说话，这段对话就会被记录下来，慢慢连成一张只属于你的图。
 
 先说说你是谁，在做什么？`
 

@@ -1,6 +1,22 @@
-# EvoCanvas 变更日志
+# Anima 变更日志
 
 ## [0.2.11] - 2026-03-03
+
+### 品牌改名：EvoCanvas → Anima
+
+Anima 取自荣格心理学——人格中缺失的那部分自我。在 AI 时代，你的记忆留在了 AI 里，这部分自我应该还是属于你的。
+
+- 全局将 "EvoCanvas" 替换为 "Anima"（`APP_NAME`、系统提示词、界面标题、导出文件名、数据库文件名）
+- `index.html` 标题：`EvoCanvas - 不会忘记你的AI画布` → `Anima — 属于你的那部分自我`
+- `DEFAULT_SYSTEM_PROMPT`：AI 自我定位从"长期伙伴"升级为"Anima——随时间越来越懂你的那部分自我"
+- `ONBOARDING_GREETING`：AI 开场白由"我是 EvoCanvas"改为"我是 Anima"
+- `package.json`：`name` 改为 `anima`，`version` 同步为 `0.2.11`
+- `data/anima.db`：SQLite 数据库文件名由 `evocanvas.db` 改为 `anima.db`
+- `README.md`：以哲学宣言重写，品牌气质全面升级
+
+---
+
+## [0.2.11] - 2026-03-03（之前的条目）
 
 ### 引导完成文案 + 全局去紫色 + 能力节点交互修复
 
