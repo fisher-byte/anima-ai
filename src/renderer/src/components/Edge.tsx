@@ -10,7 +10,6 @@ interface EdgeProps {
 export const Edge = memo(function Edge({ sourceNode, targetNode }: EdgeProps) {
   const scale = useCanvasStore(state => state.scale)
   const lodOpacity = scale < 0.3 ? 0 : scale > 0.5 ? 1 : (scale - 0.3) / 0.2
-  if (lodOpacity <= 0) return null
 
   const { path, strokeWidth, opacity, color } = useMemo(() => {
     const sx = sourceNode.x + 104
@@ -34,6 +33,8 @@ export const Edge = memo(function Edge({ sourceNode, targetNode }: EdgeProps) {
 
     return { path: p, strokeWidth: sw, opacity: op, color: nodeColor }
   }, [sourceNode.x, sourceNode.y, targetNode.x, targetNode.y, sourceNode.color, lodOpacity])
+
+  if (lodOpacity <= 0) return null
 
   return (
     <path
