@@ -1,14 +1,18 @@
 /**
- * OnboardingGuide — 交互式新手引导
+ * OnboardingGuide — 交互式新手引导 v2
  *
- * 5 个阶段，全程贴在输入框上方，不遮挡画布，让用户边看边操作：
+ * 关键设计原则：
+ * 1. 等 loadNodes 完成后再判断是否展示（避免异步数据还没到就错误触发）
+ * 2. 记录引导开始时的节点基准数，用"新增几个节点"而非绝对数量驱动状态机
+ * 3. 只在首次（localStorage 无 key + 加载后仍无节点）展示
  *
- * Step 0 (idle)      → 欢迎提示，引导用户自我介绍
- * Step 1 (sent1)     → 检测到第一条对话（nodes 0→1），引导用户再说一句评价
- * Step 2 (sent2)     → 检测到第二条对话（nodes 1→2），提示关闭对话框
- * Step 3 (closed)    → 对话框已关闭、节点已分裂，引导用户再发一句"你好"
- * Step 4 (highlight) → 检测到记忆连线出现（highlightedNodeIds.length > 0），收尾
- * done               → 引导完成，隐藏
+ * 状态机：
+ *   idle      → 欢迎，引导自我介绍
+ *   sent1     → 节点基准+1（第一轮对话节点落下），引导评价
+ *   sent2     → 节点基准+2（第二轮对话节点落下），提示关闭对话框
+ *   closed    → 对话框从开→关，引导再发一句话
+ *   highlight → 输入框出现记忆连线高亮，收尾
+ *   done      → 结束，不渲染
  */
 
 import { useState, useEffect, useRef } from 'react'
@@ -18,68 +22,103 @@ import { useCanvasStore } from '../stores/canvasStore'
 
 type Phase = 'idle' | 'sent1' | 'sent2' | 'closed' | 'highlight' | 'done'
 
-const BUBBLE_W = 360
-
 export function OnboardingGuide() {
   const nodes = useCanvasStore(state => state.nodes)
   const isModalOpen = useCanvasStore(state => state.isModalOpen)
   const highlightedNodeIds = useCanvasStore(state => state.highlightedNodeIds)
 
+  // 三态：null = 还没判断, false = 不需要, true = 需要展示
+  const [show, setShow] = useState<boolean | null>(null)
   const [phase, setPhase] = useState<Phase>('idle')
-  const prevNodesLen = useRef(0)
-  const prevModalOpen = useRef(false)
-  const hasSeenHighlight = useRef(false)
 
-  // 仅新用户（无节点 + 未完成引导）展示
-  const [show, setShow] = useState(false)
+  // 引导开始时的节点基准数
+  const baseNodesLen = useRef<number>(0)
+  // 对话框"曾经打开过"标记（用于检测 open→close 这个边沿）
+  const modalWasOpen = useRef(false)
+  // highlight 只触发一次
+  const highlightTriggered = useRef(false)
+
+  // ── Step A: loadNodes 完成后决定是否展示 ─────────────────────────────────
+  // isLoading 从 true → false 时，nodes 已经从文件加载进来了
+  // 用一个 ref 跟踪"是否已做过判断"，避免重复触发
+  const decided = useRef(false)
   useEffect(() => {
-    if (nodes.length === 0 && !localStorage.getItem('evo_onboarding_v2')) {
+    if (decided.current) return
+    // isLoading 初始值是 false，loadNodes 调用后会变成 false（它不用 isLoading 标志）
+    // 所以改用"nodes 状态稳定"来判断：等待 500ms 无变化即认为加载完毕
+    const timer = setTimeout(() => {
+      if (decided.current) return
+      decided.current = true
+      const alreadyDone = localStorage.getItem('evo_onboarding_v2')
+      if (alreadyDone) {
+        setShow(false)
+        return
+      }
+      // 加载完成后节点数 > 0，说明有历史数据，跳过引导
+      const currentNodes = useCanvasStore.getState().nodes
+      if (currentNodes.length > 0) {
+        setShow(false)
+        return
+      }
+      // 真正的新用户
+      baseNodesLen.current = 0
       setShow(true)
-    }
-  }, [])
+    }, 800) // 800ms 足够 loadNodes 完成（网络存储一般 <200ms）
 
-  // 状态机：监听 nodes 数量、modal、highlight 变化
+    return () => clearTimeout(timer)
+  }, []) // 只在 mount 时运行一次
+
+  // ── Step B: 状态机 ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!show || phase === 'done') return
 
-    const len = nodes.length
-    const prev = prevNodesLen.current
+    const added = nodes.length - baseNodesLen.current
 
-    // sent1：第一次有节点
-    if (phase === 'idle' && len === 1 && prev === 0) {
+    // idle → sent1：第一轮对话后有新节点落下
+    if (phase === 'idle' && added >= 1) {
       setPhase('sent1')
+      return
     }
-    // sent2：节点增加到 2+（第二轮对话完成）
-    if (phase === 'sent1' && len >= 2 && prev < 2) {
+    // sent1 → sent2：第二轮对话后又有新节点
+    if (phase === 'sent1' && added >= 2) {
       setPhase('sent2')
+      return
     }
-
-    prevNodesLen.current = len
   }, [nodes.length, show, phase])
 
+  // 监听 modal open/close
   useEffect(() => {
     if (!show || phase === 'done') return
 
-    // closed：对话框关闭（从 sent2 阶段）
-    if (phase === 'sent2' && prevModalOpen.current && !isModalOpen) {
-      setPhase('closed')
+    if (isModalOpen) {
+      modalWasOpen.current = true
     }
-    prevModalOpen.current = isModalOpen
+
+    // sent2 → closed：对话框从开 → 关
+    if (phase === 'sent2' && modalWasOpen.current && !isModalOpen) {
+      setPhase('closed')
+      modalWasOpen.current = false
+      return
+    }
+
+    // idle/sent1 阶段，对话框关闭时更新 modalWasOpen 状态（不推进 phase）
+    if (!isModalOpen) {
+      modalWasOpen.current = false
+    }
   }, [isModalOpen, show, phase])
 
+  // 监听高亮（记忆连线）
   useEffect(() => {
     if (!show || phase === 'done') return
-
-    // highlight：出现记忆连线（closed 阶段后用户发了一句话）
-    if (phase === 'closed' && highlightedNodeIds.length > 0 && !hasSeenHighlight.current) {
-      hasSeenHighlight.current = true
+    if (phase === 'closed' && highlightedNodeIds.length > 0 && !highlightTriggered.current) {
+      highlightTriggered.current = true
       setPhase('highlight')
     }
   }, [highlightedNodeIds.length, show, phase])
 
   const handleDismiss = () => {
-    setPhase('done')
     setShow(false)
+    setPhase('done')
     localStorage.setItem('evo_onboarding_v2', 'true')
   }
 
@@ -87,41 +126,38 @@ export function OnboardingGuide() {
 
   return (
     <AnimatePresence>
-      <OnboardingBubble
-        phase={phase}
-        onDismiss={handleDismiss}
-      />
+      <Bubble key={phase} phase={phase} onDismiss={handleDismiss} />
     </AnimatePresence>
   )
 }
 
-// ── 气泡组件 ────────────────────────────────────────────────────────────────
+// ── 气泡 UI ──────────────────────────────────────────────────────────────────
 
-function OnboardingBubble({ phase, onDismiss }: { phase: Phase; onDismiss: () => void }) {
-  const content = getBubbleContent(phase)
+function Bubble({ phase, onDismiss }: { phase: Phase; onDismiss: () => void }) {
+  const { title, desc } = CONTENT[phase] ?? { title: '', desc: '' }
 
   return (
     <motion.div
-      key={phase}
-      initial={{ opacity: 0, y: 8, scale: 0.97 }}
+      initial={{ opacity: 0, y: 10, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 4, scale: 0.97 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+      exit={{ opacity: 0, y: 6, scale: 0.97 }}
+      transition={{ type: 'spring', stiffness: 380, damping: 30 }}
       style={{
         position: 'fixed',
-        bottom: 148, // 输入框上方
+        bottom: 152,
         left: '50%',
         transform: 'translateX(-50%)',
-        width: BUBBLE_W,
+        width: 360,
         zIndex: 50,
         pointerEvents: 'auto'
       }}
     >
-      <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-gray-100 px-5 py-4 relative">
-        {/* 跳过按钮 */}
+      <div className="bg-white/96 backdrop-blur-xl rounded-2xl shadow-xl border border-gray-100/80 px-5 py-4 relative">
+
+        {/* 跳过 */}
         <button
           onClick={onDismiss}
-          className="absolute top-3 right-3 p-1 text-gray-300 hover:text-gray-500 transition-colors"
+          className="absolute top-3 right-3 p-1 rounded-lg text-gray-300 hover:text-gray-500 hover:bg-gray-50 transition-all"
           title="跳过引导"
         >
           <X className="w-3.5 h-3.5" />
@@ -129,13 +165,13 @@ function OnboardingBubble({ phase, onDismiss }: { phase: Phase; onDismiss: () =>
 
         {/* 进度点 */}
         <div className="flex items-center gap-1 mb-3">
-          {(['idle', 'sent1', 'sent2', 'closed', 'highlight'] as Phase[]).map((p) => (
+          {PHASES.map((p) => (
             <div
               key={p}
               className={`h-1 rounded-full transition-all duration-300 ${
                 p === phase
                   ? 'w-5 bg-gray-800'
-                  : phaseIndex(p) < phaseIndex(phase)
+                  : PHASE_IDX[p] < PHASE_IDX[phase]
                   ? 'w-1.5 bg-gray-400'
                   : 'w-1.5 bg-gray-200'
               }`}
@@ -143,32 +179,28 @@ function OnboardingBubble({ phase, onDismiss }: { phase: Phase; onDismiss: () =>
           ))}
         </div>
 
-        {/* 内容 */}
+        {/* 内容行 */}
         <div className="flex items-start gap-3">
           <div className="flex-shrink-0 w-7 h-7 rounded-xl bg-gray-50 flex items-center justify-center mt-0.5">
             <Sparkles className="w-3.5 h-3.5 text-gray-500" />
           </div>
           <div>
-            <p className="text-[13px] font-semibold text-gray-800 mb-0.5 leading-snug">
-              {content.title}
-            </p>
-            <p className="text-[12px] text-gray-500 leading-relaxed whitespace-pre-line">
-              {content.desc}
-            </p>
+            <p className="text-[13px] font-semibold text-gray-800 mb-1 leading-snug">{title}</p>
+            <p className="text-[12px] text-gray-500 leading-relaxed whitespace-pre-line">{desc}</p>
           </div>
         </div>
 
-        {/* 收尾步骤的完成按钮 */}
+        {/* 最后一步：完成按钮 */}
         {phase === 'highlight' && (
           <button
             onClick={onDismiss}
-            className="mt-3 w-full bg-gray-900 hover:bg-black text-white text-[12px] font-bold py-2 rounded-xl transition-all active:scale-95"
+            className="mt-3 w-full bg-gray-900 hover:bg-black text-white text-[12px] font-bold py-2.5 rounded-xl transition-all active:scale-95"
           >
             开始探索
           </button>
         )}
 
-        {/* 尖角指向输入框 */}
+        {/* 下方尖角指向输入框 */}
         <div
           style={{
             position: 'absolute',
@@ -179,7 +211,7 @@ function OnboardingBubble({ phase, onDismiss }: { phase: Phase; onDismiss: () =>
             height: 6,
             background: 'white',
             clipPath: 'polygon(0 0, 100% 0, 50% 100%)',
-            filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.06))'
+            filter: 'drop-shadow(0 2px 1px rgba(0,0,0,0.05))'
           }}
         />
       </div>
@@ -187,40 +219,32 @@ function OnboardingBubble({ phase, onDismiss }: { phase: Phase; onDismiss: () =>
   )
 }
 
-// ── 文案 ────────────────────────────────────────────────────────────────────
+// ── 常量 ─────────────────────────────────────────────────────────────────────
 
-function getBubbleContent(phase: Phase): { title: string; desc: string } {
-  switch (phase) {
-    case 'idle':
-      return {
-        title: '你好，我是 EvoCanvas',
-        desc: '我会把你说的每件事变成可以生长的记忆节点。\n先来认识你——在下面跟我介绍一下自己吧。'
-      }
-    case 'sent1':
-      return {
-        title: '第一个节点诞生了',
-        desc: '你的自我介绍已经成为一个记忆节点。\n现在告诉我——你觉得我刚才的回答怎么样？'
-      }
-    case 'sent2':
-      return {
-        title: '我记住你的口味了',
-        desc: '我从你的评价中学到了你的偏好，以后会按这个风格回答。\n点右上角 × 关掉对话框，看看节点是怎么分布的。'
-      }
-    case 'closed':
-      return {
-        title: '两个节点，两段记忆',
-        desc: '介绍和评价自动分开了，这就是 EvoCanvas 的分叉。\n现在随便说一句话，比如"你好"——看看会发生什么。'
-      }
-    case 'highlight':
-      return {
-        title: '看到那条虚线了吗',
-        desc: '我想起了你的自我介绍，记忆连线自动亮起。\n点右上角 ⊞ 可以搜索、回顾所有对话。就这些，开始吧。'
-      }
-    default:
-      return { title: '', desc: '' }
-  }
+const PHASES: Phase[] = ['idle', 'sent1', 'sent2', 'closed', 'highlight']
+const PHASE_IDX: Record<Phase, number> = {
+  idle: 0, sent1: 1, sent2: 2, closed: 3, highlight: 4, done: 5
 }
 
-function phaseIndex(p: Phase): number {
-  return ['idle', 'sent1', 'sent2', 'closed', 'highlight', 'done'].indexOf(p)
+const CONTENT: Partial<Record<Phase, { title: string; desc: string }>> = {
+  idle: {
+    title: '你好，我是 EvoCanvas',
+    desc: '我会把你说的每件事变成可以生长的记忆节点。\n先来认识你——在下面输入框跟我介绍一下自己吧。'
+  },
+  sent1: {
+    title: '第一个记忆节点诞生了 ✦',
+    desc: '你的自我介绍已经存下来了。\n现在告诉我：你觉得我刚才回答得怎么样？'
+  },
+  sent2: {
+    title: '我记住你的口味了',
+    desc: '我从你的评价里学到了偏好，以后按这个风格回答。\n现在点对话框右上角的 × 关掉它。'
+  },
+  closed: {
+    title: '看，两段记忆自动分开了',
+    desc: '介绍和评价变成了两个独立节点，这就是 EvoCanvas 的生长方式。\n现在随便说一句话试试，比如"你好"。'
+  },
+  highlight: {
+    title: '看到那条虚线了吗 ✦',
+    desc: '我想起了你之前说的自我介绍，记忆连线自动亮起。\n点右上角 ⊞ 可以搜索和回顾所有记忆。就这些，开始吧。'
+  }
 }
