@@ -1,5 +1,25 @@
 # EvoCanvas 变更日志
 
+## [0.2.11] - 2026-03-03
+
+### 引导完成文案 + 全局去紫色 + 能力节点交互修复
+
+#### 引导完成弹窗（OnboardingCompletePopup.tsx + AnswerModal.tsx）
+- 完成弹窗改为"已拆分成两个节点，接下来自由探索就好"，去掉引导用户再输入"你好"的步骤
+- 移除引导完成后自动生成能力节点的逻辑（能力节点可单独通过菜单添加）
+
+#### 产品色调统一（去紫色）
+- `ConversationSidebar.tsx`：「关于你的记忆」头部 purple → gray；记忆条目圆点 purple-300 → gray-300；兴趣标签 purple-50/purple-600 → gray-100/gray-600；加载spinner purple → gray
+- `NodeCard.tsx`（CapabilityNodeCard）：violet-50/violet-200/violet-700 → white/gray-300/gray-700
+- `ImportMemoryModal.tsx`：平台按钮颜色 → 深/中/浅 gray 梯度；保存按钮 violet-600 → gray-900
+
+#### 能力节点交互 Bug 修复（NodeCard.tsx）
+- 根本原因1：`left: node.x` 缺少 `px` 单位，节点不在正确位置
+- 根本原因2：使用 Pointer Events（onPointerDown/Move/Up），与 Canvas 的 Mouse Events 体系冲突，click 和 drag 均失效
+- 修复：改用与 RegularNodeCard 相同的 Mouse Events 方案（window.addEventListener + mouseup 时写入位置）
+
+---
+
 ## [0.2.10] - 2026-03-03
 
 ### 能力节点体系 + 新手引导优化 + 记忆系统强化

@@ -528,8 +528,6 @@ export function AnswerModal() {
         localStorage.setItem('evo_onboarding_v3', 'true')
         completeOnboarding()
         setShowOnboardingComplete(true)
-        // 引导完成后在画布生成「导入外部记忆」能力节点
-        addCapabilityNode('import-memory').catch(() => {})
       } else {
         if (shouldSave && conversationSnapshot && conversationSnapshot.userMessage) {
           endConversation(finalResponse, savedAppliedPreferences, lastReasoning, conversationSnapshot)

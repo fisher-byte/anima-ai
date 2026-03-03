@@ -13,9 +13,9 @@ interface Platform {
 }
 
 const PLATFORMS: Platform[] = [
-  { id: 'chatgpt',  name: 'ChatGPT',  url: 'https://chat.openai.com',     color: 'bg-[#10a37f]',  textColor: 'text-white' },
-  { id: 'claude',   name: 'Claude',   url: 'https://claude.ai',           color: 'bg-[#d97706]',  textColor: 'text-white' },
-  { id: 'gemini',   name: 'Gemini',   url: 'https://gemini.google.com',   color: 'bg-[#4285f4]',  textColor: 'text-white' }
+  { id: 'chatgpt',  name: 'ChatGPT',  url: 'https://chat.openai.com',     color: 'bg-gray-900',   textColor: 'text-white' },
+  { id: 'claude',   name: 'Claude',   url: 'https://claude.ai',           color: 'bg-gray-700',   textColor: 'text-white' },
+  { id: 'gemini',   name: 'Gemini',   url: 'https://gemini.google.com',   color: 'bg-gray-500',   textColor: 'text-white' }
 ]
 
 type Step = 'select' | 'copy' | 'paste'
@@ -177,7 +177,7 @@ export function ImportMemoryModal() {
                   <button
                     onClick={handleSave}
                     disabled={!pasteContent.trim() || isSaving}
-                    className="w-full py-3 bg-violet-600 text-white rounded-xl font-semibold text-[14px] hover:bg-violet-700 disabled:opacity-40 transition-colors"
+                    className="w-full py-3 bg-gray-900 text-white rounded-xl font-semibold text-[14px] hover:bg-black disabled:opacity-40 transition-colors"
                   >
                     {isSaving ? '正在提取记忆节点…' : '保存为记忆节点'}
                   </button>

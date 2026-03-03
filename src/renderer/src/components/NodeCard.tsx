@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo, memo, type ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Import } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
@@ -228,57 +228,79 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
 function CapabilityNodeCard({ node }: { node: Node }) {
   const openCapability = useCanvasStore(state => state.openCapability)
   const updateNodePosition = useCanvasStore(state => state.updateNodePosition)
-  const scale = useCanvasStore(state => state.scale)
 
-  const isDragging = useRef(false)
-  const dragStart = useRef<{ mx: number; my: number; nx: number; ny: number } | null>(null)
+  const isDraggingRef = useRef(false)
+  const mouseDownPosRef = useRef({ x: 0, y: 0 })
+  const positionRef = useRef({ x: node.x, y: node.y })
+  const lastDragEndRef = useRef(0)
 
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    e.stopPropagation()
-    e.currentTarget.setPointerCapture(e.pointerId)
-    isDragging.current = false
-    dragStart.current = { mx: e.clientX, my: e.clientY, nx: node.x, ny: node.y }
+  useEffect(() => {
+    if (!isDraggingRef.current) {
+      positionRef.current = { x: node.x, y: node.y }
+    }
   }, [node.x, node.y])
 
-  const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!dragStart.current) return
-    const dx = e.clientX - dragStart.current.mx
-    const dy = e.clientY - dragStart.current.my
-    if (Math.hypot(dx, dy) > 4) {
-      isDragging.current = true
-      updateNodePosition(node.id, dragStart.current.nx + dx / scale, dragStart.current.ny + dy / scale)
+  const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
+    const dx = e.clientX - mouseDownPosRef.current.x
+    const dy = e.clientY - mouseDownPosRef.current.y
+    if (!isDraggingRef.current && Math.hypot(dx, dy) > 8) {
+      isDraggingRef.current = true
     }
-  }, [node.id, scale, updateNodePosition])
+    if (isDraggingRef.current) {
+      const currentScale = useCanvasStore.getState().scale
+      const newX = positionRef.current.x + dx / currentScale
+      const newY = positionRef.current.y + dy / currentScale
+      mouseDownPosRef.current = { x: e.clientX, y: e.clientY }
+      positionRef.current = { x: newX, y: newY }
+      const el = document.getElementById(`node-${node.id}`)
+      if (el) { el.style.left = `${newX}px`; el.style.top = `${newY}px` }
+    }
+  }, [node.id])
 
-  const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    e.currentTarget.releasePointerCapture(e.pointerId)
-    if (!isDragging.current) openCapability(node.id)
-    dragStart.current = null
-    isDragging.current = false
+  const handleGlobalMouseUp = useCallback(() => {
+    window.removeEventListener('mousemove', handleGlobalMouseMove)
+    window.removeEventListener('mouseup', handleGlobalMouseUp)
+    if (isDraggingRef.current) {
+      isDraggingRef.current = false
+      lastDragEndRef.current = Date.now()
+      updateNodePosition(node.id, positionRef.current.x, positionRef.current.y)
+    }
+  }, [node.id, updateNodePosition, handleGlobalMouseMove])
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    mouseDownPosRef.current = { x: e.clientX, y: e.clientY }
+    window.addEventListener('mousemove', handleGlobalMouseMove)
+    window.addEventListener('mouseup', handleGlobalMouseUp)
+  }, [handleGlobalMouseMove, handleGlobalMouseUp])
+
+  const handleClick = useCallback(() => {
+    if (isDraggingRef.current || Date.now() - lastDragEndRef.current < 200) return
+    openCapability(node.id)
   }, [node.id, openCapability])
 
-  const ICONS: Record<string, React.ReactNode> = {
-    'import-memory': <Import className="w-5 h-5 text-violet-500" />
-  }
   const capId = node.capabilityData?.capabilityId ?? 'import-memory'
+  const ICONS: Record<string, ReactNode> = {
+    'import-memory': <Import className="w-4 h-4 text-gray-500" />
+  }
 
   return (
     <motion.div
+      id={`node-${node.id}`}
       initial={{ scale: 0.85, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-      style={{ position: 'absolute', left: node.x, top: node.y, transform: 'translate(-50%,-50%)' }}
-      className="select-none touch-none"
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
+      style={{ position: 'absolute', left: `${node.x}px`, top: `${node.y}px` }}
+      className="select-none z-10 pointer-events-auto cursor-grab active:cursor-grabbing"
+      onMouseDown={handleMouseDown}
+      onClick={handleClick}
     >
-      <div className="flex flex-col items-center gap-1 px-4 py-3 bg-violet-50 border-2 border-violet-200 border-dashed rounded-2xl shadow-sm hover:shadow-md transition-shadow cursor-pointer w-36 text-center">
-        <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center">
+      <div className="flex flex-col items-center gap-1.5 px-4 py-3.5 bg-white border-2 border-dashed border-gray-300 rounded-2xl shadow-sm hover:shadow-md hover:border-gray-400 transition-all w-36 text-center">
+        <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center">
           {ICONS[capId]}
         </div>
-        <div className="text-[12px] font-semibold text-violet-700 leading-tight">{node.title}</div>
-        <div className="text-[10px] text-violet-400">点击使用</div>
+        <div className="text-[12px] font-semibold text-gray-700 leading-tight">{node.title}</div>
+        <div className="text-[10px] text-gray-400">点击使用</div>
       </div>
     </motion.div>
   )

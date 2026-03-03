@@ -276,19 +276,19 @@ export function ConversationSidebar({ isOpen, onClose }: ConversationSidebarProp
                 exit={{ opacity: 0, x: -10 }}
                 className="space-y-4"
               >
-                <div className="p-4 bg-purple-50/30 border border-purple-100/50 rounded-2xl">
-                  <h3 className="text-xs font-bold text-purple-600 mb-1 flex items-center gap-2">
+                <div className="p-4 bg-gray-50/60 border border-gray-200/70 rounded-2xl">
+                  <h3 className="text-xs font-bold text-gray-700 mb-1 flex items-center gap-2">
                     <BookOpen className="w-3.5 h-3.5" />
                     关于你的记忆
                   </h3>
-                  <p className="text-[10px] text-purple-500/80 leading-relaxed">
+                  <p className="text-[10px] text-gray-400 leading-relaxed">
                     AI 从每次对话中自动摘取你透露的信息，在这里积累成你的专属记忆。
                   </p>
                 </div>
 
                 {isMemoryLoading ? (
                   <div className="text-center text-gray-400 py-8">
-                    <div className="w-5 h-5 border-2 border-gray-200 border-t-purple-400 rounded-full animate-spin mx-auto mb-2" />
+                    <div className="w-5 h-5 border-2 border-gray-200 border-t-gray-400 rounded-full animate-spin mx-auto mb-2" />
                     <span className="text-xs">正在加载…</span>
                   </div>
                 ) : memoryFacts.length === 0 ? (
@@ -308,7 +308,7 @@ export function ConversationSidebar({ isOpen, onClose }: ConversationSidebarProp
                         exit={{ opacity: 0, x: 20 }}
                         className="flex items-start gap-2 p-3 bg-gray-50/70 border border-gray-100 rounded-2xl group"
                       >
-                        <div className="w-1.5 h-1.5 rounded-full bg-purple-300 flex-shrink-0 mt-1.5" />
+                        <div className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0 mt-1.5" />
                         <div className="flex-1 min-w-0">
                           <p className="text-[12px] text-gray-800 leading-relaxed">{fact.fact}</p>
                           <p className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
@@ -471,7 +471,7 @@ export function ConversationSidebar({ isOpen, onClose }: ConversationSidebarProp
                             <Heart className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
                             <div className="flex flex-wrap gap-1">
                               {userProfile!.interests!.map((item, i) => (
-                                <span key={i} className="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded-md text-[10px] font-medium">{item}</span>
+                                <span key={i} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded-md text-[10px] font-medium">{item}</span>
                               ))}
                             </div>
                           </div>

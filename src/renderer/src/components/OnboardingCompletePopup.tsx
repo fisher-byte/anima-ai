@@ -28,17 +28,16 @@ export function OnboardingCompletePopup({ onDismiss }: OnboardingCompletePopupPr
         <div className="w-12 h-12 mx-auto mb-4 rounded-2xl bg-gray-900 flex items-center justify-center">
           <Sparkles className="w-5 h-5 text-yellow-400" />
         </div>
-        <h3 className="text-[15px] font-bold text-gray-900 mb-2">第一个节点已生成！</h3>
+        <h3 className="text-[15px] font-bold text-gray-900 mb-2">已拆分成两个节点</h3>
         <p className="text-[12px] text-gray-500 leading-relaxed mb-5">
-          现在在下方输入框里试着说一句
-          <span className="font-bold text-gray-800 mx-1">"你好"</span>
-          ，开始你的第一次自由探索吧。
+          你的对话已保存到画布，接下来<span className="font-bold text-gray-800">自由探索</span>就好——
+          随便问我什么，我都会自动帮你整理记忆。
         </p>
         <button
           onClick={onDismiss}
           className="w-full bg-gray-900 hover:bg-black text-white text-[13px] font-bold py-3 rounded-2xl transition-all active:scale-95"
         >
-          好的，开始！
+          开始探索
         </button>
       </motion.div>
     </motion.div>
