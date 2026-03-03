@@ -74,6 +74,15 @@ textarea {
   to   { transform: translateX(3px); }
 }
 
+/* Node highlight glow — CSS animation (compositor thread), replaces Framer Motion repeat:Infinity */
+@keyframes nodeHighlightPulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%       { opacity: 0.9; transform: scale(1.12); }
+}
+.node-highlight-glow {
+  animation: nodeHighlightPulse 1.6s ease-in-out infinite;
+}
+
 /* Animations */
 @keyframes fadeIn {
   from {

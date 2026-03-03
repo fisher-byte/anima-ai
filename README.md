@@ -2,7 +2,7 @@
 
 > 一个记住你偏好的本地AI画布。
 
-![版本](https://img.shields.io/badge/version-0.3.1-blue)
+![版本](https://img.shields.io/badge/version-0.3.2-blue)
 ![Electron](https://img.shields.io/badge/Electron-29.1.4-47848F?logo=electron)
 ![React](https://img.shields.io/badge/React-18.2.0-61DAFB?logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.4.2-3178C6?logo=typescript)

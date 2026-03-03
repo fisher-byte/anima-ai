@@ -17,7 +17,12 @@ export function InputBox() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   
-  const { nodes, startConversation, isModalOpen, detectIntent, getRelevantMemories, setHighlight } = useCanvasStore()
+  const nodes = useCanvasStore(state => state.nodes)
+  const startConversation = useCanvasStore(state => state.startConversation)
+  const isModalOpen = useCanvasStore(state => state.isModalOpen)
+  const detectIntent = useCanvasStore(state => state.detectIntent)
+  const getRelevantMemories = useCanvasStore(state => state.getRelevantMemories)
+  const setHighlight = useCanvasStore(state => state.setHighlight)
   
   // Semantic Highlight State
   const [matchCount, setMatchCount] = useState(0)

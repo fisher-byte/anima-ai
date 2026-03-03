@@ -9,7 +9,9 @@ interface SearchPanelProps {
 }
 
 export function SearchPanel({ isOpen, onClose }: SearchPanelProps) {
-  const { nodes, openModalById, focusNode } = useCanvasStore()
+  const nodes = useCanvasStore(state => state.nodes)
+  const openModalById = useCanvasStore(state => state.openModalById)
+  const focusNode = useCanvasStore(state => state.focusNode)
   const [query, setQuery] = useState('')
   const [activeTab, setActiveTab] = useState<'nodes' | 'content'>('nodes')
 
