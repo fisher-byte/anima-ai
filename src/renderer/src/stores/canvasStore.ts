@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Node, Edge, Conversation, Profile, PreferenceRule, NodePosition } from '@shared/types'
 import { STORAGE_FILES, FEEDBACK_TRIGGERS, CONFIDENCE_CONFIG, UI_CONFIG } from '@shared/constants'
+import { storageService } from '../services/storageService'
 
 interface CanvasState {
   // 数据
@@ -113,7 +114,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   // 加载节点数据
   loadNodes: async () => {
     try {
-      const content = await window.electronAPI.storage.read(STORAGE_FILES.NODES)
+      const content = await storageService.read(STORAGE_FILES.NODES)
       if (content) {
         const parsed = JSON.parse(content) as Node[]
 
@@ -176,12 +177,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           })
 
           // 持久化整理后的坐标，避免下次依旧“看不见”
-          await window.electronAPI.storage.write(STORAGE_FILES.NODES, JSON.stringify(nodes, null, 2))
+          await storageService.write(STORAGE_FILES.NODES, JSON.stringify(nodes, null, 2))
         }
 
         // 全量按对话首句重新分类，修正历史错分（如美食归到生活日常）；类别名与 detectIntent 保持一致
         try {
-          const convContent = await window.electronAPI.storage.read(STORAGE_FILES.CONVERSATIONS)
+          const convContent = await storageService.read(STORAGE_FILES.CONVERSATIONS)
           const conversationsById = new Map<string, string>()
           if (convContent) {
             for (const line of convContent.trim().split('\n').filter(Boolean)) {
@@ -209,7 +210,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
             return { ...n, category: newCategory, color }
           })
           if (updated) {
-            await window.electronAPI.storage.write(STORAGE_FILES.NODES, JSON.stringify(nodes, null, 2))
+            await storageService.write(STORAGE_FILES.NODES, JSON.stringify(nodes, null, 2))
           }
         } catch (e) {
           console.warn('Re-categorize nodes failed:', e)
@@ -231,7 +232,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   // 加载用户偏好
   loadProfile: async () => {
     try {
-      const content = await window.electronAPI.storage.read(STORAGE_FILES.PROFILE)
+      const content = await storageService.read(STORAGE_FILES.PROFILE)
       if (content) {
         const profile = JSON.parse(content) as Profile
         set({ profile })
@@ -378,7 +379,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set({ nodes: updatedNodes })
     get().updateEdges() // 添加后更新连线
     get().focusNode(conversation.id)
-    await window.electronAPI.storage.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
+    await storageService.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
   },
 
   // 更新节点位置
@@ -387,7 +388,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const updatedNodes = nodes.map(n => n.id === id ? { ...n, x, y } : n)
     set({ nodes: updatedNodes })
     updateEdges() // 更新连线位置
-    await window.electronAPI.storage.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
+    await storageService.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
   },
 
   // 更新连线逻辑 (优先基于分支关系，其次基于板块)
@@ -446,12 +447,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     get().updateEdges() // 删除后同步更新连线
     
     // 1. 同步删除节点文件记录
-    await window.electronAPI.storage.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
-    
+    await storageService.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
+
     // 2. 同步清理对话记录文件（jsonl 格式需要重写）
     if (nodeToRemove) {
       try {
-        const content = await window.electronAPI.storage.read(STORAGE_FILES.CONVERSATIONS)
+        const content = await storageService.read(STORAGE_FILES.CONVERSATIONS)
         if (content) {
           const lines = content.trim().split('\n').filter(Boolean)
           const filteredLines = lines.filter(line => {
@@ -462,7 +463,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
               return true
             }
           })
-          await window.electronAPI.storage.write(STORAGE_FILES.CONVERSATIONS, filteredLines.join('\n') + (filteredLines.length > 0 ? '\n' : ''))
+          await storageService.write(STORAGE_FILES.CONVERSATIONS, filteredLines.join('\n') + (filteredLines.length > 0 ? '\n' : ''))
         }
       } catch (err) {
         console.error('Failed to sync conversation deletion:', err)
@@ -606,7 +607,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   // 通过 conversationId 打开回放（从 conversations.jsonl 读取完整内容）
   openModalById: async (conversationId: string) => {
     try {
-      const content = await window.electronAPI.storage.read(STORAGE_FILES.CONVERSATIONS)
+      const content = await storageService.read(STORAGE_FILES.CONVERSATIONS)
       if (!content) {
         set({ currentConversation: null, isModalOpen: true, isLoading: false })
         return
@@ -683,8 +684,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set({ profile: updatedProfile })
     
     // 持久化
-    await window.electronAPI.storage.write(
-      STORAGE_FILES.PROFILE, 
+    await storageService.write(
+      STORAGE_FILES.PROFILE,
       JSON.stringify(updatedProfile, null, 2)
     )
   },
@@ -720,7 +721,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   getRelevantMemories: async (query: string): Promise<{ conv: Conversation; category?: string }[]> => {
     try {
       const { nodes } = get()
-      const content = await window.electronAPI.storage.read(STORAGE_FILES.CONVERSATIONS)
+      const content = await storageService.read(STORAGE_FILES.CONVERSATIONS)
       if (!content) return []
       
       const lines = content.trim().split('\n').filter(Boolean)
@@ -779,7 +780,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   // 追加对话记录
   appendConversation: async (conversation: Conversation) => {
-    await window.electronAPI.storage.append(
+    await storageService.append(
       STORAGE_FILES.CONVERSATIONS,
       JSON.stringify(conversation)
     )

@@ -2,71 +2,164 @@
 
 ## 环境准备
 
-### 1. 系统要求
+### 系统要求
 
-- macOS 12+ / Windows 10+ / Linux
 - Node.js 20+
 - npm 10+
 
-### 2. 安装依赖
+### 安装
 
 ```bash
-cd evocanvas
 npm install
 ```
 
-### 3. 配置API Key
-
-创建 `.env` 文件:
+### 配置
 
 ```bash
-# Kimi API (Moonshot)
-EVOCANVAS_API_KEY=sk-your-kimi-api-key
-EVOCANVAS_API_URL=https://api.moonshot.cn/v1
-
-# 或使用 OpenAI
-# EVOCANVAS_API_KEY=sk-your-openai-key
-# EVOCANVAS_API_URL=https://api.openai.com/v1
+cp .env.example .env
+# 编辑 .env，按需设置 PORT / DATA_DIR / AUTH_ENABLED 等
 ```
+
+API Key 不在 `.env` 中配置，启动后在 UI 设置页面填写（保存到服务端 SQLite）。
+
+---
 
 ## 开发命令
 
-| 命令 | 作用 |
+| 命令 | 说明 |
 |------|------|
-| `npm run dev` | 启动开发服务器 |
-| `npm test` | 运行单元测试 |
-| `npm run test:watch` | 监听模式测试 |
-| `npm run build` | 生产构建 |
-| `npm run lint` | 代码检查 |
-| `npm run typecheck` | 类型检查 |
+| `npm run dev` | 并发启动 Vite 前端（:5173）+ Hono 后端（:3000） |
+| `npm run dev:client` | 仅启动 Vite 前端 |
+| `npm run dev:server` | 仅启动后端（tsx watch 热重载） |
+| `npm run build` | 构建前端到 `dist/` |
+| `npm start` | 生产模式启动（服务 API + 静态文件） |
+| `npm test` | 运行单元 + 集成测试 |
+| `npm run test:watch` | 监听模式 |
+| `npm run typecheck` | TypeScript 类型检查 |
+| `npm run lint` | ESLint 检查 |
+| `npm run dev:electron` | 启动 Electron 版本（保留兼容） |
+
+---
 
 ## 项目结构
 
 ```
 evocanvas/
 ├── src/
-│   ├── main/           # Electron主进程
-│   ├── preload/        # 安全桥梁
-│   ├── renderer/       # React前端
-│   │   ├── components/ # UI组件
-│   │   ├── stores/     # 状态管理
-│   │   └── hooks/      # 自定义Hooks
-│   ├── services/       # 业务服务
-│   └── shared/         # 共享类型和常量
-├── docs/               # 文档
-└── data/               # 本地数据(运行时生成)
+│   ├── server/                    # Hono 后端
+│   │   ├── index.ts               # 服务入口
+│   │   ├── db.ts                  # SQLite 初始化
+│   │   ├── routes/
+│   │   │   ├── storage.ts         # 存储 API
+│   │   │   ├── config.ts          # 配置 API（apiKey / model / baseUrl）
+│   │   │   └── ai.ts              # AI 代理 SSE 端点
+│   │   ├── middleware/
+│   │   │   └── auth.ts            # Bearer Token 鉴权
+│   │   └── __tests__/
+│   │       └── server.test.ts     # 服务端集成测试
+│   │
+│   ├── renderer/                  # React 前端
+│   │   └── src/
+│   │       ├── services/
+│   │       │   ├── storageService.ts  # 存储抽象层（Web/Electron 双版本）
+│   │       │   └── ai.ts              # 前端 AI 服务（调用后端代理）
+│   │       ├── stores/                # Zustand 状态管理
+│   │       ├── components/            # UI 组件
+│   │       └── hooks/
+│   │           └── useAI.ts           # AI 调用 Hook
+│   │
+│   ├── services/                  # 纯函数业务服务（可复用）
+│   │   ├── ai.ts                  # AI 直调（Electron 模式保留）
+│   │   ├── feedback.ts            # 负反馈检测
+│   │   ├── profile.ts             # 偏好管理
+│   │   ├── prompt.ts              # Prompt 构建
+│   │   ├── fileParsing.ts         # 文件解析
+│   │   └── __tests__/             # 单元测试
+│   │
+│   └── shared/                    # 共享类型和常量
+│       ├── types.ts               # StorageService 接口等
+│       └── constants.ts           # 配置常量
+│
+├── vite.config.ts                 # Vite 配置（/api 代理到 :3000）
+├── tsconfig.json                  # 前端 TS 配置
+├── tsconfig.server.json           # 后端 TS 配置
+├── Dockerfile                     # 多阶段构建
+├── .env.example                   # 环境变量模板
+└── docs/                          # 文档
 ```
 
-## 开发规范
+---
 
-### 1. 代码规范
+## 架构概览
 
-- 使用TypeScript严格模式
-- 组件使用函数式组件+Hooks
-- 服务层纯函数，便于测试
-- 错误处理必须try-catch
+```
+浏览器 (Vite :5173 / 生产 :3000)
+  ├── storageService.read/write/append
+  │     └── [Web]  →  HTTP  →  Hono /api/storage/*
+  │     └── [Electron]  →  IPC  →  主进程文件系统
+  │
+  ├── configService.getApiKey/setApiKey/getSettings/saveSettings
+  │     └── [Web]  →  HTTP  →  Hono /api/config/*
+  │     └── [Electron]  →  IPC  →  safeStorage
+  │
+  └── useAI → services/ai.ts
+        └── POST /api/ai/stream (SSE)
+              └── 服务端读取 DB 中的 apiKey，代理 Kimi API
+```
 
-### 2. 提交规范
+**环境自动检测**：`storageService` 和 `configService` 通过 `window.electronAPI` 是否存在自动选择实现，上层代码无需关心。
+
+---
+
+## 调试技巧
+
+### 查看后端数据
+
+```bash
+# 启动后，数据在 SQLite 中
+sqlite3 data/evocanvas.db
+
+# 查看存储内容
+SELECT filename, length(content), updated_at FROM storage;
+
+# 查看配置
+SELECT key, value FROM config;
+```
+
+### API 手动测试
+
+```bash
+# 健康检查
+curl http://localhost:3000/api/health
+
+# 读取节点
+curl http://localhost:3000/api/storage/nodes.json
+
+# 设置 API Key
+curl -X PUT http://localhost:3000/api/config/apikey \
+  -H "Content-Type: application/json" \
+  -d '{"apiKey":"sk-your-key"}'
+
+# 测试 AI 流
+curl -X POST http://localhost:3000/api/ai/stream \
+  -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"你好"}]}'
+```
+
+### 前端调试
+
+开发模式按 `F12` 打开 DevTools，Network 面板可以看到所有 `/api/*` 请求和 SSE 事件流。
+
+---
+
+## 代码规范
+
+- TypeScript 严格模式
+- 组件：函数式组件 + Hooks
+- 服务层：纯函数（便于测试）
+- 错误处理：必须 try-catch，返回合理默认值
+
+### 提交规范
 
 ```
 <type>: <description>
@@ -74,96 +167,27 @@ evocanvas/
 [optional body]
 ```
 
-**类型**:
-- `feat`: 新功能
-- `fix`: 修复bug
-- `docs`: 文档更新
-- `test`: 测试相关
-- `refactor`: 重构
-- `security`: 安全修复
-
-### 3. 命名规范
-
-- 组件: PascalCase (如 `AnswerModal.tsx`)
-- 函数: camelCase (如 `detectFeedback`)
-- 常量: UPPER_SNAKE_CASE (如 `API_CONFIG`)
-- 类型: PascalCase + 后缀 (如 `PreferenceRule`)
-
-## 调试技巧
-
-### 1. 查看数据存储
-
-```bash
-# macOS
-ls ~/Library/Application\ Support/evocanvas/data/
-cat ~/Library/Application\ Support/evocanvas/data/profile.json
-```
-
-### 2. 开启开发者工具
-
-开发模式下按 `Cmd+Option+I` (macOS) 或 `Ctrl+Shift+I` (Windows/Linux)
-
-### 3. 查看日志
-
-主进程日志在终端输出，渲染进程日志在DevTools Console。
-
-## 常见问题
-
-### 1. 应用启动白屏
-
-- 检查开发服务器是否启动
-- 检查控制台是否有报错
-- 尝试刷新: `Cmd+R`
-
-### 2. API请求失败
-
-- 检查 `.env` 配置是否正确
-- 检查网络连接
-- 验证API Key有效性
-
-### 3. 数据未保存
-
-- 检查 `data` 目录权限
-- 查看主进程日志
-- 验证存储IPC调用
-
-## 发布流程
-
-### 1. 测试
-
-```bash
-npm test              # 单元测试
-npm run typecheck     # 类型检查
-npm run lint          # 代码检查
-```
-
-### 2. 构建
-
-```bash
-npm run build
-```
-
-### 3. 打包
-
-```bash
-# macOS
-npm run build:mac
-
-# Windows
-npm run build:win
-
-# Linux
-npm run build:linux
-```
-
-## 贡献指南
-
-1. Fork仓库
-2. 创建feature分支
-3. 提交代码
-4. 运行测试
-5. 提交PR
+类型：`feat` / `fix` / `docs` / `test` / `refactor` / `security`
 
 ---
 
-**技术支持**: 请查看 [问题排查指南](./troubleshooting.md)
+## 常见问题
+
+### API Key 如何配置？
+
+启动服务后，打开 UI → 右上角设置按钮 → 填写 API Key → 保存。Key 存入服务端 SQLite，不经过浏览器。
+
+### 数据在哪里？
+
+`DATA_DIR`（默认 `./data/`）目录下的 `evocanvas.db` SQLite 文件。
+
+### 如何切换回 Electron 模式？
+
+`storageService` 自动检测 `window.electronAPI`，Electron 模式无需任何代码改动，直接运行 `npm run dev:electron`。
+
+### 端口冲突怎么办？
+
+```bash
+PORT=3001 npm run dev:server
+# 同时修改 vite.config.ts 中的 proxy target
+```

@@ -1,470 +1,286 @@
 # EvoCanvas API 文档
 
-## 存储 API
+## 架构说明
 
-通过 `window.electronAPI.storage` 访问
+v0.3.0 起，EvoCanvas 重构为 Web 全栈应用。所有存储和 AI 调用均通过 HTTP API 完成，API Key 永不暴露给浏览器。
 
-### read(filename: string): Promise<string | null>
+**前端访问方式**：通过 `storageService` / `configService` 抽象层，自动适配 Web（HTTP）和 Electron（IPC）两种运行环境。
+
+---
+
+## HTTP API 端点
+
+所有端点前缀 `/api/*`，均经过鉴权中间件（见[鉴权说明](#鉴权)）。
+
+### 存储 API
+
+#### GET /api/storage/:filename
 
 读取文件内容。
 
-```typescript
-const content = await window.electronAPI.storage.read('profile.json')
-if (content) {
-  const profile = JSON.parse(content)
-}
+- **响应**：`200 text/plain`（文件内容）或 `404`（不存在）
+
+```bash
+curl http://localhost:3000/api/storage/nodes.json
 ```
 
-### write(filename: string, content: string): Promise<boolean>
+#### PUT /api/storage/:filename
 
 写入文件内容（覆盖）。
 
-```typescript
-const success = await window.electronAPI.storage.write(
-  'profile.json',
-  JSON.stringify(profile, null, 2)
-)
+- **请求 Body**：`text/plain`（原始文本）
+- **响应**：`200 { "ok": true }`
+
+```bash
+curl -X PUT http://localhost:3000/api/storage/nodes.json \
+  -H "Content-Type: text/plain" \
+  -d '[]'
 ```
 
-### append(filename: string, content: string): Promise<boolean>
+#### POST /api/storage/:filename/append
 
-追加内容到文件（用于 .jsonl）。
+追加一行到文件（JSONL 格式）。自动在行尾添加换行符，幂等设计。
 
-```typescript
-await window.electronAPI.storage.append(
-  'conversations.jsonl',
-  JSON.stringify(conversation)
-)
+- **请求 Body**：`text/plain`（一行 JSON）
+- **响应**：`200 { "ok": true }`
+
+```bash
+curl -X POST http://localhost:3000/api/storage/conversations.jsonl/append \
+  -H "Content-Type: text/plain" \
+  -d '{"id":"uuid","userMessage":"hello"}'
 ```
 
-## AI 服务 API
+**允许的文件名**（白名单）：
+- `profile.json`
+- `nodes.json`
+- `conversations.jsonl`
+- `settings.json`
 
-### callAI(messages, preferences?): Promise<AIResponse>
+---
 
-非流式调用AI。
+### 配置 API
 
-```typescript
-import { callAI } from './services/ai'
+#### GET /api/config/apikey
 
-const response = await callAI(
-  [{ role: 'user', content: '你好' }],
-  ['保持表达简洁']
-)
+获取已存储的 API Key。
 
-console.log(response.content)  // AI回复
-console.log(response.error)    // 错误信息
+- **响应**：`200 { "apiKey": "sk-..." }`（未设置时返回空字符串）
+
+```bash
+curl http://localhost:3000/api/config/apikey
 ```
 
-### streamAI(messages, preferences?): AsyncGenerator<string>
+#### PUT /api/config/apikey
 
-流式调用AI。
+存储 API Key（保存在服务端 SQLite，不经过浏览器）。
+
+- **请求 Body**：`application/json { "apiKey": "sk-..." }`
+- **响应**：`200 { "ok": true }`
+
+```bash
+curl -X PUT http://localhost:3000/api/config/apikey \
+  -H "Content-Type: application/json" \
+  -d '{"apiKey":"sk-your-key"}'
+```
+
+#### GET /api/config/settings
+
+获取模型和 API 地址配置。
+
+- **响应**：`200 { "model": "kimi-k2.5", "baseUrl": "https://api.moonshot.cn/v1" }`
+
+#### PUT /api/config/settings
+
+保存模型和 API 地址配置。
+
+- **请求 Body**：`application/json { "model"?: string, "baseUrl"?: string }`
+- **响应**：`200 { "ok": true }`
+
+---
+
+### AI 代理 API
+
+#### POST /api/ai/stream
+
+流式 AI 调用代理。服务端从 DB 读取 API Key，转发到 Kimi/OpenAI，将流以 SSE 形式返回。
+
+- **请求 Body**：
 
 ```typescript
-import { streamAI } from './services/ai'
-
-for await (const chunk of streamAI(
-  [{ role: 'user', content: '你好' }],
-  ['保持表达简洁']
-)) {
-  if (typeof chunk === 'string') {
-    console.log(chunk)  // 逐字输出
-  }
+{
+  messages: AIMessage[]          // 对话历史（不含 system，由服务端注入）
+  preferences?: string[]         // 用户偏好列表（注入 system prompt）
+  compressedMemory?: string      // 压缩后的相关记忆文本
 }
 ```
 
-## 反馈服务 API
+- **响应**：`text/event-stream` (SSE)
 
-### detectNegativeFeedback(message): PreferenceRule | null
+**SSE 事件格式**：
 
-检测消息中的负反馈。
+```
+data: {"type":"content","content":"逐字输出..."}
+data: {"type":"reasoning","content":"推理过程..."}
+data: {"type":"done","fullText":"完整回答"}
+data: {"type":"error","message":"错误信息"}
+```
+
+**示例（curl）**：
+
+```bash
+curl -X POST http://localhost:3000/api/ai/stream \
+  -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"你好"}]}'
+```
+
+**工具调用**：服务端自动处理 Kimi 的 `$web_search` tool call 二轮请求，前端透明。
+
+---
+
+### 健康检查
+
+#### GET /api/health
+
+```bash
+curl http://localhost:3000/api/health
+# {"status":"ok","timestamp":"2026-03-03T00:00:00.000Z"}
+```
+
+---
+
+## 鉴权
+
+`AUTH_ENABLED=false`（默认）时，所有 `/api/*` 端点无需鉴权，适合本地开发和内网部署。
+
+`AUTH_ENABLED=true` 时，所有请求须携带：
+
+```
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+前端通过 `setAuthToken(token)` 注入 token：
 
 ```typescript
-import { detectNegativeFeedback } from './services/feedback'
+import { setAuthToken } from './services/storageService'
+setAuthToken(localStorage.getItem('access_token') ?? '')
+```
 
-const rule = detectNegativeFeedback('太复杂了，简洁点')
-if (rule) {
-  console.log(rule.trigger)      // "简洁点"
-  console.log(rule.preference)   // "保持表达简洁：先结论，后要点，避免冗长铺垫"
-  console.log(rule.confidence)   // 0.6
+---
+
+## 前端 storageService 接口
+
+`src/renderer/src/services/storageService.ts` 导出的抽象层，上层 Store 无需关心运行环境。
+
+### storageService
+
+```typescript
+import { storageService } from '../services/storageService'
+
+// 读取
+const content = await storageService.read('profile.json')        // string | null
+
+// 写入（覆盖）
+await storageService.write('nodes.json', JSON.stringify(nodes))  // boolean
+
+// 追加（JSONL）
+await storageService.append('conversations.jsonl', JSON.stringify(conv)) // boolean
+```
+
+### configService
+
+```typescript
+import { configService } from '../services/storageService'
+
+// API Key
+const key = await configService.getApiKey()            // string
+await configService.setApiKey('sk-...')                // boolean
+
+// 模型/地址
+const { model, baseUrl } = await configService.getSettings()
+await configService.saveSettings({ model: 'kimi-k2.5', baseUrl: 'https://...' })
+```
+
+### setAuthToken
+
+```typescript
+import { setAuthToken } from '../services/storageService'
+setAuthToken('your-bearer-token')  // 仅 Web 模式有效
+```
+
+---
+
+## 前端 AI 服务接口
+
+`src/renderer/src/services/ai.ts`（调用 `/api/ai/stream`）
+
+### streamAI(messages, preferences?, signal?, compressedMemory?)
+
+异步生成器，逐 chunk 产出。
+
+```typescript
+import { streamAI } from '../services/ai'
+
+for await (const chunk of streamAI(messages, preferences, signal, compressedMemory)) {
+  if (chunk.type === 'content') console.log(chunk.content)
+  if (chunk.type === 'reasoning') console.log('[思考]', chunk.content)
 }
 ```
 
-### detectMultipleFeedback(messages): PreferenceRule[]
+### callAI(messages, preferences?)
 
-批量检测多条消息。
-
-```typescript
-const rules = detectMultipleFeedback([
-  '太复杂了，简洁点',
-  '别用这个方案'
-])
-```
-
-### updateConfidence(rule): PreferenceRule
-
-更新规则置信度。
+非流式，收集完整回答后返回。
 
 ```typescript
-const updated = updateConfidence(existingRule)
-// confidence += 0.1 (上限 1.0)
+import { callAI } from '../services/ai'
+
+const { content, error } = await callAI(messages, preferences)
 ```
 
-### containsTriggerWord(message): boolean
-
-检查是否包含触发词。
-
-```typescript
-const hasTrigger = containsTriggerWord('太复杂了')  // true
-```
-
-### analyzeFeedbackIntensity(message): number
-
-分析反馈强度。
-
-```typescript
-const intensity = analyzeFeedbackIntensity('完全不对！！')  // 0.5
-```
-
-## 偏好服务 API
-
-### loadProfile(storage): Promise<Profile>
-
-读取用户配置。
-
-```typescript
-import { loadProfile } from './services/profile'
-
-const profile = await loadProfile(window.electronAPI.storage)
-```
-
-### saveProfile(storage, profile): Promise<void>
-
-保存用户配置。
-
-```typescript
-await saveProfile(window.electronAPI.storage, profile)
-```
-
-### addOrUpdateRule(profile, rule): Profile
-
-添加或更新规则。
-
-```typescript
-const updated = addOrUpdateRule(profile, newRule)
-```
-
-### removeRule(profile, preferenceText): Profile
-
-删除规则。
-
-```typescript
-const updated = removeRule(profile, '保持表达简洁...')
-```
-
-### getHighConfidencePreferences(profile, threshold?): string[]
-
-获取高置信度偏好。
-
-```typescript
-const prefs = getHighConfidencePreferences(profile, 0.7)
-// ['保持表达简洁...', '换一种组织方式...']
-```
-
-### decayOldPreferences(profile, daysThreshold?): Profile
-
-旧偏好置信度衰减。
-
-```typescript
-const updated = decayOldPreferences(profile, 30)
-// 30天未更新的偏好 confidence -= 0.1
-```
-
-### mergeProfiles(base, incoming): Profile
-
-合并两个配置。
-
-```typescript
-const merged = mergeProfiles(currentProfile, importedProfile)
-```
-
-### exportProfile(profile): string
-
-导出为JSON字符串。
-
-```typescript
-const json = exportProfile(profile)
-```
-
-### importProfile(jsonString): Profile
-
-从JSON字符串导入。
-
-```typescript
-const profile = importProfile(jsonString)
-```
-
-### getProfileStats(profile): ProfileStats
-
-获取配置统计。
-
-```typescript
-const stats = getProfileStats(profile)
-// {
-//   totalRules: 5,
-//   highConfidenceRules: 3,
-//   averageConfidence: 0.75,
-//   oldestRule: '2026-02-01',
-//   newestRule: '2026-02-28'
-// }
-```
-
-## Prompt 服务 API
-
-### buildSystemPrompt(preferences): string
-
-组装System Prompt。
-
-```typescript
-import { buildSystemPrompt } from './services/prompt'
-
-const prompt = buildSystemPrompt(['保持表达简洁', '避免emoji'])
-// "你是用户的长期AI助手。\n\n以下是用户的历史偏好..."
-```
-
-### buildMessages(userMessage, preferences): AIMessage[]
-
-组装消息列表。
-
-```typescript
-const messages = buildMessages('你好', ['保持表达简洁'])
-// [
-//   { role: 'system', content: '...' },
-//   { role: 'user', content: '你好' }
-// ]
-```
-
-### detectPreferenceApplication(response, rule): boolean
-
-检测偏好是否被应用。
-
-```typescript
-const isApplied = detectPreferenceApplication(
-  '结论：...\n要点1：...\n要点2：...',
-  preferenceRule
-)
-// true (简洁偏好被应用)
-```
-
-### detectAppliedPreferences(response, rules): PreferenceRule[]
-
-检测被应用的所有偏好。
-
-```typescript
-const applied = detectAppliedPreferences(response, allRules)
-```
-
-### generateGrayHint(appliedPreferences): string
-
-生成灰字提示。
-
-```typescript
-const hint = generateGrayHint(['保持表达简洁', '换一种组织方式'])
-// "我记得你上次更喜欢简洁表达和结构化输出。"
-```
-
-### filterValidPreferences(rules, threshold?): string[]
-
-筛选有效偏好。
-
-```typescript
-const valid = filterValidPreferences(rules, 0.6)
-// ['保持表达简洁...', ...]
-```
-
-## Zustand Store API
-
-通过 `useCanvasStore()` Hook 访问。
-
-### State
-
-```typescript
-const {
-  nodes,              // Node[]
-  currentConversation,// Conversation | null
-  profile,            // Profile
-  isModalOpen,        // boolean
-  isLoading           // boolean
-} = useCanvasStore()
-```
-
-### Actions
-
-#### loadNodes(): Promise<void>
-
-加载节点数据。
-
-```typescript
-const { loadNodes } = useCanvasStore()
-await loadNodes()
-```
-
-#### loadProfile(): Promise<void>
-
-加载用户配置。
-
-```typescript
-const { loadProfile } = useCanvasStore()
-await loadProfile()
-```
-
-#### addNode(conversation, position?): Promise<void>
-
-添加节点。
-
-```typescript
-await addNode(conversation, { x: 100, y: 200 })
-```
-
-#### removeNode(id): Promise<void>
-
-删除节点。
-
-```typescript
-await removeNode('uuid')
-```
-
-#### startConversation(userMessage): void
-
-开始对话。
-
-```typescript
-startConversation('什么是React？')
-// 自动打开AnswerModal并发送给AI
-```
-
-#### endConversation(assistantMessage, appliedPreferences?): Promise<void>
-
-结束对话。
-
-```typescript
-await endConversation('React是...', ['保持表达简洁'])
-// 创建节点并保存数据
-```
-
-#### closeModal(): void
-
-关闭回答层。
-
-```typescript
-closeModal()
-```
-
-#### openModal(conversation): void
-
-打开回答层（回放）。
-
-```typescript
-openModal(existingConversation)
-```
-
-#### detectFeedback(message): PreferenceRule | null
-
-检测负反馈。
-
-```typescript
-const rule = detectFeedback('太复杂了')
-if (rule) {
-  // 检测到负反馈
-}
-```
-
-#### addPreference(rule): Promise<void>
-
-添加偏好规则。
-
-```typescript
-await addPreference(detectedRule)
-```
-
-#### getPreferencesForPrompt(): string[]
-
-获取用于Prompt的偏好。
-
-```typescript
-const prefs = getPreferencesForPrompt()
-// 只返回 confidence > 0.5 的偏好
-```
-
-#### appendConversation(conversation): Promise<void>
-
-追加对话记录。
-
-```typescript
-await appendConversation(conversation)
-```
+---
 
 ## 类型定义
 
-### Node
+与原版完全一致，见 `src/shared/types.ts`：
 
 ```typescript
-interface Node {
-  id: string
-  title: string
-  keywords: string[]
-  date: string
-  conversationId: string
-  x: number
-  y: number
+interface StorageService {
+  read(filename: string): Promise<string | null>
+  write(filename: string, content: string): Promise<boolean>
+  append(filename: string, content: string): Promise<boolean>
 }
-```
 
-### Conversation
-
-```typescript
-interface Conversation {
-  id: string
-  createdAt: string
-  userMessage: string
-  assistantMessage: string
-  negativeFeedback?: string
-  appliedPreferences?: string[]
-}
-```
-
-### PreferenceRule
-
-```typescript
-interface PreferenceRule {
-  trigger: string
-  preference: string
-  confidence: number
-  updatedAt: string
-}
-```
-
-### Profile
-
-```typescript
-interface Profile {
-  rules: PreferenceRule[]
-}
-```
-
-### AIMessage
-
-```typescript
 interface AIMessage {
-  role: 'system' | 'user' | 'assistant'
+  role: 'system' | 'user' | 'assistant' | 'tool'
+  content: string | any[]
+  tool_calls?: any[]
+  tool_call_id?: string
+  reasoning_content?: string
+}
+
+interface AIStreamChunk {
+  type: 'content' | 'reasoning'
   content: string
 }
 ```
 
-### AIResponse
+---
 
-```typescript
-interface AIResponse {
-  content: string
-  error?: string
-}
+## SQLite Schema
+
+```sql
+-- 文件存储
+CREATE TABLE storage (
+  filename   TEXT PRIMARY KEY,
+  content    TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL
+);
+
+-- 应用配置（apiKey, model, baseUrl 等）
+CREATE TABLE config (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 ```
+
+数据库文件位置由 `DATA_DIR` 环境变量控制（默认 `./data/evocanvas.db`）。

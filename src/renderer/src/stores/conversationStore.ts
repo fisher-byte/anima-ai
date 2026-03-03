@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Conversation } from '@shared/types'
 import { STORAGE_FILES } from '@shared/constants'
+import { storageService } from '../services/storageService'
 
 /**
  * 对话管理
@@ -52,7 +53,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   },
 
   appendConversation: async (conversation: Conversation) => {
-    await window.electronAPI.storage.append(
+    await storageService.append(
       STORAGE_FILES.CONVERSATIONS,
       JSON.stringify(conversation)
     )
@@ -60,7 +61,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 
   loadConversationHistory: async () => {
     try {
-      const content = await window.electronAPI.storage.read(STORAGE_FILES.CONVERSATIONS)
+      const content = await storageService.read(STORAGE_FILES.CONVERSATIONS)
       if (!content) return []
       
       const lines = content.trim().split('\n').filter(Boolean)

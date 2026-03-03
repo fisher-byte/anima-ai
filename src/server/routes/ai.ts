@@ -1,0 +1,251 @@
+/**
+ * AI proxy route
+ *
+ * POST /api/ai/stream
+ * Body: { messages: AIMessage[], preferences: string[], compressedMemory?: string }
+ * Response: text/event-stream (SSE)
+ *
+ * Reads API key from the config table, forwards the request to Kimi/OpenAI,
+ * and streams the response back to the browser as SSE events.
+ *
+ * SSE event format:
+ *   data: {"type":"content","content":"..."}
+ *   data: {"type":"reasoning","content":"..."}
+ *   data: {"type":"done","fullText":"..."}
+ *   data: {"type":"error","message":"..."}
+ */
+
+import { Hono } from 'hono'
+import { streamSSE } from 'hono/streaming'
+import { db } from '../db'
+import { DEFAULT_SYSTEM_PROMPT, AI_CONFIG, MULTIMODAL_MODELS } from '../../shared/constants'
+import type { AIMessage } from '../../shared/types'
+
+export const aiRoutes = new Hono()
+
+interface AIRequestBody {
+  messages: AIMessage[]
+  preferences?: string[]
+  compressedMemory?: string
+}
+
+aiRoutes.post('/stream', async (c) => {
+  const body = await c.req.json<AIRequestBody>()
+  const { messages, preferences = [], compressedMemory } = body
+
+  // Retrieve API key from DB
+  const row = db.prepare('SELECT value FROM config WHERE key = ?').get('apiKey') as
+    | { value: string }
+    | undefined
+  const apiKey = row?.value ?? ''
+
+  if (!apiKey) {
+    return c.json({ error: 'API Key 未配置，请在设置中填写' }, 400)
+  }
+
+  // Also check if a model override is stored in config
+  const modelRow = db.prepare('SELECT value FROM config WHERE key = ?').get('model') as
+    | { value: string }
+    | undefined
+  const model = modelRow?.value ?? AI_CONFIG.MODEL
+
+  const baseUrlRow = db.prepare('SELECT value FROM config WHERE key = ?').get('baseUrl') as
+    | { value: string }
+    | undefined
+  const baseUrl = (baseUrlRow?.value ?? 'https://api.moonshot.cn/v1').replace(/\/$/, '')
+
+  // Build system prompt
+  let systemPrompt = DEFAULT_SYSTEM_PROMPT
+  if (preferences.length > 0) {
+    systemPrompt += '\n\n以下是用户的历史偏好：\n'
+    preferences.forEach((pref, idx) => {
+      systemPrompt += `${idx + 1}. ${pref}\n`
+    })
+  }
+  if (compressedMemory?.trim()) {
+    systemPrompt += '\n\n以下是用户之前的相关对话（已压缩），供参考：\n'
+    systemPrompt += compressedMemory.trim()
+  }
+
+  const fullMessages: AIMessage[] = [
+    { role: 'system', content: systemPrompt },
+    ...messages
+  ]
+
+  const requestBody: Record<string, unknown> = {
+    model,
+    messages: fullMessages,
+    max_tokens: AI_CONFIG.MAX_TOKENS,
+    temperature: AI_CONFIG.TEMPERATURE,
+    stream: true
+  }
+
+  // Enable web search for capable models
+  if (MULTIMODAL_MODELS.includes(model as typeof MULTIMODAL_MODELS[number])) {
+    requestBody.tools = [{ type: 'builtin_function', function: { name: '$web_search' } }]
+  }
+
+  return streamSSE(c, async (stream) => {
+    let fullContent = ''
+    let reasoningContent = ''
+    const toolCalls: Record<number, { id: string; type: string; function: { name: string; arguments: string } }> = {}
+
+    const sendEvent = async (data: Record<string, unknown>) => {
+      await stream.writeSSE({ data: JSON.stringify(data) })
+    }
+
+    try {
+      const response = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(requestBody),
+        signal: c.req.raw.signal
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        await sendEvent({ type: 'error', message: `API error ${response.status}: ${errorText}` })
+        return
+      }
+
+      const reader = response.body?.getReader()
+      if (!reader) {
+        await sendEvent({ type: 'error', message: 'No response body from upstream' })
+        return
+      }
+
+      const decoder = new TextDecoder()
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value, { stream: true })
+        const lines = chunk.split('\n').filter((l) => l.trim() !== '')
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const data = line.slice(6)
+          if (data === '[DONE]') continue
+
+          try {
+            const parsed = JSON.parse(data)
+            const delta = parsed.choices?.[0]?.delta
+            const finishReason = parsed.choices?.[0]?.finish_reason
+
+            if (delta?.reasoning_content) {
+              reasoningContent += delta.reasoning_content
+              await sendEvent({ type: 'reasoning', content: delta.reasoning_content })
+            }
+
+            if (delta?.content) {
+              fullContent += delta.content
+              await sendEvent({ type: 'content', content: delta.content })
+            }
+
+            // Accumulate tool calls
+            if (delta?.tool_calls) {
+              for (const tc of delta.tool_calls) {
+                const idx: number = tc.index
+                if (!toolCalls[idx]) {
+                  toolCalls[idx] = {
+                    id: tc.id,
+                    type: tc.type,
+                    function: { name: tc.function?.name ?? '', arguments: tc.function?.arguments ?? '' }
+                  }
+                } else {
+                  if (tc.function?.arguments) {
+                    toolCalls[idx].function.arguments += tc.function.arguments
+                  }
+                }
+              }
+            }
+
+            // Handle tool call completion - trigger second round
+            if (finishReason === 'tool_calls' && Object.keys(toolCalls).length > 0) {
+              const toolCallsArray = Object.values(toolCalls)
+
+              const assistantMsg: AIMessage = {
+                role: 'assistant',
+                content: fullContent || '',
+                tool_calls: toolCallsArray,
+                reasoning_content: reasoningContent || 'web_search'
+              }
+
+              const toolMessages: AIMessage[] = toolCallsArray.map((tc) => ({
+                role: 'tool' as const,
+                tool_call_id: tc.id,
+                content: tc.function.arguments
+              }))
+
+              // Second round request
+              const round2Body: Record<string, unknown> = {
+                model,
+                messages: [...fullMessages, assistantMsg, ...toolMessages],
+                max_tokens: AI_CONFIG.MAX_TOKENS,
+                temperature: AI_CONFIG.TEMPERATURE,
+                stream: true
+              }
+
+              const round2Res = await fetch(`${baseUrl}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${apiKey}`
+                },
+                body: JSON.stringify(round2Body),
+                signal: c.req.raw.signal
+              })
+
+              if (round2Res.ok) {
+                const reader2 = round2Res.body?.getReader()
+                if (reader2) {
+                  while (true) {
+                    const { done, value } = await reader2.read()
+                    if (done) break
+                    const chunk2 = decoder.decode(value, { stream: true })
+                    for (const line2 of chunk2.split('\n').filter((l) => l.trim())) {
+                      if (!line2.startsWith('data: ')) continue
+                      const data2 = line2.slice(6)
+                      if (data2 === '[DONE]') continue
+                      try {
+                        const p2 = JSON.parse(data2)
+                        const d2 = p2.choices?.[0]?.delta
+                        if (d2?.reasoning_content) {
+                          reasoningContent += d2.reasoning_content
+                          await sendEvent({ type: 'reasoning', content: d2.reasoning_content })
+                        }
+                        if (d2?.content) {
+                          fullContent += d2.content
+                          await sendEvent({ type: 'content', content: d2.content })
+                        }
+                      } catch {
+                        // ignore parse errors
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          } catch {
+            // ignore JSON parse errors in stream
+          }
+        }
+      }
+
+      await sendEvent({ type: 'done', fullText: fullContent })
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        await sendEvent({ type: 'done', fullText: fullContent })
+        return
+      }
+      await sendEvent({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      })
+    }
+  })
+})
