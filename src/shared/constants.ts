@@ -119,7 +119,7 @@ const _envApiUrl = (() => {
   } catch {
     return undefined
   }
-})() || process.env.VITE_API_URL
+})() || (typeof process !== 'undefined' ? process.env.VITE_API_URL : undefined)
 
 export const API_CONFIG = {
   BASE_URL: _envApiUrl || 'https://api.openai.com/v1',
