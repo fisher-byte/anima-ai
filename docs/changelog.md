@@ -12,6 +12,7 @@
 - `ConversationSidebar.tsx`：「关于你的记忆」头部 purple → gray；记忆条目圆点 purple-300 → gray-300；兴趣标签 purple-50/purple-600 → gray-100/gray-600；加载spinner purple → gray
 - `NodeCard.tsx`（CapabilityNodeCard）：violet-50/violet-200/violet-700 → white/gray-300/gray-700
 - `ImportMemoryModal.tsx`：平台按钮颜色 → 深/中/浅 gray 梯度；保存按钮 violet-600 → gray-900
+  - 交互优化：ChatGPT/Claude 支持 URL 预填 prompt；Gemini 自动复制 prompt 后二次确认跳转
 
 #### 能力节点交互 Bug 修复（NodeCard.tsx）
 - 根本原因1：`left: node.x` 缺少 `px` 单位，节点不在正确位置

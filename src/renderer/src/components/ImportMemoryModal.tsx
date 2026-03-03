@@ -1,8 +1,23 @@
 import { useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Copy, Check, ExternalLink, ArrowLeft } from 'lucide-react'
+import { X, ArrowLeft, ExternalLink } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { IMPORT_MEMORY_PROMPTS } from '@shared/constants'
+
+/** ChatGPT/Claude 支持 URL 预填；Gemini 不支持，仅返回打开页的 URL */
+function buildPrefillUrl(platformId: keyof typeof IMPORT_MEMORY_PROMPTS, prompt: string): string {
+  const q = encodeURIComponent(prompt)
+  switch (platformId) {
+    case 'chatgpt':
+      return `https://chatgpt.com/?q=${q}`
+    case 'claude':
+      return `https://claude.ai/new?q=${q}`
+    case 'gemini':
+      return 'https://gemini.google.com/app'
+    default:
+      return ''
+  }
+}
 
 interface Platform {
   id: keyof typeof IMPORT_MEMORY_PROMPTS
@@ -13,12 +28,12 @@ interface Platform {
 }
 
 const PLATFORMS: Platform[] = [
-  { id: 'chatgpt',  name: 'ChatGPT',  url: 'https://chat.openai.com',     color: 'bg-gray-900',   textColor: 'text-white' },
+  { id: 'chatgpt',  name: 'ChatGPT',  url: 'https://chatgpt.com',         color: 'bg-gray-900',   textColor: 'text-white' },
   { id: 'claude',   name: 'Claude',   url: 'https://claude.ai',           color: 'bg-gray-700',   textColor: 'text-white' },
   { id: 'gemini',   name: 'Gemini',   url: 'https://gemini.google.com',   color: 'bg-gray-500',   textColor: 'text-white' }
 ]
 
-type Step = 'select' | 'copy' | 'paste'
+type Step = 'select' | 'confirm' | 'paste'
 
 export function ImportMemoryModal() {
   const activeCapabilityId = useCanvasStore(state => state.activeCapabilityId)
@@ -27,29 +42,30 @@ export function ImportMemoryModal() {
 
   const [step, setStep] = useState<Step>('select')
   const [selectedPlatform, setSelectedPlatform] = useState<Platform | null>(null)
-  const [copied, setCopied] = useState(false)
   const [pasteContent, setPasteContent] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
   const isOpen = activeCapabilityId !== null && activeCapabilityId.includes('import-memory')
 
-  const handleSelectPlatform = useCallback((p: Platform) => {
+  /** ChatGPT/Claude 直接跳转并预填；Gemini 先复制并进入确认步，再点「确认跳转」才打开 */
+  const handleGoToPlatform = useCallback(async (p: Platform) => {
+    const prompt = IMPORT_MEMORY_PROMPTS[p.id]
+    if (p.id === 'gemini') {
+      await navigator.clipboard.writeText(prompt)
+      setSelectedPlatform(p)
+      setStep('confirm')
+      return
+    }
+    window.open(buildPrefillUrl(p.id, prompt), '_blank')
     setSelectedPlatform(p)
-    setStep('copy')
-    setCopied(false)
+    setStep('paste')
   }, [])
 
-  const handleCopyPrompt = useCallback(async () => {
-    if (!selectedPlatform) return
-    const prompt = IMPORT_MEMORY_PROMPTS[selectedPlatform.id]
-    await navigator.clipboard.writeText(prompt)
-    setCopied(true)
-  }, [selectedPlatform])
-
-  const handleOpenPlatform = useCallback(() => {
-    if (!selectedPlatform) return
-    window.open(selectedPlatform.url, '_blank')
-    setTimeout(() => setStep('paste'), 800)
+  /** Gemini 确认跳转：打开新标签后进入粘贴步 */
+  const handleConfirmJumpToGemini = useCallback(() => {
+    if (!selectedPlatform || selectedPlatform.id !== 'gemini') return
+    window.open(buildPrefillUrl('gemini', IMPORT_MEMORY_PROMPTS.gemini), '_blank')
+    setStep('paste')
   }, [selectedPlatform])
 
   const handleSave = useCallback(async () => {
@@ -71,7 +87,6 @@ export function ImportMemoryModal() {
     setStep('select')
     setPasteContent('')
     setSelectedPlatform(null)
-    setCopied(false)
     closeCapability()
   }, [closeCapability])
 
@@ -96,9 +111,16 @@ export function ImportMemoryModal() {
             {/* 顶栏 */}
             <div className="flex items-center justify-between px-6 pt-5 pb-3">
               <div className="flex items-center gap-2">
-                {step !== 'select' && (
+                {(step === 'confirm' || step === 'paste') && (
                   <button
-                    onClick={() => setStep(step === 'paste' ? 'copy' : 'select')}
+                    onClick={() => {
+                      setStep('select')
+                      if (step === 'confirm') setSelectedPlatform(null)
+                      if (step === 'paste') {
+                        setSelectedPlatform(null)
+                        setPasteContent('')
+                      }
+                    }}
                     className="p-1.5 text-gray-400 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition-colors mr-1"
                   >
                     <ArrowLeft className="w-4 h-4" />
@@ -107,9 +129,9 @@ export function ImportMemoryModal() {
                 <div>
                   <div className="text-[15px] font-bold text-gray-900">导入外部记忆</div>
                   <div className="text-[11px] text-gray-400 mt-0.5">
-                    {step === 'select' && '选择你想导入记忆的 AI 平台'}
-                    {step === 'copy' && `已选：${selectedPlatform?.name}，复制提示词后前往对话`}
-                    {step === 'paste' && '将 AI 回答粘贴到下方，我们会提取成记忆节点'}
+                    {step === 'select' && '点击即跳转，提示词已预填或已复制，到对方页面直接粘贴后发送，再粘回下方即可'}
+                    {step === 'confirm' && '复制好了，跳转后直接粘贴即可'}
+                    {step === 'paste' && '将 AI 回答粘贴到下方'}
                   </div>
                 </div>
               </div>
@@ -125,7 +147,7 @@ export function ImportMemoryModal() {
                   {PLATFORMS.map(p => (
                     <button
                       key={p.id}
-                      onClick={() => handleSelectPlatform(p)}
+                      onClick={() => handleGoToPlatform(p)}
                       className={`flex flex-col items-center gap-2 py-5 rounded-2xl ${p.color} ${p.textColor} font-semibold text-[14px] hover:opacity-90 active:scale-95 transition-all shadow-sm`}
                     >
                       {p.name}
@@ -134,39 +156,24 @@ export function ImportMemoryModal() {
                 </div>
               )}
 
-              {/* Step 2: 复制 prompt + 跳转 */}
-              {step === 'copy' && selectedPlatform && (
-                <div className="mt-2 space-y-3">
-                  <div className="bg-gray-50 rounded-2xl p-4 text-[12px] text-gray-600 leading-relaxed font-mono whitespace-pre-line max-h-44 overflow-y-auto">
-                    {IMPORT_MEMORY_PROMPTS[selectedPlatform.id]}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleCopyPrompt}
-                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 text-[13px] font-medium hover:bg-gray-50 transition-colors"
-                    >
-                      {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                      {copied ? '已复制' : '复制提示词'}
-                    </button>
-                    <button
-                      onClick={handleOpenPlatform}
-                      className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-gray-900 text-white rounded-xl text-[13px] font-medium hover:bg-black transition-colors"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                      前往 {selectedPlatform.name}
-                    </button>
-                  </div>
+              {/* Gemini 确认跳转：已复制，提示后点「确认跳转」 */}
+              {step === 'confirm' && selectedPlatform?.id === 'gemini' && (
+                <div className="mt-2 space-y-4">
+                  <p className="text-[14px] text-gray-700 leading-relaxed">
+                    我们已经帮你复制进去了，跳转之后直接粘贴就行了。
+                  </p>
                   <button
-                    onClick={() => setStep('paste')}
-                    className="w-full text-center text-[12px] text-gray-400 hover:text-gray-600 py-1"
+                    onClick={handleConfirmJumpToGemini}
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-gray-700 text-white rounded-xl font-semibold text-[14px] hover:bg-gray-800 transition-colors"
                   >
-                    已有回答，直接粘贴 →
+                    <ExternalLink className="w-4 h-4" />
+                    确认跳转到 Gemini
                   </button>
                 </div>
               )}
 
               {/* Step 3: 粘贴内容 */}
-              {step === 'paste' && (
+              {step === 'paste' && selectedPlatform && (
                 <div className="mt-2 space-y-3">
                   <textarea
                     value={pasteContent}
