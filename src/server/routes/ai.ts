@@ -18,7 +18,7 @@
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import { db } from '../db'
-import { DEFAULT_SYSTEM_PROMPT, AI_CONFIG, MULTIMODAL_MODELS } from '../../shared/constants'
+import { DEFAULT_SYSTEM_PROMPT, ONBOARDING_SYSTEM_PROMPT, AI_CONFIG, MULTIMODAL_MODELS } from '../../shared/constants'
 import type { AIMessage } from '../../shared/types'
 
 export const aiRoutes = new Hono()
@@ -27,11 +27,12 @@ interface AIRequestBody {
   messages: AIMessage[]
   preferences?: string[]
   compressedMemory?: string
+  isOnboarding?: boolean
 }
 
 aiRoutes.post('/stream', async (c) => {
   const body = await c.req.json<AIRequestBody>()
-  const { messages, preferences = [], compressedMemory } = body
+  const { messages, preferences = [], compressedMemory, isOnboarding = false } = body
 
   // Retrieve API key from DB
   const row = db.prepare('SELECT value FROM config WHERE key = ?').get('apiKey') as
@@ -43,7 +44,6 @@ aiRoutes.post('/stream', async (c) => {
     return c.json({ error: 'API Key 未配置，请在设置中填写' }, 400)
   }
 
-  // Also check if a model override is stored in config
   const modelRow = db.prepare('SELECT value FROM config WHERE key = ?').get('model') as
     | { value: string }
     | undefined
@@ -54,45 +54,57 @@ aiRoutes.post('/stream', async (c) => {
     | undefined
   const baseUrl = (baseUrlRow?.value ?? 'https://api.moonshot.cn/v1').replace(/\/$/, '')
 
-  // Build system prompt
-  let systemPrompt = DEFAULT_SYSTEM_PROMPT
-  if (preferences.length > 0) {
-    systemPrompt += '\n\n以下是用户的历史偏好：\n'
-    preferences.forEach((pref, idx) => {
-      systemPrompt += `${idx + 1}. ${pref}\n`
-    })
-  }
-  if (compressedMemory?.trim()) {
-    systemPrompt += '\n\n以下是用户之前的相关对话（已压缩），供参考：\n'
-    systemPrompt += compressedMemory.trim()
-  }
+  // 注入当前日期
+  const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
 
-  // 注入用户画像
-  try {
-    const profile = db.prepare('SELECT * FROM user_profile WHERE id = 1').get() as Record<string, string | null> | undefined
-    if (profile) {
-      const parts: string[] = []
-      if (profile.occupation) parts.push(`职业：${profile.occupation}`)
-      if (profile.interests) {
-        const arr = JSON.parse(profile.interests)
-        if (arr.length) parts.push(`兴趣：${arr.join('、')}`)
-      }
-      if (profile.tools) {
-        const arr = JSON.parse(profile.tools)
-        if (arr.length) parts.push(`常用工具：${arr.join('、')}`)
-      }
-      if (profile.goals) {
-        const arr = JSON.parse(profile.goals)
-        if (arr.length) parts.push(`当前关注：${arr.join('、')}`)
-      }
-      if (profile.location) parts.push(`位置：${profile.location}`)
-      if (profile.writing_style) parts.push(`偏好回答风格：${profile.writing_style}`)
-      if (parts.length > 0) {
-        systemPrompt += '\n\n用户画像（请据此个性化回答）：\n' + parts.join('\n')
-      }
+  // 选择 system prompt：引导模式用轻量版，不注入偏好和记忆
+  let systemPrompt: string
+  if (isOnboarding) {
+    systemPrompt = ONBOARDING_SYSTEM_PROMPT.replace('{{DATE}}', today)
+  } else {
+    systemPrompt = DEFAULT_SYSTEM_PROMPT.replace('{{DATE}}', today)
+
+    // 注入进化基因（偏好规则）
+    if (preferences.length > 0) {
+      systemPrompt += '\n\n【用户进化基因 - 请严格遵守】\n'
+      preferences.forEach((pref, idx) => {
+        systemPrompt += `${idx + 1}. ${pref}\n`
+      })
     }
-  } catch {
-    // 画像注入失败不影响主流程
+
+    // 注入压缩记忆
+    if (compressedMemory?.trim()) {
+      systemPrompt += '\n\n【相关记忆片段 - 供参考】\n'
+      systemPrompt += compressedMemory.trim()
+    }
+
+    // 注入用户画像
+    try {
+      const profile = db.prepare('SELECT * FROM user_profile WHERE id = 1').get() as Record<string, string | null> | undefined
+      if (profile) {
+        const parts: string[] = []
+        if (profile.occupation) parts.push(`职业：${profile.occupation}`)
+        if (profile.location) parts.push(`位置：${profile.location}`)
+        if (profile.interests) {
+          const arr = JSON.parse(profile.interests) as string[]
+          if (arr.length) parts.push(`兴趣：${arr.join('、')}`)
+        }
+        if (profile.tools) {
+          const arr = JSON.parse(profile.tools) as string[]
+          if (arr.length) parts.push(`常用工具：${arr.join('、')}`)
+        }
+        if (profile.goals) {
+          const arr = JSON.parse(profile.goals) as string[]
+          if (arr.length) parts.push(`当前关注：${arr.join('、')}`)
+        }
+        if (profile.writing_style) parts.push(`偏好回答风格：${profile.writing_style}`)
+        if (parts.length > 0) {
+          systemPrompt += '\n\n【用户画像 - 请据此个性化回答】\n' + parts.join('\n')
+        }
+      }
+    } catch {
+      // 画像注入失败不影响主流程
+    }
   }
 
   const fullMessages: AIMessage[] = [
