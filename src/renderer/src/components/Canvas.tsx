@@ -152,7 +152,7 @@ export function Canvas() {
     return map
   }, [nodes])
 
-  // Cluster Interaction
+  // Cluster Interaction — applyTransform 直操 DOM，300ms debounce 后才写 store（同滚轮缩放路径）
   const handleClusterClick = useCallback((cx: number, cy: number) => {
     const viewW = window.innerWidth
     const viewH = window.innerHeight
@@ -160,9 +160,13 @@ export function Canvas() {
     const newScale = 0.8
     applyTransform(newOffset, newScale)
     setScaleDisplay(newScale)
-    setOffset(newOffset)
-    setScale(newScale)
-  }, [applyTransform, setOffset, setScale])
+    // debounce 写 store，避免立即触发 useLodScale LOD 切换重渲染
+    if (scaleDisplayRafRef.current) clearTimeout(scaleDisplayRafRef.current)
+    scaleDisplayRafRef.current = window.setTimeout(() => {
+      useCanvasStore.setState({ offset: newOffset, scale: newScale })
+      scaleDisplayRafRef.current = null
+    }, 300)
+  }, [applyTransform])
 
   const handleClusterDrag = useCallback((cat: string, dx: number, dy: number) => {
     nodes.forEach(n => {

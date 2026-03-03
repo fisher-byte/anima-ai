@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion'
+import { useRef, useCallback } from 'react'
 import { Layers } from 'lucide-react'
 import { useLodScale } from '../hooks/useLodScale'
 
@@ -17,47 +17,64 @@ interface ClusterLabelProps {
   onClick: () => void
 }
 
-function getOpacity(scale: number, min: number, max: number, type: 'fade-in' | 'fade-out') {
-  if (type === 'fade-in') {
-    if (scale < min) return 0
-    if (scale > max) return 1
-    return (scale - min) / (max - min)
-  } else {
-    if (scale < min) return 1
-    if (scale > max) return 0
-    return 1 - (scale - min) / (max - min)
-  }
-}
-
 export function ClusterLabel({ cluster, onDrag, onClick }: ClusterLabelProps) {
   const scale = useLodScale([0.4, 0.6])
-  // Fade out between 0.4 and 0.6 scale
-  const opacity = getOpacity(scale, 0.4, 0.6, 'fade-out')
+
+  // 在 0.4~0.6 之间淡出，< 0.4 完全可见，> 0.6 完全不可见
+  const opacity = scale > 0.6 ? 0 : scale < 0.4 ? 1 : 1 - (scale - 0.4) / 0.2
   const isVisible = opacity > 0
 
-  // Inverse scale to keep label readable when zoomed out
+  // 反向缩放：保持标签在缩小时可读
   const inverseScale = Math.max(1, (1 / Math.max(scale, 0.1)) * 0.6)
 
+  // 拖拽：全手动 pointer 事件，不依赖 Framer Motion drag（避免 spring 主线程动画）
+  const isDraggingRef = useRef(false)
+  const lastPosRef = useRef({ x: 0, y: 0 })
+  const didDragRef = useRef(false)
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    if (!isVisible) return
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    isDraggingRef.current = true
+    didDragRef.current = false
+    lastPosRef.current = { x: e.clientX, y: e.clientY }
+  }, [isVisible])
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!isDraggingRef.current) return
+    const dx = e.clientX - lastPosRef.current.x
+    const dy = e.clientY - lastPosRef.current.y
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) didDragRef.current = true
+    lastPosRef.current = { x: e.clientX, y: e.clientY }
+    // delta 需要除以 inverseScale，因为标签本身被放大了
+    onDrag(dx / inverseScale, dy / inverseScale)
+  }, [onDrag, inverseScale])
+
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    if (!isDraggingRef.current) return
+    isDraggingRef.current = false
+    e.currentTarget.releasePointerCapture(e.pointerId)
+    // 没拖动才算点击
+    if (!didDragRef.current) onClick()
+  }, [onClick])
+
   return (
-    <motion.div
-      animate={{
-        opacity: opacity,
-        scale: opacity === 0 ? 0.5 : inverseScale,
-      }}
-      drag={isVisible}
-      dragMomentum={false}
-      onDrag={(_, info) => onDrag(info.delta.x / inverseScale, info.delta.y / inverseScale)}
-      onClick={(e) => {
-        e.stopPropagation()
-        onClick()
-      }}
-      className="absolute flex items-center justify-center w-[400px] h-[200px] cursor-grab active:cursor-grabbing -translate-x-1/2 -translate-y-1/2"
+    <div
+      className="absolute flex items-center justify-center w-[400px] h-[200px] -translate-x-1/2 -translate-y-1/2 select-none"
       style={{
         left: cluster.x,
         top: cluster.y,
+        opacity,
+        transform: `translate(-50%, -50%) scale(${opacity === 0 ? 0.5 : inverseScale})`,
+        transition: 'opacity 0.2s ease, transform 0.2s ease',
         pointerEvents: isVisible ? 'auto' : 'none',
+        cursor: 'grab',
         zIndex: 20,
       }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
     >
       <div className="relative flex flex-col items-center group">
         <h1
@@ -71,6 +88,6 @@ export function ClusterLabel({ cluster, onDrag, onClick }: ClusterLabelProps) {
           <span>{cluster.count} MEMORIES</span>
         </div>
       </div>
-    </motion.div>
+    </div>
   )
 }
