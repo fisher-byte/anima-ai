@@ -130,6 +130,26 @@ export function Canvas() {
   // 仅用于工具栏百分比显示（低频更新）
   const [scaleDisplay, setScaleDisplay] = useState(useCanvasStore.getState().scale)
 
+  // 订阅 store 的 offset/scale 外部变更（如 focusNode、loadNodes 触发），同步 viewRef 和 DOM
+  // isDraggingRef 有值时跳过，避免与用户拖拽冲突
+  useEffect(() => {
+    const unsubscribe = useCanvasStore.subscribe((state) => {
+      if (isDraggingRef.current) return
+      const { offset, scale } = state
+      if (
+        viewRef.current.offset.x !== offset.x ||
+        viewRef.current.offset.y !== offset.y ||
+        viewRef.current.scale !== scale
+      ) {
+        viewRef.current = { offset, scale }
+        if (contentLayerRef.current) {
+          contentLayerRef.current.style.transform = `translate(${offset.x}px, ${offset.y}px) scale(${scale})`
+        }
+      }
+    })
+    return unsubscribe
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // 直接操作 content layer 的 transform，完全绕过 React 渲染
   const applyTransform = useCallback((offset: { x: number; y: number }, scale: number) => {
     if (contentLayerRef.current) {
