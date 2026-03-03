@@ -120,6 +120,13 @@ export function Canvas() {
     return map
   }, [nodes])
 
+  // 预计算节点 id → node 的 Map，避免 edge 渲染时 O(n) find
+  const nodeMap = useMemo(() => {
+    const map = new Map<string, typeof nodes[0]>()
+    nodes.forEach(n => map.set(n.id, n))
+    return map
+  }, [nodes])
+
   // Cluster Interaction
   const handleClusterClick = useCallback((cx: number, cy: number) => {
       const viewW = typeof window !== 'undefined' ? window.innerWidth : 1280
@@ -443,8 +450,8 @@ export function Canvas() {
               style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }}
             >
               {edges.map((edge) => {
-                const sourceNode = nodes.find(n => n.id === edge.source)
-                const targetNode = nodes.find(n => n.id === edge.target)
+                const sourceNode = nodeMap.get(edge.source)
+                const targetNode = nodeMap.get(edge.target)
                 if (!sourceNode || !targetNode) return null
                 return (
                   <Edge

@@ -128,9 +128,9 @@ export const NodeCard = memo(function NodeCard({ node, scale, depth }: NodeCardP
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* 微浮动层：x+y 错相位漂移，产生轨道流动感 */}
+      {/* 微浮动层：x+y 错相位漂移，产生轨道流动感；scale<0.6时隐藏节点，无需漂浮 */}
       <motion.div
-        animate={isDragging ? { x: 0, y: 0 } : { x: [0, 3, 0, -3, 0], y: [0, -4, 0] }}
+        animate={isDragging || scale < 0.6 ? { x: 0, y: 0 } : { x: [0, 3, 0, -3, 0], y: [0, -4, 0] }}
         transition={{
           x: { duration: floatDurationX, repeat: Infinity, ease: "easeInOut", delay: floatDelayX },
           y: { duration: floatDuration, repeat: Infinity, ease: "easeInOut", delay: floatDelay }
@@ -205,11 +205,7 @@ export const NodeCard = memo(function NodeCard({ node, scale, depth }: NodeCardP
         {/* 日期 */}
         <div className="flex items-center justify-between text-[10px] text-gray-400 font-medium">
           <span>{node.date}</span>
-          <motion.div
-            animate={{ scale: [1, 1.2, 1] }}
-            transition={{ repeat: Infinity, duration: 3 }}
-            className="w-1.5 h-1.5 rounded-full bg-blue-400/20"
-          />
+          <div className="w-1.5 h-1.5 rounded-full bg-blue-400/20" />
         </div>
       </motion.div>
       </motion.div>
