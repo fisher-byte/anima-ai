@@ -41,6 +41,8 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [memoryFacts, setMemoryFacts] = useState<MemoryFact[]>([])
   const [isMemoryLoading, setIsMemoryLoading] = useState(false)
+  const [editingFactId, setEditingFactId] = useState<string | null>(null)
+  const [editingFactText, setEditingFactText] = useState('')
 
   // 每次侧边栏打开时重置到指定 tab
   const prevIsOpen = useRef(false)
@@ -108,6 +110,20 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
       setMemoryFacts(prev => prev.filter(f => f.id !== id))
     } catch {}
   }, [])
+
+  const handleSaveFact = useCallback(async (id: string) => {
+    const text = editingFactText.trim()
+    if (!text) return
+    try {
+      await fetch(`/api/memory/facts/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fact: text })
+      })
+      setMemoryFacts(prev => prev.map(f => f.id === id ? { ...f, fact: text } : f))
+      setEditingFactId(null)
+    } catch {}
+  }, [editingFactText])
 
   const findNodeForConversation = useCallback((conversationId: string) => {
     return nodes.find(n => n.conversationId === conversationId)
@@ -320,19 +336,52 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                       >
                         <div className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0 mt-1.5" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-[12px] text-gray-800 leading-relaxed">{fact.fact}</p>
-                          <p className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
-                            <Calendar className="w-2.5 h-2.5" />
-                            {fact.created_at.split('T')[0]}
-                          </p>
+                          {editingFactId === fact.id ? (
+                            <div className="flex flex-col gap-2">
+                              <textarea
+                                value={editingFactText}
+                                onChange={e => setEditingFactText(e.target.value)}
+                                className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-[12px] leading-relaxed text-gray-800 outline-none resize-none"
+                                rows={2}
+                                autoFocus
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleSaveFact(fact.id) }
+                                  if (e.key === 'Escape') setEditingFactId(null)
+                                }}
+                              />
+                              <div className="flex justify-end gap-2 text-[11px]">
+                                <button onClick={() => setEditingFactId(null)} className="text-gray-400 hover:text-gray-600">取消</button>
+                                <button onClick={() => void handleSaveFact(fact.id)} className="text-gray-700 font-medium hover:text-gray-900">保存</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-[12px] text-gray-800 leading-relaxed">{fact.fact}</p>
+                              <p className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+                                <Calendar className="w-2.5 h-2.5" />
+                                {fact.created_at.split('T')[0]}
+                              </p>
+                            </>
+                          )}
                         </div>
-                        <button
-                          onClick={() => handleDeleteFact(fact.id)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50"
-                          title="删除这条记忆"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
+                        {editingFactId !== fact.id && (
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => { setEditingFactId(fact.id); setEditingFactText(fact.fact) }}
+                              className="p-1 rounded-lg text-gray-300 hover:text-gray-500 hover:bg-gray-100"
+                              title="编辑这条记忆"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteFact(fact.id)}
+                              className="p-1 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50"
+                              title="删除这条记忆"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
                       </motion.div>
                     ))}
                   </div>

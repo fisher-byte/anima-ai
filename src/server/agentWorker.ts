@@ -132,10 +132,13 @@ AI之前说：${assistantMessage.slice(0, 200)}
     const parsed = JSON.parse(jsonMatch[0]) as { preference?: string }
     if (!parsed.preference?.trim()) return
 
-    // 写入 profile.rules（追加到 JSON 数组）
-    const existing = db.prepare('SELECT value FROM config WHERE key = ?').get('preference_rules') as { value: string } | undefined
-    const rules: Array<{ trigger: string; preference: string; confidence: number; updatedAt: string }> =
-      existing?.value ? JSON.parse(existing.value) : []
+    // 写入 profile.rules（同步到 storage 表的 profile.json，与前端共享同一数据源）
+    const profileRow = db.prepare('SELECT content FROM storage WHERE filename = ?').get('profile.json') as { content: string } | undefined
+    let existingProfile: { rules?: Array<{ trigger: string; preference: string; confidence: number; updatedAt: string }> } = {}
+    if (profileRow?.content) {
+      try { existingProfile = JSON.parse(profileRow.content) } catch {}
+    }
+    const rules = existingProfile.rules ?? []
 
     const today = new Date().toISOString().split('T')[0]
     const newRule = { trigger: userMessage.slice(0, 40), preference: parsed.preference, confidence: 0.7, updatedAt: today }
@@ -143,6 +146,16 @@ AI之前说：${assistantMessage.slice(0, 200)}
     if (rules.some(r => r.preference === parsed.preference)) return
 
     rules.push(newRule)
+    const updatedProfile = { ...existingProfile, rules }
+    const profileJson = JSON.stringify(updatedProfile, null, 2)
+    const nowTs = new Date().toISOString()
+    if (profileRow) {
+      db.prepare('UPDATE storage SET content = ?, updated_at = ? WHERE filename = ?').run(profileJson, nowTs, 'profile.json')
+    } else {
+      db.prepare('INSERT INTO storage (filename, content, updated_at) VALUES (?, ?, ?)').run('profile.json', profileJson, nowTs)
+    }
+    // 同时保留 config 表同步（供其他可能的读取方保持兼容）
+    const existing = db.prepare('SELECT value FROM config WHERE key = ?').get('preference_rules') as { value: string } | undefined
     const val = JSON.stringify(rules)
     if (existing) {
       db.prepare('UPDATE config SET value = ?, updated_at = ? WHERE key = ?').run(val, new Date().toISOString(), 'preference_rules')
