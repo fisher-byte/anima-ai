@@ -382,9 +382,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           }
           const detectIntent = get().detectIntent
           const CATEGORIES: { name: string; color: string }[] = [
-            { name: '工作学习', color: 'rgba(219, 234, 254, 0.9)' },
-            { name: '生活日常', color: 'rgba(220, 252, 231, 0.9)' },
-            { name: '灵感创意', color: 'rgba(243, 232, 255, 0.9)' },
+            { name: '日常生活', color: 'rgba(220, 252, 231, 0.9)' },
+            { name: '日常事务', color: 'rgba(254, 249, 195, 0.9)' },
+            { name: '学习成长', color: 'rgba(219, 234, 254, 0.9)' },
+            { name: '工作事业', color: 'rgba(224, 242, 254, 0.9)' },
+            { name: '情感关系', color: 'rgba(255, 228, 230, 0.9)' },
+            { name: '思考世界', color: 'rgba(243, 232, 255, 0.9)' },
             { name: '其他', color: 'rgba(243, 244, 246, 0.9)' }
           ]
           let updated = false
@@ -466,10 +469,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
     // --- 增强分类与染色逻辑：优先使用 explicitCategory，否则按全文关键词匹配 ---
     const CATEGORIES = [
-      { name: '工作学习', keywords: ['代码', '开发', '学习', '论文', '总结', '计划', 'AI', '模型', '技术', '工作'], color: 'rgba(219, 234, 254, 0.9)' }, // 蓝色
-      { name: '生活日常', keywords: ['美食', '天气', '旅游', '电影', '运动', '健康', '深圳', '餐厅', '吃饭', '好吃', '店铺', '非常好吃'], color: 'rgba(220, 252, 231, 0.9)' }, // 绿色
-      { name: '灵感创意', keywords: ['创意', '想法', '艺术', '写作', '小说', '绘画', '设计'], color: 'rgba(243, 232, 255, 0.9)' }, // 紫色
-      { name: '其他', keywords: [], color: 'rgba(243, 244, 246, 0.9)' } // 灰色
+      { name: '日常生活', keywords: ['美食', '餐厅', '好吃', '旅游', '电影', '游戏', '购物', '运动', '周末'], color: 'rgba(220, 252, 231, 0.9)' },   // 绿
+      { name: '日常事务', keywords: ['医疗', '健康', '法律', '政策', '出行', '租房', '合同', '感冒', '生病'], color: 'rgba(254, 249, 195, 0.9)' },   // 黄
+      { name: '学习成长', keywords: ['学习', '编程', '代码', '论文', '作文', '语言', '考试', '读书', '知识'], color: 'rgba(219, 234, 254, 0.9)' },   // 蓝
+      { name: '工作事业', keywords: ['工作', '职场', '离职', '跳槽', '创业', '产品', '项目', '方案', '职业'], color: 'rgba(224, 242, 254, 0.9)' },   // 青蓝
+      { name: '情感关系', keywords: ['恋爱', '感情', '婚姻', '家人', '朋友', '焦虑', '情绪', '心理', '压力'], color: 'rgba(255, 228, 230, 0.9)' },   // 粉
+      { name: '思考世界', keywords: ['哲学', '人生', '意义', '社会', '未来', '科技', '价值观', '世界', '思考'], color: 'rgba(243, 232, 255, 0.9)' }, // 紫
+      { name: '其他', keywords: [], color: 'rgba(243, 244, 246, 0.9)' }
     ]
 
     let category: string
@@ -507,22 +513,22 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       islandX = catNodes.reduce((sum, n) => sum + n.x, 0) / catNodes.length
       islandY = catNodes.reduce((sum, n) => sum + n.y, 0) / catNodes.length
     } else if (nodes.length > 0) {
-      // 新岛屿：找一个远离现有岛屿的空位（限制在中心 1200px 范围内）
-      const islandDist = 500
+      // 新岛屿：找一个远离现有岛屿的空位（缩短距离，早期节点更靠近中心）
+      const islandDist = 280
       let angle = Math.random() * Math.PI * 2
       for (let i = 0; i < 12; i++) {
         const tx = centerX + Math.cos(angle) * islandDist
         const ty = centerY + Math.sin(angle) * islandDist
-        if (nodes.every(n => Math.hypot(n.x - tx, n.y - ty) > islandDist * 0.8)) {
+        if (nodes.every(n => Math.hypot(n.x - tx, n.y - ty) > islandDist * 0.7)) {
           islandX = tx
           islandY = ty
           break
         }
         angle += (Math.PI * 2) / 12
       }
-      // 无论是否找到空位，都限制在 centerX±1200 范围内
-      islandX = Math.max(centerX - 1200, Math.min(centerX + 1200, islandX))
-      islandY = Math.max(centerY - 1200, Math.min(centerY + 1200, islandY))
+      // 限制在 centerX±800 范围内（比原来的 1200 更紧凑）
+      islandX = Math.max(centerX - 800, Math.min(centerX + 800, islandX))
+      islandY = Math.max(centerY - 800, Math.min(centerY + 800, islandY))
     }
 
     // 在岛屿周围寻找空位（螺旋搜索，半径上限600px）
@@ -912,13 +918,17 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       .map(r => r.preference)
   },
 
-  // 检测查询意图
+  // 检测查询意图（六类体系）
   detectIntent: (query: string): string => {
-    const text = query.toLowerCase()
+    // 去除空格后匹配，兼容"思 考 离 职"这类带空格输入
+    const text = query.toLowerCase().replace(/\s+/g, '')
     const CATEGORIES = [
-      { name: '工作学习', keywords: ['代码', '开发', '学习', '论文', '总结', '计划', 'AI', '模型', '技术', '工作', '文档', '项目', 'bug', '修', '写'] },
-      { name: '生活日常', keywords: ['美食', '天气', '旅游', '电影', '运动', '健康', '深圳', '餐厅', '吃饭', '心情', '八卦', '推荐', '怎么去', '好吃', '店铺', '非常好吃'] },
-      { name: '灵感创意', keywords: ['创意', '想法', '艺术', '写作', '小说', '绘画', '设计', '灵感', '未来', '科幻', '编一个', '故事'] }
+      { name: '日常生活', keywords: ['美食', '餐厅', '好吃', '旅游', '攻略', '电影', '游戏', '购物', '运动', '健身', '生活方式', '探店', '周末', '玩', '推荐', '火锅', '咖啡', '奶茶'] },
+      { name: '日常事务', keywords: ['医疗', '健康', '法律', '政策', '出行', '路线', '家庭', '租房', '合同', '退税', '感冒', '生病', '签证', '手续', '怎么办', '攻略', '费用', '保险'] },
+      { name: '学习成长', keywords: ['学习', '编程', '代码', '论文', '作文', '语言', '英语', '考试', '读书', '理解', '解释', '原理', '概念', 'python', 'javascript', '算法', '数学', '物理', '化学', '历史', '知识'] },
+      { name: '工作事业', keywords: ['工作', '职场', '职业', '离职', '跳槽', '创业', '商业', '产品', '项目', '需求', '方案', '汇报', '简历', '面试', '薪资', '晋升', '老板', '同事', '客户', '业务', '运营', '营销', '行业', '市场', '融资', '开发', '技术', 'ai', '模型', '文档'] },
+      { name: '情感关系', keywords: ['恋爱', '感情', '喜欢', '分手', '婚姻', '家人', '父母', '朋友', '社交', '焦虑', '情绪', '心理', '压力', '难过', '孤独', '沟通', '关系', '心情'] },
+      { name: '思考世界', keywords: ['哲学', '人生', '意义', '社会', '未来', '科技', '价值观', '世界', '规律', '本质', '底层', '逻辑', 'ai会', '取代', '为什么', '思考', '认知', '观点', '判断', '趋势'] }
     ]
 
     for (const cat of CATEGORIES) {

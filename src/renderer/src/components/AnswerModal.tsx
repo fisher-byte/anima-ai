@@ -238,6 +238,10 @@ export function AnswerModal() {
       else if (hasGeneSaved) { onboardingPhaseRef.current = 3; setOnboardingDone(false) }
       else if (hasUserTurn) { onboardingPhaseRef.current = 2; setOnboardingDone(false) }
       else { onboardingPhaseRef.current = 0; setOnboardingDone(false) }
+      // 恢复历史对话时滚到底部
+      setTimeout(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      }, 80)
     } else {
       setTurns([{ user: '', assistant: ONBOARDING_GREETING }])
       onboardingPhaseRef.current = 0
@@ -277,6 +281,10 @@ export function AnswerModal() {
           finalTurns = [{ ...finalTurns[0], user: currentConversation.userMessage }]
         }
         setTurns(finalTurns)
+        // replay 时滚到对话底部（需等 DOM 渲染完）
+        setTimeout(() => {
+          if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+        }, 80)
 
         const history: AIMessage[] = []
         finalTurns.forEach(t => {
