@@ -400,3 +400,55 @@ memoryRoutes.delete('/profile', (c) => {
   }
   return c.json({ ok: true })
 })
+
+/** AI 语义分类：将用户消息归类到六大类之一
+ *  POST /api/memory/classify { text: string }
+ *  → { category: string }  （同步，超时或无 key 时返回 null 由前端降级）
+ */
+memoryRoutes.post('/classify', async (c) => {
+  const { text } = await c.req.json<{ text: string }>()
+  if (!text?.trim()) return c.json({ category: null })
+
+  const { apiKey, baseUrl } = getApiConfig()
+  if (!apiKey) return c.json({ category: null })
+
+  const isMoonshot = baseUrl.includes('moonshot')
+  const model = isMoonshot ? 'moonshot-v1-8k' : 'gpt-4o-mini'
+
+  const CATEGORIES = ['日常生活', '日常事务', '学习成长', '工作事业', '情感关系', '思考世界', '其他']
+
+  const prompt = `将以下用户问题/话语归类到这六个类别之一：日常生活、日常事务、学习成长、工作事业、情感关系、思考世界。如果都不符合就输出"其他"。
+
+类别说明：
+- 日常生活：娱乐消费，美食旅游电影游戏购物运动
+- 日常事务：现实问题，医疗法律政策出行家庭租房
+- 学习成长：知识技能，编程学习语言考试读书
+- 工作事业：职业生产，工作职场创业产品项目商业
+- 情感关系：人际情绪，恋爱婚姻家人朋友焦虑心理
+- 思考世界：抽象思考，哲学人生社会科技价值观
+
+用户说：${text.slice(0, 300)}
+
+只输出类别名称，不要解释。`
+
+  try {
+    const resp = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0,
+        max_tokens: 20
+      }),
+      signal: AbortSignal.timeout(5000)
+    })
+    if (!resp.ok) return c.json({ category: null })
+    const data = (await resp.json()) as { choices: { message: { content: string } }[] }
+    const raw = data.choices?.[0]?.message?.content?.trim() ?? ''
+    const matched = CATEGORIES.find(cat => raw.includes(cat))
+    return c.json({ category: matched ?? '其他' })
+  } catch {
+    return c.json({ category: null })
+  }
+})

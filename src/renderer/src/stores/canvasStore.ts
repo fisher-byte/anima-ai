@@ -539,8 +539,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     if (x == null || y == null) {
       let found = false
       for (let i = 0; i < 100; i++) {
-        const radius = (catNodes.length === 0 ? 0 : 150) + Math.floor(i / 8) * 60  // 上限：150 + 11*60 = 810 → 实际最大 ~600
-        if (radius > 600) break  // 超过600px停止寻找，直接用岛屿中心附近
+        // 最小半径 150，让中心区域保持空旷，节点围绕中心分布
+        const radius = 150 + Math.floor(i / 8) * 60
+        if (radius > 700) break
         const angle = (i % 8) * (Math.PI / 4) + (radius / 200)
         const tx = islandX + Math.cos(angle) * radius
         const ty = islandY + Math.sin(angle) * radius
@@ -558,9 +559,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         }
       }
       if (!found) {
-        // fallback：在岛屿中心随机小偏移叠加，而不是精确位置
-        x = islandX + (Math.random() - 0.5) * nodeGap
-        y = islandY + (Math.random() - 0.5) * nodeGap
+        x = islandX + 150 + (Math.random() - 0.5) * nodeGap
+        y = islandY + 150 + (Math.random() - 0.5) * nodeGap
       }
     }
 
@@ -748,24 +748,37 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const currentConversation = explicitConversation ?? get().currentConversation
     if (!currentConversation) return
 
-    // 1. 解析回复中的多轮对话
-    const sectionRegex = /#\s*(\d+)\s*\n+\s*用户[：:]\s*([\s\S]*?)\n+\s*AI[：:]\s*([\s\S]*?)(?=\n+\s*#\s*\d+|$)/g
-    const turns: { user: string; ai: string; category: string }[] = []
-    let match
-    while ((match = sectionRegex.exec(assistantMessage)) !== null) {
-      const user = match[2].trim()
-      const ai = match[3].trim()
-      turns.push({ user, ai, category: detectIntent(user) })
+    /** 调后端 AI 分类，5s 超时后降级为关键词 */
+    const classifyText = async (text: string): Promise<string> => {
+      try {
+        const resp = await fetch('/api/memory/classify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+          signal: AbortSignal.timeout(5000)
+        })
+        if (resp.ok) {
+          const data = (await resp.json()) as { category: string | null }
+          if (data.category) return data.category
+        }
+      } catch { /* 降级 */ }
+      return detectIntent(text)
     }
 
-    // 如果没解析出多轮（旧格式或单次对话），作为单轮处理
-    if (turns.length === 0) {
-      turns.push({ 
-        user: currentConversation.userMessage, 
-        ai: assistantMessage, 
-        category: detectIntent(currentConversation.userMessage) 
-      })
+    // 1. 解析回复中的多轮对话
+    const sectionRegex = /#\s*(\d+)\s*\n+\s*用户[：:]\s*([\s\S]*?)\n+\s*AI[：:]\s*([\s\S]*?)(?=\n+\s*#\s*\d+|$)/g
+    const rawTurns: { user: string; ai: string }[] = []
+    let match
+    while ((match = sectionRegex.exec(assistantMessage)) !== null) {
+      rawTurns.push({ user: match[2].trim(), ai: match[3].trim() })
     }
+    if (rawTurns.length === 0) {
+      rawTurns.push({ user: currentConversation.userMessage, ai: assistantMessage })
+    }
+
+    // 并发 AI 分类（所有 turn 同时请求）
+    const categories = await Promise.all(rawTurns.map(t => classifyText(t.user)))
+    const turns = rawTurns.map((t, i) => ({ ...t, category: categories[i] }))
 
     // 2. 根据连续的分类进行分组
     const groups: { category: string; user: string; ai: string }[] = []
