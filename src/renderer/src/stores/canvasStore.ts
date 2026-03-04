@@ -82,6 +82,9 @@ interface CanvasState {
   saveMemoryImport: (content: string, sourceName: string) => Promise<void>
 }
 
+// 防止 completeOnboarding 并发重复执行
+let _completingOnboarding = false
+
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   nodes: [],
   edges: [],
@@ -124,21 +127,27 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
   setOnboardingPhase: (phase) => set({ onboardingPhase: phase }),
   completeOnboarding: async () => {
-    // 标记引导已完成
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('evo_onboarding_v3', 'done')
-    }
-    // 从画布移除 onboarding 能力块（不再保留入口）
-    const { nodes } = get()
-    const filteredNodes = nodes.filter(n => !(n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding'))
-    set({ isOnboardingMode: false, onboardingPhase: 0, nodes: filteredNodes })
-    get().updateEdges()
-    // 持久化（不含 onboarding 节点）
-    await storageService.write(STORAGE_FILES.NODES, JSON.stringify(filteredNodes, null, 2))
-    // 确保 import-memory 能力块存在
-    const hasImportMemory = filteredNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
-    if (!hasImportMemory) {
-      await get().addCapabilityNode('import-memory')
+    if (_completingOnboarding) return
+    _completingOnboarding = true
+    try {
+      // 标记引导已完成
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('evo_onboarding_v3', 'done')
+      }
+      // 从画布移除 onboarding 能力块（不再保留入口）
+      const { nodes } = get()
+      const filteredNodes = nodes.filter(n => !(n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding'))
+      set({ isOnboardingMode: false, onboardingPhase: 0, nodes: filteredNodes })
+      get().updateEdges()
+      // 持久化（不含 onboarding 节点）
+      await storageService.write(STORAGE_FILES.NODES, JSON.stringify(filteredNodes, null, 2))
+      // 确保 import-memory 能力块存在
+      const hasImportMemory = filteredNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
+      if (!hasImportMemory) {
+        await get().addCapabilityNode('import-memory')
+      }
+    } finally {
+      _completingOnboarding = false
     }
   },
 
@@ -382,30 +391,22 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         if (nodes.length > 0) {
           get().focusNode(nodes[0].id)
         }
-
-        // 若未完成过新手引导：添加新手教程能力块并自动触发引导
-        const onboardingDone = typeof localStorage !== 'undefined' && localStorage.getItem('evo_onboarding_v3')
-        if (!onboardingDone) {
-          const hasOnboarding = get().nodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding')
-          if (!hasOnboarding) {
-            await get().addCapabilityNode('onboarding')
-          }
-          // 自动打开引导（无需用户手动点击）
-          get().openOnboarding()
-        } else {
-          // 已完成引导：确保 import-memory 能力块存在
-          const hasImportMemory = get().nodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
-          if (!hasImportMemory) {
-            await get().addCapabilityNode('import-memory')
-          }
-        }
       }
-      // 无论 content 是否存在，若未完成过引导，均触发新手教程
-      if (!content) {
-        const onboardingDone = typeof localStorage !== 'undefined' && localStorage.getItem('evo_onboarding_v3')
-        if (!onboardingDone) {
+
+      // 统一处理能力块初始化（无论 content 是否存在，只执行一次）
+      const onboardingDone = typeof localStorage !== 'undefined' && localStorage.getItem('evo_onboarding_v3')
+      if (!onboardingDone) {
+        // 未完成引导：确保 onboarding 能力块存在，并自动打开引导
+        const hasOnboarding = get().nodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding')
+        if (!hasOnboarding) {
           await get().addCapabilityNode('onboarding')
-          get().openOnboarding()
+        }
+        get().openOnboarding()
+      } else {
+        // 已完成引导：确保 import-memory 能力块存在
+        const hasImportMemory = get().nodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
+        if (!hasImportMemory) {
+          await get().addCapabilityNode('import-memory')
         }
       }
     } catch (error) {

@@ -52,6 +52,7 @@ export function AnswerModal() {
   const isOnboardingMode = useCanvasStore(state => state.isOnboardingMode)
   const completeOnboarding = useCanvasStore(state => state.completeOnboarding)
   const addCapabilityNode = useCanvasStore(state => state.addCapabilityNode)
+  const canvasNodes = useCanvasStore(state => state.nodes)
 
   const [turns, setTurns] = useState<Turn[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
@@ -534,15 +535,14 @@ export function AnswerModal() {
             .catch(err => console.error('后台保存对话失败:', err))
         }
         // 中途退出引导：补齐能力块，确保画布上始终有 import-memory 和 onboarding 入口
-        const currentNodes = useCanvasStore.getState().nodes
-        const hasImportMemory = currentNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
-        const hasOnboarding = currentNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding')
+        const hasImportMemory = canvasNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
+        const hasOnboarding = canvasNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding')
         if (!hasImportMemory) void addCapabilityNode('import-memory')
         if (!hasOnboarding) void addCapabilityNode('onboarding')
       }
     }, 500)
   }, [isClosing, turns, errorMessage, isStreaming, currentConversation, isOnboardingMode,
-      endConversation, closeModal, appliedPreferences, completeOnboarding, addCapabilityNode])
+      endConversation, closeModal, appliedPreferences, completeOnboarding, addCapabilityNode, canvasNodes])
 
   // ESC 关闭
   useEffect(() => {

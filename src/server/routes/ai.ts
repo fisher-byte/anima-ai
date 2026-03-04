@@ -52,7 +52,7 @@ aiRoutes.post('/stream', async (c) => {
     | undefined
   const configuredModel = modelRow?.value ?? AI_CONFIG.MODEL
 
-  // 智能路由：仅纯问候语使用快速模型，其余走用户配置模型
+  // 智能路由：仅纯问候语（不含实质内容）使用快速模型，其余走用户配置模型
   const lastUserMsg = messages.filter(m => m.role === 'user').pop()
   const lastText = typeof lastUserMsg?.content === 'string'
     ? lastUserMsg.content
@@ -60,8 +60,14 @@ aiRoutes.post('/stream', async (c) => {
         ? (lastUserMsg!.content as any[]).find(c => c.type === 'text')?.text ?? ''
         : '')
   const trimmedText = lastText.trim()
+  // 仅当消息本身就是一个问候词（允许末尾一个标点/语气词）时才走快速模型
+  // 例：「你好」「hi！」「早~」匹配；「你好吗」「hi，帮我...」不匹配
+  const GREETING_SUFFIX = /^[！!~～。，,？?。\s]*$/
   const isSimpleQuery = isOnboarding ||
-    SIMPLE_QUERY_GREETINGS.some(w => trimmedText === w || trimmedText === w + '！' || trimmedText === w + '~')
+    SIMPLE_QUERY_GREETINGS.some(w =>
+      trimmedText === w ||
+      (trimmedText.startsWith(w) && GREETING_SUFFIX.test(trimmedText.slice(w.length)))
+    )
 
   const model = isSimpleQuery ? FAST_MODEL : configuredModel
   const maxTokens = isSimpleQuery ? FAST_MODEL_MAX_TOKENS : AI_CONFIG.MAX_TOKENS
