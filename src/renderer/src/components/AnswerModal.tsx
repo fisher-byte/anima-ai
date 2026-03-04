@@ -87,6 +87,7 @@ export function AnswerModal() {
   const startedConversationIdRef = useRef<string | null>(null)
   const isReplayRef = useRef(false)
   const didMutateRef = useRef(false)
+  const onboardingStreamTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── 文件上传（本地解析 + 上传后端 + 触发 embedding） ──────────────────────
   const handleFiles = useCallback(async (fileList: FileList | File[]) => {
@@ -442,10 +443,10 @@ export function AnswerModal() {
           return next
         })
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-        setTimeout(scheduleNext, delay)
+        onboardingStreamTimerRef.current = setTimeout(scheduleNext, delay)
       }
 
-      setTimeout(scheduleNext, 800)
+      onboardingStreamTimerRef.current = setTimeout(scheduleNext, 800)
       return
     }
 
@@ -551,7 +552,7 @@ export function AnswerModal() {
           endConversation(cleanAssistant, [], t.reasoning, conv)
             .catch(err => console.error('引导对话节点保存失败:', err))
         })
-        localStorage.setItem('evo_onboarding_v3', 'true')
+        localStorage.setItem('evo_onboarding_v3', 'done')
         void completeOnboarding()
         setShowOnboardingComplete(true)
       } else if (onboardingInProgress) {
@@ -593,6 +594,13 @@ export function AnswerModal() {
     window.addEventListener('keydown', handleEsc)
     return () => window.removeEventListener('keydown', handleEsc)
   }, [isModalOpen, handleClose, editingIndex])
+
+  // 组件卸载时清理引导流式输出定时器
+  useEffect(() => {
+    return () => {
+      if (onboardingStreamTimerRef.current) clearTimeout(onboardingStreamTimerRef.current)
+    }
+  }, [])
 
   // ── 导出 ──────────────────────────────────────────────────────────────────
   const handleExportConversation = useCallback(() => {
@@ -662,7 +670,7 @@ export function AnswerModal() {
                 <div className="flex items-center justify-end px-6 py-3 border-b border-gray-100 bg-white gap-2">
                   {/* 引导模式提示（未完成时显示） */}
                   {isOnboardingMode && !onboardingDone && (
-                    <span className="flex-1 text-[12px] text-amber-500/80 font-medium pl-1">
+                    <span className="flex-1 text-[12px] text-gray-400 font-medium pl-1">
                       随时可以关闭，下次点击「新手教程」继续
                     </span>
                   )}
