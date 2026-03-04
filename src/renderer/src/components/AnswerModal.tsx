@@ -86,7 +86,8 @@ export function AnswerModal() {
   const didMutateRef = useRef(false)
   const onboardingStreamTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // ── 文件上传（本地解析 + 上传后端 + 触发 embedding） ──────────────────────
+  // ── 文件上传（本地解析 + 上传后端）──────────────────────────────────────────
+  // Embedding 由后端 Agent 自动处理（embed_file 任务队列），不在前端触发
   const handleFiles = useCallback(async (fileList: FileList | File[]) => {
     const fileArray = Array.from(fileList)
     if (fileArray.length === 0) return
@@ -99,7 +100,7 @@ export function AnswerModal() {
         const rawFile = fileArray[idx]
         const id = crypto.randomUUID()
 
-        // 上传原始文件到后端（真实存储）
+        // 上传原始文件到后端（存储 + 自动排入 embed_file Agent 队列）
         try {
           const formData = new FormData()
           formData.append('file', rawFile)
@@ -107,16 +108,6 @@ export function AnswerModal() {
           formData.append('textContent', f.content || '')
           await fetch('/api/storage/file', { method: 'POST', body: formData })
         } catch { /* 上传失败不阻断主流程 */ }
-
-        // 文件内容 embedding 入库
-        const embedText = f.content
-          ? f.content.slice(0, 4000)
-          : `用户上传${f.preview ? '图片' : '文件'}：${f.name}`
-        fetch('/api/memory/index', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ conversationId: `file-${id}`, text: embedText })
-        }).catch(() => {})
 
         const attachment: FileAttachment = {
           id, name: f.name, type: f.type, size: f.size, content: f.content, preview: f.preview

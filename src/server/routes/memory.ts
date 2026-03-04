@@ -152,7 +152,36 @@ memoryRoutes.post('/search', async (c) => {
       const score = cosineSim(queryF32, vec)
       return { conversationId: row.conversation_id, score }
     })
-    .filter(r => r.score > 0.3) // 过滤掉语义无关的
+    // 过滤掉语义无关的 + 过滤掉 file- 前缀的条目（文件通过 /search/files 独立搜索）
+    .filter(r => r.score > 0.3 && !r.conversationId.startsWith('file-'))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topK)
+
+  return c.json({ results: scored })
+})
+
+/** 文件内容语义搜索（独立于对话搜索，搜 file_embeddings 表） */
+memoryRoutes.post('/search/files', async (c) => {
+  const { query, topK: rawTopK = 3 } = await c.req.json<{ query: string; topK?: number }>()
+  if (!query) return c.json({ results: [] })
+  const topK = Math.max(1, Math.min(10, Math.floor(Number(rawTopK) || 3)))
+
+  const queryVec = await fetchEmbedding(query)
+  if (!queryVec) return c.json({ results: [], fallback: true })
+
+  const queryF32 = new Float32Array(queryVec)
+
+  const rows = db.prepare(
+    'SELECT fe.id, fe.file_id, fe.chunk_index, fe.chunk_text, fe.vector, uf.filename FROM file_embeddings fe JOIN uploaded_files uf ON uf.id = fe.file_id ORDER BY fe.created_at DESC LIMIT 500'
+  ).all() as { id: string; file_id: string; chunk_index: number; chunk_text: string; vector: Buffer; filename: string }[]
+
+  const scored = rows
+    .map(row => {
+      const vec = bufferToVec(row.vector)
+      const score = cosineSim(queryF32, vec)
+      return { fileId: row.file_id, filename: row.filename, chunkIndex: row.chunk_index, chunkText: row.chunk_text, score }
+    })
+    .filter(r => r.score > 0.3)
     .sort((a, b) => b.score - a.score)
     .slice(0, topK)
 

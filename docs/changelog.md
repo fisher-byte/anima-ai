@@ -1,5 +1,37 @@
 # Anima 变更日志
 
+## [0.2.17] - 2026-03-04
+
+### 文件存储与向量化系统达到顶级水平
+
+#### 核心架构升级（对标 LlamaIndex / LangChain）
+- **独立文件向量表 `file_embeddings`**：文件内容 embedding 从 `embeddings` 表独立出来，避免文件结果混入对话语义搜索，解决 topK 被占用问题
+- **文本分块（Chunking）**：参照 LangChain `RecursiveCharacterTextSplitter`，在段落 > 句子 > 词边界切分，每块 800 字符、10% 重叠，大文件不再截断丢失内容
+- **文件 Embedding 走 Agent 队列**：`embed_file` 任务类型加入 agentWorker，后台异步分块向量化，不阻塞上传响应，失败自动重试（最多 3 次）
+- **新增 `/api/memory/search/files`**：文件内容语义搜索独立端点，返回匹配的文件名 + 原始 chunk 文本
+
+#### 服务端安全与健壮性
+- **文件大小限制**：50MB 上限，超出返回 413
+- **MIME 类型白名单 + 魔数校验**：拒绝 `.exe/.dll` 等可执行文件类型；对已知格式（PNG/JPEG/PDF/OLE2）校验魔数与声明 MIME 是否一致，防止类型伪造
+- **文件名安全化**：Content-Disposition 中过滤非安全字符，防止 header 注入
+- **Export 补全**：`GET /api/storage/export` 新增 `uploadedFiles` 字段（元数据，不含二进制），数据导出更完整
+
+#### 新 API
+- `GET /api/storage/files` — 列出已上传文件（元数据，无二进制）
+- `DELETE /api/storage/file/:id` — 删除文件及其所有分块向量
+- `POST /api/memory/search/files` — 文件内容语义搜索
+
+#### DB Schema
+- `uploaded_files` 新增 `chunk_count`、`embed_status` 字段，追踪 embedding 进度
+- 新增 `file_embeddings` 表（file_id + chunk_index + chunk_text + vector）
+- `uploaded_files` 新增 3 个索引（conv_id / created_at / embed_status）
+
+#### 测试
+- 测试用例从 134 → 155（新增 21 个）
+- 覆盖：文件上传/下载/删除、大小/类型验证、魔数校验、文本分块、file_embeddings 隔离、Agent 队列
+
+---
+
 ## [0.2.16] - 2026-03-04
 
 ### 记忆系统达到顶级水平（对标 mem0 / MemGPT / Zep）
