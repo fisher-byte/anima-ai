@@ -65,6 +65,17 @@ textarea {
 }
 
 /* Node float animations — run on compositor thread (transform only), zero JS overhead */
+/* nodeFloat combines X+Y translation into a single keyframe to avoid CSS animation override */
+/* nodeRotate adds a subtle tilt (±0.8deg) for organic feel */
+@keyframes nodeFloat {
+  0%   { transform: translate(-2px, 0px) rotate(-0.4deg); }
+  25%  { transform: translate(0px, -4px) rotate(0.2deg); }
+  50%  { transform: translate(2px, -2px) rotate(0.6deg); }
+  75%  { transform: translate(1px, -5px) rotate(-0.2deg); }
+  100% { transform: translate(-2px, 0px) rotate(-0.4deg); }
+}
+
+/* Legacy keyframes kept for potential fallback, but no longer used on float div */
 @keyframes nodeFloatY {
   from { transform: translateY(0px); }
   to   { transform: translateY(-4px); }
