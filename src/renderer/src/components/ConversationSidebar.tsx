@@ -34,7 +34,7 @@ interface ConversationSidebarProps {
 }
 
 export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }: ConversationSidebarProps) {
-  const { nodes, profile, openModalById, focusNode, removePreference, clearAllForOnboarding } = useCanvasStore()
+  const { nodes, profile, openModalById, focusNode, removePreference, clearAllForOnboarding, loadProfile } = useCanvasStore()
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeTab, setActiveTab] = useState<'history' | 'memory' | 'evolution'>(initialTab)
   const [isLoading, setIsLoading] = useState(false)
@@ -103,6 +103,12 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
       .catch(() => setMemoryFacts([]))
       .finally(() => setIsMemoryLoading(false))
   }, [isOpen, activeTab])
+
+  // 切到 evolution tab 时刷新进化基因规则（agentWorker 可能已后台写入新规则）
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'evolution') return
+    void loadProfile()
+  }, [isOpen, activeTab, loadProfile])
 
   const handleDeleteFact = useCallback(async (id: string) => {
     try {

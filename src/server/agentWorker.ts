@@ -70,6 +70,8 @@ ${userMessage.slice(0, 500)}
 只返回 JSON，不要解释。如果完全无法推断任何字段，返回 {}`
 
   try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 15_000)
     const resp = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
@@ -78,8 +80,10 @@ ${userMessage.slice(0, 500)}
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 300,
         temperature: 0.3
-      })
+      }),
+      signal: controller.signal
     })
+    clearTimeout(timeout)
 
     if (!resp.ok) return null
     const data = (await resp.json()) as { choices: { message: { content: string } }[] }
@@ -114,6 +118,8 @@ AI之前说：${assistantMessage.slice(0, 200)}
 只返回 JSON，不要解释。`
 
   try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 15_000)
     const resp = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
@@ -122,8 +128,10 @@ AI之前说：${assistantMessage.slice(0, 200)}
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 100,
         temperature: 0.2
-      })
+      }),
+      signal: controller.signal
     })
+    clearTimeout(timeout)
     if (!resp.ok) return
     const data = (await resp.json()) as { choices: { message: { content: string } }[] }
     const raw = data?.choices?.[0]?.message?.content?.trim() ?? ''
