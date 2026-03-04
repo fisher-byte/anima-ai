@@ -53,6 +53,8 @@ export function AnswerModal() {
   const completeOnboarding = useCanvasStore(state => state.completeOnboarding)
   const addCapabilityNode = useCanvasStore(state => state.addCapabilityNode)
   const canvasNodes = useCanvasStore(state => state.nodes)
+  const onboardingResumeTurns = useCanvasStore(state => state.onboardingResumeTurns)
+  const saveOnboardingTurns = useCanvasStore(state => state.saveOnboardingTurns)
 
   const [turns, setTurns] = useState<Turn[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
@@ -60,6 +62,7 @@ export function AnswerModal() {
   const [feedbackMessage, setFeedbackMessage] = useState('')
   const [detectedPreference, setDetectedPreference] = useState<PreferenceRule | null>(null)
   const [evolutionToast, setEvolutionToast] = useState<{ label: string; detail: string } | null>(null)
+  const [onboardingDone, setOnboardingDone] = useState(false)
   const evolutionToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const showToast = useCallback((label: string, detail: string, duration = 4000) => {
     if (evolutionToastTimerRef.current) clearTimeout(evolutionToastTimerRef.current)
@@ -184,6 +187,7 @@ export function AnswerModal() {
       // phase 3 → AI 回答用户话题后：注入关闭提示
       if (isOnboardingMode && onboardingPhaseRef.current === 3) {
         onboardingPhaseRef.current = 4
+        setOnboardingDone(true)
         setTimeout(() => {
           setTurns(prev => {
             const next = [...prev]
@@ -217,19 +221,35 @@ export function AnswerModal() {
     }
   })
 
-  // ── 新手引导：打开时注入问候语 ─────────────────────────────────────────────
+  // ── 新手引导：打开时注入问候语（或恢复已有 turns） ─────────────────────────
   useEffect(() => {
     if (!isModalOpen || !isOnboardingMode) return
     if (!currentConversation || currentConversation.userMessage !== '') return
-    setTurns([{ user: '', assistant: ONBOARDING_GREETING }])
-    onboardingPhaseRef.current = 0
+
+    if (onboardingResumeTurns && onboardingResumeTurns.length > 0) {
+      // 继承上次未完成的引导对话
+      setTurns(onboardingResumeTurns)
+      // 推算 phase：有真实用户回复则至少到 phase2；有 GENE_SAVED 则到 phase3；有 CLOSE_HINT 则 phase4
+      const hasUserTurn = onboardingResumeTurns.some(t => t.user?.trim())
+      const hasGeneSaved = onboardingResumeTurns.some(t => t.assistant?.includes('进化基因已记录'))
+      const hasCloseHint = onboardingResumeTurns.some(t => t.assistant?.includes('现在可以关闭') || t.assistant?.includes('✦ 你现在可以关闭'))
+      if (hasCloseHint) { onboardingPhaseRef.current = 4; setOnboardingDone(true) }
+      else if (hasGeneSaved) { onboardingPhaseRef.current = 3; setOnboardingDone(false) }
+      else if (hasUserTurn) { onboardingPhaseRef.current = 2; setOnboardingDone(false) }
+      else { onboardingPhaseRef.current = 0; setOnboardingDone(false) }
+    } else {
+      setTurns([{ user: '', assistant: ONBOARDING_GREETING }])
+      onboardingPhaseRef.current = 0
+      setOnboardingDone(false)
+    }
+
     setShowXPulse(false)
     setIsStreaming(false)
     startedConversationIdRef.current = currentConversation.id
     isReplayRef.current = false
     didMutateRef.current = false
     resetHistory()
-  }, [isModalOpen, isOnboardingMode, currentConversation, resetHistory])
+  }, [isModalOpen, isOnboardingMode, currentConversation, resetHistory, onboardingResumeTurns])
 
   // ── 普通模式：对话准备 ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -493,7 +513,9 @@ export function AnswerModal() {
 
     const lastReasoning = turns.length > 0 ? turns[turns.length - 1].reasoning : ''
     const savedAppliedPreferences = [...appliedPreferences]
-    const wasOnboarding = isOnboardingMode && onboardingPhaseRef.current >= 2
+    // 引导完成 = 到达 phase4（AI 已注入关闭提示）
+    const onboardingCompleted = isOnboardingMode && onboardingPhaseRef.current >= 4
+    const onboardingInProgress = isOnboardingMode && onboardingPhaseRef.current >= 2 && !onboardingCompleted
     // 在 setTimeout 之前拍一个快照，避免被后续 setTurns([]) 影响
     const savedTurns = [...turns]
 
@@ -506,10 +528,11 @@ export function AnswerModal() {
       setDetectedPreference(null)
       setAppliedPreferences([])
       setShowXPulse(false)
+      setOnboardingDone(false)
       closeModal()
 
-      if (wasOnboarding) {
-        // 引导完成：将每段真实对话独立保存为节点
+      if (onboardingCompleted) {
+        // 引导全量完成：将每段真实对话独立保存为节点
         const realTurns = savedTurns.filter(t =>
           t.user?.trim() && !t.assistant?.includes('✦ 进化基因已记录')
         )
@@ -529,20 +552,33 @@ export function AnswerModal() {
         localStorage.setItem('evo_onboarding_v3', 'true')
         void completeOnboarding()
         setShowOnboardingComplete(true)
+      } else if (onboardingInProgress) {
+        // 引导未完成：保存已有对话到 localStorage，不创建节点
+        const realTurns = savedTurns.filter(t => t.user?.trim())
+        if (realTurns.length > 0) {
+          saveOnboardingTurns(savedTurns)
+        }
+        // 确保画布上保留 onboarding 能力块入口
+        const hasOnboarding = canvasNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding')
+        if (!hasOnboarding) void addCapabilityNode('onboarding')
+        const hasImportMemory = canvasNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
+        if (!hasImportMemory) void addCapabilityNode('import-memory')
       } else {
         if (shouldSave && conversationSnapshot && conversationSnapshot.userMessage) {
           endConversation(finalResponse, savedAppliedPreferences, lastReasoning, conversationSnapshot)
             .catch(err => console.error('后台保存对话失败:', err))
         }
-        // 中途退出引导：补齐能力块，确保画布上始终有 import-memory 和 onboarding 入口
-        const hasImportMemory = canvasNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
-        const hasOnboarding = canvasNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding')
-        if (!hasImportMemory) void addCapabilityNode('import-memory')
-        if (!hasOnboarding) void addCapabilityNode('onboarding')
+        // 中途退出引导（phase < 2）：补齐能力块，确保画布上始终有 import-memory 和 onboarding 入口
+        if (isOnboardingMode) {
+          const hasImportMemory = canvasNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
+          const hasOnboarding = canvasNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding')
+          if (!hasImportMemory) void addCapabilityNode('import-memory')
+          if (!hasOnboarding) void addCapabilityNode('onboarding')
+        }
       }
     }, 500)
   }, [isClosing, turns, errorMessage, isStreaming, currentConversation, isOnboardingMode,
-      endConversation, closeModal, appliedPreferences, completeOnboarding, addCapabilityNode, canvasNodes])
+      endConversation, closeModal, appliedPreferences, completeOnboarding, addCapabilityNode, canvasNodes, saveOnboardingTurns])
 
   // ESC 关闭
   useEffect(() => {
@@ -622,6 +658,12 @@ export function AnswerModal() {
               >
                 {/* 头部 */}
                 <div className="flex items-center justify-end px-6 py-3 border-b border-gray-100 bg-white gap-2">
+                  {/* 引导模式提示（未完成时显示） */}
+                  {isOnboardingMode && !onboardingDone && (
+                    <span className="flex-1 text-[12px] text-amber-500/80 font-medium pl-1">
+                      随时可以关闭，下次点击「新手教程」继续
+                    </span>
+                  )}
                   {/* 导出菜单 */}
                   <div className="relative">
                     <button

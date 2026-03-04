@@ -1,5 +1,22 @@
 # Anima 变更日志
 
+## [0.2.13] - 2026-03-04
+
+### 新手教程：全量完成才生成节点 + 支持继承对话
+
+- **只有全量完成才拆分为节点**：新手引导必须到达 phase 4（AI 注入关闭提示后）才保存对话节点，中途叉掉不创建任何节点
+- **中途叉掉进度持久化**：未完成时关闭弹窗，已有对话 turns 序列化存入 `localStorage.evo_onboarding_turns`，能力块保留在画布
+- **再次点击新手教程继承对话**：`openOnboarding` 会从 localStorage 恢复已保存的 turns，并根据内容推算当前所在 phase，用户可无缝继续
+- **弹窗提示文案**：引导未完成时，弹窗头部显示「随时可以关闭，下次点击「新手教程」继续」；完成后提示消失
+- **完成时清除进度缓存**：`completeOnboarding` 调用时删除 `evo_onboarding_turns` 条目，避免已完成用户二次恢复
+- `canvasStore` 新增 `onboardingResumeTurns` 字段和 `saveOnboardingTurns` 方法
+
+### Bug 修复
+
+- `AnswerModal`：新增 `onboardingDone` state，引导到 phase 4 时设置为 true，替代 `onboardingPhaseRef.current` 的 ref 读取，确保提示文案能正确重渲染
+
+---
+
 ## [0.2.12] - 2026-03-04
 
 ### 新手教程体验简化
