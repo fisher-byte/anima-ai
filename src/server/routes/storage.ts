@@ -188,6 +188,38 @@ storageRoutes.get('/export', (_c) => {
   })
 })
 
+// GET /api/storage/history/:conversationId — 读取对话 AI 消息历史
+storageRoutes.get('/history/:conversationId', (c) => {
+  const { conversationId } = c.req.param()
+  const row = db.prepare('SELECT messages FROM conversation_history WHERE conversation_id = ?').get(conversationId) as
+    { messages: string } | undefined
+  return c.json({ messages: row ? JSON.parse(row.messages) : [] })
+})
+
+// PUT /api/storage/history/:conversationId — 保存对话 AI 消息历史
+storageRoutes.put('/history/:conversationId', async (c) => {
+  const { conversationId } = c.req.param()
+  const body = await c.req.json()
+  const messages = body.messages
+  if (!Array.isArray(messages)) return c.json({ error: 'messages must be array' }, 400)
+  // 限制历史条目数，防止无限增长（保留最近 100 条消息）
+  const trimmed = messages.slice(-100)
+  const now = new Date().toISOString()
+  db.prepare(`
+    INSERT INTO conversation_history (conversation_id, messages, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(conversation_id) DO UPDATE SET messages = excluded.messages, updated_at = excluded.updated_at
+  `).run(conversationId, JSON.stringify(trimmed), now)
+  return c.json({ ok: true })
+})
+
+// DELETE /api/storage/history/:conversationId — 删除对话历史（节点删除时调用）
+storageRoutes.delete('/history/:conversationId', (c) => {
+  const { conversationId } = c.req.param()
+  db.prepare('DELETE FROM conversation_history WHERE conversation_id = ?').run(conversationId)
+  return c.json({ ok: true })
+})
+
 // GET /api/storage/:filename
 storageRoutes.get('/:filename', (c) => {
   const { filename } = c.req.param()

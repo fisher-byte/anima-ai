@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { Node, Edge, Conversation, Profile, PreferenceRule, NodePosition } from '@shared/types'
 import { STORAGE_FILES, FEEDBACK_TRIGGERS, CONFIDENCE_CONFIG, UI_CONFIG } from '@shared/constants'
-import { storageService } from '../services/storageService'
+import { storageService, historyService } from '../services/storageService'
 
 interface CanvasState {
   // 数据
@@ -683,9 +683,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         console.error('Failed to sync conversation deletion:', err)
       }
 
-      // fire-and-forget：删除向量索引
+      // fire-and-forget：删除向量索引 + 对话历史
       fetch(`/api/memory/index/${nodeToRemove.conversationId}`, { method: 'DELETE' })
         .catch(() => { /* 静默忽略 */ })
+      historyService.deleteHistory(nodeToRemove.conversationId)
     }
   },
 
@@ -827,12 +828,21 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   // 关闭模态框
   closeModal: () => {
+    // 持久化当前对话历史到服务器（fire-and-forget）
+    const { currentConversation, conversationHistory } = get()
+    if (currentConversation?.id && conversationHistory.length > 0) {
+      historyService.saveHistory(currentConversation.id, conversationHistory)
+    }
     set({ isModalOpen: false, currentConversation: null, isLoading: false })
   },
 
   // 打开模态框（用于回放）
   openModal: (conversation: Conversation) => {
     set({ currentConversation: conversation, isModalOpen: true, isLoading: false })
+    // 异步加载该对话的历史上下文（不阻塞 UI 打开）
+    historyService.getHistory(conversation.id).then(messages => {
+      if (messages.length > 0) set({ conversationHistory: messages })
+    })
   },
 
   // 通过 conversationId 打开回放（从 conversations.jsonl 读取完整内容）
@@ -850,6 +860,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           const conv = JSON.parse(lines[i]) as Conversation
           if (conv.id === conversationId) {
             set({ currentConversation: conv, isModalOpen: true, isLoading: false })
+            // 异步加载该对话的历史上下文
+            historyService.getHistory(conversationId).then(messages => {
+              if (messages.length > 0) set({ conversationHistory: messages })
+            })
             return
           }
         } catch {

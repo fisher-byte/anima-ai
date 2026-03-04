@@ -8,7 +8,7 @@
  * Auto-selects the appropriate implementation based on environment.
  */
 
-import type { StorageService } from '@shared/types'
+import type { StorageService, AIMessage } from '@shared/types'
 
 // ─── Web Implementation (HTTP) ────────────────────────────────────────────────
 
@@ -18,6 +18,10 @@ class WebStorageService implements StorageService {
 
   setToken(token: string) {
     this.token = token
+  }
+
+  getToken(): string | null {
+    return this.token
   }
 
   private headers(): Record<string, string> {
@@ -186,6 +190,70 @@ export const storageService: StorageService = isElectron
 export const configService = isElectron
   ? new ElectronConfigService()
   : _webConfig
+
+// ─── Conversation History Service ─────────────────────────────────────────────
+// 跨会话持久化 AIMessage[] 历史，使多轮对话在刷新后可恢复
+
+class WebHistoryService {
+  private baseUrl = '/api'
+  private storage: WebStorageService
+
+  constructor(storage: WebStorageService) {
+    this.storage = storage
+  }
+
+  private authHeader(): Record<string, string> {
+    const token = this.storage.getToken()
+    return token ? { Authorization: `Bearer ${token}` } : {}
+  }
+
+  async getHistory(conversationId: string): Promise<AIMessage[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/storage/history/${encodeURIComponent(conversationId)}`, {
+        headers: this.authHeader()
+      })
+      if (!res.ok) return []
+      const data = await res.json()
+      return Array.isArray(data.messages) ? data.messages : []
+    } catch {
+      return []
+    }
+  }
+
+  async saveHistory(conversationId: string, messages: AIMessage[]): Promise<void> {
+    try {
+      await fetch(`${this.baseUrl}/storage/history/${encodeURIComponent(conversationId)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...this.authHeader() },
+        body: JSON.stringify({ messages })
+      })
+    } catch {
+      /* 静默忽略 */
+    }
+  }
+
+  async deleteHistory(conversationId: string): Promise<void> {
+    try {
+      await fetch(`${this.baseUrl}/storage/history/${encodeURIComponent(conversationId)}`, {
+        method: 'DELETE',
+        headers: this.authHeader()
+      })
+    } catch {
+      /* 静默忽略 */
+    }
+  }
+}
+
+// Electron 模式下对话历史暂不持久化（本地 Electron 不需要跨页面恢复）
+class NoopHistoryService {
+  async getHistory(_conversationId: string): Promise<AIMessage[]> { return [] }
+  async saveHistory(_conversationId: string, _messages: AIMessage[]): Promise<void> {}
+  async deleteHistory(_conversationId: string): Promise<void> {}
+}
+
+export const historyService: WebHistoryService | NoopHistoryService = isElectron
+  ? new NoopHistoryService()
+  : new WebHistoryService(_webStorage)
 
 /**
  * Set the Bearer token for Web mode (used when AUTH_ENABLED=true on the server).

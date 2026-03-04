@@ -110,6 +110,13 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_file_embeddings_file ON file_embeddings(file_id);
   CREATE INDEX IF NOT EXISTS idx_file_embeddings_created ON file_embeddings(created_at DESC);
+
+  -- 对话 AI 消息历史（AIMessage[] JSON），用于跨会话恢复多轮上下文
+  CREATE TABLE IF NOT EXISTS conversation_history (
+    conversation_id TEXT PRIMARY KEY,
+    messages        TEXT NOT NULL DEFAULT '[]',
+    updated_at      TEXT NOT NULL
+  );
 `)
 
 // ── 增量迁移（兼容老版本数据库） ─────────────────────────────────────────────
@@ -171,4 +178,7 @@ export type UploadedFileRow = {
 export type FileEmbeddingRow = {
   id: string; file_id: string; chunk_index: number; chunk_text: string;
   vector: Buffer; dim: number; created_at: string
+}
+export type ConversationHistoryRow = {
+  conversation_id: string; messages: string; updated_at: string
 }

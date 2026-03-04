@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { streamAI, callAI } from '../services/ai'
 import type { AIMessage } from '../../../shared/types'
 import { useCanvasStore } from '../stores/canvasStore'
+import { historyService } from '../services/storageService'
 
 interface UseAIOptions {
   onStream?: (chunk: string) => void
@@ -17,6 +18,11 @@ export function useAI(options: UseAIOptions = {}) {
   // 对话历史由 store 维护，这里通过 ref 做内存引用以适应 stream 逻辑
   const { conversationHistory, setConversationHistory } = useCanvasStore()
   const conversationHistoryRef = useRef<AIMessage[]>(conversationHistory)
+
+  /** 将 history 持久化到服务器（fire-and-forget） */
+  const persistHistory = useCallback((conversationId: string, history: AIMessage[]) => {
+    historyService.saveHistory(conversationId, history)
+  }, [])
 
   // 同步 store 到 ref
   useEffect(() => {
@@ -34,6 +40,8 @@ export function useAI(options: UseAIOptions = {}) {
    * @param history 可选的历史对话记录（用于连续对话）
    * @param images 图片列表（多模态）
    * @param compressedMemory 压缩后的相关记忆文本，注入 systemPrompt
+   * @param isOnboarding 是否为新手引导模式
+   * @param conversationId 当前对话 ID，用于持久化历史
    */
   const sendMessage = useCallback(async (
     userMessage: string,
@@ -41,7 +49,8 @@ export function useAI(options: UseAIOptions = {}) {
     history?: AIMessage[],
     images: string[] = [],
     compressedMemory?: string,
-    isOnboarding?: boolean
+    isOnboarding?: boolean,
+    conversationId?: string
   ) => {
     // 创建新的 AbortController
     abortControllerRef.current = new AbortController()
@@ -81,13 +90,14 @@ export function useAI(options: UseAIOptions = {}) {
       if (fullText) {
         const nextHistory: AIMessage[] = [
           ...messages,
-          { 
-            role: 'assistant', 
+          {
+            role: 'assistant',
             content: fullText,
-            reasoning_content: fullReasoning || undefined 
+            reasoning_content: fullReasoning || undefined
           }
         ]
         setConversationHistory(nextHistory)
+        if (conversationId) persistHistory(conversationId, nextHistory)
       } else {
         // 如果回复为空，可能需要从历史中移除这一轮的用户消息，避免下一轮出错
         setConversationHistory(messages.slice(0, -1))
@@ -104,13 +114,14 @@ export function useAI(options: UseAIOptions = {}) {
         if (fullText) {
           const nextHistory: AIMessage[] = [
             ...messages,
-            { 
-              role: 'assistant', 
+            {
+              role: 'assistant',
               content: fullText,
-              reasoning_content: fullReasoning || undefined 
+              reasoning_content: fullReasoning || undefined
             }
           ]
           setConversationHistory(nextHistory)
+          if (conversationId) persistHistory(conversationId, nextHistory)
         }
         callbacksRef.current.onStopped?.()
         return fullText
@@ -121,7 +132,7 @@ export function useAI(options: UseAIOptions = {}) {
     } finally {
       abortControllerRef.current = null
     }
-  }, [setConversationHistory])
+  }, [setConversationHistory, persistHistory])
 
   /**
    * 重置对话历史（新对话时调用）

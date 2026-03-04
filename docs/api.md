@@ -197,6 +197,42 @@ curl -X POST http://localhost:3000/api/ai/stream \
 
 ---
 
+### 对话历史 API
+
+跨会话持久化 `AIMessage[]`，使多轮对话在刷新后可完整恢复。
+
+#### GET /api/storage/history/:conversationId
+
+获取指定对话的 AI 消息历史。
+
+- **响应**：`200 { messages: AIMessage[] }`（不存在时返回空数组）
+
+```bash
+curl http://localhost:3000/api/storage/history/conv-uuid-here
+```
+
+#### PUT /api/storage/history/:conversationId
+
+保存指定对话的 AI 消息历史（覆盖写入）。
+
+- **请求 Body**：`application/json { messages: AIMessage[] }`
+- **响应**：`200 { ok: true }` 或 `400`（messages 非数组）
+- **说明**：自动截断至最近 100 条消息，防止单条历史无限增长
+
+```bash
+curl -X PUT http://localhost:3000/api/storage/history/conv-uuid-here \
+  -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"你好"},{"role":"assistant","content":"你好！"}]}'
+```
+
+#### DELETE /api/storage/history/:conversationId
+
+删除指定对话的历史（节点删除时自动调用）。
+
+- **响应**：`200 { ok: true }`
+
+---
+
 ### 文件存储 API
 
 #### POST /api/storage/file
@@ -425,6 +461,13 @@ CREATE TABLE config (
   key        TEXT PRIMARY KEY,
   value      TEXT NOT NULL,
   updated_at TEXT NOT NULL
+);
+
+-- 对话 AI 消息历史（跨会话多轮上下文恢复，v0.2.20+）
+CREATE TABLE conversation_history (
+  conversation_id TEXT PRIMARY KEY,
+  messages        TEXT NOT NULL DEFAULT '[]',  -- JSON AIMessage[]
+  updated_at      TEXT NOT NULL
 );
 ```
 
