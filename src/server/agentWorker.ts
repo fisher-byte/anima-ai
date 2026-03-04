@@ -145,9 +145,9 @@ AI之前说：${assistantMessage.slice(0, 200)}
     rules.push(newRule)
     const val = JSON.stringify(rules)
     if (existing) {
-      db.prepare('UPDATE config SET value = ? WHERE key = ?').run(val, 'preference_rules')
+      db.prepare('UPDATE config SET value = ?, updated_at = ? WHERE key = ?').run(val, new Date().toISOString(), 'preference_rules')
     } else {
-      db.prepare('INSERT INTO config (key, value) VALUES (?, ?)').run('preference_rules', val)
+      db.prepare('INSERT INTO config (key, value, updated_at) VALUES (?, ?, ?)').run('preference_rules', val, new Date().toISOString())
     }
   } catch (e) {
     console.warn('[agent] extractPreference failed:', e)

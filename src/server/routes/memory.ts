@@ -100,6 +100,24 @@ function cosineSim(a: Float32Array, b: Float32Array): number {
   return dot / (Math.sqrt(na) * Math.sqrt(nb))
 }
 
+// ─── 向量缓存（LRU-lite：60 秒 TTL，写入时失效）────────────────────────────
+interface EmbCacheEntry { rows: { conversation_id: string; vector: Buffer; dim: number }[]; ts: number }
+let _embCache: EmbCacheEntry | null = null
+const EMB_CACHE_TTL = 60_000  // 60 秒
+
+function getCachedEmbeddings() {
+  const now = Date.now()
+  if (_embCache && now - _embCache.ts < EMB_CACHE_TTL) return _embCache.rows
+  const rows = db.prepare(
+    'SELECT conversation_id, vector, dim FROM embeddings ORDER BY updated_at DESC LIMIT 2000'
+  ).all() as { conversation_id: string; vector: Buffer; dim: number }[]
+  _embCache = { rows, ts: now }
+  return rows
+}
+
+/** 写入新 embedding 后使缓存失效 */
+function invalidateEmbCache() { _embCache = null }
+
 // ─── routes ─────────────────────────────────────────────────────────────────
 
 /** 索引一条对话 */
@@ -119,6 +137,7 @@ memoryRoutes.post('/index', async (c) => {
     VALUES (?, ?, ?, ?)
     ON CONFLICT(conversation_id) DO UPDATE SET vector=excluded.vector, dim=excluded.dim, updated_at=excluded.updated_at
   `).run(conversationId, vecToBuffer(vec), vec.length, now)
+  invalidateEmbCache()  // 写入后使缓存失效
 
   return c.json({ ok: true, dim: vec.length })
 })
@@ -151,9 +170,8 @@ memoryRoutes.post('/search', async (c) => {
 
   const queryF32 = new Float32Array(queryVec)
 
-  // 读出全部向量（<500条时内存完全可接受，约 1–3 MB）
-  const rows = db.prepare('SELECT conversation_id, vector, dim FROM embeddings').all() as
-    { conversation_id: string; vector: Buffer; dim: number }[]
+  // 使用缓存的向量数据（60s TTL，写入时失效），避免每次全量加载
+  const rows = getCachedEmbeddings()
 
   const scored = rows
     .map(row => {

@@ -134,11 +134,19 @@ const migrations = [
     PRIMARY KEY(id)
   )`,
   'CREATE INDEX IF NOT EXISTS idx_file_embeddings_file ON file_embeddings(file_id)',
-  'CREATE INDEX IF NOT EXISTS idx_file_embeddings_created ON file_embeddings(created_at DESC)'
+  'CREATE INDEX IF NOT EXISTS idx_file_embeddings_created ON file_embeddings(created_at DESC)',
+  // 部分索引：只索引有效（未失效）的 facts，加速 WHERE invalid_at IS NULL 查询
+  'CREATE INDEX IF NOT EXISTS idx_memory_facts_active ON memory_facts(created_at DESC) WHERE invalid_at IS NULL'
 ]
 for (const sql of migrations) {
-  try { db.exec(sql) } catch { /* 列已存在时忽略 */ }
+  try { db.exec(sql) } catch { /* 列/索引已存在时忽略 */ }
 }
+
+// ── WAL checkpoint 定时任务（防止 WAL 文件无限增长）────────────────────────
+// PASSIVE 模式：不阻塞正在进行的读写；每 5 分钟运行一次
+setInterval(() => {
+  try { db.pragma('wal_checkpoint(PASSIVE)') } catch { /* 忽略偶发错误 */ }
+}, 5 * 60 * 1000)
 
 export type StorageRow = { filename: string; content: string; updated_at: string }
 export type ConfigRow = { key: string; value: string; updated_at: string }
