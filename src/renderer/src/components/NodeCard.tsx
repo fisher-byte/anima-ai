@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo, memo, type ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Import } from 'lucide-react'
+import { Import, BookOpen } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useLodScale } from '../hooks/useLodScale'
 import type { Node } from '@shared/types'
@@ -227,6 +227,7 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
 
 function CapabilityNodeCard({ node }: { node: Node }) {
   const openCapability = useCanvasStore(state => state.openCapability)
+  const openOnboarding = useCanvasStore(state => state.openOnboarding)
   const updateNodePosition = useCanvasStore(state => state.updateNodePosition)
 
   const isDraggingRef = useRef(false)
@@ -301,15 +302,20 @@ function CapabilityNodeCard({ node }: { node: Node }) {
     window.addEventListener('mouseup', handleGlobalMouseUp)
   }, [handleGlobalMouseMove, handleGlobalMouseUp])
 
-  const handleClick = useCallback(() => {
-    if (isDraggingRef.current || Date.now() - lastDragEndRef.current < 200) return
-    openCapability(node.id)
-  }, [node.id, openCapability])
-
   const capId = node.capabilityData?.capabilityId ?? 'import-memory'
   const ICONS: Record<string, ReactNode> = {
-    'import-memory': <Import className="w-4 h-4 text-gray-500" />
+    'import-memory': <Import className="w-4 h-4 text-gray-500" />,
+    'onboarding': <BookOpen className="w-4 h-4 text-amber-500" />
   }
+
+  const handleClick = useCallback(() => {
+    if (isDraggingRef.current || Date.now() - lastDragEndRef.current < 200) return
+    if (capId === 'onboarding') {
+      openOnboarding()
+    } else {
+      openCapability(node.id)
+    }
+  }, [node.id, capId, openCapability, openOnboarding])
 
   return (
     // 外层 div 仅负责定位，直接 DOM 操作不会被 framer-motion 干扰
