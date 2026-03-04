@@ -64,9 +64,11 @@ interface CanvasState {
   // 新增：新手引导状态
   isOnboardingMode: boolean
   onboardingPhase: number
+  onboardingResumeTurns: import('../utils/conversationUtils').Turn[] | null
   openOnboarding: () => void
   setOnboardingPhase: (phase: number) => void
   completeOnboarding: () => Promise<void>
+  saveOnboardingTurns: (turns: import('../utils/conversationUtils').Turn[]) => void
 
   // 新增：移除偏好规则
   removePreference: (index: number) => Promise<void>
@@ -104,6 +106,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   // 新手引导初始化
   isOnboardingMode: false,
   onboardingPhase: 0,
+  onboardingResumeTurns: null,
 
   // 能力节点初始化
   activeCapabilityId: null,
@@ -123,21 +126,35 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       images: [],
       files: []
     }
-    set({ isOnboardingMode: true, onboardingPhase: 0, currentConversation: conv, isModalOpen: true, isLoading: false })
+    // 尝试从 localStorage 恢复未完成的引导对话
+    let resumeTurns: import('../utils/conversationUtils').Turn[] | null = null
+    try {
+      const saved = typeof localStorage !== 'undefined' && localStorage.getItem('evo_onboarding_turns')
+      if (saved) resumeTurns = JSON.parse(saved)
+    } catch { /* ignore */ }
+    set({ isOnboardingMode: true, onboardingPhase: 0, currentConversation: conv, isModalOpen: true, isLoading: false, onboardingResumeTurns: resumeTurns })
+  },
+  saveOnboardingTurns: (turns) => {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('evo_onboarding_turns', JSON.stringify(turns))
+      }
+    } catch { /* ignore */ }
   },
   setOnboardingPhase: (phase) => set({ onboardingPhase: phase }),
   completeOnboarding: async () => {
     if (_completingOnboarding) return
     _completingOnboarding = true
     try {
-      // 标记引导已完成
+      // 标记引导已完成，清除进度缓存
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem('evo_onboarding_v3', 'done')
+        localStorage.removeItem('evo_onboarding_turns')
       }
       // 从画布移除 onboarding 能力块（不再保留入口）
       const { nodes } = get()
       const filteredNodes = nodes.filter(n => !(n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding'))
-      set({ isOnboardingMode: false, onboardingPhase: 0, nodes: filteredNodes })
+      set({ isOnboardingMode: false, onboardingPhase: 0, nodes: filteredNodes, onboardingResumeTurns: null })
       get().updateEdges()
       // 持久化（不含 onboarding 节点）
       await storageService.write(STORAGE_FILES.NODES, JSON.stringify(filteredNodes, null, 2))
