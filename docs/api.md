@@ -189,11 +189,91 @@ curl -X POST http://localhost:3000/api/ai/stream \
 
 #### POST /api/memory/extract
 
-从对话中自动摘取「关于用户的记忆事实」（写入 `memory_facts`）。
+从对话中自动摘取「关于用户的记忆事实」，写入 `memory_facts` 表。
+
+- **请求 Body**：`application/json { conversationId?: string, userMessage: string, assistantMessage?: string }`
+- **响应**：`200 { ok: boolean, extracted: number, skipped?: boolean }`
+- **说明**：同一对话幂等（已提取过则跳过）；无 API Key 时返回 `{ ok: false, reason: "no api key" }`
 
 ---
 
-### 健康检查
+### 文件存储 API
+
+#### POST /api/storage/file
+
+上传文件到后端（存储原始二进制 + 文本内容，并排入 `embed_file` 向量化队列）。
+
+- **请求 Body**：`multipart/form-data`，字段：`file`（二进制）、`id`（UUID）、`textContent`（已解析文本）
+- **响应**：`200 { ok: true }` 或 `413`（超 50MB）、`415`（不支持类型）
+
+```bash
+curl -X POST http://localhost:3000/api/storage/file \
+  -F "file=@/path/to/doc.pdf" \
+  -F "id=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" \
+  -F "textContent=解析后的文本内容"
+```
+
+#### GET /api/storage/file/:id
+
+下载文件原始内容（按 `id` 获取）。
+
+- **响应**：`200 application/octet-stream`（文件二进制）或 `404`
+
+```bash
+curl http://localhost:3000/api/storage/file/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \
+  -o output.pdf
+```
+
+#### GET /api/storage/files
+
+列出所有上传过的文件（元数据，不含二进制）。
+
+- **响应**：`200 { files: [{ id, filename, mimetype, size, embed_status, created_at }] }`
+
+#### GET /api/storage/export
+
+导出全部对话数据（nodes.json + conversations.jsonl）为 ZIP 文件。
+
+- **响应**：`200 application/zip`
+
+---
+
+### 记忆搜索补充
+
+#### POST /api/memory/search/files
+
+文件内容语义搜索（独立端点，搜 `file_embeddings` 表，不混入对话搜索）。
+
+- **请求 Body**：`application/json { query: string, topK?: number }`（topK 默认 3，最大 10）
+- **响应**：`200 { results: [{ fileId, filename, chunkIndex, chunkText, score }] }`
+- **说明**：无 API Key 或 embedding 失败时返回 `{ results: [], fallback: true }`
+
+```bash
+curl -X POST http://localhost:3000/api/memory/search/files \
+  -H "Content-Type: application/json" \
+  -d '{"query":"架构设计方案","topK":3}'
+```
+
+---
+
+### 记忆任务队列
+
+#### POST /api/memory/queue
+
+向后台 Agent 任务队列写入任务（fire-and-forget）。
+
+- **请求 Body**：`application/json { type: string, payload: object }`
+- **响应**：`200 { ok: true }`
+
+```bash
+curl -X POST http://localhost:3000/api/memory/queue \
+  -H "Content-Type: application/json" \
+  -d '{"type":"extract_profile","payload":{"conversationId":"xxx"}}'
+```
+
+---
+
+
 
 #### GET /api/health
 
@@ -206,13 +286,22 @@ curl http://localhost:3000/api/health
 
 ## 鉴权
 
-`AUTH_ENABLED=false`（默认）时，所有 `/api/*` 端点无需鉴权，适合本地开发和内网部署。
+**默认 Fail Closed（v0.2.18+）**：所有 `/api/*` 端点默认**启用鉴权**，需设置 `AUTH_DISABLED=true` 才跳过。
 
-`AUTH_ENABLED=true` 时，所有请求须携带：
+| 环境变量 | 说明 |
+|---------|------|
+| `AUTH_DISABLED=true` | 跳过鉴权（本地开发、单机部署） |
+| `ACCESS_TOKEN=<token>` | Bearer token（启用鉴权时必须设置） |
+
+> ⚠️ **安全说明**：若未设置 `AUTH_DISABLED=true` 且 `ACCESS_TOKEN` 也未配置，所有请求将收到 `401 Unauthorized`。这是有意设计——防止生产环境忘配环境变量导致 API 裸奔。
+
+启用鉴权时，所有请求须携带：
 
 ```
 Authorization: Bearer <ACCESS_TOKEN>
 ```
+
+Token 比较使用 `crypto.timingSafeEqual()` 防止时序攻击。
 
 前端通过 `setAuthToken(token)` 注入 token：
 
