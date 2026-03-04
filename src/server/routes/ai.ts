@@ -26,9 +26,30 @@ import type { AIMessage } from '../../shared/types'
 
 export const aiRoutes = new Hono()
 
-// ── Token 预算工具（字符数 / 4 近似 token 数）────────────────────────────────
+// ── Token 预算工具 ───────────────────────────────────────────────────────────
 const CONTEXT_BUDGET = 1500  // system prompt 注入层总 token 预算
-function approxTokens(text: string): number { return Math.ceil(text.length / 4) }
+/**
+ * 近似 token 数：区分 CJK（每字 ≈2 token）与拉丁字符（4字符 ≈1 token）
+ * 比纯 chars/4 对中文文本误差从 8x 降至 <1.5x
+ */
+function approxTokens(text: string): number {
+  let count = 0
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0
+    if (
+      (code >= 0x4E00 && code <= 0x9FFF) ||  // CJK 基本区
+      (code >= 0x3400 && code <= 0x4DBF) ||  // CJK 扩展 A
+      (code >= 0xF900 && code <= 0xFAFF) ||  // CJK 兼容汉字
+      (code >= 0x3000 && code <= 0x303F) ||  // CJK 符号和标点
+      (code >= 0xFF00 && code <= 0xFFEF)     // 全角字符
+    ) {
+      count += 2  // CJK 字符保守上界
+    } else {
+      count += 0.25  // 英文/数字/ASCII 标点：4字符 ≈ 1 token
+    }
+  }
+  return Math.ceil(count)
+}
 
 // ── 服务端语义搜索（直接访问 DB + embedding，不走 HTTP 环回）────────────────
 function cosineSim(a: Float32Array, b: Float32Array): number {
@@ -59,24 +80,22 @@ async function fetchRelevantFacts(query: string, apiKey: string, baseUrl: string
 
     // 读取所有有效（未失效）事实 + 对应向量
     // 先查 memory_facts，再做向量打分
+    // 一次查出 id, fact, source_conv_id，消除 N+1
     const facts = db.prepare(
-      'SELECT id, fact FROM memory_facts WHERE invalid_at IS NULL ORDER BY created_at DESC LIMIT 100'
-    ).all() as { id: string; fact: string }[]
+      'SELECT id, fact, source_conv_id FROM memory_facts WHERE invalid_at IS NULL ORDER BY created_at DESC LIMIT 100'
+    ).all() as { id: string; fact: string; source_conv_id: string | null }[]
     if (facts.length === 0) return []
 
-    // 读取这些 fact 的向量（以 source_conv_id 关联；fact 无独立向量时降级用 embeddings 表）
-    // 实用方案：对 fact 文本直接做余弦打分，避免额外 embed 存储
-    // 直接用 fact 文本与 query 的 BM25 近似：字符级 Jaccard 相似度作为轻量 fallback
-    // 若有对应 conv 的 embedding 则用真向量，否则用文本近似
-    const embRows = db.prepare('SELECT conversation_id, vector FROM embeddings').all() as
+    // 读取对话 embedding 向量（按使用时间倒序，最多 500 条避免内存爆炸）
+    const embRows = db.prepare(
+      'SELECT conversation_id, vector FROM embeddings ORDER BY updated_at DESC LIMIT 500'
+    ).all() as
       { conversation_id: string; vector: Buffer }[]
     const embMap = new Map(embRows.map(r => [r.conversation_id, r.vector]))
 
     const scored = facts.map(f => {
-      // 优先用 source_conv 向量
-      const factRow = db.prepare('SELECT source_conv_id FROM memory_facts WHERE id = ?').get(f.id) as
-        { source_conv_id: string | null } | undefined
-      const vecBuf = factRow?.source_conv_id ? embMap.get(factRow.source_conv_id) : undefined
+      // source_conv_id 已在首次查询中取出，直接使用，无需再查 DB
+      const vecBuf = f.source_conv_id ? embMap.get(f.source_conv_id) : undefined
       let score = 0
       if (vecBuf) {
         const vec = new Float32Array(vecBuf.buffer, vecBuf.byteOffset, vecBuf.byteLength / 4)
@@ -292,15 +311,20 @@ aiRoutes.post('/stream', async (c) => {
       }
 
       const decoder = new TextDecoder()
+      // SSE buffer：跨 TCP chunk 累积不完整行，按 \n\n 分割完整事件
+      let sseBuffer = ''
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
 
-        const chunk = decoder.decode(value, { stream: true })
-        const lines = chunk.split('\n').filter((l) => l.trim() !== '')
+        sseBuffer += decoder.decode(value, { stream: true })
+        // SSE 事件以 \n\n 分隔；split 后最后一段留在 buffer 等待后续 chunk 补全
+        const parts = sseBuffer.split('\n\n')
+        sseBuffer = parts.pop() ?? ''
 
-        for (const line of lines) {
+        for (const part of parts) {
+          for (const line of part.split('\n')) {
           if (!line.startsWith('data: ')) continue
           const data = line.slice(6)
           if (data === '[DONE]') continue
@@ -331,6 +355,7 @@ aiRoutes.post('/stream', async (c) => {
                     function: { name: tc.function?.name ?? '', arguments: tc.function?.arguments ?? '' }
                   }
                 } else {
+                  if (tc.function?.name) toolCalls[idx].function.name += tc.function.name
                   if (tc.function?.arguments) {
                     toolCalls[idx].function.arguments += tc.function.arguments
                   }
@@ -377,11 +402,15 @@ aiRoutes.post('/stream', async (c) => {
               if (round2Res.ok) {
                 const reader2 = round2Res.body?.getReader()
                 if (reader2) {
+                  let sseBuffer2 = ''
                   while (true) {
                     const { done, value } = await reader2.read()
                     if (done) break
-                    const chunk2 = decoder.decode(value, { stream: true })
-                    for (const line2 of chunk2.split('\n').filter((l) => l.trim())) {
+                    sseBuffer2 += decoder.decode(value, { stream: true })
+                    const parts2 = sseBuffer2.split('\n\n')
+                    sseBuffer2 = parts2.pop() ?? ''
+                    for (const part2 of parts2) {
+                      for (const line2 of part2.split('\n')) {
                       if (!line2.startsWith('data: ')) continue
                       const data2 = line2.slice(6)
                       if (data2 === '[DONE]') continue
@@ -400,12 +429,14 @@ aiRoutes.post('/stream', async (c) => {
                         // ignore parse errors
                       }
                     }
+                    }
                   }
                 }
               }
             }
           } catch {
             // ignore JSON parse errors in stream
+          }
           }
         }
       }

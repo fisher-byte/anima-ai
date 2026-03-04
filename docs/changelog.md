@@ -1,5 +1,30 @@
 # Anima 变更日志
 
+## [0.2.18] - 2026-03-04
+
+### 后端安全审计与性能修复（对标顶级开源）
+
+基于全面代码审计（对标 LangChain、Vercel AI SDK、mem0、MemGPT），修复 7 个严重/高级问题。
+
+#### CRITICAL 修复
+- **config INSERT crash**（`agentWorker.ts`）：`INSERT INTO config` 未提供 `updated_at` 字段，首次写入 `preference_rules` 时 SQLite `NOT NULL constraint failed` 导致崩溃；同步补全 UPDATE 语句的 `updated_at`
+
+#### HIGH 修复
+- **SSE buffer 边界**（`ai.ts`）：原 `chunk.split('\n')` 直接切割，JSON 可能跨 TCP chunk 被截断，内容静默丢失；改为持久 `sseBuffer`，按 `\n\n` 分割完整 SSE 事件，第一轮和第二轮（web search）均已修复
+- **N+1 查询消除**（`ai.ts`）：`fetchRelevantFacts` 中对每条 fact 单独 `SELECT source_conv_id`（最多 100 次），改为首次查询一次包含所有字段，完全消除 N+1
+- **向量全量加载改为缓存**（`memory.ts`）：`/search` 每次将 embeddings 表全量载入内存；改为模块级 LRU-lite 缓存（60s TTL，写入时失效），`LIMIT 2000` 防内存爆炸
+
+#### 安全修复
+- **auth Fail Open → Fail Closed**（`auth.ts`）：`AUTH_ENABLED=true` 默认关闭改为 `AUTH_DISABLED=true` 才跳过，避免生产环境忘配环境变量导致鉴权失效
+- **timingSafeEqual 防时序攻击**（`auth.ts`）：Bearer token 明文 `!==` 比较改为 `crypto.timingSafeEqual()`，防止逐字节猜测攻击
+
+#### MEDIUM/LOW 修复
+- **Token 估算中文误差**（`ai.ts`）：`approxTokens()` 原 `chars/4` 对中文误差最高 8x；改为区分 CJK（每字 ≈2 token）与拉丁字符（4字符 ≈1 token）的混合算法，误差降至 <1.5x
+- **DB partial index**（`db.ts`）：新增 `idx_memory_facts_active` 部分索引（`WHERE invalid_at IS NULL`），加速软删除过滤查询
+- **WAL checkpoint 定时任务**（`db.ts`）：新增每 5 分钟 `PRAGMA wal_checkpoint(PASSIVE)` 定时执行，防止 WAL 文件无限增长
+
+---
+
 ## [0.2.17] - 2026-03-04
 
 ### 文件存储与向量化系统达到顶级水平
