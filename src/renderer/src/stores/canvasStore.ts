@@ -151,15 +151,18 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         localStorage.setItem('evo_onboarding_v3', 'done')
         localStorage.removeItem('evo_onboarding_turns')
       }
-      // 从画布移除 onboarding 能力块（不再保留入口）
+      // onboarding 节点保留在画布，仅标记为已完成状态
       const { nodes } = get()
-      const filteredNodes = nodes.filter(n => !(n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding'))
-      set({ isOnboardingMode: false, onboardingPhase: 0, nodes: filteredNodes, onboardingResumeTurns: null })
+      const updatedNodes = nodes.map(n =>
+        n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding'
+          ? { ...n, capabilityData: { ...n.capabilityData, state: 'completed' as const } }
+          : n
+      )
+      set({ isOnboardingMode: false, onboardingPhase: 0, nodes: updatedNodes, onboardingResumeTurns: null })
       get().updateEdges()
-      // 持久化（不含 onboarding 节点）
-      await storageService.write(STORAGE_FILES.NODES, JSON.stringify(filteredNodes, null, 2))
+      await storageService.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
       // 确保 import-memory 能力块存在
-      const hasImportMemory = filteredNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
+      const hasImportMemory = updatedNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
       if (!hasImportMemory) {
         await get().addCapabilityNode('import-memory')
       }
@@ -211,27 +214,17 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const centerX = 1.5 * viewW
     const centerY = 1.5 * viewH
 
-    // 两个能力块并排放在中心附近（水平偏移 ±120）
-    const FIXED_POSITIONS: Record<string, { dx: number; dy: number }> = {
-      'import-memory': { dx: -130, dy: 0 },
-      'onboarding': { dx: 130, dy: 0 }
-    }
-    const pos = FIXED_POSITIONS[capabilityId] ?? { dx: 0, dy: 0 }
-    let x = centerX + pos.dx
-    let y = centerY + pos.dy
-
-    // 如果有其他节点导致该位置重叠，做小范围螺旋偏移
+    // 在中心附近找一个与现有节点不重叠的位置（螺旋搜索，起点靠近中心）
     const nodeGap = 200
-    const capNodes = nodes.filter(n => n.nodeType === 'capability')
-    if (capNodes.some(n => Math.hypot(n.x - x, n.y - y) < nodeGap)) {
-      for (let i = 1; i < 16; i++) {
-        const angle = (i / 8) * Math.PI * 2
-        const r = 80 + Math.floor(i / 8) * 80
-        const tx = centerX + pos.dx + Math.cos(angle) * r
-        const ty = centerY + pos.dy + Math.sin(angle) * r
-        if (nodes.every(n => Math.hypot(n.x - tx, n.y - ty) >= nodeGap)) {
-          x = tx; y = ty; break
-        }
+    let x = centerX
+    let y = centerY
+    for (let i = 0; i < 32; i++) {
+      const angle = (i / 8) * Math.PI * 2
+      const r = i === 0 ? 0 : (40 + Math.floor(i / 8) * 120)
+      const tx = centerX + Math.cos(angle) * r
+      const ty = centerY + Math.sin(angle) * r
+      if (nodes.every(n => Math.hypot(n.x - tx, n.y - ty) >= nodeGap)) {
+        x = tx; y = ty; break
       }
     }
 
@@ -258,10 +251,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const updatedNodes = [...nodes, newNode]
     set({ nodes: updatedNodes })
     get().updateEdges()
-    // onboarding 能力块不持久化，避免重启后重复触发
-    if (capabilityId !== 'onboarding') {
-      await storageService.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
-    }
+    // 所有能力块都持久化，刷新不会丢失
+    await storageService.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
   },
 
   saveMemoryImport: async (content, sourceName) => {
@@ -420,24 +411,23 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         }
       }
 
-      // 统一处理能力块初始化（无论 content 是否存在，只执行一次）
+      // 统一处理能力块初始化（只在节点文件里没有对应节点时才补建）
+      const currentNodes = get().nodes
       const onboardingDone = typeof localStorage !== 'undefined' && localStorage.getItem('evo_onboarding_v3')
+      const hasOnboarding = currentNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding')
+      const hasImportMemory = currentNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
+
       if (!onboardingDone) {
-        // 未完成引导：确保两个能力块都存在
-        const hasOnboarding = get().nodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding')
-        const hasImportMemory = get().nodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
+        // 未完成引导：两块都要有
         if (!hasImportMemory) await get().addCapabilityNode('import-memory')
         if (!hasOnboarding) await get().addCapabilityNode('onboarding')
-        // 将视口聚焦到 onboarding 节点
+        // 聚焦到 onboarding 节点
         const onboardingNode = get().nodes.find(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding')
         if (onboardingNode) get().focusNode(onboardingNode.id)
         get().openOnboarding()
       } else {
-        // 已完成引导：确保 import-memory 能力块存在
-        const hasImportMemory = get().nodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
-        if (!hasImportMemory) {
-          await get().addCapabilityNode('import-memory')
-        }
+        // 已完成引导：确保 import-memory 存在；onboarding 保留（文件里有就有）
+        if (!hasImportMemory) await get().addCapabilityNode('import-memory')
       }
     } catch (error) {
       console.error('Failed to load nodes:', error)
