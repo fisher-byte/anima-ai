@@ -202,6 +202,9 @@ export function AnswerModal() {
         next[next.length - 1] = { ...last, assistant: '', error }
         return next
       })
+      setTimeout(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      }, 50)
     },
     onStopped: () => {
       setIsStreaming(false)
