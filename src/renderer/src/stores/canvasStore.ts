@@ -166,6 +166,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       if (!hasImportMemory) {
         await get().addCapabilityNode('import-memory')
       }
+      // 刷新 profile，使引导过程中写入的进化基因立即在侧栏可见
+      await get().loadProfile()
     } finally {
       _completingOnboarding = false
     }

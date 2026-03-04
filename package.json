@@ -18,6 +18,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "debug:browser": "tsx scripts/debug-browser.ts",
     "dev:electron": "electron-vite dev",
     "build:electron": "electron-vite build"
