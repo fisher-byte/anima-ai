@@ -195,7 +195,7 @@ function mergeProfile(extracted: Record<string, unknown>) {
 }
 
 /** 处理单条任务 */
-async function processTask(task: { id: number; type: string; payload: string }) {
+async function processTask(task: { id: number; type: string; payload: string; retries?: number }) {
   const now = new Date().toISOString()
   db.prepare('UPDATE agent_tasks SET status = ?, started_at = ? WHERE id = ?').run('running', now, task.id)
 
@@ -214,30 +214,63 @@ async function processTask(task: { id: number; type: string; payload: string }) 
     db.prepare('UPDATE agent_tasks SET status = ?, finished_at = ? WHERE id = ?').run('done', new Date().toISOString(), task.id)
   } catch (e) {
     const errMsg = e instanceof Error ? e.message : String(e)
-    db.prepare('UPDATE agent_tasks SET status = ?, error = ?, finished_at = ? WHERE id = ?').run('failed', errMsg, new Date().toISOString(), task.id)
-    console.warn('[agent] task failed:', task.id, errMsg)
+    const retries = (task.retries ?? 0) + 1
+    if (retries < 3) {
+      // 指数退避重试：重新标记为 pending，error 字段记录上次错误
+      db.prepare('UPDATE agent_tasks SET status = ?, retries = ?, error = ?, started_at = NULL WHERE id = ?')
+        .run('pending', retries, errMsg, task.id)
+      console.warn(`[agent] task ${task.id} failed (attempt ${retries}/3), will retry:`, errMsg)
+    } else {
+      db.prepare('UPDATE agent_tasks SET status = ?, error = ?, finished_at = ? WHERE id = ?')
+        .run('failed', errMsg, new Date().toISOString(), task.id)
+      console.warn(`[agent] task ${task.id} permanently failed after 3 attempts:`, errMsg)
+    }
   }
 }
 
 /** 检查并处理 pending 任务 */
 async function tick() {
   const tasks = db.prepare(
-    'SELECT id, type, payload FROM agent_tasks WHERE status = ? ORDER BY id ASC LIMIT 5'
-  ).all('pending') as { id: number; type: string; payload: string }[]
+    'SELECT id, type, payload, retries FROM agent_tasks WHERE status = ? ORDER BY id ASC LIMIT 5'
+  ).all('pending') as { id: number; type: string; payload: string; retries: number }[]
 
   for (const task of tasks) {
     await processTask(task)
   }
 }
 
+/** 清理旧任务：删除 7 天前已完成/失败的任务 */
+function cleanOldTasks() {
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+  const deleted = db.prepare(
+    "DELETE FROM agent_tasks WHERE status IN ('done', 'failed') AND finished_at < ?"
+  ).run(cutoff)
+  if (deleted.changes > 0) {
+    console.log(`[agent] cleaned up ${deleted.changes} old tasks`)
+  }
+}
+
 /** 启动 Worker，每 30 秒 tick 一次 */
 export function startAgentWorker() {
   console.log('[agent] Worker started')
+
+  // 崩溃恢复：将上次进程中卡住的 running 任务重置为 pending
+  const stalled = db.prepare("UPDATE agent_tasks SET status = 'pending', started_at = NULL WHERE status = 'running'").run()
+  if (stalled.changes > 0) {
+    console.log(`[agent] recovered ${stalled.changes} stalled tasks from previous run`)
+  }
+
   // 立即跑一次（处理服务重启前未完成的任务）
   tick().catch(e => console.warn('[agent] initial tick error:', e))
+
   setInterval(() => {
     tick().catch(e => console.warn('[agent] tick error:', e))
   }, 30_000)
+
+  // 每小时清理一次旧任务
+  setInterval(() => {
+    try { cleanOldTasks() } catch (e) { console.warn('[agent] cleanOldTasks error:', e) }
+  }, 60 * 60 * 1000)
 }
 
 /** 向队列写入任务（前端通过 /api/memory/queue POST 调用，或 server 内部直接调用） */
