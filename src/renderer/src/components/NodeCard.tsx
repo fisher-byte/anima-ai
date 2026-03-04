@@ -103,16 +103,13 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
     await removeNode(node.id)
   }, [removeNode, node.id])
 
-  // 漂浮动画用 CSS animation（compositor thread，不占主线程）
-  // 每个节点用 id 派生出不同的 duration/delay，实现错相位效果
+  // 漂浮+微旋转动画参数（id 派生，每节点错相位）
   const floatStyle = useMemo(() => {
     const seed0 = node.id.charCodeAt(0) % 20
     const seed1 = (node.id.charCodeAt(1) || 0) % 20
-    const durY = 4 + seed0 * 0.15
-    const delayY = seed1 * 0.15
-    const durX = 5.5 + ((node.id.charCodeAt(2) || 0) % 20) * 0.12
-    const delayX = ((node.id.charCodeAt(3) || 0) % 20) * 0.15 + durY * 0.5
-    return { durY, delayY, durX, delayX }
+    const dur = 5 + seed0 * 0.2   // 5~9s，各节点不同
+    const delay = seed1 * 0.2     // 0~3.8s 错相位
+    return { dur, delay }
   }, [node.id])
 
   return (
@@ -142,11 +139,10 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* 漂浮层：纯 CSS animation（compositor thread），拖拽时或缩小时停止 */}
+      {/* 漂浮+微旋转层：单一 nodeFloat keyframe（compositor thread），拖拽时或缩小时停止 */}
       <div
         style={isDragging || scale < 0.6 ? undefined : {
-          animation: `nodeFloatY ${floatStyle.durY}s ${floatStyle.delayY}s ease-in-out infinite alternate,
-                      nodeFloatX ${floatStyle.durX}s ${floatStyle.delayX}s ease-in-out infinite alternate`,
+          animation: `nodeFloat ${floatStyle.dur}s ${floatStyle.delay}s ease-in-out infinite`,
         }}
       >
       {/* 高亮时的外发光圈（纯 CSS animation，compositor thread） */}
@@ -234,14 +230,15 @@ function CapabilityNodeCard({ node }: { node: Node }) {
   const mouseDownPosRef = useRef({ x: 0, y: 0 })
   const positionRef = useRef({ x: node.x, y: node.y })
   const lastDragEndRef = useRef(0)
+  // Guard: briefly block useEffect DOM sync after drag ends, until store update arrives
+  const justDraggedRef = useRef(false)
 
-  // 同步外部坐标（仅非拖拽状态下）
+  // 同步外部坐标（仅非拖拽状态下，且不在刚结束拖拽的瞬间）
   useEffect(() => {
-    if (!isDraggingRef.current) {
-      positionRef.current = { x: node.x, y: node.y }
-      const el = document.getElementById(`cap-node-${node.id}`)
-      if (el) { el.style.left = `${node.x}px`; el.style.top = `${node.y}px` }
-    }
+    if (isDraggingRef.current || justDraggedRef.current) return
+    positionRef.current = { x: node.x, y: node.y }
+    const el = document.getElementById(`cap-node-${node.id}`)
+    if (el) { el.style.left = `${node.x}px`; el.style.top = `${node.y}px` }
   }, [node.x, node.y, node.id])
 
   // 组件卸载时清理 window 监听器
@@ -287,7 +284,11 @@ function CapabilityNodeCard({ node }: { node: Node }) {
     if (isDraggingRef.current) {
       isDraggingRef.current = false
       lastDragEndRef.current = Date.now()
+      // Block useEffect DOM sync until store has written the new position
+      justDraggedRef.current = true
       updateNodePosition(node.id, positionRef.current.x, positionRef.current.y)
+      // Clear guard after 200ms (store update + React re-render will have settled)
+      setTimeout(() => { justDraggedRef.current = false }, 200)
     }
   }, [node.id, updateNodePosition, handleGlobalMouseMove])
 
