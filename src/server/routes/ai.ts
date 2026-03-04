@@ -2,7 +2,7 @@
  * AI proxy route
  *
  * POST /api/ai/stream
- * Body: { messages: AIMessage[], preferences: string[], compressedMemory?: string }
+ * Body: { messages: AIMessage[], preferences: string[], compressedMemory?: string, isOnboarding?: boolean }
  * Response: text/event-stream (SSE)
  *
  * Reads API key from the config table, forwards the request to Kimi/OpenAI,
