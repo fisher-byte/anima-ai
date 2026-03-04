@@ -8,7 +8,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useAI } from '../hooks/useAI'
-import type { PreferenceRule, FileAttachment, Conversation } from '@shared/types'
+import type { FileAttachment, Conversation } from '@shared/types'
 import type { AIMessage } from '@shared/types'
 import { parseFiles, formatFilesForAI } from '../../../services/fileParsing'
 import { ThinkingSection } from './ThinkingSection'
@@ -42,8 +42,6 @@ export function AnswerModal() {
   const currentConversation = useCanvasStore(state => state.currentConversation)
   const closeModal = useCanvasStore(state => state.closeModal)
   const endConversation = useCanvasStore(state => state.endConversation)
-  const detectFeedback = useCanvasStore(state => state.detectFeedback)
-  const addPreference = useCanvasStore(state => state.addPreference)
   const getPreferencesForPrompt = useCanvasStore(state => state.getPreferencesForPrompt)
   const getRelevantMemories = useCanvasStore(state => state.getRelevantMemories)
   const setConversationHistory = useCanvasStore(state => state.setConversationHistory)
@@ -60,7 +58,6 @@ export function AnswerModal() {
   const [isStreaming, setIsStreaming] = useState(false)
   const [isClosing, setIsClosing] = useState(false)
   const [feedbackMessage, setFeedbackMessage] = useState('')
-  const [detectedPreference, setDetectedPreference] = useState<PreferenceRule | null>(null)
   const [evolutionToast, setEvolutionToast] = useState<{ label: string; detail: string } | null>(null)
   const [onboardingDone, setOnboardingDone] = useState(false)
   const evolutionToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -324,7 +321,6 @@ export function AnswerModal() {
       setIsStreaming(true)
       setAppliedPreferences([])
       setFeedbackMessage('')
-      setDetectedPreference(null)
 
       const preferences = getPreferencesForPrompt()
       sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false)
@@ -380,11 +376,8 @@ export function AnswerModal() {
 
   // ── 反馈输入 ──────────────────────────────────────────────────────────────
   const handleFeedbackChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value
-    setFeedbackMessage(value)
-    const detected = detectFeedback(value)
-    if (detected) setDetectedPreference(detected)
-  }, [detectFeedback])
+    setFeedbackMessage(e.target.value)
+  }, [])
 
   const handleFeedbackSubmit = useCallback(async () => {
     const trimmed = feedbackMessage.trim()
@@ -392,9 +385,17 @@ export function AnswerModal() {
     const hasFiles = pendingFiles.length > 0
     if ((!trimmed && !hasImages && !hasFiles) || isStreaming) return
 
-    if (detectedPreference) {
-      await addPreference(detectedPreference)
-      showToast('✦ 进化基因已更新', detectedPreference.preference.slice(0, 45))
+    // 偏好检测改走后端 Agent（fire-and-forget），不再前端关键词判断
+    if (trimmed.length >= 5) {
+      const lastAssistant = turns.length > 0 ? (turns[turns.length - 1].assistant || '') : ''
+      fetch('/api/memory/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'extract_preference',
+          payload: { userMessage: trimmed, assistantMessage: lastAssistant.slice(0, 300) }
+        })
+      }).catch(() => {})
     }
 
     setFeedbackMessage('')
@@ -402,18 +403,12 @@ export function AnswerModal() {
     setPendingFiles([])
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
 
-    // ── 引导 phase 2：用户给出风格反馈 → 保存偏好 + 直接注入 GENE_SAVED，不调 AI ──
+    // ── 引导 phase 2：用户给出风格反馈 → Agent 后台提取 + 注入 GENE_SAVED ──
     if (isOnboardingMode && onboardingPhaseRef.current === 2) {
       onboardingPhaseRef.current = 3
       const userTurn: Turn = { user: trimmed, assistant: ONBOARDING_GENE_SAVED }
       setTurns(prev => [...prev, userTurn])
-      // 将用户反馈作为偏好保存（如果还没被 detectedPreference 捕获）
-      // 过滤掉太短或纯确认的无意义内容
-      const isSubstantiveFeedback = trimmed.length >= 8 && !/^(可以|好的|好|ok|okay|嗯|对|是的|没问题|行|棒|不错|了解|收到|明白|知道了|随便|都行|whatever)$/i.test(trimmed)
-      if (!detectedPreference && isSubstantiveFeedback) {
-        await addPreference({ trigger: trimmed, preference: trimmed, confidence: 0.7, updatedAt: new Date().toISOString().split('T')[0] })
-        showToast('✦ 进化基因已记录', trimmed.slice(0, 45))
-      }
+      showToast('✦ 进化基因已记录', trimmed.slice(0, 45))
       setTimeout(() => {
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
       }, 100)
@@ -459,7 +454,6 @@ export function AnswerModal() {
     }
 
     setIsStreaming(true)
-    setDetectedPreference(null)
 
     const memories = await getRelevantMemories(trimmed)
     const category = memories[0]?.category ?? null
@@ -492,8 +486,8 @@ export function AnswerModal() {
     const preferences = getPreferencesForPrompt()
     didMutateRef.current = true
     sendMessage(fullMessage, preferences, history, pendingImages, compressed, isOnboardingMode)
-  }, [feedbackMessage, pendingImages, pendingFiles, isStreaming, detectedPreference, isOnboardingMode,
-      addPreference, getPreferencesForPrompt, sendMessage, turns, getRelevantMemories, setHighlight, focusNode])
+  }, [feedbackMessage, pendingImages, pendingFiles, isStreaming, isOnboardingMode,
+      getPreferencesForPrompt, sendMessage, turns, getRelevantMemories, setHighlight, focusNode])
 
   // ── 关闭并保存 ────────────────────────────────────────────────────────────
   const handleClose = useCallback(() => {
@@ -536,7 +530,6 @@ export function AnswerModal() {
       setTurns([])
       setErrorMessage(null)
       setFeedbackMessage('')
-      setDetectedPreference(null)
       setAppliedPreferences([])
       setShowXPulse(false)
       setOnboardingDone(false)

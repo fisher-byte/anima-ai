@@ -87,10 +87,17 @@ aiRoutes.post('/stream', async (c) => {
   } else {
     systemPrompt = DEFAULT_SYSTEM_PROMPT.replace('{{DATE}}', today)
 
-    // 注入进化基因（偏好规则）
-    if (preferences.length > 0) {
+    // 注入进化基因（偏好规则）：前端传入 + 后端 Agent 提取合并
+    const agentRulesRow = db.prepare('SELECT value FROM config WHERE key = ?').get('preference_rules') as { value: string } | undefined
+    const agentPrefs: string[] = agentRulesRow?.value
+      ? (JSON.parse(agentRulesRow.value) as { preference: string; confidence?: number }[])
+          .filter(r => (r.confidence ?? 0.7) > 0.5)
+          .map(r => r.preference)
+      : []
+    const allPreferences = [...new Set([...preferences, ...agentPrefs])]
+    if (allPreferences.length > 0) {
       systemPrompt += '\n\n【用户进化基因 - 请严格遵守】\n'
-      preferences.forEach((pref, idx) => {
+      allPreferences.forEach((pref, idx) => {
         systemPrompt += `${idx + 1}. ${pref}\n`
       })
     }

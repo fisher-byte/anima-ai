@@ -1,5 +1,22 @@
 # Anima 变更日志
 
+## [0.2.15] - 2026-03-04
+
+### 架构升级：后端 Agent 接管语义分类与进化基因提取
+
+- **AI 语义分类**：`endConversation` 不再仅靠关键词，改为调用后端 `/api/memory/classify` 接口（5s 超时）；后端用 moonshot/gpt-4o-mini 做六类语义判断，失败时降级到关键词匹配
+- **进化基因走后端 Agent**：`handleFeedbackSubmit` 改为 fire-and-forget 调用 `/api/memory/queue` 写入 `extract_preference` 任务；后端 `agentWorker` 用 AI 判断用户回复是否含偏好，写入 `config.preference_rules`
+- **偏好规则注入 system prompt**：`ai.ts` 在构建 system prompt 时，从 DB 读取 `preference_rules` 与前端传入的 preferences 合并注入，让后端 Agent 提取的偏好真正影响回答风格
+- **节点布局中心留空**：`addNode` 岛屿螺旋算法最小半径 0 → 150px，中心区域保持空白，节点围绕中心展开
+- **去除前端偏好关键词检测**：删除 `detectFeedback`、`addPreference`、`detectedPreference`，AnswerModal 不再做任何前端偏好判断
+
+### Bug 修复
+
+- `AnswerModal.tsx`：清除 `setDetectedPreference`/`detectedPreference`/`addPreference` 残留引用，修复 6 个 TypeScript 错误
+- 去除未使用的 `PreferenceRule` type 导入
+
+---
+
 ## [0.2.14] - 2026-03-04
 
 ### 体验细节修复
