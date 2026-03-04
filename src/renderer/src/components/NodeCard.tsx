@@ -305,7 +305,7 @@ function CapabilityNodeCard({ node }: { node: Node }) {
   const capId = node.capabilityData?.capabilityId ?? 'import-memory'
   const ICONS: Record<string, ReactNode> = {
     'import-memory': <Import className="w-4 h-4 text-gray-500" />,
-    'onboarding': <BookOpen className="w-4 h-4 text-amber-500" />
+    'onboarding': <BookOpen className="w-4 h-4 text-gray-400" />
   }
 
   const handleClick = useCallback(() => {

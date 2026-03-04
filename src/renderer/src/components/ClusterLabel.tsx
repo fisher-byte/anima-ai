@@ -85,7 +85,7 @@ export function ClusterLabel({ cluster, onDrag, onClick }: ClusterLabelProps) {
         </h1>
         <div className="relative flex items-center gap-2 text-sm font-medium text-gray-600 uppercase tracking-widest bg-white/60 px-3 py-1 rounded-full backdrop-blur-sm border border-gray-200/60 select-none">
           <Layers className="w-3 h-3" />
-          <span>{cluster.count} MEMORIES</span>
+          <span>{cluster.count} 条记忆</span>
         </div>
       </div>
     </div>
