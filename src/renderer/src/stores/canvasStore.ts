@@ -66,7 +66,7 @@ interface CanvasState {
   onboardingPhase: number
   openOnboarding: () => void
   setOnboardingPhase: (phase: number) => void
-  completeOnboarding: () => void
+  completeOnboarding: () => Promise<void>
 
   // 新增：移除偏好规则
   removePreference: (index: number) => Promise<void>
@@ -78,7 +78,7 @@ interface CanvasState {
   activeCapabilityId: string | null
   openCapability: (nodeId: string) => void
   closeCapability: () => void
-  addCapabilityNode: (capabilityId: 'import-memory') => Promise<void>
+  addCapabilityNode: (capabilityId: 'import-memory' | 'onboarding') => Promise<void>
   saveMemoryImport: (content: string, sourceName: string) => Promise<void>
 }
 
@@ -123,7 +123,24 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set({ isOnboardingMode: true, onboardingPhase: 0, currentConversation: conv, isModalOpen: true, isLoading: false })
   },
   setOnboardingPhase: (phase) => set({ onboardingPhase: phase }),
-  completeOnboarding: () => set({ isOnboardingMode: false, onboardingPhase: 0 }),
+  completeOnboarding: async () => {
+    // 标记引导已完成
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('evo_onboarding_v3', 'done')
+    }
+    // 从画布移除 onboarding 能力块（不再保留入口）
+    const { nodes } = get()
+    const filteredNodes = nodes.filter(n => !(n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding'))
+    set({ isOnboardingMode: false, onboardingPhase: 0, nodes: filteredNodes })
+    get().updateEdges()
+    // 持久化（不含 onboarding 节点）
+    await storageService.write(STORAGE_FILES.NODES, JSON.stringify(filteredNodes, null, 2))
+    // 确保 import-memory 能力块存在
+    const hasImportMemory = filteredNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
+    if (!hasImportMemory) {
+      await get().addCapabilityNode('import-memory')
+    }
+  },
 
   removePreference: async (index: number) => {
     const { profile } = get()
@@ -184,7 +201,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
     const capabilityNodeId = `capability:${capabilityId}:${Date.now()}`
     const LABELS: Record<string, { title: string; keywords: string[] }> = {
-      'import-memory': { title: '导入外部记忆', keywords: ['ChatGPT', 'Claude', '迁移'] }
+      'import-memory': { title: '导入外部记忆', keywords: ['ChatGPT', 'Claude', '迁移'] },
+      'onboarding': { title: '新手教程', keywords: ['引导', '入门', '开始'] }
     }
     const label = LABELS[capabilityId] ?? { title: '能力', keywords: [] }
 
@@ -196,7 +214,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       conversationId: capabilityNodeId,
       x, y,
       category: '__capability__',
-      color: 'rgba(237, 233, 254, 0.9)',
+      color: capabilityId === 'onboarding' ? 'rgba(254, 243, 199, 0.9)' : 'rgba(237, 233, 254, 0.9)',
       nodeType: 'capability',
       capabilityData: { capabilityId, state: 'active' }
     }
@@ -204,7 +222,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const updatedNodes = [...nodes, newNode]
     set({ nodes: updatedNodes })
     get().updateEdges()
-    await storageService.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
+    // onboarding 能力块不持久化，避免重启后重复触发
+    if (capabilityId !== 'onboarding') {
+      await storageService.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
+    }
   },
 
   saveMemoryImport: async (content, sourceName) => {
@@ -356,10 +377,35 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
         set({ nodes })
         get().updateEdges() // 加载后更新连线
-        
+
         // 初始加载后，如果有节点，聚焦到第一个
         if (nodes.length > 0) {
           get().focusNode(nodes[0].id)
+        }
+
+        // 若未完成过新手引导：添加新手教程能力块并自动触发引导
+        const onboardingDone = typeof localStorage !== 'undefined' && localStorage.getItem('evo_onboarding_v3')
+        if (!onboardingDone) {
+          const hasOnboarding = get().nodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding')
+          if (!hasOnboarding) {
+            await get().addCapabilityNode('onboarding')
+          }
+          // 自动打开引导（无需用户手动点击）
+          get().openOnboarding()
+        } else {
+          // 已完成引导：确保 import-memory 能力块存在
+          const hasImportMemory = get().nodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
+          if (!hasImportMemory) {
+            await get().addCapabilityNode('import-memory')
+          }
+        }
+      }
+      // 无论 content 是否存在，若未完成过引导，均触发新手教程
+      if (!content) {
+        const onboardingDone = typeof localStorage !== 'undefined' && localStorage.getItem('evo_onboarding_v3')
+        if (!onboardingDone) {
+          await get().addCapabilityNode('onboarding')
+          get().openOnboarding()
         }
       }
     } catch (error) {
