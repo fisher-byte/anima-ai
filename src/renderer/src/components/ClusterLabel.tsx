@@ -81,7 +81,7 @@ export function ClusterLabel({ cluster, onDrag, onClick }: ClusterLabelProps) {
           className="relative text-5xl font-black tracking-tighter text-gray-800 mb-2 drop-shadow-sm group-hover:scale-105 transition-transform select-none"
           style={{ textShadow: '0 2px 10px rgba(255,255,255,0.9)' }}
         >
-          {cluster.category}
+          {cluster.category === '__capability__' ? '能力' : cluster.category}
         </h1>
         <div className="relative flex items-center gap-2 text-sm font-medium text-gray-600 uppercase tracking-widest bg-white/60 px-3 py-1 rounded-full backdrop-blur-sm border border-gray-200/60 select-none">
           <Layers className="w-3 h-3" />
