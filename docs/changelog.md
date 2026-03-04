@@ -1,6 +1,40 @@
 # Anima 变更日志
 
-## [0.2.11] - 2026-03-03
+## [0.2.12] - 2026-03-04
+
+### 新手教程体验简化
+
+- **新手教程改为自带能力块**：进入应用时自动打开引导弹窗，无需手动点击
+- **引导结束后能力块消失**：完成或跳过引导后，`onboarding` 能力块从画布移除，不保留半途入口
+- **退出引导自动补齐能力块**：中途关闭引导弹窗时，自动确保 `import-memory` 和 `onboarding` 两个能力块都存在于画布，防止画布空白
+- `completeOnboarding` 改为 async，负责移除 onboarding 节点、写 localStorage 标记、补充 import-memory
+- onboarding 能力块不持久化到 nodes 文件，重启不会重复触发（由 `localStorage.evo_onboarding_v3` 控制）
+- 修复 `loadNodes` 中两段 onboarding 逻辑重复触发的 bug（合并为统一出口）
+- 给 `completeOnboarding` 加防重入标志，避免快速连击导致多次执行
+
+### 节点标签显示修复
+
+- `NodeCard.tsx` 节点标题由 `truncate`（单行截断）改为 `break-words + line-clamp-3`，标签可换行完整显示
+- `SearchPanel.tsx` 节点标题同步修复为 `line-clamp-2`
+- `NODE_TITLE_MAX_LENGTH` 从 8 改为 20，修复「来自 ChatG」等截断标题问题
+
+### 智能路由优化
+
+- 移除 `lastText.length < 40` 的激进判定，避免短但实质性的问题走弱模型
+- `SIMPLE_QUERY_FACT_PATTERNS` 清空（原有「什么是」等模式太宽泛）
+- 路由逻辑改为精确匹配：仅纯问候词（词后最多一个标点/语气词）才走快速模型
+  - 「你好」「hi！」「早~」→ 快速模型
+  - 「你好吗」「hi，帮我...」「你好，帮我写代码」→ 用户配置模型
+- `FAST_MODEL_MAX_TOKENS` 从 800 提升至 2000
+
+### Code Review 修复
+
+- `AnswerModal.tsx`：用 selector 订阅 `canvasNodes` 替换 `useCanvasStore.getState()` 直接访问，补全依赖数组
+- `CapabilityData` 类型扩展支持 `'onboarding'` capabilityId
+
+---
+
+
 
 ### 品牌改名：EvoCanvas → Anima
 
