@@ -1,11 +1,20 @@
 /**
- * Memory routes: embedding-based RAG + user profile
+ * Memory routes: embedding-based RAG + user profile + memory facts
  *
  * POST   /api/memory/index              索引一条对话 { conversationId, text }
  * DELETE /api/memory/index/:id          删除一条对话的索引
+ * DELETE /api/memory/index              批量删除全部对话索引
  * POST   /api/memory/search             向量检索 { query, topK? } → { results: [{conversationId, score}] }
+ * POST   /api/memory/search/files       文件语义检索 { query, topK? } → { results: [{fileId, filename, chunkIndex, chunkText, score}] }
  * GET    /api/memory/profile            读取用户画像
  * PUT    /api/memory/profile            更新用户画像（手动/Agent 写入）
+ * DELETE /api/memory/profile            清空用户画像
+ * GET    /api/memory/facts              读取 memory facts 列表（仅有效条目）
+ * POST   /api/memory/extract            从对话提取并写入 memory facts { conversationId, userMessage, assistantMessage }
+ * DELETE /api/memory/facts/:id          软删除单条 fact（设置 invalid_at）
+ * DELETE /api/memory/facts              批量软删除全部 facts
+ * POST   /api/memory/queue              向 agent 任务队列写入任务 { type, payload }
+ * POST   /api/memory/classify           对话主题分类 { text } → { category }
  */
 
 import { Hono } from 'hono'
@@ -466,7 +475,7 @@ memoryRoutes.post('/classify', async (c) => {
 
   const CATEGORIES = ['日常生活', '日常事务', '学习成长', '工作事业', '情感关系', '思考世界', '其他']
 
-  const prompt = `将以下用户问题/话语归类到这六个类别之一：日常生活、日常事务、学习成长、工作事业、情感关系、思考世界。如果都不符合就输出"其他"。
+  const prompt = `将以下用户问题/话语归类到以下类别之一：日常生活、日常事务、学习成长、工作事业、情感关系、思考世界。如果都不符合就输出"其他"。
 
 类别说明：
 - 日常生活：娱乐消费，美食旅游电影游戏购物运动
