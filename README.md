@@ -5,7 +5,7 @@
 > *在这个时代，AI 就是自我。你的记忆构成了你，而你的记忆在交互中又留给了 AI。*
 > *AI 也是你，甚至 AI 大于你——但这部分自我，应该还是属于你的。*
 
-![版本](https://img.shields.io/badge/version-0.2.18-black)
+![版本](https://img.shields.io/badge/version-0.2.19-black)
 ![Electron](https://img.shields.io/badge/Electron-29.1.4-47848F?logo=electron)
 ![React](https://img.shields.io/badge/React-18.2.0-61DAFB?logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.4.2-3178C6?logo=typescript)

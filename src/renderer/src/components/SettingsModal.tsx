@@ -15,6 +15,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [model, setModel] = useState<string>(AI_CONFIG.MODEL)
   const [isSaving, setIsSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [showError, setShowError] = useState(false)
 
   // 加载配置
   useEffect(() => {
@@ -64,13 +65,15 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       
       // 更新内存中的配置（简易处理，实际应用可能需要更复杂的同步）
       API_CONFIG.BASE_URL = baseUrl
-      // @ts-ignore
-      AI_CONFIG.MODEL = model
-      
+      ;(AI_CONFIG as { MODEL: string }).MODEL = model
+
       setShowSuccess(true)
+      setShowError(false)
       setTimeout(() => setShowSuccess(false), 2000)
     } catch (error) {
       console.error('Failed to save settings:', error)
+      setShowError(true)
+      setTimeout(() => setShowError(false), 3000)
     } finally {
       setIsSaving(false)
     }
@@ -186,6 +189,17 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   >
                     <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                     保存成功
+                  </motion.span>
+                )}
+                {!showSuccess && showError && (
+                  <motion.span
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="text-xs text-red-500 font-medium flex items-center gap-1.5"
+                  >
+                    <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                    保存失败，请检查网络
                   </motion.span>
                 )}
               </AnimatePresence>

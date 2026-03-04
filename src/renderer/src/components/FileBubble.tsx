@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { File as FileIcon, Download } from 'lucide-react'
+import { File as FileIcon, Download, AlertCircle } from 'lucide-react'
 import type { FileAttachment } from '@shared/types'
 
 interface FileBubbleProps {
@@ -34,6 +34,11 @@ export function FileBubble({ file }: FileBubbleProps) {
         <span className={`text-[11px] font-medium text-gray-600 ${expanded ? '' : 'truncate max-w-[120px]'}`}>
           {file.name}
         </span>
+        {file.uploadError && !expanded && (
+          <span title={file.uploadError}>
+            <AlertCircle className="w-3 h-3 text-amber-400 flex-shrink-0" />
+          </span>
+        )}
       </div>
 
       <AnimatePresence>
@@ -49,20 +54,28 @@ export function FileBubble({ file }: FileBubbleProps) {
               <div className="text-[10px] text-gray-400 truncate">
                 类型：{file.type || '未知'}
               </div>
+              {file.uploadError && (
+                <div className="flex items-center gap-1 text-[10px] text-amber-600">
+                  <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                  {file.uploadError}
+                </div>
+              )}
               {file.content && (
                 <div className="text-[10px] text-gray-500 line-clamp-2 leading-relaxed">
                   {file.content.slice(0, 60)}…
                 </div>
               )}
-              <a
-                href={`/api/storage/file/${file.id}`}
-                download={file.name}
-                onClick={e => e.stopPropagation()}
-                className="flex items-center gap-1 mt-1 text-[10px] text-blue-500 hover:text-blue-700 font-medium"
-              >
-                <Download className="w-3 h-3" />
-                下载文件
-              </a>
+              {!file.uploadError && (
+                <a
+                  href={`/api/storage/file/${file.id}`}
+                  download={file.name}
+                  onClick={e => e.stopPropagation()}
+                  className="flex items-center gap-1 mt-1 text-[10px] text-blue-500 hover:text-blue-700 font-medium"
+                >
+                  <Download className="w-3 h-3" />
+                  下载文件
+                </a>
+              )}
             </div>
           </motion.div>
         )}

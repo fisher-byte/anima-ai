@@ -101,16 +101,23 @@ export function AnswerModal() {
         const id = crypto.randomUUID()
 
         // 上传原始文件到后端（存储 + 自动排入 embed_file Agent 队列）
+        let uploadError: string | undefined
         try {
           const formData = new FormData()
           formData.append('file', rawFile)
           formData.append('id', id)
           formData.append('textContent', f.content || '')
-          await fetch('/api/storage/file', { method: 'POST', body: formData })
-        } catch { /* 上传失败不阻断主流程 */ }
+          const uploadRes = await fetch('/api/storage/file', { method: 'POST', body: formData })
+          if (!uploadRes.ok) {
+            uploadError = uploadRes.status === 413 ? '文件过大，无法上传到记忆库' : `上传失败（${uploadRes.status}）`
+          }
+        } catch {
+          uploadError = '网络错误，文件未能上传到记忆库'
+        }
 
         const attachment: FileAttachment = {
-          id, name: f.name, type: f.type, size: f.size, content: f.content, preview: f.preview
+          id, name: f.name, type: f.type, size: f.size, content: f.content, preview: f.preview,
+          ...(uploadError ? { uploadError } : {})
         }
         if (f.preview) newImages.push(f.preview)
         newFiles.push(attachment)

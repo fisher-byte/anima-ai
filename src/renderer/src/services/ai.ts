@@ -50,8 +50,16 @@ export async function* streamAI(
     })
 
     if (!res.ok) {
-      const text = await res.text()
-      throw new Error(`AI proxy error ${res.status}: ${text}`)
+      const friendlyMessages: Record<number, string> = {
+        401: 'API Key 无效或已过期，请在设置中重新配置',
+        413: '文件内容过大，请精简后重试',
+        415: '不支持该文件类型，请转换格式后重试',
+        500: 'AI 服务暂时不可用，请稍后重试',
+        502: '后端网关异常，请稍后重试',
+        503: 'AI 服务过载，请稍后重试',
+      }
+      const message = friendlyMessages[res.status] ?? `请求失败（${res.status}）`
+      throw new Error(message)
     }
 
     const reader = res.body?.getReader()
