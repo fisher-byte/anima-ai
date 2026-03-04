@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   History, Sparkles, X, Calendar, MessageSquare, BrainCircuit,
@@ -30,16 +30,26 @@ interface MemoryFact {
 interface ConversationSidebarProps {
   isOpen: boolean
   onClose: () => void
+  initialTab?: 'history' | 'memory' | 'evolution'
 }
 
-export function ConversationSidebar({ isOpen, onClose }: ConversationSidebarProps) {
+export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }: ConversationSidebarProps) {
   const { nodes, profile, openModalById, focusNode, removePreference, clearAllForOnboarding } = useCanvasStore()
   const [conversations, setConversations] = useState<Conversation[]>([])
-  const [activeTab, setActiveTab] = useState<'history' | 'memory' | 'evolution'>('history')
+  const [activeTab, setActiveTab] = useState<'history' | 'memory' | 'evolution'>(initialTab)
   const [isLoading, setIsLoading] = useState(false)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [memoryFacts, setMemoryFacts] = useState<MemoryFact[]>([])
   const [isMemoryLoading, setIsMemoryLoading] = useState(false)
+
+  // 每次侧边栏打开时重置到指定 tab
+  const prevIsOpen = useRef(false)
+  useEffect(() => {
+    if (isOpen && !prevIsOpen.current) {
+      setActiveTab(initialTab)
+    }
+    prevIsOpen.current = isOpen
+  }, [isOpen, initialTab])
 
   // Profile editing state
   const [isEditingProfile, setIsEditingProfile] = useState(false)

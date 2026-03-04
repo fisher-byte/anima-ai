@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit } from 'lucide-react'
+import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit, Sparkles } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { NodeCard } from './NodeCard'
 import { ImportMemoryModal } from './ImportMemoryModal'
@@ -214,6 +214,7 @@ export function Canvas() {
   const dragRafId = useRef<number | null>(null)
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [sidebarTab, setSidebarTab] = useState<'history' | 'memory' | 'evolution'>('history')
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -464,14 +465,21 @@ export function Canvas() {
                   <span className="ml-auto text-[10px] text-gray-300 font-bold border px-1 rounded">⌘K</span>
                 </button>
                 <button
-                  onClick={() => { setIsSidebarOpen(true); setIsMenuOpen(false); }}
+                  onClick={() => { setSidebarTab('history'); setIsSidebarOpen(true); setIsMenuOpen(false); }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
                 >
                   <History className="w-4 h-4" />
                   <span className="font-medium">对话历史</span>
                 </button>
                 <button
-                  onClick={() => { setIsSidebarOpen(true); setIsMenuOpen(false); setHasNewEvolution(false) }}
+                  onClick={() => { setSidebarTab('memory'); setIsSidebarOpen(true); setIsMenuOpen(false); }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span className="font-medium">关于你的记忆</span>
+                </button>
+                <button
+                  onClick={() => { setSidebarTab('evolution'); setIsSidebarOpen(true); setIsMenuOpen(false); setHasNewEvolution(false) }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
                 >
                   <div className="relative">
@@ -597,6 +605,7 @@ export function Canvas() {
       <ConversationSidebar
         isOpen={isSidebarOpen}
         onClose={() => { setIsSidebarOpen(false); setHasNewEvolution(false) }}
+        initialTab={sidebarTab}
       />
       <SearchPanel
         isOpen={isSearchOpen}
