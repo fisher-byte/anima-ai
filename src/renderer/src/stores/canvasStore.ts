@@ -214,13 +214,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const centerX = 1.5 * viewW
     const centerY = 1.5 * viewH
 
-    // 在中心附近找一个与现有节点不重叠的位置（螺旋搜索，起点靠近中心）
-    const nodeGap = 200
+    // 在中心附近找一个与现有节点不重叠的位置
+    // 用 capabilityId 的 hash 决定初始偏角，让两个能力块自然分散在中心周围
+    const nodeGap = 220
+    const baseAngle = capabilityId === 'import-memory' ? Math.PI * 1.25 : Math.PI * 0.25
     let x = centerX
     let y = centerY
-    for (let i = 0; i < 32; i++) {
-      const angle = (i / 8) * Math.PI * 2
-      const r = i === 0 ? 0 : (40 + Math.floor(i / 8) * 120)
+    for (let i = 0; i < 40; i++) {
+      const r = 80 + Math.floor(i / 6) * 100
+      const angle = baseAngle + (i % 6) * (Math.PI / 3)
       const tx = centerX + Math.cos(angle) * r
       const ty = centerY + Math.sin(angle) * r
       if (nodes.every(n => Math.hypot(n.x - tx, n.y - ty) >= nodeGap)) {
@@ -243,7 +245,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       conversationId: capabilityNodeId,
       x, y,
       category: '__capability__',
-      color: capabilityId === 'onboarding' ? 'rgba(254, 243, 199, 0.9)' : 'rgba(237, 233, 254, 0.9)',
+      color: capabilityId === 'onboarding' ? 'rgba(226, 232, 240, 0.9)' : 'rgba(237, 233, 254, 0.9)',
       nodeType: 'capability',
       capabilityData: { capabilityId, state: 'active' }
     }

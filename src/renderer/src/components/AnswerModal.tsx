@@ -419,31 +419,33 @@ export function AnswerModal() {
 
       const fullText = ONBOARDING_DEFAULT_RESPONSE
       let charIndex = 0
-      const CHUNK = 10
 
       // 短暂"思考"停顿后再开始输出
-      setTimeout(() => {
-        const intervalId = setInterval(() => {
-          charIndex = Math.min(charIndex + CHUNK, fullText.length)
-          const slice = fullText.slice(0, charIndex)
-          setTurns(prev => {
-            if (!prev.length) return prev
-            const next = [...prev]
-            next[next.length - 1] = { ...next[next.length - 1], assistant: slice }
-            return next
-          })
-          if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      const scheduleNext = () => {
+        if (charIndex >= fullText.length) {
+          setIsStreaming(false)
+          const infoDetail = extractUserInfo(trimmed)
+          showToast('✦ 人物信息已更新', infoDetail, 4000)
+          return
+        }
+        // 标点后稍长停顿，营造自然节奏
+        const ch = fullText[charIndex]
+        const isPunct = /[。！？…\n]/.test(ch)
+        const delay = isPunct ? 120 : 28
 
-          if (charIndex >= fullText.length) {
-            clearInterval(intervalId)
-            setIsStreaming(false)
-            // 提取用户介绍中的关键信息作为 toast 说明
-            const infoDetail = extractUserInfo(trimmed)
-            showToast('✦ 人物信息已更新', infoDetail, 4000)
-          }
-        }, 18)
-      }, 700)
+        charIndex += 1
+        const slice = fullText.slice(0, charIndex)
+        setTurns(prev => {
+          if (!prev.length) return prev
+          const next = [...prev]
+          next[next.length - 1] = { ...next[next.length - 1], assistant: slice }
+          return next
+        })
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+        setTimeout(scheduleNext, delay)
+      }
 
+      setTimeout(scheduleNext, 800)
       return
     }
 
