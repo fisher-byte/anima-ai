@@ -1,5 +1,27 @@
 # Anima 变更日志
 
+## [0.2.19] - 2026-03-04
+
+### 前端联调专项修复（对标顶级开源体验）
+
+基于全面前端联调审计（对标 ChatGPT Web、Vercel AI SDK、Linear、Notion），修复 4 项影响生产体验的缺陷。
+
+#### 错误体验提升
+- **HTTP 错误状态码友好提示**（`ai.ts`）：原 `AI proxy error ${status}: ${text}` 原始报错对用户毫无信息量；改为按状态码映射中文提示（401 → "API Key 无效"、413 → "文件内容过大"、415 → "不支持该类型"、500/502/503 → 服务不可用）
+- **设置保存失败提示**（`SettingsModal.tsx`）：原 catch 块只有 `console.error`，用户保存失败无任何反馈；新增 `showError` 状态，失败后展示红色 "保存失败，请检查网络" toast（3s 自动消失）
+
+#### 代码质量
+- **移除 `@ts-ignore`**（`SettingsModal.tsx`）：`AI_CONFIG` 为 `as const` 只读对象，直接赋值需 `@ts-ignore`；改用 `(AI_CONFIG as { MODEL: string }).MODEL = model` 类型断言，消除非正规抑制注释
+
+#### 文件处理健壮性
+- **前端文件大小预检**（`InputBox.tsx`）：上传前增加 10MB 前端校验，文件超限立即设为 `error` 状态并展示错误，不再把大文件传入解析器（避免浏览器 OOM）
+- **文件上传失败可视化反馈**（`AnswerModal.tsx` + `FileBubble.tsx`）：后端上传失败时（HTTP 非 2xx、网络断开）在 `FileAttachment.uploadError` 记录原因；`FileBubble` 紧凑态展示 `⚠` 图标（tooltip 显示原因），展开态显示错误文案并隐藏下载链接
+
+#### 类型系统
+- **`FileAttachment.uploadError?: string`**（`@shared/types.ts`）：新增可选字段，前端与后端通信状态可追踪
+
+---
+
 ## [0.2.18] - 2026-03-04
 
 ### 后端安全审计与性能修复（对标顶级开源）

@@ -82,6 +82,12 @@ export function InputBox() {
             prev.map(p => p.id === previewId ? { ...p, status: 'reading' } : p)
           )
 
+          // 文件大小限制：10 MB
+          const MAX_FILE_SIZE = 10 * 1024 * 1024
+          if (file.size > MAX_FILE_SIZE) {
+            throw new Error(`文件 "${file.name}" 超过 10MB 限制（当前 ${(file.size / 1024 / 1024).toFixed(1)}MB）`)
+          }
+
           const type = getFileType(file)
           let content: string | undefined
           let preview: string | undefined
