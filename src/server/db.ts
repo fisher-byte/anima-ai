@@ -84,6 +84,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_memory_facts_source ON memory_facts(source_conv_id);
 
   -- 用户上传的文件（真实二进制存储）
+  -- 注意：chunk_count / embed_status 由 migration 块按需添加（兼容旧数据库）
   CREATE TABLE IF NOT EXISTS uploaded_files (
     id           TEXT NOT NULL,
     filename     TEXT NOT NULL,
@@ -92,14 +93,9 @@ db.exec(`
     content      BLOB,
     text_content TEXT,
     conv_id      TEXT,
-    chunk_count  INTEGER NOT NULL DEFAULT 0,   -- 已生成的分块 embedding 数量
-    embed_status TEXT NOT NULL DEFAULT 'pending', -- pending | done | failed
     created_at   TEXT NOT NULL,
     PRIMARY KEY(id)
   );
-  CREATE INDEX IF NOT EXISTS idx_uploaded_files_conv ON uploaded_files(conv_id);
-  CREATE INDEX IF NOT EXISTS idx_uploaded_files_created ON uploaded_files(created_at DESC);
-  CREATE INDEX IF NOT EXISTS idx_uploaded_files_embed ON uploaded_files(embed_status);
 
   -- 文件内容分块向量索引（独立于对话 embedding，避免混淆搜索结果）
   CREATE TABLE IF NOT EXISTS file_embeddings (
@@ -125,7 +121,20 @@ const migrations = [
   "ALTER TABLE uploaded_files ADD COLUMN embed_status TEXT NOT NULL DEFAULT 'pending'",
   'CREATE INDEX IF NOT EXISTS idx_uploaded_files_conv ON uploaded_files(conv_id)',
   'CREATE INDEX IF NOT EXISTS idx_uploaded_files_created ON uploaded_files(created_at DESC)',
-  "CREATE INDEX IF NOT EXISTS idx_uploaded_files_embed ON uploaded_files(embed_status)"
+  "CREATE INDEX IF NOT EXISTS idx_uploaded_files_embed ON uploaded_files(embed_status)",
+  // file_embeddings 表在旧数据库中不存在，由 migration 负责建立
+  `CREATE TABLE IF NOT EXISTS file_embeddings (
+    id          TEXT NOT NULL,
+    file_id     TEXT NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    chunk_text  TEXT NOT NULL,
+    vector      BLOB NOT NULL,
+    dim         INTEGER NOT NULL,
+    created_at  TEXT NOT NULL,
+    PRIMARY KEY(id)
+  )`,
+  'CREATE INDEX IF NOT EXISTS idx_file_embeddings_file ON file_embeddings(file_id)',
+  'CREATE INDEX IF NOT EXISTS idx_file_embeddings_created ON file_embeddings(created_at DESC)'
 ]
 for (const sql of migrations) {
   try { db.exec(sql) } catch { /* 列已存在时忽略 */ }
