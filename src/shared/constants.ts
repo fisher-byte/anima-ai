@@ -82,17 +82,19 @@ export const AI_CONFIG = {
 } as const
 
 /**
- * 简单查询快速模型（问候、短句、单一事实问）
+ * 简单查询快速模型（仅用于纯问候语，不用于实质性问题）
  * 不启用深度思考，响应更快
  */
 export const FAST_MODEL = 'moonshot-v1-8k'
-export const FAST_MODEL_MAX_TOKENS = 800
+export const FAST_MODEL_MAX_TOKENS = 2000
 
 /**
- * 简单查询判定关键词（任意命中则路由到快速模型）
+ * 简单查询判定关键词：
+ * - GREETINGS：纯问候，不含实质性问题意图（需完全匹配短语，不含其他内容）
+ * - 移除了长度 < 40 的判断，避免把正常短问题路由到弱模型
  */
 export const SIMPLE_QUERY_GREETINGS = ['你好', '嗨', 'hi', 'hello', '早上好', '晚安', '早', '在吗']
-export const SIMPLE_QUERY_FACT_PATTERNS = ['什么是', '谁是', '怎么定义', '哪年', '是什么意思', '什么意思']
+export const SIMPLE_QUERY_FACT_PATTERNS: string[] = []
 
 /**
  * 具备多模态和联网能力的模型列表

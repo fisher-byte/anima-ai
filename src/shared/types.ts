@@ -8,7 +8,7 @@
  * 能力节点数据（区别于记忆节点）
  */
 export interface CapabilityData {
-  capabilityId: 'import-memory'  // 可扩展为更多能力类型
+  capabilityId: 'import-memory' | 'onboarding'  // 可扩展为更多能力类型
   state: 'active' | 'completed'
 }
 

@@ -123,7 +123,7 @@ export function SearchPanel({ isOpen, onClose }: SearchPanelProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <Hash className="w-3 h-3 text-blue-400" />
-                    <div className="font-medium text-gray-800 text-sm truncate">
+                    <div className="font-medium text-gray-800 text-sm break-words line-clamp-2">
                       {node.title}
                     </div>
                   </div>

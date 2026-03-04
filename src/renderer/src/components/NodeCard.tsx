@@ -196,7 +196,7 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
         )}
 
         {/* 标题 */}
-        <h3 className="font-medium text-gray-800 mb-2.5 truncate text-[15px]">
+        <h3 className="font-medium text-gray-800 mb-2.5 text-[15px] break-words leading-snug line-clamp-3">
           {node.title}
         </h3>
 

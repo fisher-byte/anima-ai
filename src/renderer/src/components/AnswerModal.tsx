@@ -526,7 +526,7 @@ export function AnswerModal() {
             .catch(err => console.error('引导对话节点保存失败:', err))
         })
         localStorage.setItem('evo_onboarding_v3', 'true')
-        completeOnboarding()
+        void completeOnboarding()
         setShowOnboardingComplete(true)
       } else {
         if (shouldSave && conversationSnapshot && conversationSnapshot.userMessage) {
