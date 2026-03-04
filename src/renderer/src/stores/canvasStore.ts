@@ -211,17 +211,27 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const centerX = 1.5 * viewW
     const centerY = 1.5 * viewH
 
-    // 放置在画布中心偏右下，避开现有节点
-    let x = centerX + 320
-    let y = centerY + 160
+    // 两个能力块并排放在中心附近（水平偏移 ±120）
+    const FIXED_POSITIONS: Record<string, { dx: number; dy: number }> = {
+      'import-memory': { dx: -130, dy: 0 },
+      'onboarding': { dx: 130, dy: 0 }
+    }
+    const pos = FIXED_POSITIONS[capabilityId] ?? { dx: 0, dy: 0 }
+    let x = centerX + pos.dx
+    let y = centerY + pos.dy
+
+    // 如果有其他节点导致该位置重叠，做小范围螺旋偏移
     const nodeGap = 200
-    for (let i = 0; i < 20; i++) {
-      const angle = (i / 8) * Math.PI * 2
-      const r = 80 + Math.floor(i / 8) * 80
-      const tx = centerX + 320 + Math.cos(angle) * r
-      const ty = centerY + 160 + Math.sin(angle) * r
-      if (nodes.every(n => Math.hypot(n.x - tx, n.y - ty) >= nodeGap)) {
-        x = tx; y = ty; break
+    const capNodes = nodes.filter(n => n.nodeType === 'capability')
+    if (capNodes.some(n => Math.hypot(n.x - x, n.y - y) < nodeGap)) {
+      for (let i = 1; i < 16; i++) {
+        const angle = (i / 8) * Math.PI * 2
+        const r = 80 + Math.floor(i / 8) * 80
+        const tx = centerX + pos.dx + Math.cos(angle) * r
+        const ty = centerY + pos.dy + Math.sin(angle) * r
+        if (nodes.every(n => Math.hypot(n.x - tx, n.y - ty) >= nodeGap)) {
+          x = tx; y = ty; break
+        }
       }
     }
 
@@ -413,11 +423,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       // 统一处理能力块初始化（无论 content 是否存在，只执行一次）
       const onboardingDone = typeof localStorage !== 'undefined' && localStorage.getItem('evo_onboarding_v3')
       if (!onboardingDone) {
-        // 未完成引导：确保 onboarding 能力块存在，并自动打开引导
+        // 未完成引导：确保两个能力块都存在
         const hasOnboarding = get().nodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding')
-        if (!hasOnboarding) {
-          await get().addCapabilityNode('onboarding')
-        }
+        const hasImportMemory = get().nodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
+        if (!hasImportMemory) await get().addCapabilityNode('import-memory')
+        if (!hasOnboarding) await get().addCapabilityNode('onboarding')
+        // 将视口聚焦到 onboarding 节点
+        const onboardingNode = get().nodes.find(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding')
+        if (onboardingNode) get().focusNode(onboardingNode.id)
         get().openOnboarding()
       } else {
         // 已完成引导：确保 import-memory 能力块存在
