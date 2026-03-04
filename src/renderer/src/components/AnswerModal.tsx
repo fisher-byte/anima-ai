@@ -533,7 +533,12 @@ export function AnswerModal() {
           endConversation(finalResponse, savedAppliedPreferences, lastReasoning, conversationSnapshot)
             .catch(err => console.error('后台保存对话失败:', err))
         }
-        // 中途退出引导：不标记完成，下次重新打开时 OnboardingGuide 会再次触发
+        // 中途退出引导：补齐能力块，确保画布上始终有 import-memory 和 onboarding 入口
+        const currentNodes = useCanvasStore.getState().nodes
+        const hasImportMemory = currentNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
+        const hasOnboarding = currentNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding')
+        if (!hasImportMemory) void addCapabilityNode('import-memory')
+        if (!hasOnboarding) void addCapabilityNode('onboarding')
       }
     }, 500)
   }, [isClosing, turns, errorMessage, isStreaming, currentConversation, isOnboardingMode,

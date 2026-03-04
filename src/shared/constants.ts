@@ -151,7 +151,7 @@ export const SUPPORTED_MODELS = {
  * UI配置
  */
 export const UI_CONFIG = {
-  NODE_TITLE_MAX_LENGTH: 8,
+  NODE_TITLE_MAX_LENGTH: 20,
   NODE_KEYWORDS_COUNT: 3,
   INPUT_PLACEHOLDER: '问我任何事',
   GRAY_HINT_TEXT: '我记得你上次更喜欢',
