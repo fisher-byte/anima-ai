@@ -455,6 +455,16 @@ memoryRoutes.delete('/facts/:id', (c) => {
   return c.json({ ok: true })
 })
 
+/** 编辑单条记忆事实内容 */
+memoryRoutes.put('/facts/:id', async (c) => {
+  const id = c.req.param('id')
+  const { fact } = await c.req.json<{ fact: string }>()
+  if (!fact?.trim()) return c.json({ error: 'fact required' }, 400)
+  db.prepare('UPDATE memory_facts SET fact = ? WHERE id = ? AND invalid_at IS NULL')
+    .run(fact.trim(), id)
+  return c.json({ ok: true })
+})
+
 /** 清空全部记忆事实（用于重置/体验新手教程） */
 memoryRoutes.delete('/facts', (c) => {
   db.prepare('UPDATE memory_facts SET invalid_at = ?').run(new Date().toISOString())

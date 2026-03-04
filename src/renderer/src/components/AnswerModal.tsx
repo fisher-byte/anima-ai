@@ -28,11 +28,13 @@ import {
 
 /** 从用户自我介绍消息中提取姓名/职业关键词，用于 toast 展示 */
 function extractUserInfo(message: string): string {
-  const nameMatch = message.match(/(?:我(?:叫|是|名(?:字)?叫?)|叫做?)\s*([^\s，,。！!？?]{1,8})/)
+  // 允许名字中包含空格（如英文名），直到遇到中文标点或句末
+  const nameMatch = message.match(/(?:我(?:叫|是|名(?:字)?叫?)|叫做?)\s*([^，,。！!？?\n]{1,20}?)(?:\s*[，,。！!？?\n]|$|(?:，|,|。|是|在|做|负责))/)
   const roleKeywords = ['产品', '设计', '开发', '工程师', '经理', '创业', '学生', '运营', '市场', '销售', '研究', '咨询', '教师', '医生', '律师', '写作', '创作']
   const foundRole = roleKeywords.find(k => message.includes(k))
   const parts: string[] = []
-  if (nameMatch?.[1]) parts.push(`名字：${nameMatch[1]}`)
+  const name = nameMatch?.[1]?.trim()
+  if (name) parts.push(`名字：${name}`)
   if (foundRole) parts.push(`职业方向：${foundRole}`)
   return parts.join('，')  // 没有有效信息时返回空字符串，不兜底显示原始消息
 }
@@ -84,7 +86,9 @@ export function AnswerModal() {
   const startedConversationIdRef = useRef<string | null>(null)
   const isReplayRef = useRef(false)
   const didMutateRef = useRef(false)
+  const onboardingStreamTimerRef2 = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onboardingStreamTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const onboardingStreamTimerRef3 = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── 文件上传（本地解析 + 上传后端）──────────────────────────────────────────
   // Embedding 由后端 Agent 自动处理（embed_file 任务队列），不在前端触发
@@ -241,9 +245,28 @@ export function AnswerModal() {
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
       }, 80)
     } else {
-      setTurns([{ user: '', assistant: ONBOARDING_GREETING }])
+      // 全新引导：先放空 turn，再流式输出问候语（用独立 timer，不占用 isStreaming 状态，允许用户随时打字）
+      setTurns([{ user: '', assistant: '' }])
       onboardingPhaseRef.current = 0
       setOnboardingDone(false)
+      const fullText = ONBOARDING_GREETING
+      let charIndex = 0
+      const scheduleGreeting = () => {
+        if (charIndex >= fullText.length) {
+          setTimeout(() => {
+            if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+          }, 80)
+          return
+        }
+        const ch = fullText[charIndex]
+        const isPunct = /[。！？…\n]/.test(ch)
+        const delay = isPunct ? 100 : 22
+        charIndex += 1
+        const slice = fullText.slice(0, charIndex)
+        setTurns([{ user: '', assistant: slice }])
+        onboardingStreamTimerRef3.current = setTimeout(scheduleGreeting, delay)
+      }
+      onboardingStreamTimerRef3.current = setTimeout(scheduleGreeting, 300)
     }
 
     setShowXPulse(false)
@@ -406,15 +429,48 @@ export function AnswerModal() {
     setPendingFiles([])
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
 
-    // ── 引导 phase 2：用户给出风格反馈 → Agent 后台提取 + 注入 GENE_SAVED ──
+    // ── 引导 phase 2：用户给出风格反馈 → Agent 后台提取 + 流式输出 GENE_SAVED ──
     if (isOnboardingMode && onboardingPhaseRef.current === 2) {
       onboardingPhaseRef.current = 3
-      const userTurn: Turn = { user: trimmed, assistant: ONBOARDING_GENE_SAVED }
-      setTurns(prev => [...prev, userTurn])
+      setIsStreaming(true)
+      setTurns(prev => [...prev, { user: trimmed, assistant: '' }])
       showToast('✦ 进化基因已记录', trimmed.slice(0, 45))
-      setTimeout(() => {
+
+      const fullText = ONBOARDING_GENE_SAVED
+      let charIndex = 0
+      const scheduleNext2 = () => {
+        if (charIndex >= fullText.length) {
+          setIsStreaming(false)
+          setTimeout(() => {
+            if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+          }, 100)
+          return
+        }
+        const ch = fullText[charIndex]
+        const isPunct = /[。！？…\n]/.test(ch)
+        const delay = isPunct ? 100 : 22
+        charIndex += 1
+        const slice = fullText.slice(0, charIndex)
+        setTurns(prev => {
+          if (!prev.length) return prev
+          const next = [...prev]
+          next[next.length - 1] = { ...next[next.length - 1], assistant: slice }
+          return next
+        })
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-      }, 100)
+        onboardingStreamTimerRef2.current = setTimeout(scheduleNext2, delay)
+      }
+      onboardingStreamTimerRef2.current = setTimeout(scheduleNext2, 400)
+
+      // 方案A：引导 phase2 完成后触发进化基因提取（后台 fire-and-forget）
+      fetch('/api/memory/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'extract_preference',
+          payload: { userMessage: trimmed, assistantMessage: ONBOARDING_GENE_SAVED.slice(0, 300), context: 'onboarding_phase2' }
+        })
+      }).catch(() => {})
       return
     }
 
@@ -426,6 +482,16 @@ export function AnswerModal() {
 
       const fullText = ONBOARDING_DEFAULT_RESPONSE
       let charIndex = 0
+
+      // 方案A：引导 phase0 完成后触发用户画像提取（fire-and-forget）
+      fetch('/api/memory/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'extract_profile',
+          payload: { userMessage: trimmed, assistantMessage: ONBOARDING_DEFAULT_RESPONSE.slice(0, 300), context: 'onboarding_phase0' }
+        })
+      }).catch(() => {})
 
       // 短暂"思考"停顿后再开始输出
       const scheduleNext = () => {
@@ -562,7 +628,8 @@ export function AnswerModal() {
         })
         localStorage.setItem('evo_onboarding_v3', 'done')
         void completeOnboarding()
-        setShowOnboardingComplete(true)
+        // 延迟弹窗，让 closeModal 动画先完成，避免与 toast 同帧冲突
+        setTimeout(() => setShowOnboardingComplete(true), 600)
       } else if (onboardingInProgress) {
         // 引导未完成：保存已有对话到 localStorage，不创建节点
         const realTurns = savedTurns.filter(t => t.user?.trim())
@@ -607,6 +674,8 @@ export function AnswerModal() {
   useEffect(() => {
     return () => {
       if (onboardingStreamTimerRef.current) clearTimeout(onboardingStreamTimerRef.current)
+      if (onboardingStreamTimerRef2.current) clearTimeout(onboardingStreamTimerRef2.current)
+      if (onboardingStreamTimerRef3.current) clearTimeout(onboardingStreamTimerRef3.current)
     }
   }, [])
 
@@ -752,20 +821,27 @@ export function AnswerModal() {
                             {t.user && (
                               <div className="bg-[#F4F4F4] rounded-3xl px-5 py-3.5 text-[15px] leading-relaxed text-gray-900 min-w-[60px] max-w-full">
                                 {editingIndex === idx ? (
-                                  <div className="flex flex-col gap-2">
+                                  <div className="flex flex-col gap-3">
                                     <textarea
                                       value={editingContent}
                                       onChange={e => setEditingContent(e.target.value)}
-                                      className="w-full bg-white border border-gray-200 rounded-lg p-2 text-sm outline-none"
-                                      rows={3} autoFocus
+                                      className="w-full bg-transparent text-[15px] leading-relaxed text-gray-900 outline-none resize-none"
+                                      style={{ minHeight: '1.5em', height: 'auto', overflow: 'hidden' }}
+                                      autoFocus
+                                      rows={1}
+                                      onInput={e => {
+                                        const el = e.currentTarget
+                                        el.style.height = 'auto'
+                                        el.style.height = el.scrollHeight + 'px'
+                                      }}
                                       onKeyDown={e => {
                                         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSaveEdit() }
                                         if (e.key === 'Escape') setEditingIndex(null)
                                       }}
                                     />
-                                    <div className="flex justify-end gap-2 text-xs">
-                                      <button onClick={() => setEditingIndex(null)} className="opacity-70 hover:opacity-100">取消</button>
-                                      <button onClick={handleSaveEdit} className="font-bold hover:underline">保存</button>
+                                    <div className="flex justify-end gap-3 text-[13px]">
+                                      <button onClick={() => setEditingIndex(null)} className="text-gray-400 hover:text-gray-600 transition-colors">取消</button>
+                                      <button onClick={handleSaveEdit} className="bg-gray-900 text-white px-3.5 py-1 rounded-full hover:bg-black transition-colors font-medium">发送</button>
                                     </div>
                                   </div>
                                 ) : <div>{t.user}</div>}
