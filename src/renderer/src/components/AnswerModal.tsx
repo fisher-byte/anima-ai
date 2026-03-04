@@ -34,7 +34,7 @@ function extractUserInfo(message: string): string {
   const parts: string[] = []
   if (nameMatch?.[1]) parts.push(`名字：${nameMatch[1]}`)
   if (foundRole) parts.push(`职业方向：${foundRole}`)
-  return parts.length > 0 ? parts.join('，') : message.slice(0, 30)
+  return parts.join('，')  // 没有有效信息时返回空字符串，不兜底显示原始消息
 }
 
 export function AnswerModal() {
@@ -423,7 +423,11 @@ export function AnswerModal() {
         if (charIndex >= fullText.length) {
           setIsStreaming(false)
           const infoDetail = extractUserInfo(trimmed)
-          showToast('✦ 人物信息已更新', infoDetail, 4000)
+          if (infoDetail) {
+            showToast('✦ 人物信息已更新', infoDetail, 4000)
+          } else {
+            showToast('✦ 已记下，正在后台分析', '', 2500)
+          }
           return
         }
         // 标点后稍长停顿，营造自然节奏
