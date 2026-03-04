@@ -92,16 +92,40 @@ db.exec(`
     content      BLOB,
     text_content TEXT,
     conv_id      TEXT,
+    chunk_count  INTEGER NOT NULL DEFAULT 0,   -- 已生成的分块 embedding 数量
+    embed_status TEXT NOT NULL DEFAULT 'pending', -- pending | done | failed
     created_at   TEXT NOT NULL,
     PRIMARY KEY(id)
   );
+  CREATE INDEX IF NOT EXISTS idx_uploaded_files_conv ON uploaded_files(conv_id);
+  CREATE INDEX IF NOT EXISTS idx_uploaded_files_created ON uploaded_files(created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_uploaded_files_embed ON uploaded_files(embed_status);
+
+  -- 文件内容分块向量索引（独立于对话 embedding，避免混淆搜索结果）
+  CREATE TABLE IF NOT EXISTS file_embeddings (
+    id              TEXT NOT NULL,           -- chunk 唯一 ID
+    file_id         TEXT NOT NULL,           -- 关联 uploaded_files.id
+    chunk_index     INTEGER NOT NULL,        -- 第几块（0-based）
+    chunk_text      TEXT NOT NULL,           -- 该块的原文
+    vector          BLOB NOT NULL,           -- Float32 向量
+    dim             INTEGER NOT NULL,
+    created_at      TEXT NOT NULL,
+    PRIMARY KEY(id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_file_embeddings_file ON file_embeddings(file_id);
+  CREATE INDEX IF NOT EXISTS idx_file_embeddings_created ON file_embeddings(created_at DESC);
 `)
 
 // ── 增量迁移（兼容老版本数据库） ─────────────────────────────────────────────
 // SQLite 不支持 ADD COLUMN IF NOT EXISTS，用 try/catch 处理已存在的情况
 const migrations = [
   'ALTER TABLE agent_tasks ADD COLUMN retries INTEGER NOT NULL DEFAULT 0',
-  'ALTER TABLE memory_facts ADD COLUMN invalid_at TEXT'
+  'ALTER TABLE memory_facts ADD COLUMN invalid_at TEXT',
+  'ALTER TABLE uploaded_files ADD COLUMN chunk_count INTEGER NOT NULL DEFAULT 0',
+  "ALTER TABLE uploaded_files ADD COLUMN embed_status TEXT NOT NULL DEFAULT 'pending'",
+  'CREATE INDEX IF NOT EXISTS idx_uploaded_files_conv ON uploaded_files(conv_id)',
+  'CREATE INDEX IF NOT EXISTS idx_uploaded_files_created ON uploaded_files(created_at DESC)',
+  "CREATE INDEX IF NOT EXISTS idx_uploaded_files_embed ON uploaded_files(embed_status)"
 ]
 for (const sql of migrations) {
   try { db.exec(sql) } catch { /* 列已存在时忽略 */ }
@@ -124,5 +148,10 @@ export type MemoryFactRow = {
 }
 export type UploadedFileRow = {
   id: string; filename: string; mimetype: string; size: number;
-  content: Buffer | null; text_content: string | null; conv_id: string | null; created_at: string
+  content: Buffer | null; text_content: string | null; conv_id: string | null;
+  chunk_count: number; embed_status: string; created_at: string
+}
+export type FileEmbeddingRow = {
+  id: string; file_id: string; chunk_index: number; chunk_text: string;
+  vector: Buffer; dim: number; created_at: string
 }

@@ -5,6 +5,8 @@
  *
  * POST /api/storage/file               → 上传二进制文件 (multipart/form-data)
  * GET  /api/storage/file/:id           → 下载二进制文件
+ * GET  /api/storage/files              → 列出已上传文件（元数据，不含内容）
+ * DELETE /api/storage/file/:id         → 删除文件及其分块向量
  * GET  /api/storage/export             → 导出全量数据 (JSON)
  * GET  /api/storage/:filename          → 读取文件内容
  * PUT  /api/storage/:filename          → 写入文件内容 (raw text body)
@@ -14,14 +16,63 @@
 import { Hono } from 'hono'
 import { db } from '../db'
 import { isValidFilename } from '../../shared/constants'
+import { enqueueTask } from '../agentWorker'
 
 export const storageRoutes = new Hono()
+
+// 文件大小上限：50 MB
+const MAX_FILE_SIZE = 50 * 1024 * 1024
+
+// 允许的 MIME 类型白名单（魔数校验的辅助）
+const ALLOWED_MIME_PREFIXES = [
+  'image/', 'text/', 'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument',
+  'application/json', 'application/xml',
+  'application/octet-stream'
+]
+
+// 魔数签名映射（前 8 字节 hex → 允许的 MIME 前缀）
+const MAGIC_BYTES: Array<{ hex: string; mime: string }> = [
+  { hex: '25504446', mime: 'application/pdf' },   // %PDF
+  { hex: '89504e47', mime: 'image/png' },          // PNG
+  { hex: 'ffd8ff', mime: 'image/jpeg' },           // JPEG
+  { hex: '47494638', mime: 'image/gif' },          // GIF
+  { hex: '52494646', mime: 'image/webp' },         // RIFF (WebP)
+  { hex: '504b0304', mime: 'application/vnd.openxmlformats-officedocument' }, // ZIP/DOCX/XLSX
+  { hex: 'd0cf11e0', mime: 'application/msword' } // OLE2 (DOC/XLS)
+]
+
+/** 魔数校验：文本文件和代码文件不在白名单时跳过校验，直接允许 */
+function isContentSafe(buffer: Buffer, declaredMime: string): boolean {
+  // 文本类型不需要魔数校验
+  if (declaredMime.startsWith('text/') || declaredMime === 'application/json' ||
+      declaredMime === 'application/xml' || declaredMime === 'application/octet-stream') return true
+
+  const hexHead = buffer.slice(0, 8).toString('hex').toLowerCase()
+  const matched = MAGIC_BYTES.find(m => hexHead.startsWith(m.hex))
+  if (!matched) return true  // 未知格式允许通过（私有格式不在白名单）
+  // 魔数已知时，验证与声明的 MIME 一致
+  return declaredMime.startsWith(matched.mime)
+}
 
 // POST /api/storage/file — 上传二进制文件（multipart/form-data）
 storageRoutes.post('/file', async (c) => {
   const body = await c.req.parseBody()
   const file = body['file'] as File | undefined
   if (!file) return c.json({ error: 'file required' }, 400)
+
+  // 文件大小检查
+  if (file.size > MAX_FILE_SIZE) {
+    return c.json({ error: `文件过大，最大支持 50MB（当前 ${(file.size / 1024 / 1024).toFixed(1)}MB）` }, 413)
+  }
+
+  // MIME 类型白名单粗筛
+  const declaredMime = file.type || 'application/octet-stream'
+  const allowed = ALLOWED_MIME_PREFIXES.some(p => declaredMime.startsWith(p))
+  if (!allowed) {
+    return c.json({ error: `不支持的文件类型：${declaredMime}` }, 415)
+  }
 
   const id = (body['id'] as string) || crypto.randomUUID()
   const textContent = (body['textContent'] as string) || ''
@@ -30,10 +81,23 @@ storageRoutes.post('/file', async (c) => {
 
   const buffer = Buffer.from(await file.arrayBuffer())
 
+  // 魔数校验
+  if (!isContentSafe(buffer, declaredMime)) {
+    return c.json({ error: '文件内容与声明类型不匹配' }, 415)
+  }
+
   db.prepare(`
-    INSERT OR REPLACE INTO uploaded_files (id, filename, mimetype, size, content, text_content, conv_id, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, file.name, file.type || 'application/octet-stream', buffer.length, buffer, textContent || null, convId, now)
+    INSERT OR REPLACE INTO uploaded_files (id, filename, mimetype, size, content, text_content, conv_id, chunk_count, embed_status, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'pending', ?)
+  `).run(id, file.name, declaredMime, buffer.length, buffer, textContent || null, convId, now)
+
+  // 将 embedding 任务排入 Agent 队列（分块处理，不阻塞上传响应）
+  if (textContent.trim().length > 10) {
+    enqueueTask('embed_file', { fileId: id, textContent, filename: file.name })
+  } else {
+    // 无文本内容（如图片），直接标记完成
+    db.prepare("UPDATE uploaded_files SET embed_status = 'done' WHERE id = ?").run(id)
+  }
 
   return c.json({ ok: true, fileId: id, filename: file.name, size: buffer.length })
 })
@@ -46,7 +110,7 @@ storageRoutes.get('/file/:id', (c) => {
 
   if (!row || !row.content) return c.json({ error: 'not found' }, 404)
 
-  const safeFilename = encodeURIComponent(row.filename)
+  const safeFilename = encodeURIComponent(row.filename.replace(/[^\w.\-]/g, '_'))
   return new Response(new Uint8Array(row.content), {
     status: 200,
     headers: {
@@ -56,7 +120,23 @@ storageRoutes.get('/file/:id', (c) => {
   })
 })
 
-// GET /api/storage/export — 导出所有数据（对话 / 节点 / 记忆 / 进化基因）
+// GET /api/storage/files — 列出已上传文件（只返回元数据，不含二进制内容）
+storageRoutes.get('/files', (c) => {
+  const rows = db.prepare(
+    'SELECT id, filename, mimetype, size, conv_id, chunk_count, embed_status, created_at FROM uploaded_files ORDER BY created_at DESC LIMIT 200'
+  ).all() as { id: string; filename: string; mimetype: string; size: number; conv_id: string | null; chunk_count: number; embed_status: string; created_at: string }[]
+  return c.json({ files: rows })
+})
+
+// DELETE /api/storage/file/:id — 删除文件及其分块向量
+storageRoutes.delete('/file/:id', (c) => {
+  const { id } = c.req.param()
+  db.prepare('DELETE FROM file_embeddings WHERE file_id = ?').run(id)
+  db.prepare('DELETE FROM uploaded_files WHERE id = ?').run(id)
+  return c.json({ ok: true })
+})
+
+// GET /api/storage/export — 导出所有数据（对话 / 节点 / 记忆 / 进化基因 / 文件元数据）
 storageRoutes.get('/export', (_c) => {
   const getFile = (filename: string): string | null => {
     const row = db.prepare('SELECT content FROM storage WHERE filename = ?').get(filename) as
@@ -81,7 +161,12 @@ storageRoutes.get('/export', (_c) => {
   try { profile = profileRaw ? JSON.parse(profileRaw) : {} } catch {}
 
   const memoryFacts = db.prepare(
-    'SELECT id, fact, source_conv_id, created_at FROM memory_facts ORDER BY created_at DESC'
+    'SELECT id, fact, source_conv_id, created_at FROM memory_facts WHERE invalid_at IS NULL ORDER BY created_at DESC'
+  ).all()
+
+  // 导出文件元数据（不含二进制内容，避免导出包过大）
+  const uploadedFiles = db.prepare(
+    'SELECT id, filename, mimetype, size, conv_id, chunk_count, embed_status, created_at FROM uploaded_files ORDER BY created_at DESC'
   ).all()
 
   const exportData = {
@@ -89,7 +174,8 @@ storageRoutes.get('/export', (_c) => {
     conversations,
     nodes,
     profile,
-    memoryFacts
+    memoryFacts,
+    uploadedFiles
   }
 
   const json = JSON.stringify(exportData, null, 2)

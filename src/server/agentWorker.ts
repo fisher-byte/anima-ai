@@ -2,7 +2,9 @@
  * Agent Worker — 后台轻量 AI 任务处理器
  *
  * 每 30 秒检查 agent_tasks 表中的 pending 任务：
- *   - extract_profile: 从对话中提取用户画像增量
+ *   - extract_profile:   从对话中提取用户画像增量
+ *   - extract_preference: 从用户反馈中提取偏好规则
+ *   - embed_file:        对上传文件的文本内容分块并生成 embedding（存入 file_embeddings 表）
  *
  * 使用最便宜的模型（moonshot-v1-8k），fire-and-forget。
  * 任务由前端在对话完成后写入队列（status='pending'）。
@@ -18,6 +20,12 @@ interface ExtractProfilePayload {
 interface ExtractPreferencePayload {
   userMessage: string
   assistantMessage: string
+}
+
+interface EmbedFilePayload {
+  fileId: string
+  textContent: string
+  filename: string
 }
 
 /** 从 config 表读取 apiKey / baseUrl */
@@ -194,10 +202,101 @@ function mergeProfile(extracted: Record<string, unknown>) {
   }
 }
 
+/**
+ * 文本分块（参照 LangChain RecursiveCharacterTextSplitter 思路）
+ * 在自然边界（段落 > 句子 > 词）处切分，保留 10% 重叠以维持语义连续性
+ */
+function splitTextIntoChunks(text: string, chunkSize = 800, overlap = 80): string[] {
+  if (text.length <= chunkSize) return [text]
+
+  const chunks: string[] = []
+  let start = 0
+
+  while (start < text.length) {
+    let end = start + chunkSize
+
+    if (end >= text.length) {
+      chunks.push(text.slice(start))
+      break
+    }
+
+    // 优先在段落边界切分
+    let splitAt = text.lastIndexOf('\n\n', end)
+    if (splitAt <= start) splitAt = text.lastIndexOf('\n', end)
+    if (splitAt <= start) splitAt = text.lastIndexOf('。', end)
+    if (splitAt <= start) splitAt = text.lastIndexOf('. ', end)
+    if (splitAt <= start) splitAt = text.lastIndexOf(' ', end)
+    if (splitAt <= start) splitAt = end
+
+    chunks.push(text.slice(start, splitAt + 1))
+    start = Math.max(start + 1, splitAt + 1 - overlap)
+  }
+
+  return chunks.filter(c => c.trim().length > 0)
+}
+
+/** 对文件内容分块并生成 embedding，写入 file_embeddings 表 */
+async function embedFileContent(fileId: string, textContent: string, filename: string): Promise<void> {
+  const { apiKey, baseUrl } = getApiConfig()
+  if (!apiKey) {
+    db.prepare("UPDATE uploaded_files SET embed_status = 'failed' WHERE id = ?").run(fileId)
+    return
+  }
+
+  const isMoonshot = baseUrl.includes('moonshot')
+  const embModel = isMoonshot ? 'moonshot-v1-embedding' : 'text-embedding-3-small'
+
+  const chunks = splitTextIntoChunks(textContent)
+  let embeddedCount = 0
+
+  // 清除旧的分块（重新嵌入时先删除）
+  db.prepare('DELETE FROM file_embeddings WHERE file_id = ?').run(fileId)
+
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i]
+    try {
+      const resp = await fetch(`${baseUrl}/embeddings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: embModel, input: chunk }),
+        signal: AbortSignal.timeout(10_000)
+      })
+
+      if (!resp.ok) {
+        console.warn(`[agent] embed_file chunk ${i} failed for ${filename}:`, resp.status)
+        continue
+      }
+
+      const data = (await resp.json()) as { data: { embedding: number[] }[] }
+      const vec = data?.data?.[0]?.embedding
+      if (!Array.isArray(vec) || vec.length === 0) continue
+
+      const f32 = new Float32Array(vec)
+      const vecBuf = Buffer.from(f32.buffer)
+      const chunkId = `${fileId}-chunk-${i}`
+
+      db.prepare(`
+        INSERT OR REPLACE INTO file_embeddings (id, file_id, chunk_index, chunk_text, vector, dim, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(chunkId, fileId, i, chunk, vecBuf, vec.length, new Date().toISOString())
+
+      embeddedCount++
+    } catch (e) {
+      console.warn(`[agent] embed_file chunk ${i} error for ${filename}:`, e)
+    }
+  }
+
+  // 更新文件状态
+  const status = embeddedCount > 0 ? 'done' : 'failed'
+  db.prepare('UPDATE uploaded_files SET embed_status = ?, chunk_count = ? WHERE id = ?').run(status, embeddedCount, fileId)
+  console.log(`[agent] embed_file ${filename}: ${embeddedCount}/${chunks.length} chunks embedded, status=${status}`)
+}
+
 /** 处理单条任务 */
 async function processTask(task: { id: number; type: string; payload: string; retries?: number }) {
   const now = new Date().toISOString()
   db.prepare('UPDATE agent_tasks SET status = ?, started_at = ? WHERE id = ?').run('running', now, task.id)
+
 
   try {
     if (task.type === 'extract_profile') {
@@ -209,6 +308,9 @@ async function processTask(task: { id: number; type: string; payload: string; re
     } else if (task.type === 'extract_preference') {
       const payload = JSON.parse(task.payload) as ExtractPreferencePayload
       await extractPreferenceFromFeedback(payload.userMessage, payload.assistantMessage)
+    } else if (task.type === 'embed_file') {
+      const payload = JSON.parse(task.payload) as EmbedFilePayload
+      await embedFileContent(payload.fileId, payload.textContent, payload.filename)
     }
 
     db.prepare('UPDATE agent_tasks SET status = ?, finished_at = ? WHERE id = ?').run('done', new Date().toISOString(), task.id)
