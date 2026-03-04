@@ -30,10 +30,11 @@ npm run test:watch    # 监听模式（开发时用）
 **目标**: 所有 HTTP API 端点在真实 SQLite（内存模式）下行为正确
 
 **已覆盖模块**:
-- ✅ `server.test.ts` — 核心路由集成测试（66 个用例）
+- ✅ `server.test.ts` — 核心路由集成测试（73 个用例）
   - `GET /api/health`
   - Storage API（GET / PUT / POST append）：文件名白名单、路径遍历防御、JSONL 多次追加
   - Config API（apikey、settings）：GET / PUT / 覆盖写入
+  - Conversation History API（GET / PUT / DELETE）：保存/读取/删除、100 条截断、多对话隔离
 
 - ✅ `memory.test.ts` — 记忆路由集成测试（19 个用例）
   - **User Profile CRUD**：新建、GET、merge 更新（interests/tools 数组去重合并）、DELETE 清空
@@ -42,7 +43,7 @@ npm run test:watch    # 监听模式（开发时用）
   - **Classify / Extract 无 Key 降级**：无 API Key 时返回 fallback 响应
   - **Embedding Index**：DELETE 单条 / 全量
 
-**总测试数**: **201 个用例，7 个测试文件，全部通过**
+**总测试数**: **208 个用例，7 个测试文件，全部通过**
 
 ---
 

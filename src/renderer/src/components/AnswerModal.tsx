@@ -291,7 +291,9 @@ export function AnswerModal() {
             history.push({ role: 'assistant', content: t.assistant })
           }
         })
-        setConversationHistory(history)
+        // 优先使用服务器已加载的历史（由 openModal/openModalById 异步获取）
+        const serverHistory = useCanvasStore.getState().conversationHistory
+        setConversationHistory(serverHistory.length > 0 ? serverHistory : history)
         setIsStreaming(false)
         setErrorMessage(null)
         setAppliedPreferences(currentConversation.appliedPreferences || [])
@@ -324,7 +326,7 @@ export function AnswerModal() {
       setFeedbackMessage('')
 
       const preferences = getPreferencesForPrompt()
-      sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false)
+      sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false, currentConversation.id)
     }
 
     prepareConversation()
@@ -350,7 +352,7 @@ export function AnswerModal() {
     setIsStreaming(true)
     didMutateRef.current = true
     const preferences = getPreferencesForPrompt()
-    sendMessage(newContent, preferences, history, currentTurn.images)
+    sendMessage(newContent, preferences, history, currentTurn.images, undefined, undefined, currentConversation?.id)
   }
 
   const handleStopGeneration = useCallback(() => { cancel() }, [cancel])
@@ -364,7 +366,7 @@ export function AnswerModal() {
     setTurns(newTurns)
     setIsStreaming(true)
     const preferences = getPreferencesForPrompt()
-    sendMessage(currentTurn.user, preferences, history, currentTurn.images)
+    sendMessage(currentTurn.user, preferences, history, currentTurn.images, undefined, undefined, currentConversation?.id)
   }, [turns, currentConversation, sendMessage, getPreferencesForPrompt])
 
   const handleCopyMessage = useCallback(async (text: string, index: number) => {
@@ -490,7 +492,7 @@ export function AnswerModal() {
 
     const preferences = getPreferencesForPrompt()
     didMutateRef.current = true
-    sendMessage(fullMessage, preferences, history, pendingImages, compressed, isOnboardingMode)
+    sendMessage(fullMessage, preferences, history, pendingImages, compressed, isOnboardingMode, isOnboardingMode ? undefined : currentConversation?.id)
   }, [feedbackMessage, pendingImages, pendingFiles, isStreaming, isOnboardingMode,
       getPreferencesForPrompt, sendMessage, turns, getRelevantMemories, setHighlight, focusNode])
 

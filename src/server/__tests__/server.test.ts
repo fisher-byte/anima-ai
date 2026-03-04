@@ -26,10 +26,15 @@ testDb.exec(`
     value      TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS conversation_history (
+    conversation_id TEXT PRIMARY KEY,
+    messages        TEXT NOT NULL DEFAULT '[]',
+    updated_at      TEXT NOT NULL
+  );
 `)
 
 function resetDb() {
-  testDb.exec('DELETE FROM storage; DELETE FROM config;')
+  testDb.exec('DELETE FROM storage; DELETE FROM config; DELETE FROM conversation_history;')
 }
 
 // ── Inline route handlers (mirrors routes/*.ts but injects testDb) ────────────
@@ -85,6 +90,34 @@ function buildTestApp() {
         content = storage.content || CASE WHEN storage.content = '' THEN '' ELSE char(10) END || excluded.content,
         updated_at = excluded.updated_at
     `).run(filename, line, now)
+    return c.json({ ok: true })
+  })
+
+  // ── Conversation History routes ──
+  app.get('/api/storage/history/:conversationId', (c) => {
+    const { conversationId } = c.req.param()
+    const row = testDb.prepare('SELECT messages FROM conversation_history WHERE conversation_id = ?').get(conversationId) as { messages: string } | undefined
+    return c.json({ messages: row ? JSON.parse(row.messages) : [] })
+  })
+
+  app.put('/api/storage/history/:conversationId', async (c) => {
+    const { conversationId } = c.req.param()
+    const body = await c.req.json()
+    const messages = body.messages
+    if (!Array.isArray(messages)) return c.json({ error: 'messages must be array' }, 400)
+    const trimmed = messages.slice(-100)
+    const now = new Date().toISOString()
+    testDb.prepare(`
+      INSERT INTO conversation_history (conversation_id, messages, updated_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(conversation_id) DO UPDATE SET messages = excluded.messages, updated_at = excluded.updated_at
+    `).run(conversationId, JSON.stringify(trimmed), now)
+    return c.json({ ok: true })
+  })
+
+  app.delete('/api/storage/history/:conversationId', (c) => {
+    const { conversationId } = c.req.param()
+    testDb.prepare('DELETE FROM conversation_history WHERE conversation_id = ?').run(conversationId)
     return c.json({ ok: true })
   })
 
@@ -1004,5 +1037,88 @@ describe('File Embeddings Table (file_embeddings vs embeddings isolation)', () =
 
     expect(fileDb.prepare('SELECT id FROM file_embeddings WHERE file_id = ?').all('f2')).toHaveLength(0)
     expect(fileDb.prepare('SELECT id FROM uploaded_files WHERE id = ?').get('f2')).toBeUndefined()
+  })
+})
+
+// ── Conversation History API ───────────────────────────────────────────────────
+describe('Conversation History API', () => {
+  beforeEach(resetDb)
+
+  const CONV_ID = 'test-conv-123'
+  const MESSAGES = [
+    { role: 'user', content: '你好' },
+    { role: 'assistant', content: '你好！有什么可以帮你的？' }
+  ]
+
+  it('GET returns empty array for non-existent conversation', async () => {
+    const res = await req('GET', `/api/storage/history/${CONV_ID}`)
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.messages).toEqual([])
+  })
+
+  it('PUT saves messages and GET retrieves them', async () => {
+    const putRes = await req('PUT', `/api/storage/history/${CONV_ID}`, { json: { messages: MESSAGES } })
+    expect(putRes.status).toBe(200)
+    expect((await putRes.json()).ok).toBe(true)
+
+    const getRes = await req('GET', `/api/storage/history/${CONV_ID}`)
+    expect(getRes.status).toBe(200)
+    const data = await getRes.json()
+    expect(data.messages).toHaveLength(2)
+    expect(data.messages[0].role).toBe('user')
+    expect(data.messages[1].role).toBe('assistant')
+  })
+
+  it('PUT overwrites existing history', async () => {
+    await req('PUT', `/api/storage/history/${CONV_ID}`, { json: { messages: MESSAGES } })
+
+    const newMessages = [...MESSAGES, { role: 'user', content: '继续' }, { role: 'assistant', content: '好的！' }]
+    await req('PUT', `/api/storage/history/${CONV_ID}`, { json: { messages: newMessages } })
+
+    const getRes = await req('GET', `/api/storage/history/${CONV_ID}`)
+    const data = await getRes.json()
+    expect(data.messages).toHaveLength(4)
+  })
+
+  it('PUT returns 400 for non-array messages', async () => {
+    const res = await req('PUT', `/api/storage/history/${CONV_ID}`, { json: { messages: 'not an array' } })
+    expect(res.status).toBe(400)
+  })
+
+  it('PUT trims to 100 messages max', async () => {
+    const manyMessages = Array.from({ length: 150 }, (_, i) => ({
+      role: i % 2 === 0 ? 'user' : 'assistant',
+      content: `message ${i}`
+    }))
+    await req('PUT', `/api/storage/history/${CONV_ID}`, { json: { messages: manyMessages } })
+
+    const getRes = await req('GET', `/api/storage/history/${CONV_ID}`)
+    const data = await getRes.json()
+    expect(data.messages).toHaveLength(100)
+    // Should keep the most recent 100
+    expect(data.messages[0].content).toBe('message 50')
+  })
+
+  it('DELETE removes conversation history', async () => {
+    await req('PUT', `/api/storage/history/${CONV_ID}`, { json: { messages: MESSAGES } })
+    const delRes = await req('DELETE', `/api/storage/history/${CONV_ID}`)
+    expect(delRes.status).toBe(200)
+
+    const getRes = await req('GET', `/api/storage/history/${CONV_ID}`)
+    const data = await getRes.json()
+    expect(data.messages).toEqual([])
+  })
+
+  it('different conversations have isolated histories', async () => {
+    const CONV_A = 'conv-a'
+    const CONV_B = 'conv-b'
+    await req('PUT', `/api/storage/history/${CONV_A}`, { json: { messages: [{ role: 'user', content: 'A的消息' }] } })
+    await req('PUT', `/api/storage/history/${CONV_B}`, { json: { messages: [{ role: 'user', content: 'B的消息' }, { role: 'assistant', content: 'B的回复' }] } })
+
+    const resA = await req('GET', `/api/storage/history/${CONV_A}`)
+    const resB = await req('GET', `/api/storage/history/${CONV_B}`)
+    expect((await resA.json()).messages).toHaveLength(1)
+    expect((await resB.json()).messages).toHaveLength(2)
   })
 })
