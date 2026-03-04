@@ -63,6 +63,7 @@ db.exec(`
     type        TEXT NOT NULL,
     payload     TEXT NOT NULL DEFAULT '{}',
     status      TEXT NOT NULL DEFAULT 'pending',
+    retries     INTEGER NOT NULL DEFAULT 0,
     created_at  TEXT NOT NULL,
     started_at  TEXT,
     finished_at TEXT,
@@ -76,9 +77,11 @@ db.exec(`
     fact           TEXT NOT NULL,
     source_conv_id TEXT,
     created_at     TEXT NOT NULL,
+    invalid_at     TEXT,          -- 时效标记：不为空表示该事实已被新信息取代（软删除）
     PRIMARY KEY(id)
   );
   CREATE INDEX IF NOT EXISTS idx_memory_facts_created ON memory_facts(created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_memory_facts_source ON memory_facts(source_conv_id);
 
   -- 用户上传的文件（真实二进制存储）
   CREATE TABLE IF NOT EXISTS uploaded_files (
@@ -94,6 +97,16 @@ db.exec(`
   );
 `)
 
+// ── 增量迁移（兼容老版本数据库） ─────────────────────────────────────────────
+// SQLite 不支持 ADD COLUMN IF NOT EXISTS，用 try/catch 处理已存在的情况
+const migrations = [
+  'ALTER TABLE agent_tasks ADD COLUMN retries INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE memory_facts ADD COLUMN invalid_at TEXT'
+]
+for (const sql of migrations) {
+  try { db.exec(sql) } catch { /* 列已存在时忽略 */ }
+}
+
 export type StorageRow = { filename: string; content: string; updated_at: string }
 export type ConfigRow = { key: string; value: string; updated_at: string }
 export type EmbeddingRow = { conversation_id: string; vector: Buffer; dim: number; updated_at: string }
@@ -103,11 +116,11 @@ export type UserProfileRow = {
   raw_notes: string | null; last_extracted: string | null; updated_at: string
 }
 export type AgentTaskRow = {
-  id: number; type: string; payload: string; status: string;
+  id: number; type: string; payload: string; status: string; retries: number;
   created_at: string; started_at: string | null; finished_at: string | null; error: string | null
 }
 export type MemoryFactRow = {
-  id: string; fact: string; source_conv_id: string | null; created_at: string
+  id: string; fact: string; source_conv_id: string | null; created_at: string; invalid_at: string | null
 }
 export type UploadedFileRow = {
   id: string; filename: string; mimetype: string; size: number;

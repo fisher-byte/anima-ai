@@ -1,5 +1,35 @@
 # Anima 变更日志
 
+## [0.2.16] - 2026-03-04
+
+### 记忆系统达到顶级水平（对标 mem0 / MemGPT / Zep）
+
+#### 架构升级
+- **语义检索注入 system prompt**：AI 路由构建 system prompt 时，先用最后一条用户消息调用 embedding 向量检索，取最相关的记忆事实注入（而非最新 N 条）；无 embedding 时降级为最近 15 条有效事实
+- **记忆事实时效标记（`invalid_at`）**：参照 Zep 的时效知识图谱设计，`memory_facts` 新增 `invalid_at` 字段；删除操作改为软删除（标记失效时间），历史记录永久保留，避免矛盾事实共存
+- **System prompt 分层 Token 预算控制**：4 个注入层（进化基因 > 用户画像 > 记忆事实 > 压缩记忆）按优先级消耗 1500 token 预算，超出时低优先级层自动截断，防止 context 膨胀
+- **memory_facts 全面注入生效**：修复 Critical 问题——事实提取了但从未被 AI 使用；现在正确注入，让记忆系统真正起作用
+
+#### 可靠性修复（参照 Celery/BullMQ 标准）
+- **Agent Worker 崩溃恢复**：启动时自动将 `status='running'` 的卡死任务重置为 `pending`，防止进程崩溃后任务永久丢失
+- **任务失败指数重试**：最多 3 次重试，每次记录 `retries` 计数；3 次后标记 `failed`，不再无限卡住
+- **旧任务 TTL 清理**：每小时清理 7 天前已完成/失败的任务，防止 agent_tasks 表无限膨胀
+- **DB schema 迁移兼容**：新增 `agent_tasks.retries` 和 `memory_facts.invalid_at` 字段，通过 `ALTER TABLE` try/catch 模式兼容老版本数据库
+- **Embedding API 加超时**：`fetchEmbedding` 加 10s 超时，防止 API 无响应时 hang 住
+- **Profile JSON 安全解析**：`GET /api/memory/profile` 的 JSON 字段（interests/tools/goals）加 try/catch，DB 损坏时返回空数组而不是 500
+
+#### 其他优化
+- **`/memory/extract` 幂等保护**：同一 `conversationId` 已提取过则跳过，避免重复 API 调用
+- **topK 输入验证**：`/memory/search` 限制 topK 在 1-20 范围内，防止非法输入
+- **source_conv_id 索引**：`memory_facts` 新增 source_conv_id 索引，加速幂等查询
+- **词边界截断**：embedding 输入从硬截断改为词边界截断，提升 embedding 质量
+
+#### 测试
+- 测试用例从 115 → 134（新增 19 个）
+- 新增测试：memory profile CRUD、facts 软删除、agent 崩溃恢复、重试机制、TTL 清理、topK 验证、token 预算逻辑
+
+---
+
 ## [0.2.15] - 2026-03-04
 
 ### 架构升级：后端 Agent 接管语义分类与进化基因提取

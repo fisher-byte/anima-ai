@@ -31,8 +31,12 @@ async function fetchEmbedding(text: string): Promise<number[] | null> {
   const { apiKey, baseUrl } = getApiConfig()
   if (!apiKey) return null
 
-  // 截断至 4000 字符，避免超 token
-  const input = text.slice(0, 4000)
+  // 截断至词边界，避免超 token（在 4000 字符处的最近空白处截断）
+  let input = text.slice(0, 4000)
+  if (text.length > 4000) {
+    const lastSpace = input.lastIndexOf(' ')
+    if (lastSpace > 3800) input = input.slice(0, lastSpace)
+  }
 
   // moonshot 的 embedding 模型名
   const isMoonshot = baseUrl.includes('moonshot')
@@ -45,7 +49,8 @@ async function fetchEmbedding(text: string): Promise<number[] | null> {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`
       },
-      body: JSON.stringify({ model, input })
+      body: JSON.stringify({ model, input }),
+      signal: AbortSignal.timeout(10_000)
     })
 
     if (!resp.ok) {
@@ -54,7 +59,9 @@ async function fetchEmbedding(text: string): Promise<number[] | null> {
     }
 
     const data = (await resp.json()) as { data: { embedding: number[] }[] }
-    return data?.data?.[0]?.embedding ?? null
+    const embedding = data?.data?.[0]?.embedding
+    if (!Array.isArray(embedding) || embedding.length === 0) return null
+    return embedding
   } catch (e) {
     console.warn('[memory] fetchEmbedding failed:', e)
     return null
@@ -122,8 +129,10 @@ memoryRoutes.delete('/index', (c) => {
 
 /** 向量检索 */
 memoryRoutes.post('/search', async (c) => {
-  const { query, topK = 5 } = await c.req.json<{ query: string; topK?: number }>()
+  const { query, topK: rawTopK = 5 } = await c.req.json<{ query: string; topK?: number }>()
   if (!query) return c.json({ results: [] })
+  // 防御性验证：topK 限制在 1-20 之间
+  const topK = Math.max(1, Math.min(20, Math.floor(Number(rawTopK) || 5)))
 
   const queryVec = await fetchEmbedding(query)
   if (!queryVec) {
@@ -157,12 +166,17 @@ memoryRoutes.get('/profile', (c) => {
   const row = db.prepare('SELECT * FROM user_profile WHERE id = 1').get() as Record<string, string> | undefined
   if (!row) return c.json({})
 
+  const safeParseArr = (v: string | undefined): string[] => {
+    if (!v) return []
+    try { return JSON.parse(v) as string[] } catch { return [] }
+  }
+
   return c.json({
     occupation: row.occupation ?? null,
-    interests: row.interests ? JSON.parse(row.interests) : [],
-    tools: row.tools ? JSON.parse(row.tools) : [],
+    interests: safeParseArr(row.interests),
+    tools: safeParseArr(row.tools),
     writingStyle: row.writing_style ?? null,
-    goals: row.goals ? JSON.parse(row.goals) : [],
+    goals: safeParseArr(row.goals),
     location: row.location ?? null,
     rawNotes: row.raw_notes ?? null,
     lastExtracted: row.last_extracted ?? null,
@@ -245,6 +259,12 @@ memoryRoutes.post('/extract', async (c) => {
     conversationId?: string; userMessage: string; assistantMessage?: string
   }>()
   if (!userMessage?.trim()) return c.json({ ok: false, reason: 'userMessage required' })
+
+  // 幂等检查：同一对话已提取过则跳过，避免重复消耗 API
+  if (conversationId) {
+    const already = db.prepare('SELECT id FROM memory_facts WHERE source_conv_id = ? LIMIT 1').get(conversationId)
+    if (already) return c.json({ ok: true, extracted: 0, skipped: true })
+  }
 
   const { apiKey, baseUrl } = getApiConfig()
   if (!apiKey) return c.json({ ok: false, reason: 'no api key' })
@@ -364,24 +384,24 @@ ${assistantMessage ? `AI回复：${assistantMessage.slice(0, 200)}` : ''}
   }
 })
 
-/** 读取所有记忆事实 */
+/** 读取所有记忆事实（只返回有效的，不返回已失效的） */
 memoryRoutes.get('/facts', (c) => {
   const rows = db.prepare(
-    'SELECT id, fact, source_conv_id, created_at FROM memory_facts ORDER BY created_at DESC LIMIT 200'
+    'SELECT id, fact, source_conv_id, created_at FROM memory_facts WHERE invalid_at IS NULL ORDER BY created_at DESC LIMIT 200'
   ).all() as { id: string; fact: string; source_conv_id: string | null; created_at: string }[]
   return c.json({ facts: rows })
 })
 
-/** 删除单条记忆事实 */
+/** 删除单条记忆事实（软删除：标记 invalid_at） */
 memoryRoutes.delete('/facts/:id', (c) => {
   const id = c.req.param('id')
-  db.prepare('DELETE FROM memory_facts WHERE id = ?').run(id)
+  db.prepare('UPDATE memory_facts SET invalid_at = ? WHERE id = ?').run(new Date().toISOString(), id)
   return c.json({ ok: true })
 })
 
 /** 清空全部记忆事实（用于重置/体验新手教程） */
 memoryRoutes.delete('/facts', (c) => {
-  db.prepare('DELETE FROM memory_facts').run()
+  db.prepare('UPDATE memory_facts SET invalid_at = ?').run(new Date().toISOString())
   return c.json({ ok: true })
 })
 

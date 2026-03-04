@@ -26,6 +26,83 @@ import type { AIMessage } from '../../shared/types'
 
 export const aiRoutes = new Hono()
 
+// ── Token 预算工具（字符数 / 4 近似 token 数）────────────────────────────────
+const CONTEXT_BUDGET = 1500  // system prompt 注入层总 token 预算
+function approxTokens(text: string): number { return Math.ceil(text.length / 4) }
+
+// ── 服务端语义搜索（直接访问 DB + embedding，不走 HTTP 环回）────────────────
+function cosineSim(a: Float32Array, b: Float32Array): number {
+  let dot = 0, na = 0, nb = 0
+  const len = Math.min(a.length, b.length)
+  for (let i = 0; i < len; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i] }
+  if (na === 0 || nb === 0) return 0
+  return dot / (Math.sqrt(na) * Math.sqrt(nb))
+}
+
+async function fetchRelevantFacts(query: string, apiKey: string, baseUrl: string): Promise<string[]> {
+  if (!query.trim() || !apiKey) return []
+  try {
+    const isMoonshot = baseUrl.includes('moonshot')
+    const embModel = isMoonshot ? 'moonshot-v1-embedding' : 'text-embedding-3-small'
+    const embResp = await fetch(`${baseUrl}/embeddings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: embModel, input: query.slice(0, 500) }),
+      signal: AbortSignal.timeout(5_000)
+    })
+    if (!embResp.ok) return []
+    const embData = (await embResp.json()) as { data: { embedding: number[] }[] }
+    const queryVec = embData?.data?.[0]?.embedding
+    if (!Array.isArray(queryVec) || queryVec.length === 0) return []
+
+    const queryF32 = new Float32Array(queryVec)
+
+    // 读取所有有效（未失效）事实 + 对应向量
+    // 先查 memory_facts，再做向量打分
+    const facts = db.prepare(
+      'SELECT id, fact FROM memory_facts WHERE invalid_at IS NULL ORDER BY created_at DESC LIMIT 100'
+    ).all() as { id: string; fact: string }[]
+    if (facts.length === 0) return []
+
+    // 读取这些 fact 的向量（以 source_conv_id 关联；fact 无独立向量时降级用 embeddings 表）
+    // 实用方案：对 fact 文本直接做余弦打分，避免额外 embed 存储
+    // 直接用 fact 文本与 query 的 BM25 近似：字符级 Jaccard 相似度作为轻量 fallback
+    // 若有对应 conv 的 embedding 则用真向量，否则用文本近似
+    const embRows = db.prepare('SELECT conversation_id, vector FROM embeddings').all() as
+      { conversation_id: string; vector: Buffer }[]
+    const embMap = new Map(embRows.map(r => [r.conversation_id, r.vector]))
+
+    const scored = facts.map(f => {
+      // 优先用 source_conv 向量
+      const factRow = db.prepare('SELECT source_conv_id FROM memory_facts WHERE id = ?').get(f.id) as
+        { source_conv_id: string | null } | undefined
+      const vecBuf = factRow?.source_conv_id ? embMap.get(factRow.source_conv_id) : undefined
+      let score = 0
+      if (vecBuf) {
+        const vec = new Float32Array(vecBuf.buffer, vecBuf.byteOffset, vecBuf.byteLength / 4)
+        score = cosineSim(queryF32, vec)
+      } else {
+        // 降级：字符级 Jaccard 作为近似
+        const qChars = new Set(query.toLowerCase().replace(/\s/g, ''))
+        const fChars = new Set(f.fact.toLowerCase().replace(/\s/g, ''))
+        const inter = [...qChars].filter(c => fChars.has(c)).length
+        const union = new Set([...qChars, ...fChars]).size
+        score = union > 0 ? inter / union : 0
+      }
+      return { fact: f.fact, score }
+    })
+    .filter(r => r.score > 0.2)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10)
+    .map(r => r.fact)
+
+    return scored
+  } catch {
+    // 语义检索失败时降级到最近 N 条
+    return []
+  }
+}
+
 interface AIRequestBody {
   messages: AIMessage[]
   preferences?: string[]
@@ -86,54 +163,81 @@ aiRoutes.post('/stream', async (c) => {
     systemPrompt = ONBOARDING_SYSTEM_PROMPT.replace('{{DATE}}', today)
   } else {
     systemPrompt = DEFAULT_SYSTEM_PROMPT.replace('{{DATE}}', today)
+    let contextTokensUsed = 0
 
-    // 注入进化基因（偏好规则）：前端传入 + 后端 Agent 提取合并
-    const agentRulesRow = db.prepare('SELECT value FROM config WHERE key = ?').get('preference_rules') as { value: string } | undefined
-    const agentPrefs: string[] = agentRulesRow?.value
-      ? (JSON.parse(agentRulesRow.value) as { preference: string; confidence?: number }[])
-          .filter(r => (r.confidence ?? 0.7) > 0.5)
-          .map(r => r.preference)
-      : []
-    const allPreferences = [...new Set([...preferences, ...agentPrefs])]
-    if (allPreferences.length > 0) {
-      systemPrompt += '\n\n【用户进化基因 - 请严格遵守】\n'
-      allPreferences.forEach((pref, idx) => {
-        systemPrompt += `${idx + 1}. ${pref}\n`
-      })
-    }
+    // ── 层 1（最高优先级）：进化基因（偏好规则）── 前端传入 + 后端 Agent 提取合并
+    try {
+      const agentRulesRow = db.prepare('SELECT value FROM config WHERE key = ?').get('preference_rules') as { value: string } | undefined
+      const agentPrefs: string[] = agentRulesRow?.value
+        ? (JSON.parse(agentRulesRow.value) as { preference: string; confidence?: number }[])
+            .filter(r => (r.confidence ?? 0.7) > 0.5)
+            .map(r => r.preference)
+        : []
+      const allPreferences = [...new Set([...preferences, ...agentPrefs])]
+      if (allPreferences.length > 0) {
+        const block = '\n\n【用户进化基因 - 请严格遵守】\n' + allPreferences.map((p, i) => `${i + 1}. ${p}`).join('\n') + '\n'
+        const cost = approxTokens(block)
+        if (contextTokensUsed + cost <= CONTEXT_BUDGET) {
+          systemPrompt += block
+          contextTokensUsed += cost
+        }
+      }
+    } catch { /* 偏好注入失败不影响主流程 */ }
 
-    // 注入压缩记忆
-    if (compressedMemory?.trim()) {
-      systemPrompt += '\n\n【相关记忆片段 - 供参考】\n'
-      systemPrompt += compressedMemory.trim()
-    }
-
-    // 注入用户画像
+    // ── 层 2：用户画像 ──
     try {
       const profile = db.prepare('SELECT * FROM user_profile WHERE id = 1').get() as Record<string, string | null> | undefined
       if (profile) {
         const parts: string[] = []
         if (profile.occupation) parts.push(`职业：${profile.occupation}`)
         if (profile.location) parts.push(`位置：${profile.location}`)
-        if (profile.interests) {
-          const arr = JSON.parse(profile.interests) as string[]
-          if (arr.length) parts.push(`兴趣：${arr.join('、')}`)
-        }
-        if (profile.tools) {
-          const arr = JSON.parse(profile.tools) as string[]
-          if (arr.length) parts.push(`常用工具：${arr.join('、')}`)
-        }
-        if (profile.goals) {
-          const arr = JSON.parse(profile.goals) as string[]
-          if (arr.length) parts.push(`当前关注：${arr.join('、')}`)
-        }
+        try {
+          if (profile.interests) { const arr = JSON.parse(profile.interests) as string[]; if (arr.length) parts.push(`兴趣：${arr.join('、')}`) }
+          if (profile.tools) { const arr = JSON.parse(profile.tools) as string[]; if (arr.length) parts.push(`常用工具：${arr.join('、')}`) }
+          if (profile.goals) { const arr = JSON.parse(profile.goals) as string[]; if (arr.length) parts.push(`当前关注：${arr.join('、')}`) }
+        } catch { /* JSON 字段损坏时跳过 */ }
         if (profile.writing_style) parts.push(`偏好回答风格：${profile.writing_style}`)
         if (parts.length > 0) {
-          systemPrompt += '\n\n【用户画像 - 请据此个性化回答】\n' + parts.join('\n')
+          const block = '\n\n【用户画像 - 请据此个性化回答】\n' + parts.join('\n')
+          const cost = approxTokens(block)
+          if (contextTokensUsed + cost <= CONTEXT_BUDGET) {
+            systemPrompt += block
+            contextTokensUsed += cost
+          }
         }
       }
-    } catch {
-      // 画像注入失败不影响主流程
+    } catch { /* 画像注入失败不影响主流程 */ }
+
+    // ── 层 3：记忆事实（语义检索 > 最近 N 条降级）──
+    try {
+      let relevantFacts: string[] = []
+      if (trimmedText.length > 5) {
+        relevantFacts = await fetchRelevantFacts(trimmedText, apiKey, baseUrl)
+      }
+      // 语义检索无结果时降级：最近 15 条有效事实
+      if (relevantFacts.length === 0) {
+        const rows = db.prepare(
+          'SELECT fact FROM memory_facts WHERE invalid_at IS NULL ORDER BY created_at DESC LIMIT 15'
+        ).all() as { fact: string }[]
+        relevantFacts = rows.map(r => r.fact)
+      }
+      if (relevantFacts.length > 0) {
+        const block = '\n\n【关于用户的记忆事实 - 请据此个性化回答】\n' + relevantFacts.map((f, i) => `${i + 1}. ${f}`).join('\n') + '\n'
+        const cost = approxTokens(block)
+        if (contextTokensUsed + cost <= CONTEXT_BUDGET) {
+          systemPrompt += block
+          contextTokensUsed += cost
+        }
+      }
+    } catch { /* 事实注入失败不影响主流程 */ }
+
+    // ── 层 4（最低优先级）：前端传入的压缩记忆片段 ──
+    if (compressedMemory?.trim()) {
+      const block = '\n\n【相关记忆片段 - 供参考】\n' + compressedMemory.trim()
+      const cost = approxTokens(block)
+      if (contextTokensUsed + cost <= CONTEXT_BUDGET) {
+        systemPrompt += block
+      }
     }
   }
 
