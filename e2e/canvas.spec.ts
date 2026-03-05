@@ -189,8 +189,8 @@ test('删除按钮触发 confirm dialog，取消后节点不消失', async ({ pa
 
   await nodeCard.hover()
 
-  // 等待删除按钮出现（hover 触发）
-  const deleteBtn = page.locator('[id^="node-"]').first().locator('button').last()
+  // 等待删除按钮出现（hover 触发，有 framer-motion 动画）
+  const deleteBtn = page.locator('[id^="node-"]').first().locator('button[title="删除节点"]')
   await deleteBtn.waitFor({ state: 'visible', timeout: 3000 }).catch(() => null)
 
   if (!(await deleteBtn.isVisible())) {
@@ -198,6 +198,8 @@ test('删除按钮触发 confirm dialog，取消后节点不消失', async ({ pa
     return
   }
 
+  // 等动画稳定后再点击
+  await page.waitForTimeout(300)
   await deleteBtn.click()
 
   // confirm dialog 出现
