@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { Node, Edge, Conversation, Profile, PreferenceRule, NodePosition } from '@shared/types'
 import { STORAGE_FILES, FEEDBACK_TRIGGERS, CONFIDENCE_CONFIG, UI_CONFIG } from '@shared/constants'
-import { storageService, historyService } from '../services/storageService'
+import { storageService, historyService, configService } from '../services/storageService'
 import { getAuthToken } from '../services/storageService'
 
 /** Internal helper: attach auth + JSON headers to all /api/* fetch calls */
@@ -314,7 +314,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   checkApiKey: async () => {
     try {
-      const { configService } = await import('../services/storageService')
       const key = await configService.getApiKey()
       set({ hasApiKey: !!key })
     } catch {
