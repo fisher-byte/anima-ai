@@ -1,26 +1,39 @@
 /**
- * Auth middleware
+ * Auth middleware — multi-tenant token authentication
  *
- * 默认开启鉴权（Fail Closed）；设置 AUTH_DISABLED=true 才跳过（用于本地开发）。
- * 若启用鉴权，需同时设置 ACCESS_TOKEN 环境变量。
+ * Supports multiple ACCESS_TOKENS (comma-separated in env).
+ * Each valid token maps to a unique userId (SHA-256 hash prefix) for data partitioning.
  *
- * Phase 2 (future): Replace with JWT validation and userId extraction.
+ * Flow:
+ *   1. AUTH_DISABLED=true → skip auth, use default db (local dev only)
+ *   2. No ACCESS_TOKENS configured → local dev mode, skip auth
+ *   3. Bearer token present → validate against allowed tokens, set userId
+ *   4. No/invalid token → 401/403
  */
 
 import type { MiddlewareHandler } from 'hono'
 import { timingSafeEqual } from 'crypto'
+import { tokenToUserId } from '../db'
+
+/** Parse comma-separated ACCESS_TOKENS env into a Set */
+function getAllowedTokens(): Set<string> {
+  const raw = process.env.ACCESS_TOKENS || process.env.ACCESS_TOKEN || ''
+  return new Set(
+    raw.split(',').map(t => t.trim()).filter(Boolean)
+  )
+}
 
 export const authMiddleware: MiddlewareHandler = async (c, next) => {
-  // 安全默认：只有明确设置 AUTH_DISABLED=true 时才跳过鉴权（Fail Closed）
+  // Public endpoints (registered before auth middleware) are already handled
+  // Fail-open for local dev
   const authDisabled = process.env.AUTH_DISABLED === 'true'
-
   if (authDisabled) {
     return next()
   }
 
-  const accessToken = process.env.ACCESS_TOKEN
-  if (!accessToken) {
-    // 未配置 token 视为本地开发模式，放行
+  const allowedTokens = getAllowedTokens()
+  if (allowedTokens.size === 0) {
+    // No tokens configured → local dev mode
     return next()
   }
 
@@ -31,17 +44,24 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
 
   const token = authHeader.slice(7)
 
-  // 使用常量时间比较防止时序攻击（timing attack）
-  // 长度不同时仍执行比较（用 accessToken 自比），避免通过响应时间泄露 token 长度
+  // Check against all allowed tokens using timing-safe comparison
+  let matched = false
   const tokenBuf = Buffer.from(token)
-  const secretBuf = Buffer.from(accessToken)
-  const sameLength = tokenBuf.length === secretBuf.length
-  // 长度不同时用 secretBuf 自身做无效比较（结果固定为 true，但 sameLength=false 保证拒绝）
-  const tokenMatch = sameLength && timingSafeEqual(tokenBuf, secretBuf)
 
-  if (!tokenMatch) {
+  for (const allowed of allowedTokens) {
+    const allowedBuf = Buffer.from(allowed)
+    const sameLength = tokenBuf.length === allowedBuf.length
+    if (sameLength && timingSafeEqual(tokenBuf, allowedBuf)) {
+      matched = true
+      break
+    }
+  }
+
+  if (!matched) {
     return c.json({ error: 'Forbidden' }, 403)
   }
 
+  // Set userId for data partitioning (downstream routes use this)
+  c.set('userId', tokenToUserId(token))
   return next()
 }

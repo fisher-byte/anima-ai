@@ -96,19 +96,33 @@ server {
     server_name _;
     client_max_body_size 20M;
 
-    location / {
+    # 静态文件直接从磁盘提供（绕过 Node.js，避免大文件 chunked encoding 截断）
+    root /opt/evocanvas/dist;
+    index index.html;
+
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    location /api/ {
         proxy_pass http://127.0.0.1:3001;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
+        proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
         proxy_buffering off;      # SSE 流式响应必须关闭缓冲
         proxy_read_timeout 120s;
         proxy_send_timeout 120s;
+    }
+
+    # SPA fallback
+    location / {
+        try_files $uri $uri/ /index.html;
     }
 }
 ```

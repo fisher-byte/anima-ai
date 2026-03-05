@@ -17,7 +17,7 @@
 
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
-import { db } from '../db'
+import type Database from 'better-sqlite3'
 import {
   DEFAULT_SYSTEM_PROMPT, ONBOARDING_SYSTEM_PROMPT, AI_CONFIG, MULTIMODAL_MODELS,
   FAST_MODEL, FAST_MODEL_MAX_TOKENS, SIMPLE_QUERY_GREETINGS
@@ -25,6 +25,11 @@ import {
 import type { AIMessage } from '../../shared/types'
 
 export const aiRoutes = new Hono()
+
+/** Get the per-user database from request context */
+function userDb(c: { get: (key: string) => unknown }): InstanceType<typeof Database> {
+  return c.get('db') as InstanceType<typeof Database>
+}
 
 // ── Token 预算工具 ───────────────────────────────────────────────────────────
 const CONTEXT_BUDGET = 1500  // system prompt 注入层总 token 预算
@@ -60,7 +65,7 @@ function cosineSim(a: Float32Array, b: Float32Array): number {
   return dot / (Math.sqrt(na) * Math.sqrt(nb))
 }
 
-async function fetchRelevantFacts(query: string, apiKey: string, baseUrl: string): Promise<string[]> {
+async function fetchRelevantFacts(db: InstanceType<typeof Database>, query: string, apiKey: string, baseUrl: string): Promise<string[]> {
   if (!query.trim() || !apiKey) return []
   try {
     const isMoonshot = baseUrl.includes('moonshot')
@@ -78,15 +83,11 @@ async function fetchRelevantFacts(query: string, apiKey: string, baseUrl: string
 
     const queryF32 = new Float32Array(queryVec)
 
-    // 读取所有有效（未失效）事实 + 对应向量
-    // 先查 memory_facts，再做向量打分
-    // 一次查出 id, fact, source_conv_id，消除 N+1
     const facts = db.prepare(
       'SELECT id, fact, source_conv_id FROM memory_facts WHERE invalid_at IS NULL ORDER BY created_at DESC LIMIT 100'
     ).all() as { id: string; fact: string; source_conv_id: string | null }[]
     if (facts.length === 0) return []
 
-    // 读取对话 embedding 向量（按使用时间倒序，最多 500 条避免内存爆炸）
     const embRows = db.prepare(
       'SELECT conversation_id, vector FROM embeddings ORDER BY updated_at DESC LIMIT 500'
     ).all() as
@@ -94,7 +95,6 @@ async function fetchRelevantFacts(query: string, apiKey: string, baseUrl: string
     const embMap = new Map(embRows.map(r => [r.conversation_id, r.vector]))
 
     const scored = facts.map(f => {
-      // source_conv_id 已在首次查询中取出，直接使用，无需再查 DB
       const vecBuf = f.source_conv_id ? embMap.get(f.source_conv_id) : undefined
       let score = 0
       if (vecBuf) {
@@ -117,7 +117,6 @@ async function fetchRelevantFacts(query: string, apiKey: string, baseUrl: string
 
     return scored
   } catch {
-    // 语义检索失败时降级到最近 N 条
     return []
   }
 }
@@ -130,6 +129,7 @@ interface AIRequestBody {
 }
 
 aiRoutes.post('/stream', async (c) => {
+  const db = userDb(c)
   const body = await c.req.json<AIRequestBody>()
   const { messages, preferences = [], compressedMemory, isOnboarding = false } = body
 
@@ -161,8 +161,6 @@ aiRoutes.post('/stream', async (c) => {
         ? (lastUserMsg!.content as any[]).find(c => c.type === 'text')?.text ?? ''
         : '')
   const trimmedText = lastText.trim()
-  // 仅当消息本身就是一个问候词（允许末尾一个标点/语气词）时才走快速模型
-  // 例：「你好」「hi！」「早~」匹配；「你好吗」「hi，帮我...」不匹配
   const GREETING_SUFFIX = /^[！!~～。，,？?。\s]*$/
   const isSimpleQuery = isOnboarding ||
     SIMPLE_QUERY_GREETINGS.some(w =>
@@ -236,7 +234,7 @@ aiRoutes.post('/stream', async (c) => {
     try {
       let relevantFacts: string[] = []
       if (trimmedText.length > 5) {
-        relevantFacts = await fetchRelevantFacts(trimmedText, effectiveApiKey, baseUrl)
+        relevantFacts = await fetchRelevantFacts(db, trimmedText, effectiveApiKey, baseUrl)
       }
       // 语义检索无结果时降级：最近 15 条有效事实
       if (relevantFacts.length === 0) {
@@ -316,7 +314,6 @@ aiRoutes.post('/stream', async (c) => {
       }
 
       const decoder = new TextDecoder()
-      // SSE buffer：跨 TCP chunk 累积不完整行，按 \n\n 分割完整事件
       let sseBuffer = ''
 
       while (true) {
@@ -324,7 +321,6 @@ aiRoutes.post('/stream', async (c) => {
         if (done) break
 
         sseBuffer += decoder.decode(value, { stream: true })
-        // SSE 事件以 \n\n 分隔；split 后最后一段留在 buffer 等待后续 chunk 补全
         const parts = sseBuffer.split('\n\n')
         sseBuffer = parts.pop() ?? ''
 
@@ -468,6 +464,7 @@ aiRoutes.post('/stream', async (c) => {
  * 用一句话总结对话核心决策/结论，用于节点标题回写。
  */
 aiRoutes.post('/summarize', async (c) => {
+  const db = userDb(c)
   const { userMessage, assistantMessage } = await c.req.json<{
     userMessage: string
     assistantMessage: string
