@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   History, Sparkles, X, Calendar, MessageSquare, BrainCircuit,
   User, MapPin, Briefcase, Wrench, Target, Heart, BookOpen, Trash2,
-  Pencil, Check, RotateCcw
+  Pencil, Check, RotateCcw, Layers
 } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import type { Conversation } from '@shared/types'
@@ -66,6 +66,8 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
   // Profile editing state
   const [isEditingProfile, setIsEditingProfile] = useState(false)
   const [editProfileDraft, setEditProfileDraft] = useState<UserProfile>({})
+  const [isConsolidating, setIsConsolidating] = useState(false)
+  const [consolidateToast, setConsolidateToast] = useState<string | null>(null)
 
   // 加载对话历史
   useEffect(() => {
@@ -183,6 +185,22 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
       setEditingFactId(null)
     } catch {}
   }, [editingFactText])
+
+  const handleConsolidate = useCallback(async () => {
+    if (isConsolidating) return
+    setIsConsolidating(true)
+    try {
+      const resp = await authFetch('/api/memory/consolidate', { method: 'POST' })
+      const data = await resp.json() as { ok: boolean; queued: boolean; reason?: string }
+      if (data.ok && data.queued) {
+        setConsolidateToast('整理任务已提交，约 30 秒后完成，刷新可查看结果')
+      } else if (data.ok && !data.queued) {
+        setConsolidateToast('已有整理任务在进行中，稍后刷新查看')
+      }
+      setTimeout(() => setConsolidateToast(null), 4000)
+    } catch {}
+    setIsConsolidating(false)
+  }, [isConsolidating])
 
   const findNodeForConversation = useCallback((conversationId: string) => {
     return nodes.find(n => n.conversationId === conversationId)
@@ -375,6 +393,16 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                     >
                       <RotateCcw className={`w-3 h-3 ${isMemoryLoading ? 'animate-spin' : ''}`} />
                     </button>
+                    {memoryFacts.length >= 5 && (
+                      <button
+                        onClick={handleConsolidate}
+                        disabled={isConsolidating}
+                        className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all disabled:opacity-40"
+                        title="整理记忆（AI 合并重复条目）"
+                      >
+                        <Layers className={`w-3 h-3 ${isConsolidating ? 'animate-pulse' : ''}`} />
+                      </button>
+                    )}
                   </div>
                   <p className="text-[10px] text-gray-400 leading-relaxed">
                     AI 从每次对话中自动摘取你透露的信息，在这里积累成你的专属记忆。
@@ -400,6 +428,18 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                         >
                           <span className="text-[11px] text-blue-500 font-medium">✦ 新记忆已写入</span>
                           <span className="text-[10px] text-blue-400">新增 {memoryToast.added} 条</span>
+                        </motion.div>
+                      )}
+                      {consolidateToast && (
+                        <motion.div
+                          key="consolidate-toast"
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          className="flex items-center gap-2 p-3 bg-gray-50/80 border border-gray-200/80 rounded-2xl"
+                        >
+                          <Layers className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                          <span className="text-[11px] text-gray-500">{consolidateToast}</span>
                         </motion.div>
                       )}
                     </AnimatePresence>

@@ -28,6 +28,80 @@ interface EmbedFilePayload {
   filename: string
 }
 
+/** 把现有 facts 传给 LLM，合并语义重叠条目，软删除旧条目，写入合并后的新条目 */
+async function consolidateFacts(): Promise<void> {
+  const { apiKey, baseUrl, model } = getApiConfig()
+  if (!apiKey) return
+
+  const rows = db.prepare(
+    'SELECT id, fact FROM memory_facts WHERE invalid_at IS NULL ORDER BY created_at ASC'
+  ).all() as { id: string; fact: string }[]
+
+  if (rows.length < 5) return // 太少不用整理
+
+  const factsText = rows.map((r, i) => `${i + 1}. ${r.fact}`).join('\n')
+
+  const prompt = `以下是关于同一个用户的记忆条目列表，其中可能存在语义重叠或重复的条目。
+请将语义相同或高度相似的条目合并为一条更准确、更完整的表述，保留所有独特信息，删除冗余。
+
+记忆条目：
+${factsText}
+
+要求：
+- 每条合并后的记忆不超过 25 字
+- 只保留关于用户本身的事实信息
+- 保留原有条目中的所有独特信息
+- 返回合并整理后的完整列表（比原列表条目数少或相等）
+- 只返回 JSON，不要解释
+
+返回格式：{"facts": ["合并后的条目1", "合并后的条目2", ...]}`
+
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 20_000)
+    const resp = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 800,
+        temperature: 0.1
+      }),
+      signal: controller.signal
+    })
+    clearTimeout(timeout)
+    if (!resp.ok) return
+
+    const data = (await resp.json()) as { choices: { message: { content: string } }[] }
+    const raw = data?.choices?.[0]?.message?.content?.trim() ?? ''
+    const jsonMatch = raw.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) return
+
+    const { facts: consolidated } = JSON.parse(jsonMatch[0]) as { facts: string[] }
+    if (!Array.isArray(consolidated) || consolidated.length === 0) return
+
+    // 合并后条目数必须 <= 原来（防止模型 hallucinate 新内容），且不应超过原来数量
+    const cleaned = consolidated.map(f => f?.trim()).filter(f => f && f.length > 2)
+    if (cleaned.length > rows.length) return
+
+    const now = new Date().toISOString()
+    // 在事务中：软删除所有旧条目，写入新条目
+    const softDelete = db.prepare('UPDATE memory_facts SET invalid_at = ? WHERE id = ?')
+    const insert = db.prepare(
+      "INSERT INTO memory_facts (id, fact, source_conv_id, created_at) VALUES (lower(hex(randomblob(16))), ?, 'consolidated', ?)"
+    )
+    db.transaction(() => {
+      for (const row of rows) softDelete.run(now, row.id)
+      for (const fact of cleaned) insert.run(fact, now)
+    })()
+
+    console.log(`[agent] consolidate_facts: ${rows.length} → ${cleaned.length} facts`)
+  } catch (e) {
+    console.warn('[agent] consolidateFacts failed:', e)
+  }
+}
+
 /** 从 config 表读取 apiKey / baseUrl */
 function getApiConfig(): { apiKey: string; baseUrl: string; model: string } {
   const keyRow = db.prepare('SELECT value FROM config WHERE key = ?').get('apiKey') as { value: string } | undefined
@@ -336,6 +410,8 @@ async function processTask(task: { id: number; type: string; payload: string; re
     } else if (task.type === 'embed_file') {
       const payload = JSON.parse(task.payload) as EmbedFilePayload
       await embedFileContent(payload.fileId, payload.textContent, payload.filename)
+    } else if (task.type === 'consolidate_facts') {
+      await consolidateFacts()
     }
 
     db.prepare('UPDATE agent_tasks SET status = ?, finished_at = ? WHERE id = ?').run('done', new Date().toISOString(), task.id)

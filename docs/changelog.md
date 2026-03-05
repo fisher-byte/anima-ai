@@ -1,5 +1,25 @@
 # Anima 变更日志
 
+## [0.2.29] - 2026-03-05
+
+### 对话历史独立入口 + 记忆自动整理
+
+#### 对话历史按钮移到外层
+- **`src/renderer/src/components/Canvas.tsx`**：「对话历史」从 LayoutGrid 菜单中移出，变为右上角独立的 `History` 图标按钮，点击直接打开侧栏 history tab，无需先展开菜单
+
+#### 记忆 facts 自动整理（consolidate_facts）
+- **`src/server/agentWorker.ts`**：新增 `consolidate_facts` 任务类型，调用 LLM 把所有有效 facts 合并语义重叠条目，软删除旧条目，写入整合后的新条目（条数 ≤ 原来）
+- **`src/server/routes/memory.ts`**：
+  - `POST /api/memory/extract`：写入成功后检查总数，每满 20 的倍数自动入队一次 `consolidate_facts`（幂等，不重复入队）
+  - `POST /api/memory/consolidate`：手动触发接口，前端调用入队任务
+- **`src/renderer/src/components/ConversationSidebar.tsx`**：记忆 tab 顶部新增「整理」按钮（Layers 图标，facts ≥ 5 条时显示），点击触发合并并给出 toast 提示；合并任务约 30s 后由 agentWorker 后台完成，用户刷新可见结果
+
+#### 测试
+- `tsc --noEmit`：零错误
+- `npm test`：210 tests 全部通过
+
+---
+
 ## [0.2.28] - 2026-03-05
 
 ### 全站 auth header 全量修复（记忆 tab、AnswerModal、文件上传）

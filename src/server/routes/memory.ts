@@ -180,7 +180,7 @@ memoryRoutes.post('/search', async (c) => {
       return { conversationId: row.conversation_id, score }
     })
     // 过滤掉语义无关的 + 过滤掉 file- 前缀的条目（文件通过 /search/files 独立搜索）
-    .filter(r => r.score > 0.3 && !r.conversationId.startsWith('file-'))
+    .filter(r => r.score > 0.5 && !r.conversationId.startsWith('file-'))
     .sort((a, b) => b.score - a.score)
     .slice(0, topK)
 
@@ -433,6 +433,21 @@ ${assistantMessage ? `AI回复：${assistantMessage.slice(0, 200)}` : ''}
       }
     }
 
+    // 每当有效 facts 总数首次达到 20 的倍数时，自动触发一次 consolidate_facts
+    if (inserted > 0) {
+      const totalAfter = (db.prepare('SELECT COUNT(*) as cnt FROM memory_facts WHERE invalid_at IS NULL').get() as { cnt: number }).cnt
+      const totalBefore = totalAfter - inserted
+      const milestone = Math.floor(totalAfter / 20)
+      if (milestone > Math.floor(totalBefore / 20) && milestone > 0) {
+        // 检查是否已有 pending 的 consolidate 任务，避免重复入队
+        const pending = db.prepare("SELECT id FROM agent_tasks WHERE type = 'consolidate_facts' AND status = 'pending' LIMIT 1").get()
+        if (!pending) {
+          db.prepare("INSERT INTO agent_tasks (type, payload, status, created_at) VALUES ('consolidate_facts', '{}', 'pending', ?)").run(now)
+          console.log(`[memory/extract] auto-queued consolidate_facts at ${totalAfter} facts`)
+        }
+      }
+    }
+
     return c.json({ ok: true, extracted: inserted })
   } catch (e) {
     console.warn('[memory/extract] failed:', e)
@@ -463,6 +478,16 @@ memoryRoutes.put('/facts/:id', async (c) => {
   db.prepare('UPDATE memory_facts SET fact = ? WHERE id = ? AND invalid_at IS NULL')
     .run(fact.trim(), id)
   return c.json({ ok: true })
+})
+
+/** 手动触发记忆整理（合并语义重叠条目），入队 consolidate_facts 任务 */
+memoryRoutes.post('/consolidate', (c) => {
+  const now = new Date().toISOString()
+  // 检查是否已有 pending 任务
+  const pending = db.prepare("SELECT id FROM agent_tasks WHERE type = 'consolidate_facts' AND status = 'pending' LIMIT 1").get()
+  if (pending) return c.json({ ok: true, queued: false, reason: 'already pending' })
+  db.prepare("INSERT INTO agent_tasks (type, payload, status, created_at) VALUES ('consolidate_facts', '{}', 'pending', ?)").run(now)
+  return c.json({ ok: true, queued: true })
 })
 
 /** 清空全部记忆事实（用于重置/体验新手教程） */
