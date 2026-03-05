@@ -4,9 +4,13 @@
  * 所有解析都在本地完成，保护隐私
  */
 
-import * as mammoth from 'mammoth'
+// mammoth 和 PDF.js 均动态导入，避免打入主 bundle（各约 400KB）
+let mammothLib: typeof import('mammoth') | null = null
+async function getMammoth() {
+  if (!mammothLib) mammothLib = await import('mammoth')
+  return mammothLib
+}
 
-// PDF.js 需要在渲染进程中动态导入
 let pdfjsLib: any = null
 
 export interface ParsedFile {
@@ -134,6 +138,7 @@ async function parsePDF(file: File): Promise<string> {
  */
 async function parseWord(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer()
+  const mammoth = await getMammoth()
   const result = await mammoth.extractRawText({ arrayBuffer })
   return result.value
 }

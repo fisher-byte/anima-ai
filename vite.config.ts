@@ -10,6 +10,16 @@ export default defineConfig({
     rollupOptions: {
       input: {
         index: resolve(__dirname, 'src/renderer/index.html')
+      },
+      output: {
+        manualChunks: {
+          // React 核心 — 最常命中缓存
+          'vendor-react': ['react', 'react-dom'],
+          // 状态管理
+          'vendor-zustand': ['zustand'],
+          // markdown 渲染
+          'vendor-markdown': ['react-markdown', 'remark-gfm'],
+        }
       }
     }
   },
