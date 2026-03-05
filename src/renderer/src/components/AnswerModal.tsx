@@ -415,7 +415,9 @@ export function AnswerModal() {
     if ((!trimmed && !hasImages && !hasFiles) || isStreaming) return
 
     // 偏好检测改走后端 Agent（fire-and-forget），不再前端关键词判断
-    if (trimmed.length >= 5) {
+    // 注意：新手引导 phase2 在下方有专用的 extract_preference 调用（使用更准确的 assistant 上下文），此处跳过避免重复
+    const isOnboardingPhase2 = isOnboardingMode && onboardingPhaseRef.current === 2
+    if (trimmed.length >= 5 && !isOnboardingPhase2) {
       const lastAssistant = turns.length > 0 ? (turns[turns.length - 1].assistant || '') : ''
       fetch('/api/memory/queue', {
         method: 'POST',
