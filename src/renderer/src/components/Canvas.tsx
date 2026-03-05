@@ -158,6 +158,25 @@ export function Canvas() {
     viewRef.current = { offset, scale }
   }, [])
 
+  // 窗口 resize 时保持内容视觉中心不变
+  useEffect(() => {
+    let prevW = window.innerWidth
+    let prevH = window.innerHeight
+    const onResize = () => {
+      const dw = window.innerWidth - prevW
+      const dh = window.innerHeight - prevH
+      prevW = window.innerWidth
+      prevH = window.innerHeight
+      if (dw === 0 && dh === 0) return
+      const { offset, scale } = viewRef.current
+      const newOffset = { x: offset.x + dw / 2, y: offset.y + dh / 2 }
+      applyTransform(newOffset, scale)
+      useCanvasStore.getState().setOffset(newOffset)
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [applyTransform])
+
   // MemoryLines 用：读取 viewRef 实时值（避免 debounce 期间的 stale store 值）
   const getViewState = useCallback(() => viewRef.current, [])
 
