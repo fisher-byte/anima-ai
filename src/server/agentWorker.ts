@@ -150,8 +150,12 @@ AI之前说：${assistantMessage.slice(0, 200)}
 
     const today = new Date().toISOString().split('T')[0]
     const newRule = { trigger: userMessage.slice(0, 40), preference: parsed.preference, confidence: 0.7, updatedAt: today }
-    // 简单去重：preference 相似时跳过
-    if (rules.some(r => r.preference === parsed.preference)) return
+    // 去重：精确匹配 OR 新规则是已有规则的子串 OR 已有规则是新规则的子串（避免同义改写重复写入）
+    const newPref = parsed.preference.trim()
+    if (rules.some(r => {
+      const existing = r.preference.trim()
+      return existing === newPref || existing.includes(newPref) || newPref.includes(existing)
+    })) return
 
     rules.push(newRule)
     const updatedProfile = { ...existingProfile, rules }
@@ -381,6 +385,40 @@ export function startAgentWorker() {
   const stalled = db.prepare("UPDATE agent_tasks SET status = 'pending', started_at = NULL WHERE status = 'running'").run()
   if (stalled.changes > 0) {
     console.log(`[agent] recovered ${stalled.changes} stalled tasks from previous run`)
+  }
+
+  // 启动时对 profile.rules 做一次子串去重清洗（清理历史重复写入的规则）
+  try {
+    const profileRow = db.prepare('SELECT content FROM storage WHERE filename = ?').get('profile.json') as { content: string } | undefined
+    if (profileRow?.content) {
+      const parsed = JSON.parse(profileRow.content) as { rules?: Array<{ preference: string; [k: string]: unknown }> }
+      const rules = parsed.rules ?? []
+      if (rules.length > 1) {
+        // 保留：对于互相包含的规则，保留较长的（更具体）
+        const deduped = rules.filter((r, i) => {
+          const pref = r.preference.trim()
+          return !rules.some((other, j) => {
+            if (i === j) return false
+            const otherPref = other.preference.trim()
+            // 如果当前是 other 的子串（other 更长更具体），则移除当前
+            return otherPref.includes(pref) && otherPref.length > pref.length
+          })
+        })
+        if (deduped.length < rules.length) {
+          const updatedProfile = { ...parsed, rules: deduped }
+          const nowTs = new Date().toISOString()
+          db.prepare('UPDATE storage SET content = ?, updated_at = ? WHERE filename = ?')
+            .run(JSON.stringify(updatedProfile, null, 2), nowTs, 'profile.json')
+          const existing = db.prepare('SELECT value FROM config WHERE key = ?').get('preference_rules') as { value: string } | undefined
+          if (existing) {
+            db.prepare('UPDATE config SET value = ?, updated_at = ? WHERE key = ?').run(JSON.stringify(deduped), nowTs, 'preference_rules')
+          }
+          console.log(`[agent] deduped preference rules: ${rules.length} → ${deduped.length}`)
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[agent] rule dedup on startup failed:', e)
   }
 
   // 立即跑一次（处理服务重启前未完成的任务）

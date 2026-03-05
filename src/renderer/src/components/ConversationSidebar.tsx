@@ -94,15 +94,22 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
   }, [isOpen])
 
   // 加载记忆事实（每次切到 memory tab 时刷新）
-  useEffect(() => {
-    if (!isOpen || activeTab !== 'memory') return
+  const fetchMemoryFacts = useCallback(() => {
     setIsMemoryLoading(true)
     fetch('/api/memory/facts')
       .then(r => r.ok ? r.json() : { facts: [] })
       .then(data => setMemoryFacts(data.facts || []))
       .catch(() => setMemoryFacts([]))
       .finally(() => setIsMemoryLoading(false))
-  }, [isOpen, activeTab])
+  }, [])
+
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'memory') return
+    fetchMemoryFacts()
+    // 2 秒后再 fetch 一次：给 extract agent 留够异步处理时间
+    const timer = setTimeout(fetchMemoryFacts, 2000)
+    return () => clearTimeout(timer)
+  }, [isOpen, activeTab, fetchMemoryFacts])
 
   // 切到 evolution tab 时刷新进化基因规则（agentWorker 可能已后台写入新规则）
   useEffect(() => {
@@ -309,10 +316,20 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                 className="space-y-4"
               >
                 <div className="p-4 bg-gray-50/60 border border-gray-200/70 rounded-2xl">
-                  <h3 className="text-xs font-bold text-gray-700 mb-1 flex items-center gap-2">
-                    <BookOpen className="w-3.5 h-3.5" />
-                    关于你的记忆
-                  </h3>
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className="text-xs font-bold text-gray-700 flex items-center gap-2">
+                      <BookOpen className="w-3.5 h-3.5" />
+                      关于你的记忆
+                    </h3>
+                    <button
+                      onClick={fetchMemoryFacts}
+                      disabled={isMemoryLoading}
+                      className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all disabled:opacity-40"
+                      title="刷新记忆"
+                    >
+                      <RotateCcw className={`w-3 h-3 ${isMemoryLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                  </div>
                   <p className="text-[10px] text-gray-400 leading-relaxed">
                     AI 从每次对话中自动摘取你透露的信息，在这里积累成你的专属记忆。
                   </p>
