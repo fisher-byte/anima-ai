@@ -34,6 +34,7 @@ export function InputBox() {
   const setHighlight = useCanvasStore(state => state.setHighlight)
   const isOnboardingMode = useCanvasStore(state => state.isOnboardingMode)
   const hasApiKey = useCanvasStore(state => state.hasApiKey)
+  const apiKeyChecked = useCanvasStore(state => state.apiKeyChecked)
   const checkApiKey = useCanvasStore(state => state.checkApiKey)
 
   // 引导完成后检测是否需要配置 API Key
@@ -48,7 +49,7 @@ export function InputBox() {
 
   // 引导已完成 && 没有 key && 不在引导中 → 需要设置 key
   const onboardingDone = typeof localStorage !== 'undefined' && !!localStorage.getItem('evo_onboarding_v3')
-  const needsApiKey = onboardingDone && !hasApiKey && !isOnboardingMode
+  const needsApiKey = onboardingDone && apiKeyChecked && !hasApiKey && !isOnboardingMode
 
   // 组件卸载或 modal 打开时，清空 badge 并取消未完成的防抖
   useEffect(() => {

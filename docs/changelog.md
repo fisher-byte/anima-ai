@@ -1,5 +1,30 @@
 # Anima 变更日志
 
+## [0.2.34] - 2026-03-06
+
+### 刷新闪烁修复（nodesLoaded + apiKeyChecked 状态防抖）
+
+#### 问题
+刷新页面后，节点数据从服务端异步加载完成前，UI 会短暂显示：
+- "画布空空如也" 空状态提示
+- "需要配置 Kimi API Key 才能开始对话" 提示
+
+#### 根本原因
+- `hasApiKey` 初始值为 `false`，`evo_onboarding_v3` 在 localStorage 已标记完成
+- `needsApiKey = onboardingDone && !hasApiKey && !isOnboardingMode` 在 `loadNodes()` 尚未返回时即为 `true`，导致 API Key 提示立即渲染
+- `nodes.length === 0` 在 `loadNodes()` 返回前永远为真，导致空画布提示立即渲染
+
+#### 修复（`canvasStore.ts` + `InputBox.tsx` + `Canvas.tsx`）
+- 新增 `apiKeyChecked: boolean`：`checkApiKey()` 完成后才设为 `true`，`needsApiKey` 加上此条件（`apiKeyChecked && !hasApiKey`）
+- 新增 `nodesLoaded: boolean`：`loadNodes()` 的 try/catch 结束后设为 `true`，空画布提示加上 `nodesLoaded` 条件
+- 刷新流程：spinner（`!authChecked`）→ 节点静默加载中（无空状态闪烁）→ 节点渲染完成
+
+#### 测试
+- `npm test`：216 tests 全部通过
+- 线上部署验证完成
+
+---
+
 ## [0.2.33] - 2026-03-06
 
 ### 首屏性能优化 + 白屏修复 + gzip_static 修复
