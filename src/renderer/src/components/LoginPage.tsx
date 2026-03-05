@@ -22,28 +22,32 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     setIsChecking(true)
     setError('')
 
-    // 注入 token 并验证（用一个轻量 API 请求探活）
+    // 注入 token 并验证（用 health 端点 + 带 token 探活）
     setAuthToken(t)
     try {
-      const res = await fetch('/api/storage/nodes', {
+      const res = await fetch('/api/storage/nodes.json', {
         headers: { Authorization: `Bearer ${t}` }
       })
       if (res.ok || res.status === 404) {
-        // 401/403 = token 错误；其他非鉴权错误视为通过
+        // token 有效（200=有数据, 404=新用户空库）
         localStorage.setItem(TOKEN_KEY, t)
+        // 已有服务端数据的用户跳过新手教程
+        if (res.ok) {
+          localStorage.setItem('evo_onboarding_v3', 'done')
+        }
         onLogin()
       } else if (res.status === 401 || res.status === 403) {
         setError('令牌无效，请重新输入')
         setAuthToken('')
       } else {
-        // 后端其他错误，但 token 格式没问题，放行（离线也可进入）
-        localStorage.setItem(TOKEN_KEY, t)
-        onLogin()
+        // 其他错误（如 500），不放行
+        setError('服务异常，请稍后再试')
+        setAuthToken('')
       }
     } catch {
-      // 网络异常时也放行（离线使用场景）
-      localStorage.setItem(TOKEN_KEY, t)
-      onLogin()
+      // 网络异常，不放行
+      setError('网络异常，请检查连接')
+      setAuthToken('')
     } finally {
       setIsChecking(false)
     }
