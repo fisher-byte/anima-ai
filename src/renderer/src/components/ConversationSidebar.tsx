@@ -688,33 +688,6 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                   )}
                 </div>
 
-                {/* 全量清空并开启新手教程 */}
-                <div className="pt-4 border-t border-gray-100">
-                  <button
-                    onClick={async () => {
-                      if (!confirm('将清空：用户画像、全部记忆（含检索索引）、全部进化基因、画布节点与对话记录，然后以全新状态打开新手教程。确定继续？')) return
-                      try {
-                        await Promise.all([
-                          fetch('/api/memory/profile', { method: 'DELETE' }),
-                          fetch('/api/memory/facts', { method: 'DELETE' }),
-                          fetch('/api/memory/index', { method: 'DELETE' })
-                        ])
-                        setUserProfile(null)
-                        setMemoryFacts([])
-                        setConversations([])
-                        await clearAllForOnboarding()
-                        onClose()
-                      } catch (e) {
-                        console.error('清空失败:', e)
-                        alert('清空失败，请重试')
-                      }
-                    }}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 text-xs text-gray-500 hover:text-amber-600 hover:bg-amber-50/80 border border-gray-200 hover:border-amber-200 rounded-xl transition-colors"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    全量清空并开启新手教程
-                  </button>
-                </div>
               </motion.div>
             )}
           </AnimatePresence>
