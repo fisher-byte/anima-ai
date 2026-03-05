@@ -87,7 +87,15 @@ export function parseTurnsFromAssistantMessage(
 ): Turn[] | null {
   if (!message) return null
   if (!message.includes('#1\n') && !message.includes('# 1\n')) {
-    return [{ user: '', assistant: message, reasoning, images: initialImages, files: initialFiles }]
+    let singleAssistant = message
+    let singleReasoning = reasoning
+    // 提取哨兵格式的 [THINKING] 块
+    const thinkMatch = message.match(/^思考：([\s\S]*?)\n\n\[\/THINKING\]\n\n([\s\S]*)$/)
+    if (thinkMatch) {
+      singleReasoning = thinkMatch[1].trim()
+      singleAssistant = thinkMatch[2].trim()
+    }
+    return [{ user: '', assistant: singleAssistant, reasoning: singleReasoning, images: initialImages, files: initialFiles }]
   }
   const turns: Turn[] = []
   const sectionRegex = /#\s*(\d+)\s*\n+用户[：:]\s*([\s\S]*?)\nAI[：:]\s*([\s\S]*?)(?=\n+#\s*\d+\s*\n|$)/g

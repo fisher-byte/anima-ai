@@ -1,5 +1,28 @@
 # Anima 变更日志
 
+## [0.2.32] - 2026-03-06
+
+### 老用户数据迁移 + 新手引导误触发修复 + E2E 鉴权修复
+
+#### 老用户数据自动迁移（`db.ts`）
+- **`src/server/db.ts`**：新增 `migrateFromDefault()`，首次为 userId 建库时，若 `_default` 库（v0.2.25 前无 token 的旧数据）有内容，自动迁移 `storage` / `config` / `memory_facts` 表到新 userId 库，保留历史对话、节点、记忆和 API 配置
+- 迁移为幂等操作（仅在新库为空时执行），迁移成功后打印日志
+
+#### 新手引导误触发修复（前端三处）
+- **`src/renderer/src/App.tsx`**：自动登录验证（已保存 token）且 `r.ok` 时，在 `setAuthed(true)` 前先设置 `evo_onboarding_v3='done'`，防止 `loadNodes` 内部在 localStorage 标记写入前检查
+- **`src/renderer/src/components/LoginPage.tsx`**：手动输入 token 验证成功且服务端返回 200（有数据）时，同样在 `onLogin()` 前写入 `evo_onboarding_v3='done'`
+- **`src/renderer/src/components/OnboardingGuide.tsx`**：新增兜底检测，`nodes.length > 0` 时直接写标记并 return，防止数据已存在但标记丢失时触发引导
+
+#### E2E 鉴权环境变量修复
+- **`.env`**：新增 `ACCESS_TOKEN=evo_yuzhiyang_001`（与 `ACCESS_TOKENS` 首位一致），供 E2E 测试及 `playwright.config.ts` 的 `process.env.ACCESS_TOKEN` 读取；服务端仍以 `ACCESS_TOKENS`（逗号分隔多 token）为准
+
+#### 测试
+- `tsc --noEmit`：零错误
+- `npm test`：216 tests 全部通过
+- `playwright test`：10 E2E tests 全部通过（修复前 6 个因无 auth header 失败）
+
+---
+
 ## [0.2.31] - 2026-03-05
 
 ### API Key 引导流 + GlobalUI 交互组件系统

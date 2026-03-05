@@ -14,11 +14,16 @@
  */
 
 import { Hono } from 'hono'
-import { db } from '../db'
+import type Database from 'better-sqlite3'
 import { isValidFilename } from '../../shared/constants'
 import { enqueueTask } from '../agentWorker'
 
 export const storageRoutes = new Hono()
+
+/** Get the per-user database from request context */
+function userDb(c: { get: (key: string) => unknown }): InstanceType<typeof Database> {
+  return c.get('db') as InstanceType<typeof Database>
+}
 
 // 文件大小上限：50 MB
 const MAX_FILE_SIZE = 50 * 1024 * 1024
@@ -58,6 +63,7 @@ function isContentSafe(buffer: Buffer, declaredMime: string): boolean {
 
 // POST /api/storage/file — 上传二进制文件（multipart/form-data）
 storageRoutes.post('/file', async (c) => {
+  const db = userDb(c)
   const body = await c.req.parseBody()
   const file = body['file'] as File | undefined
   if (!file) return c.json({ error: 'file required' }, 400)
@@ -104,6 +110,7 @@ storageRoutes.post('/file', async (c) => {
 
 // GET /api/storage/file/:id — 下载二进制文件
 storageRoutes.get('/file/:id', (c) => {
+  const db = userDb(c)
   const { id } = c.req.param()
   const row = db.prepare('SELECT filename, mimetype, content FROM uploaded_files WHERE id = ?').get(id) as
     { filename: string; mimetype: string; content: Buffer } | undefined
@@ -122,6 +129,7 @@ storageRoutes.get('/file/:id', (c) => {
 
 // GET /api/storage/files — 列出已上传文件（只返回元数据，不含二进制内容）
 storageRoutes.get('/files', (c) => {
+  const db = userDb(c)
   const rows = db.prepare(
     'SELECT id, filename, mimetype, size, conv_id, chunk_count, embed_status, created_at FROM uploaded_files ORDER BY created_at DESC LIMIT 200'
   ).all() as { id: string; filename: string; mimetype: string; size: number; conv_id: string | null; chunk_count: number; embed_status: string; created_at: string }[]
@@ -130,6 +138,7 @@ storageRoutes.get('/files', (c) => {
 
 // DELETE /api/storage/file/:id — 删除文件及其分块向量
 storageRoutes.delete('/file/:id', (c) => {
+  const db = userDb(c)
   const { id } = c.req.param()
   db.prepare('DELETE FROM file_embeddings WHERE file_id = ?').run(id)
   db.prepare('DELETE FROM uploaded_files WHERE id = ?').run(id)
@@ -137,7 +146,8 @@ storageRoutes.delete('/file/:id', (c) => {
 })
 
 // GET /api/storage/export — 导出所有数据（对话 / 节点 / 记忆 / 进化基因 / 文件元数据）
-storageRoutes.get('/export', (_c) => {
+storageRoutes.get('/export', (c) => {
+  const db = userDb(c)
   const getFile = (filename: string): string | null => {
     const row = db.prepare('SELECT content FROM storage WHERE filename = ?').get(filename) as
       { content: string } | undefined
@@ -190,6 +200,7 @@ storageRoutes.get('/export', (_c) => {
 
 // GET /api/storage/history/:conversationId — 读取对话 AI 消息历史
 storageRoutes.get('/history/:conversationId', (c) => {
+  const db = userDb(c)
   const { conversationId } = c.req.param()
   const row = db.prepare('SELECT messages FROM conversation_history WHERE conversation_id = ?').get(conversationId) as
     { messages: string } | undefined
@@ -198,6 +209,7 @@ storageRoutes.get('/history/:conversationId', (c) => {
 
 // PUT /api/storage/history/:conversationId — 保存对话 AI 消息历史
 storageRoutes.put('/history/:conversationId', async (c) => {
+  const db = userDb(c)
   const { conversationId } = c.req.param()
   const body = await c.req.json()
   const messages = body.messages
@@ -215,6 +227,7 @@ storageRoutes.put('/history/:conversationId', async (c) => {
 
 // DELETE /api/storage/history/:conversationId — 删除对话历史（节点删除时调用）
 storageRoutes.delete('/history/:conversationId', (c) => {
+  const db = userDb(c)
   const { conversationId } = c.req.param()
   db.prepare('DELETE FROM conversation_history WHERE conversation_id = ?').run(conversationId)
   return c.json({ ok: true })
@@ -222,6 +235,7 @@ storageRoutes.delete('/history/:conversationId', (c) => {
 
 // GET /api/storage/:filename
 storageRoutes.get('/:filename', (c) => {
+  const db = userDb(c)
   const { filename } = c.req.param()
 
   if (!isValidFilename(filename)) {
@@ -241,6 +255,7 @@ storageRoutes.get('/:filename', (c) => {
 
 // PUT /api/storage/:filename
 storageRoutes.put('/:filename', async (c) => {
+  const db = userDb(c)
   const { filename } = c.req.param()
 
   if (!isValidFilename(filename)) {
@@ -261,6 +276,7 @@ storageRoutes.put('/:filename', async (c) => {
 
 // POST /api/storage/:filename/append
 storageRoutes.post('/:filename/append', async (c) => {
+  const db = userDb(c)
   const { filename } = c.req.param()
 
   if (!isValidFilename(filename)) {

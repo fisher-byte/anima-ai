@@ -4,6 +4,8 @@
  * Serves:
  * - /api/*          → REST API routes (storage, config, AI proxy)
  * - /*              → Static frontend (dist/)
+ *
+ * Multi-tenant: each ACCESS_TOKEN gets an isolated SQLite database.
  */
 
 import 'dotenv/config'
@@ -12,14 +14,23 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
+import type Database from 'better-sqlite3'
 import { authMiddleware } from './middleware/auth'
+import { getDb } from './db'
 import { storageRoutes } from './routes/storage'
 import { configRoutes } from './routes/config'
 import { aiRoutes } from './routes/ai'
 import { memoryRoutes } from './routes/memory'
 import { startAgentWorker } from './agentWorker'
 
-const app = new Hono()
+type AppEnv = {
+  Variables: {
+    userId: string | undefined
+    db: InstanceType<typeof Database>
+  }
+}
+
+const app = new Hono<AppEnv>()
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use('*', logger())
@@ -33,17 +44,32 @@ app.use(
   })
 )
 
+// ── Health check (public, before auth) ───────────────────────────────────────
+app.get('/api/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }))
+
+// ── Auth status (public, before auth) — frontend uses this to detect login requirement
+app.get('/api/auth/status', (c) => {
+  const authDisabled = process.env.AUTH_DISABLED === 'true'
+  const hasTokens = !!(process.env.ACCESS_TOKENS || process.env.ACCESS_TOKEN)
+  const authRequired = !authDisabled && hasTokens
+  return c.json({ authRequired })
+})
+
 // ── Auth (all /api/* routes) ──────────────────────────────────────────────────
 app.use('/api/*', authMiddleware)
+
+// ── Per-user DB middleware (runs after auth, sets c.var.db) ───────────────────
+app.use('/api/*', async (c, next) => {
+  const userId = c.get('userId') as string | undefined
+  c.set('db', getDb(userId))
+  return next()
+})
 
 // ── API Routes ────────────────────────────────────────────────────────────────
 app.route('/api/storage', storageRoutes)
 app.route('/api/config', configRoutes)
 app.route('/api/ai', aiRoutes)
 app.route('/api/memory', memoryRoutes)
-
-// ── Health check ──────────────────────────────────────────────────────────────
-app.get('/api/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }))
 
 // ── Static Frontend (production) ──────────────────────────────────────────────
 if (process.env.NODE_ENV === 'production') {

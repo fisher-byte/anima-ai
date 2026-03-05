@@ -18,15 +18,20 @@
  */
 
 import { Hono } from 'hono'
-import { db } from '../db'
+import type Database from 'better-sqlite3'
 import { enqueueTask } from '../agentWorker'
 
 export const memoryRoutes = new Hono()
 
+/** Get the per-user database from request context */
+function userDb(c: { get: (key: string) => unknown }): InstanceType<typeof Database> {
+  return c.get('db') as InstanceType<typeof Database>
+}
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 /** 从 config 表读取 apiKey / baseUrl */
-function getApiConfig(): { apiKey: string; baseUrl: string } {
+function getApiConfig(db: InstanceType<typeof Database>): { apiKey: string; baseUrl: string } {
   const keyRow = db.prepare('SELECT value FROM config WHERE key = ?').get('apiKey') as { value: string } | undefined
   const urlRow = db.prepare('SELECT value FROM config WHERE key = ?').get('baseUrl') as { value: string } | undefined
   return {
@@ -36,18 +41,16 @@ function getApiConfig(): { apiKey: string; baseUrl: string } {
 }
 
 /** 调 embedding API 返回 number[]，兼容 moonshot / openai / 兼容接口 */
-async function fetchEmbedding(text: string): Promise<number[] | null> {
-  const { apiKey, baseUrl } = getApiConfig()
+async function fetchEmbedding(db: InstanceType<typeof Database>, text: string): Promise<number[] | null> {
+  const { apiKey, baseUrl } = getApiConfig(db)
   if (!apiKey) return null
 
-  // 截断至词边界，避免超 token（在 4000 字符处的最近空白处截断）
   let input = text.slice(0, 4000)
   if (text.length > 4000) {
     const lastSpace = input.lastIndexOf(' ')
     if (lastSpace > 3800) input = input.slice(0, lastSpace)
   }
 
-  // moonshot 的 embedding 模型名
   const isMoonshot = baseUrl.includes('moonshot')
   const model = isMoonshot ? 'moonshot-v1-embedding' : 'text-embedding-3-small'
 
@@ -100,34 +103,16 @@ function cosineSim(a: Float32Array, b: Float32Array): number {
   return dot / (Math.sqrt(na) * Math.sqrt(nb))
 }
 
-// ─── 向量缓存（LRU-lite：60 秒 TTL，写入时失效）────────────────────────────
-interface EmbCacheEntry { rows: { conversation_id: string; vector: Buffer; dim: number }[]; ts: number }
-let _embCache: EmbCacheEntry | null = null
-const EMB_CACHE_TTL = 60_000  // 60 秒
-
-function getCachedEmbeddings() {
-  const now = Date.now()
-  if (_embCache && now - _embCache.ts < EMB_CACHE_TTL) return _embCache.rows
-  const rows = db.prepare(
-    'SELECT conversation_id, vector, dim FROM embeddings ORDER BY updated_at DESC LIMIT 2000'
-  ).all() as { conversation_id: string; vector: Buffer; dim: number }[]
-  _embCache = { rows, ts: now }
-  return rows
-}
-
-/** 写入新 embedding 后使缓存失效 */
-function invalidateEmbCache() { _embCache = null }
-
 // ─── routes ─────────────────────────────────────────────────────────────────
 
 /** 索引一条对话 */
 memoryRoutes.post('/index', async (c) => {
+  const db = userDb(c)
   const { conversationId, text } = await c.req.json<{ conversationId: string; text: string }>()
   if (!conversationId || !text) return c.json({ error: 'conversationId and text required' }, 400)
 
-  const vec = await fetchEmbedding(text)
+  const vec = await fetchEmbedding(db, text)
   if (!vec) {
-    // API Key 未配置或调用失败，静默跳过，不影响主流程
     return c.json({ ok: false, reason: 'embedding unavailable' })
   }
 
@@ -137,13 +122,13 @@ memoryRoutes.post('/index', async (c) => {
     VALUES (?, ?, ?, ?)
     ON CONFLICT(conversation_id) DO UPDATE SET vector=excluded.vector, dim=excluded.dim, updated_at=excluded.updated_at
   `).run(conversationId, vecToBuffer(vec), vec.length, now)
-  invalidateEmbCache()  // 写入后使缓存失效
 
   return c.json({ ok: true, dim: vec.length })
 })
 
 /** 删除一条对话的索引 */
 memoryRoutes.delete('/index/:id', (c) => {
+  const db = userDb(c)
   const id = c.req.param('id')
   db.prepare('DELETE FROM embeddings WHERE conversation_id = ?').run(id)
   return c.json({ ok: true })
@@ -151,27 +136,28 @@ memoryRoutes.delete('/index/:id', (c) => {
 
 /** 清空全部向量索引（用于重置/体验新手教程） */
 memoryRoutes.delete('/index', (c) => {
+  const db = userDb(c)
   db.prepare('DELETE FROM embeddings').run()
   return c.json({ ok: true })
 })
 
 /** 向量检索 */
 memoryRoutes.post('/search', async (c) => {
+  const db = userDb(c)
   const { query, topK: rawTopK = 5 } = await c.req.json<{ query: string; topK?: number }>()
   if (!query) return c.json({ results: [] })
-  // 防御性验证：topK 限制在 1-20 之间
   const topK = Math.max(1, Math.min(20, Math.floor(Number(rawTopK) || 5)))
 
-  const queryVec = await fetchEmbedding(query)
+  const queryVec = await fetchEmbedding(db, query)
   if (!queryVec) {
-    // 降级：返回空，前端会 fallback 到关键词搜索
     return c.json({ results: [], fallback: true })
   }
 
   const queryF32 = new Float32Array(queryVec)
 
-  // 使用缓存的向量数据（60s TTL，写入时失效），避免每次全量加载
-  const rows = getCachedEmbeddings()
+  const rows = db.prepare(
+    'SELECT conversation_id, vector, dim FROM embeddings ORDER BY updated_at DESC LIMIT 2000'
+  ).all() as { conversation_id: string; vector: Buffer; dim: number }[]
 
   const scored = rows
     .map(row => {
@@ -179,7 +165,6 @@ memoryRoutes.post('/search', async (c) => {
       const score = cosineSim(queryF32, vec)
       return { conversationId: row.conversation_id, score }
     })
-    // 过滤掉语义无关的 + 过滤掉 file- 前缀的条目（文件通过 /search/files 独立搜索）
     .filter(r => r.score > 0.5 && !r.conversationId.startsWith('file-'))
     .sort((a, b) => b.score - a.score)
     .slice(0, topK)
@@ -189,11 +174,12 @@ memoryRoutes.post('/search', async (c) => {
 
 /** 文件内容语义搜索（独立于对话搜索，搜 file_embeddings 表） */
 memoryRoutes.post('/search/files', async (c) => {
+  const db = userDb(c)
   const { query, topK: rawTopK = 3 } = await c.req.json<{ query: string; topK?: number }>()
   if (!query) return c.json({ results: [] })
   const topK = Math.max(1, Math.min(10, Math.floor(Number(rawTopK) || 3)))
 
-  const queryVec = await fetchEmbedding(query)
+  const queryVec = await fetchEmbedding(db, query)
   if (!queryVec) return c.json({ results: [], fallback: true })
 
   const queryF32 = new Float32Array(queryVec)
@@ -219,6 +205,7 @@ memoryRoutes.post('/search/files', async (c) => {
 
 /** 读取用户画像 */
 memoryRoutes.get('/profile', (c) => {
+  const db = userDb(c)
   const row = db.prepare('SELECT * FROM user_profile WHERE id = 1').get() as Record<string, string> | undefined
   if (!row) return c.json({})
 
@@ -242,6 +229,7 @@ memoryRoutes.get('/profile', (c) => {
 
 /** 更新用户画像（merge，不全量覆盖） */
 memoryRoutes.put('/profile', async (c) => {
+  const db = userDb(c)
   const body = await c.req.json<{
     occupation?: string; interests?: string[]; tools?: string[];
     writingStyle?: string; goals?: string[]; location?: string; rawNotes?: string
@@ -265,7 +253,6 @@ memoryRoutes.put('/profile', async (c) => {
       now
     )
   } else {
-    // merge：只更新传入的字段
     const mergeJson = (existing: string | null, incoming?: string[]) => {
       if (!incoming) return existing
       const base: string[] = existing ? JSON.parse(existing) : []
@@ -311,18 +298,18 @@ memoryRoutes.post('/queue', async (c) => {
 
 /** 从对话中 AI 摘取有价值的用户记忆事实 */
 memoryRoutes.post('/extract', async (c) => {
+  const db = userDb(c)
   const { conversationId, userMessage, assistantMessage } = await c.req.json<{
     conversationId?: string; userMessage: string; assistantMessage?: string
   }>()
   if (!userMessage?.trim()) return c.json({ ok: false, reason: 'userMessage required' })
 
-  // 幂等检查：同一对话已提取过则跳过，避免重复消耗 API
   if (conversationId) {
     const already = db.prepare('SELECT id FROM memory_facts WHERE source_conv_id = ? LIMIT 1').get(conversationId)
     if (already) return c.json({ ok: true, extracted: 0, skipped: true })
   }
 
-  const { apiKey, baseUrl } = getApiConfig()
+  const { apiKey, baseUrl } = getApiConfig(db)
   if (!apiKey) return c.json({ ok: false, reason: 'no api key' })
 
   const isMoonshot = baseUrl.includes('moonshot')
@@ -367,7 +354,6 @@ ${assistantMessage ? `AI回复：${assistantMessage.slice(0, 200)}` : ''}
       VALUES (lower(hex(randomblob(16))), ?, ?, ?)
     `)
 
-    // 获取候选 facts（先做基础过滤）
     const candidates = facts
       .slice(0, 5)
       .map((f: string) => f?.trim())
@@ -375,7 +361,6 @@ ${assistantMessage ? `AI回复：${assistantMessage.slice(0, 200)}` : ''}
 
     if (candidates.length === 0) return c.json({ ok: true, extracted: 0 })
 
-    // 读取最近 30 条已有 facts 做语义去重（排除已软删除的记录）
     const existingRows = db.prepare(
       'SELECT fact FROM memory_facts WHERE invalid_at IS NULL ORDER BY created_at DESC LIMIT 30'
     ).all() as { fact: string }[]
@@ -384,7 +369,6 @@ ${assistantMessage ? `AI回复：${assistantMessage.slice(0, 200)}` : ''}
     let toInsert: string[] = candidates
 
     if (existingFacts.length > 0) {
-      // 用轻量模型做语义去重，避免重复存储同义信息
       try {
         const dedupeResp = await fetch(`${baseUrl}/chat/completions`, {
           method: 'POST',
@@ -407,19 +391,16 @@ ${assistantMessage ? `AI回复：${assistantMessage.slice(0, 200)}` : ''}
             try {
               const { keep } = JSON.parse(jsonMatch[0]) as { keep: string[] }
               if (Array.isArray(keep)) {
-                // 只保留原始 candidates 中的条目，防止模型 hallucinate 新内容
                 const candidateSet = new Set(candidates)
                 toInsert = keep.map((f: string) => f?.trim()).filter(f => f && candidateSet.has(f))
               }
             } catch {
-              // JSON 解析失败降级为精确匹配去重
               const exactSet = new Set(existingFacts)
               toInsert = candidates.filter((f: string) => !exactSet.has(f))
             }
           }
         }
       } catch {
-        // 去重失败降级为精确匹配去重
         const exactSet = new Set(existingFacts)
         toInsert = candidates.filter((f: string) => !exactSet.has(f))
       }
@@ -433,13 +414,11 @@ ${assistantMessage ? `AI回复：${assistantMessage.slice(0, 200)}` : ''}
       }
     }
 
-    // 每当有效 facts 总数首次达到 20 的倍数时，自动触发一次 consolidate_facts
     if (inserted > 0) {
       const totalAfter = (db.prepare('SELECT COUNT(*) as cnt FROM memory_facts WHERE invalid_at IS NULL').get() as { cnt: number }).cnt
       const totalBefore = totalAfter - inserted
       const milestone = Math.floor(totalAfter / 20)
       if (milestone > Math.floor(totalBefore / 20) && milestone > 0) {
-        // 检查是否已有 pending 的 consolidate 任务，避免重复入队
         const pending = db.prepare("SELECT id FROM agent_tasks WHERE type = 'consolidate_facts' AND status = 'pending' LIMIT 1").get()
         if (!pending) {
           db.prepare("INSERT INTO agent_tasks (type, payload, status, created_at) VALUES ('consolidate_facts', '{}', 'pending', ?)").run(now)
@@ -457,6 +436,7 @@ ${assistantMessage ? `AI回复：${assistantMessage.slice(0, 200)}` : ''}
 
 /** 读取所有记忆事实（只返回有效的，不返回已失效的） */
 memoryRoutes.get('/facts', (c) => {
+  const db = userDb(c)
   const rows = db.prepare(
     'SELECT id, fact, source_conv_id, created_at FROM memory_facts WHERE invalid_at IS NULL ORDER BY created_at DESC LIMIT 200'
   ).all() as { id: string; fact: string; source_conv_id: string | null; created_at: string }[]
@@ -465,6 +445,7 @@ memoryRoutes.get('/facts', (c) => {
 
 /** 删除单条记忆事实（软删除：标记 invalid_at） */
 memoryRoutes.delete('/facts/:id', (c) => {
+  const db = userDb(c)
   const id = c.req.param('id')
   db.prepare('UPDATE memory_facts SET invalid_at = ? WHERE id = ?').run(new Date().toISOString(), id)
   return c.json({ ok: true })
@@ -472,6 +453,7 @@ memoryRoutes.delete('/facts/:id', (c) => {
 
 /** 编辑单条记忆事实内容 */
 memoryRoutes.put('/facts/:id', async (c) => {
+  const db = userDb(c)
   const id = c.req.param('id')
   const { fact } = await c.req.json<{ fact: string }>()
   if (!fact?.trim()) return c.json({ error: 'fact required' }, 400)
@@ -482,8 +464,8 @@ memoryRoutes.put('/facts/:id', async (c) => {
 
 /** 手动触发记忆整理（合并语义重叠条目），入队 consolidate_facts 任务 */
 memoryRoutes.post('/consolidate', (c) => {
+  const db = userDb(c)
   const now = new Date().toISOString()
-  // 检查是否已有 pending 任务
   const pending = db.prepare("SELECT id FROM agent_tasks WHERE type = 'consolidate_facts' AND status = 'pending' LIMIT 1").get()
   if (pending) return c.json({ ok: true, queued: false, reason: 'already pending' })
   db.prepare("INSERT INTO agent_tasks (type, payload, status, created_at) VALUES ('consolidate_facts', '{}', 'pending', ?)").run(now)
@@ -492,17 +474,17 @@ memoryRoutes.post('/consolidate', (c) => {
 
 /** 清空全部记忆事实（用于重置/体验新手教程） */
 memoryRoutes.delete('/facts', (c) => {
+  const db = userDb(c)
   db.prepare('UPDATE memory_facts SET invalid_at = ?').run(new Date().toISOString())
-  // 清空 config 中的偏好规则缓存，避免旧规则干扰新手教程
   db.prepare("UPDATE config SET value = '[]', updated_at = ? WHERE key = 'preference_rules'")
     .run(new Date().toISOString())
-  // 清除待处理的提取任务，避免旧任务产生脏数据
   db.prepare("DELETE FROM agent_tasks WHERE status = 'pending'").run()
   return c.json({ ok: true })
 })
 
 /** 清空用户画像（用于重置/体验新手教程） */
 memoryRoutes.delete('/profile', (c) => {
+  const db = userDb(c)
   const now = new Date().toISOString()
   const existing = db.prepare('SELECT id FROM user_profile WHERE id = 1').get()
   if (existing) {
@@ -517,15 +499,13 @@ memoryRoutes.delete('/profile', (c) => {
   return c.json({ ok: true })
 })
 
-/** AI 语义分类：将用户消息归类到六大类之一
- *  POST /api/memory/classify { text: string }
- *  → { category: string }  （同步，超时或无 key 时返回 null 由前端降级）
- */
+/** AI 语义分类：将用户消息归类到六大类之一 */
 memoryRoutes.post('/classify', async (c) => {
+  const db = userDb(c)
   const { text } = await c.req.json<{ text: string }>()
   if (!text?.trim()) return c.json({ category: null })
 
-  const { apiKey, baseUrl } = getApiConfig()
+  const { apiKey, baseUrl } = getApiConfig(db)
   if (!apiKey) return c.json({ category: null })
 
   const isMoonshot = baseUrl.includes('moonshot')

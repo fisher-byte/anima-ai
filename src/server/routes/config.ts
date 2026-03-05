@@ -8,11 +8,16 @@
  */
 
 import { Hono } from 'hono'
-import { db } from '../db'
+import type Database from 'better-sqlite3'
 
 export const configRoutes = new Hono()
 
-const upsertConfig = (key: string, value: string) => {
+/** Get the per-user database from request context */
+function userDb(c: { get: (key: string) => unknown }): InstanceType<typeof Database> {
+  return c.get('db') as InstanceType<typeof Database>
+}
+
+const upsertConfig = (db: InstanceType<typeof Database>, key: string, value: string) => {
   const now = new Date().toISOString()
   db.prepare(`
     INSERT INTO config (key, value, updated_at)
@@ -21,7 +26,7 @@ const upsertConfig = (key: string, value: string) => {
   `).run(key, value, now)
 }
 
-const getConfig = (key: string): string | null => {
+const getConfig = (db: InstanceType<typeof Database>, key: string): string | null => {
   const row = db.prepare('SELECT value FROM config WHERE key = ?').get(key) as
     | { value: string }
     | undefined
@@ -30,11 +35,13 @@ const getConfig = (key: string): string | null => {
 
 // GET /api/config/apikey
 configRoutes.get('/apikey', (c) => {
-  return c.json({ apiKey: getConfig('apiKey') ?? '' })
+  const db = userDb(c)
+  return c.json({ apiKey: getConfig(db, 'apiKey') ?? '' })
 })
 
 // PUT /api/config/apikey
 configRoutes.put('/apikey', async (c) => {
+  const db = userDb(c)
   const body = await c.req.json<{ apiKey: string }>()
   const { apiKey } = body
 
@@ -42,24 +49,26 @@ configRoutes.put('/apikey', async (c) => {
     return c.json({ error: 'apiKey must be a string' }, 400)
   }
 
-  upsertConfig('apiKey', apiKey)
+  upsertConfig(db, 'apiKey', apiKey)
   return c.json({ ok: true })
 })
 
 // GET /api/config/settings
 configRoutes.get('/settings', (c) => {
+  const db = userDb(c)
   return c.json({
-    model: getConfig('model') ?? '',
-    baseUrl: getConfig('baseUrl') ?? ''
+    model: getConfig(db, 'model') ?? '',
+    baseUrl: getConfig(db, 'baseUrl') ?? ''
   })
 })
 
 // PUT /api/config/settings
 configRoutes.put('/settings', async (c) => {
+  const db = userDb(c)
   const body = await c.req.json<{ model?: string; baseUrl?: string }>()
 
-  if (body.model !== undefined) upsertConfig('model', body.model)
-  if (body.baseUrl !== undefined) upsertConfig('baseUrl', body.baseUrl)
+  if (body.model !== undefined) upsertConfig(db, 'model', body.model)
+  if (body.baseUrl !== undefined) upsertConfig(db, 'baseUrl', body.baseUrl)
 
   return c.json({ ok: true })
 })
@@ -78,4 +87,3 @@ configRoutes.post('/verify-key', async (c) => {
     return c.json({ valid: false, reason: 'network' })
   }
 })
-
