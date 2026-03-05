@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo, memo, type ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Import, BookOpen } from 'lucide-react'
+import { Import, BookOpen, Layers } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useLodScale } from '../hooks/useLodScale'
 import type { Node } from '@shared/types'
@@ -20,6 +20,7 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
   // 细粒度 selector，不订阅整个 store（否则任何 store 变化都会重渲染所有 NodeCard）
   const removeNode = useCanvasStore(state => state.removeNode)
   const updateNodePosition = useCanvasStore(state => state.updateNodePosition)
+  const updateNodePositionInMemory = useCanvasStore(state => state.updateNodePositionInMemory)
   const openModalById = useCanvasStore(state => state.openModalById)
   const isHighlighted = useCanvasStore(state => state.highlightedNodeIds.includes(node.id))
 
@@ -32,6 +33,7 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
   const mouseDownPosRef = useRef({ x: 0, y: 0 })
   const positionRef = useRef({ x: node.x, y: node.y })
   const lastDragEndRef = useRef(0)
+  const rafRef = useRef<number | null>(null)
 
   const lodOpacity = useMemo(() => {
     if (scale < 0.4) return 0
@@ -70,12 +72,26 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
         el.style.left = `${newX}px`
         el.style.top = `${newY}px`
       }
+
+      // rAF 节流：每帧最多更新一次 store（让 Edge 跟随）
+      if (!rafRef.current) {
+        rafRef.current = requestAnimationFrame(() => {
+          updateNodePositionInMemory(node.id, positionRef.current.x, positionRef.current.y)
+          rafRef.current = null
+        })
+      }
     }
-  }, [node.id])
+  }, [node.id, updateNodePositionInMemory])
 
   const handleGlobalMouseUp = useCallback(() => {
     window.removeEventListener('mousemove', handleGlobalMouseMove)
     window.removeEventListener('mouseup', handleGlobalMouseUp)
+
+    // Cancel any pending rAF from drag
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+    }
 
     if (isDraggingRef.current) {
       isDraggingRef.current = false
@@ -213,6 +229,14 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
           <span>{node.date}</span>
           <div className="w-1.5 h-1.5 rounded-full bg-blue-400/20" />
         </div>
+
+        {/* 记忆引用数量 */}
+        {(node.memoryCount ?? 0) > 0 && (
+          <div className="flex items-center gap-1 mt-2 text-[10px] text-gray-400">
+            <Layers className="w-3 h-3" />
+            <span>引用了 {node.memoryCount} 条记忆</span>
+          </div>
+        )}
       </motion.div>
       </div>
     </motion.div>

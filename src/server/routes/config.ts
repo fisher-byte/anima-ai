@@ -64,3 +64,18 @@ configRoutes.put('/settings', async (c) => {
   return c.json({ ok: true })
 })
 
+// POST /api/config/verify-key — lightweight upstream check (list models)
+configRoutes.post('/verify-key', async (c) => {
+  const { apiKey, baseUrl } = await c.req.json<{ apiKey: string; baseUrl?: string }>()
+  const url = (baseUrl || 'https://api.moonshot.cn/v1').replace(/\/$/, '')
+  try {
+    const resp = await fetch(`${url}/models`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(6000)
+    })
+    return c.json({ valid: resp.ok })
+  } catch {
+    return c.json({ valid: false, reason: 'network' })
+  }
+})
+

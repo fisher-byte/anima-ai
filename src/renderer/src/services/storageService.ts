@@ -265,3 +265,12 @@ export function setAuthToken(token: string) {
     _webConfig.setToken(token)
   }
 }
+
+/**
+ * Get the current auth token (Web mode only; Electron returns null).
+ * Used by ai.ts and canvasStore to attach Authorization headers to fetch calls.
+ */
+export function getAuthToken(): string | null {
+  if (isElectron) return null
+  return _webStorage.getToken()
+}

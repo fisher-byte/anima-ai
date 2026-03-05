@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Settings, X, Save, Shield, Cpu, Link } from 'lucide-react'
 import { API_CONFIG, AI_CONFIG, SUPPORTED_MODELS } from '@shared/constants'
 import { configService, storageService } from '../services/storageService'
+import { getAuthToken } from '../services/storageService'
 
 interface SettingsModalProps {
   isOpen: boolean
@@ -16,6 +17,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [showError, setShowError] = useState(false)
+  const [keyError, setKeyError] = useState('')
 
   // 加载配置
   useEffect(() => {
@@ -52,6 +54,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const handleSave = useCallback(async () => {
     setIsSaving(true)
+    setKeyError('')
     try {
       // 保存 API Key 到安全存储
       await configService.setApiKey(apiKey)
@@ -62,10 +65,31 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       // Also keep settings.json for Electron mode compatibility
       const settings = { baseUrl, model }
       await storageService.write('settings.json', JSON.stringify(settings, null, 2))
-      
+
       // 更新内存中的配置（简易处理，实际应用可能需要更复杂的同步）
       API_CONFIG.BASE_URL = baseUrl
       ;(AI_CONFIG as { MODEL: string }).MODEL = model
+
+      // 校验 API Key：调后端验证接口
+      if (apiKey) {
+        try {
+          const token = getAuthToken()
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+          if (token) headers['Authorization'] = `Bearer ${token}`
+          const verifyRes = await fetch('/api/config/verify-key', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ apiKey, baseUrl }),
+            signal: AbortSignal.timeout(8000)
+          })
+          const result = await verifyRes.json()
+          if (!result.valid) {
+            setKeyError('API Key 无效，请检查后重试')
+          }
+        } catch {
+          // 网络超时等，不阻止保存，静默跳过
+        }
+      }
 
       setShowSuccess(true)
       setShowError(false)
@@ -134,6 +158,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <p className="text-[10px] text-gray-400 px-1">
                 你的密钥加密保存在服务端数据库，不会暴露给浏览器。
               </p>
+              {keyError && (
+                <p className="text-[11px] text-red-500 font-medium px-1">{keyError}</p>
+              )}
             </div>
 
             {/* Base URL */}
