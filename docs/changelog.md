@@ -1,5 +1,23 @@
 # Anima 变更日志
 
+## [0.2.24] - 2026-03-05
+
+### 记忆与进化基因侧边栏根因修复
+
+基于 SQLite 数据追踪，修复"全量清空并开启新手教程"后侧边栏记忆和进化基因始终为空的三个根因 bug。
+
+#### 后端修复
+- **记忆去重查询排除软删除记录**（`server/routes/memory.ts`）：`POST /api/memory/extract` 语义去重查询原无 `WHERE invalid_at IS NULL` 过滤，全量清空后的软删除旧事实会阻止新手教程相同事实重新入库；修复后仅比对有效记录，全量重置后可正常提取新记忆
+- **全量清空同时清理 config 和 pending 任务**（`server/routes/memory.ts`）：`DELETE /api/memory/facts` 现额外执行两步：① 将 `config.preference_rules` 重置为 `[]`，避免旧偏好规则干扰新手教程 AI 行为；② 删除 `agent_tasks` 中 `pending` 状态的任务，防止旧任务在新教程期间处理产生脏数据
+
+#### 前端修复
+- **新增 `pendingMemoryRefresh` 轮询机制**（`stores/canvasStore.ts`、`components/ConversationSidebar.tsx`）：引导完成后在 3s / 8s / 15s 三个时间点轮询 `/api/memory/facts`，与已有的进化基因轮询（5s / 15s / 35s）对称；`completeOnboarding` 同时设置两个轮询标志
+
+#### 测试
+- 更新 `src/server/__tests__/memory.test.ts` 测试桩 `DELETE /api/memory/facts` 路由以匹配新的清理行为，并新增两个测试用例：验证 config 偏好规则被清空、验证 pending 任务被删除而 done 任务被保留
+
+---
+
 ## [0.2.23] - 2026-03-05
 
 ### MVP 上线准备（P0 修复 + 登录门槛 + 长期价值）

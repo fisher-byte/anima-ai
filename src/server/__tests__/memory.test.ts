@@ -224,6 +224,11 @@ function buildMemoryApp() {
 
   app.delete('/api/memory/facts', (c) => {
     testDb.prepare('UPDATE memory_facts SET invalid_at = ?').run(new Date().toISOString())
+    // 清空 config 中的偏好规则缓存
+    testDb.prepare("UPDATE config SET value = '[]', updated_at = ? WHERE key = 'preference_rules'")
+      .run(new Date().toISOString())
+    // 清除待处理的提取任务
+    testDb.prepare("DELETE FROM agent_tasks WHERE status = 'pending'").run()
     return c.json({ ok: true })
   })
 
@@ -426,6 +431,35 @@ describe('Memory Facts API', () => {
     // Records still in DB (soft delete)
     const count = (testDb.prepare('SELECT count(*) as n FROM memory_facts').get() as { n: number }).n
     expect(count).toBe(3)
+  })
+
+  it('DELETE /api/memory/facts also clears preference_rules in config', async () => {
+    // Insert a preference_rules config entry
+    testDb.prepare("INSERT INTO config (key, value, updated_at) VALUES ('preference_rules', '[\"回答简洁\"]', ?)")
+      .run(new Date().toISOString())
+
+    await req('DELETE', '/api/memory/facts')
+
+    const row = testDb.prepare("SELECT value FROM config WHERE key = 'preference_rules'").get() as { value: string } | undefined
+    expect(row).toBeDefined()
+    expect(row!.value).toBe('[]')
+  })
+
+  it('DELETE /api/memory/facts deletes pending agent_tasks', async () => {
+    // Insert pending and non-pending tasks
+    testDb.prepare("INSERT INTO agent_tasks (type, payload, status, created_at) VALUES ('extract_preference', '{}', 'pending', ?)")
+      .run(new Date().toISOString())
+    testDb.prepare("INSERT INTO agent_tasks (type, payload, status, created_at) VALUES ('embed_file', '{}', 'done', ?)")
+      .run(new Date().toISOString())
+
+    await req('DELETE', '/api/memory/facts')
+
+    const pending = (testDb.prepare("SELECT count(*) as n FROM agent_tasks WHERE status = 'pending'").get() as { n: number }).n
+    expect(pending).toBe(0)
+
+    // Non-pending task should be preserved
+    const done = (testDb.prepare("SELECT count(*) as n FROM agent_tasks WHERE status = 'done'").get() as { n: number }).n
+    expect(done).toBe(1)
   })
 })
 

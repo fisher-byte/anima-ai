@@ -76,6 +76,14 @@ interface CanvasState {
   // 全量清空（用户画像 + 记忆 + 进化基因）并开启新手教程
   clearAllForOnboarding: () => Promise<void>
 
+  // 引导完成后的进化基因轮询标志
+  pendingProfileRefresh: boolean
+  setPendingProfileRefresh: (val: boolean) => void
+
+  // 引导完成后的记忆轮询标志
+  pendingMemoryRefresh: boolean
+  setPendingMemoryRefresh: (val: boolean) => void
+
   // 能力节点
   activeCapabilityId: string | null
   openCapability: (nodeId: string) => void
@@ -107,6 +115,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   isOnboardingMode: false,
   onboardingPhase: 0,
   onboardingResumeTurns: null,
+
+  // 引导完成后进化基因轮询标志
+  pendingProfileRefresh: false,
+
+  // 引导完成后记忆轮询标志
+  pendingMemoryRefresh: false,
 
   // 能力节点初始化
   activeCapabilityId: null,
@@ -142,6 +156,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     } catch { /* ignore */ }
   },
   setOnboardingPhase: (phase) => set({ onboardingPhase: phase }),
+  setPendingProfileRefresh: (val) => set({ pendingProfileRefresh: val }),
+  setPendingMemoryRefresh: (val) => set({ pendingMemoryRefresh: val }),
   completeOnboarding: async () => {
     if (_completingOnboarding) return
     _completingOnboarding = true
@@ -168,6 +184,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       }
       // 刷新 profile，使引导过程中写入的进化基因立即在侧栏可见
       await get().loadProfile()
+      // 标记待轮询：agentWorker 最长 30s 后才处理队列，侧栏需轮询刷新
+      set({ pendingProfileRefresh: true, pendingMemoryRefresh: true })
     } finally {
       _completingOnboarding = false
     }

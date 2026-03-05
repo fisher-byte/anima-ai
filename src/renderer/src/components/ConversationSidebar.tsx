@@ -34,7 +34,7 @@ interface ConversationSidebarProps {
 }
 
 export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }: ConversationSidebarProps) {
-  const { nodes, profile, openModalById, focusNode, removePreference, clearAllForOnboarding, loadProfile } = useCanvasStore()
+  const { nodes, profile, openModalById, focusNode, removePreference, clearAllForOnboarding, loadProfile, pendingProfileRefresh, setPendingProfileRefresh, pendingMemoryRefresh, setPendingMemoryRefresh } = useCanvasStore()
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeTab, setActiveTab] = useState<'history' | 'memory' | 'evolution'>(initialTab)
   const [isLoading, setIsLoading] = useState(false)
@@ -94,20 +94,34 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
   }, [isOpen])
 
   // 加载记忆事实（每次切到 memory tab 时刷新）
-  const fetchMemoryFacts = useCallback(() => {
+  const prevFactCount = useRef(0)
+  const [memoryToast, setMemoryToast] = useState<{ added: number } | null>(null)
+  const memoryToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const fetchMemoryFacts = useCallback((silent = false) => {
     setIsMemoryLoading(true)
     fetch('/api/memory/facts')
       .then(r => r.ok ? r.json() : { facts: [] })
-      .then(data => setMemoryFacts(data.facts || []))
+      .then(data => {
+        const facts: MemoryFact[] = data.facts || []
+        setMemoryFacts(facts)
+        if (!silent && facts.length > prevFactCount.current && prevFactCount.current >= 0) {
+          const added = facts.length - prevFactCount.current
+          if (memoryToastTimerRef.current) clearTimeout(memoryToastTimerRef.current)
+          setMemoryToast({ added })
+          memoryToastTimerRef.current = setTimeout(() => setMemoryToast(null), 3500)
+        }
+        prevFactCount.current = facts.length
+      })
       .catch(() => setMemoryFacts([]))
       .finally(() => setIsMemoryLoading(false))
   }, [])
 
   useEffect(() => {
     if (!isOpen || activeTab !== 'memory') return
-    fetchMemoryFacts()
-    // 2 秒后再 fetch 一次：给 extract agent 留够异步处理时间
-    const timer = setTimeout(fetchMemoryFacts, 2000)
+    fetchMemoryFacts(true)  // 首次静默（不弹 toast）
+    // 给异步提取留出时间，5 秒后再取一次并对比是否新增
+    const timer = setTimeout(() => fetchMemoryFacts(false), 5000)
     return () => clearTimeout(timer)
   }, [isOpen, activeTab, fetchMemoryFacts])
 
@@ -116,6 +130,28 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
     if (!isOpen || activeTab !== 'evolution') return
     void loadProfile()
   }, [isOpen, activeTab, loadProfile])
+
+  // 引导完成后定时轮询（覆盖 agentWorker 最长 30s 处理窗口）
+  useEffect(() => {
+    if (!pendingProfileRefresh) return
+    const timers = [
+      setTimeout(() => void loadProfile(), 5_000),
+      setTimeout(() => void loadProfile(), 15_000),
+      setTimeout(() => { void loadProfile(); setPendingProfileRefresh(false) }, 35_000),
+    ]
+    return () => timers.forEach(clearTimeout)
+  }, [pendingProfileRefresh, loadProfile, setPendingProfileRefresh])
+
+  // 引导完成后轮询记忆（/api/memory/extract 是同步 AI 调用，2-5s）
+  useEffect(() => {
+    if (!pendingMemoryRefresh) return
+    const timers = [
+      setTimeout(() => fetchMemoryFacts(false), 3_000),
+      setTimeout(() => fetchMemoryFacts(false), 8_000),
+      setTimeout(() => { fetchMemoryFacts(false); setPendingMemoryRefresh(false) }, 15_000),
+    ]
+    return () => timers.forEach(clearTimeout)
+  }, [pendingMemoryRefresh, fetchMemoryFacts, setPendingMemoryRefresh])
 
   const handleDeleteFact = useCallback(async (id: string) => {
     try {
@@ -322,7 +358,7 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                       关于你的记忆
                     </h3>
                     <button
-                      onClick={fetchMemoryFacts}
+                      onClick={() => fetchMemoryFacts(false)}
                       disabled={isMemoryLoading}
                       className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all disabled:opacity-40"
                       title="刷新记忆"
@@ -335,20 +371,37 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                   </p>
                 </div>
 
-                {isMemoryLoading ? (
+                {isMemoryLoading && memoryFacts.length === 0 ? (
                   <div className="text-center text-gray-400 py-8">
                     <div className="w-5 h-5 border-2 border-gray-200 border-t-gray-400 rounded-full animate-spin mx-auto mb-2" />
                     <span className="text-xs">正在加载…</span>
                   </div>
-                ) : memoryFacts.length === 0 ? (
-                  <div className="text-center text-gray-400 py-12 space-y-2">
-                    <BookOpen className="w-8 h-8 mx-auto opacity-20" />
-                    <p className="text-xs">暂无记忆条目</p>
-                    <p className="text-[10px] opacity-60">多聊几次，记忆会自动积累</p>
-                  </div>
                 ) : (
                   <div className="space-y-2">
-                    {memoryFacts.map(fact => (
+                    {/* 新记忆 toast */}
+                    <AnimatePresence>
+                      {memoryToast && (
+                        <motion.div
+                          key="memory-toast"
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          className="flex items-center gap-2 p-3 bg-blue-50/60 border border-blue-100/80 rounded-2xl"
+                        >
+                          <span className="text-[11px] text-blue-500 font-medium">✦ 新记忆已写入</span>
+                          <span className="text-[10px] text-blue-400">新增 {memoryToast.added} 条</span>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {memoryFacts.length === 0 ? (
+                      <div className="text-center text-gray-400 py-12 space-y-2">
+                        <BookOpen className="w-8 h-8 mx-auto opacity-20" />
+                        <p className="text-xs">暂无记忆条目</p>
+                        <p className="text-[10px] opacity-60">多聊几次，记忆会自动积累</p>
+                      </div>
+                    ) : (
+                      memoryFacts.map(fact => (
                       <motion.div
                         key={fact.id}
                         layout
@@ -406,7 +459,8 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                           </div>
                         )}
                       </motion.div>
-                    ))}
+                    ))
+                    )}
                   </div>
                 )}
               </motion.div>
