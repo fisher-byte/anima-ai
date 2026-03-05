@@ -122,6 +122,15 @@ export async function* streamAI(
       throw error
     }
     console.error('AI stream failed:', error)
+    if (error instanceof Error && (
+      error.message.includes('BodyStreamBuffer') ||
+      error.message.toLowerCase().includes('fetch failed') ||
+      error.message.toLowerCase().includes('failed to fetch') ||
+      error.message.includes('NetworkError') ||
+      error.message.includes('ERR_NETWORK')
+    )) {
+      throw new Error('网络连接中断，请检查网络后重试')
+    }
     throw error instanceof Error ? error : new Error('Unknown error')
   }
 }

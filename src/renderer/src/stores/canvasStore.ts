@@ -114,6 +114,9 @@ interface CanvasState {
 // 防止 completeOnboarding 并发重复执行
 let _completingOnboarding = false
 
+// 防止 openModalById 并发竞态：每次调用递增，异步回调中只有最新的令牌才被接受
+let _openModalToken = 0
+
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   nodes: [],
   edges: [],
@@ -970,10 +973,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   // 通过 conversationId 打开回放（从 conversations.jsonl 读取完整内容）
   openModalById: async (conversationId: string) => {
+    // 立即打开 modal 并显示 loading，不等网络，避免点击无响应的感知延迟
+    // 用令牌防并发：快速点击多个卡片时，只有最后一次的结果会被应用
+    const token = ++_openModalToken
+    set({ isModalOpen: true, isLoading: true, conversationHistory: [] })
     try {
       const content = await storageService.read(STORAGE_FILES.CONVERSATIONS)
+      if (token !== _openModalToken) return  // 被更新的调用抢先了，丢弃此结果
       if (!content) {
-        set({ currentConversation: null, isModalOpen: true, isLoading: false })
+        set({ isLoading: false })
         return
       }
       const lines = content.trim().split('\n').filter(Boolean)
@@ -982,9 +990,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         try {
           const conv = JSON.parse(lines[i]) as Conversation
           if (conv.id === conversationId) {
-            set({ currentConversation: conv, isModalOpen: true, isLoading: false })
+            if (token !== _openModalToken) return  // 再次检查，防止 JSON.parse 耗时时被抢占
+            set({ currentConversation: conv, isLoading: false })
             // 异步加载该对话的历史上下文
             historyService.getHistory(conversationId).then(messages => {
+              if (token !== _openModalToken) return
               if (messages.length > 0) set({ conversationHistory: messages })
             })
             return
@@ -993,9 +1003,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           // ignore invalid line
         }
       }
-      set({ currentConversation: null, isModalOpen: true, isLoading: false })
+      // 找不到对话记录，关闭 modal 避免显示空白/错误内容
+      if (token === _openModalToken) set({ isLoading: false, isModalOpen: false })
     } catch (error) {
-      set({ isLoading: false })
+      if (token === _openModalToken) set({ isLoading: false, isModalOpen: false })
     }
   },
 
