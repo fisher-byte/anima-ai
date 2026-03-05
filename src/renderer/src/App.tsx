@@ -19,13 +19,13 @@ function App() {
       setAuthToken(saved)
     }
 
-    // 探活：检查后端是否要求鉴权
-    fetch('/api/storage/nodes').then(res => {
+    // 探活：检查后端是否要求鉴权（用合法白名单路径）
+    fetch('/api/storage/nodes.json').then(res => {
       if (res.status === 401 || res.status === 403) {
         // 后端要求鉴权
         if (saved) {
           // 有保存的 token，先尝试用它
-          fetch('/api/storage/nodes', {
+          fetch('/api/storage/nodes.json', {
             headers: { Authorization: `Bearer ${saved}` }
           }).then(r => {
             if (r.ok || r.status === 404) {

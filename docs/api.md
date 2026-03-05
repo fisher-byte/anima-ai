@@ -307,6 +307,33 @@ curl -X POST http://localhost:3000/api/memory/queue \
   -d '{"type":"extract_profile","payload":{"conversationId":"xxx"}}'
 ```
 
+#### POST /api/memory/consolidate
+
+手动触发记忆 facts 合并整理（将语义重叠/过时条目合并，新信息优先保留）。合并任务以 `consolidate_facts` 类型入队，由 `agentWorker` 后台处理（约 30s 内完成）。
+
+- **请求 Body**：无
+- **响应**：`200 { ok: true }`（任务已入队，非同步完成）
+- **说明**：幂等，若队列中已有待执行的同类型任务，不重复入队
+
+```bash
+curl -X POST http://localhost:3000/api/memory/consolidate \
+  -H "Authorization: Bearer <token>"
+```
+
+#### PUT /api/memory/facts/:id
+
+更新单条记忆事实内容。
+
+- **请求 Body**：`application/json { fact: string }`
+- **响应**：`200 { ok: true }` 或 `404`（ID 不存在）
+
+```bash
+curl -X PUT http://localhost:3000/api/memory/facts/123 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"fact":"更新后的记忆内容"}'
+```
+
 ---
 
 

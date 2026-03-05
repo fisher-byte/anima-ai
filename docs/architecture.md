@@ -33,17 +33,26 @@ evocanvas/
 
 ### 1. 存储层 (Storage)
 
-**主进程**: `src/main/index.ts`
-- 使用 Electron 的 `ipcMain` 提供安全的文件操作
-- 数据存储在用户数据目录 (`app.getPath('userData')/data`)
+**Web 全栈模式（当前默认）**：
+- `src/server/index.ts` — Hono HTTP 服务器，所有存储操作通过 REST API 完成
+- 数据写入 SQLite（`data/anima.db`），API Key 永不暴露给浏览器
+- `agentWorker.ts` — 后台任务 Worker，处理向量化、画像提取、记忆合并等异步任务
 
-**Preload**: `src/preload/index.ts`
-- 使用 `contextBridge` 暴露安全的API给渲染进程
+**Electron 模式（桌面打包）**：
+- `src/main/index.ts` — 主进程，`ipcMain` 提供安全的文件操作
+- `src/preload/index.ts` — `contextBridge` 暴露安全 API 给渲染进程
+
+**前端抽象层**：
+- `src/renderer/src/services/storageService.ts` — 自动适配 Web（HTTP）和 Electron（IPC）
 
 **数据文件**:
 - `profile.json` - 用户偏好规则
 - `nodes.json` - 画布节点数据
 - `conversations.jsonl` - 对话记录（追加模式）
+- SQLite `memory_facts` — 记忆事实条目（支持 soft-delete）
+- SQLite `user_profile` — 用户画像（JSON）
+- SQLite `memory_index` — 对话向量索引（RAG 检索）
+- SQLite `agent_tasks` — 后台任务队列
 
 ### 2. 状态管理 (Zustand)
 
@@ -59,11 +68,13 @@ evocanvas/
 
 核心方法:
 - `loadNodes/loadProfile`: 数据加载
-- `addNode`: 添加节点
+- `addNode`: 添加节点（螺旋搜索同类岛屿附近空位，满时 push-outward）
 - `startConversation/endConversation`: 对话生命周期
 - `detectFeedback/addPreference`: 偏好学习
 - `detectIntent` / `getRelevantMemories` / `setHighlight`: 意图检测与语义高亮
 - `selectNode` / `openModalById`: 节点详情与回放
+- `updateNodePositionInMemory`: 拖动中轻量更新（不写磁盘、不 updateEdges）
+- `closeModal`: 关闭回答层并清除 highlight
 
 ### 3. 组件层 (React)
 
