@@ -6,6 +6,7 @@ import {
   Pencil, Check, RotateCcw, Layers
 } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
+import { useConfirm } from './GlobalUI'
 import type { Conversation } from '@shared/types'
 import { storageService, getAuthToken } from '../services/storageService'
 
@@ -45,6 +46,7 @@ interface ConversationSidebarProps {
 
 export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }: ConversationSidebarProps) {
   const { nodes, profile, openModalById, focusNode, removePreference, loadProfile, pendingProfileRefresh, setPendingProfileRefresh, pendingMemoryRefresh, setPendingMemoryRefresh } = useCanvasStore()
+  const confirm = useConfirm()
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeTab, setActiveTab] = useState<'history' | 'memory' | 'evolution'>(initialTab)
   const [isLoading, setIsLoading] = useState(false)
@@ -551,7 +553,8 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                             </button>
                             <button
                               onClick={async () => {
-                                if (confirm('确定清空用户画像？')) {
+                                const ok = await confirm({ title: '清空用户画像？', message: '所有画像信息将被删除，不可恢复。', confirmLabel: '清空', danger: true })
+                                if (ok) {
                                   await authFetch('/api/memory/profile', { method: 'DELETE' })
                                   setUserProfile(null)
                                 }
@@ -730,9 +733,8 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                             </div>
                             <button
                               onClick={async () => {
-                                if (confirm('确定要遗忘这条偏好吗？')) {
-                                  await removePreference(idx)
-                                }
+                                const ok = await confirm({ title: '遗忘这条偏好？', confirmLabel: '遗忘', danger: true })
+                                if (ok) await removePreference(idx)
                               }}
                               className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0 mt-0.5"
                             >

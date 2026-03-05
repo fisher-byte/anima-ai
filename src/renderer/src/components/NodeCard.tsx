@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Import, BookOpen, Layers } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useLodScale } from '../hooks/useLodScale'
+import { useConfirm } from './GlobalUI'
 import type { Node } from '@shared/types'
 
 interface NodeCardProps {
@@ -23,6 +24,7 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
   const updateNodePositionInMemory = useCanvasStore(state => state.updateNodePositionInMemory)
   const openModalById = useCanvasStore(state => state.openModalById)
   const isHighlighted = useCanvasStore(state => state.highlightedNodeIds.includes(node.id))
+  const confirm = useConfirm()
 
   // 只在 LOD 阈值(0.4/0.6)跨越时触发重渲染，zoom 中不重渲染
   const scale = useLodScale([0.4, 0.6])
@@ -116,8 +118,15 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
 
   const handleDelete = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation()
+    const ok = await confirm({
+      title: '删除这条对话？',
+      message: '删除后不可恢复。',
+      confirmLabel: '删除',
+      danger: true,
+    })
+    if (!ok) return
     await removeNode(node.id)
-  }, [removeNode, node.id])
+  }, [confirm, removeNode, node.id])
 
   // 漂浮+微旋转动画参数（id 派生，每节点错相位）
   const floatStyle = useMemo(() => {
@@ -189,10 +198,10 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
               onClick={handleDelete}
-              className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white/80 backdrop-blur-md shadow-sm border border-gray-100 text-gray-400 hover:text-red-500 hover:border-red-100 flex items-center justify-center transition-colors"
+              className="absolute -top-2.5 -right-2.5 w-8 h-8 rounded-full bg-white/80 backdrop-blur-md shadow-sm border border-gray-100 text-gray-400 hover:text-red-500 hover:border-red-100 flex items-center justify-center transition-colors"
               title="删除节点"
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
