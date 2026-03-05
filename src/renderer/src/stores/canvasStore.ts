@@ -589,9 +589,41 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           break
         }
       }
+
       if (!found) {
-        x = islandX + 150 + (Math.random() - 0.5) * nodeGap
-        y = islandY + 150 + (Math.random() - 0.5) * nodeGap
+        // 岛屿空间不足：把离岛屿质心最远的同类节点向外推 nodeGap，为新节点腾出紧邻质心的位置
+        // 1. 找最佳候选位置（贴近质心，角度均匀分布）
+        let bestTx = islandX
+        let bestTy = islandY
+        let bestMinDist = 0
+        for (let a = 0; a < 8; a++) {
+          const angle = a * (Math.PI / 4)
+          const tx = islandX + Math.cos(angle) * 160
+          const ty = islandY + Math.sin(angle) * 160
+          const minDist = catNodes.reduce((min, n) => Math.min(min, Math.hypot(n.x - tx, n.y - ty)), Infinity)
+          if (minDist > bestMinDist) { bestMinDist = minDist; bestTx = tx; bestTy = ty }
+        }
+        x = bestTx
+        y = bestTy
+
+        // 2. 推挤：把距离新位置 < nodeGap 的同类节点向外移（沿离质心方向推）
+        const pushRadius = nodeGap * 1.1
+        const nodesToPush = catNodes.filter(n => Math.hypot(n.x - x!, n.y - y!) < pushRadius)
+        if (nodesToPush.length > 0) {
+          const { nodes: currentNodes } = get()
+          const pushedNodes = currentNodes.map(n => {
+            if (!nodesToPush.some(p => p.id === n.id)) return n
+            // 从岛屿质心方向向外推
+            const dx = n.x - islandX
+            const dy = n.y - islandY
+            const dist = Math.hypot(dx, dy) || 1
+            const pushDist = pushRadius - Math.hypot(n.x - x!, n.y - y!) + 20
+            return { ...n, x: n.x + (dx / dist) * pushDist, y: n.y + (dy / dist) * pushDist }
+          })
+          set({ nodes: pushedNodes })
+          // 推挤后的节点位置持久化（异步，不阻塞）
+          storageService.write(STORAGE_FILES.NODES, JSON.stringify(pushedNodes, null, 2)).catch(() => {})
+        }
       }
     }
 
