@@ -74,7 +74,14 @@ function App() {
     }
   }, [authed, loadNodes, loadProfile])
 
-  if (!authChecked) return null // 启动检查中，不渲染任何内容
+  if (!authChecked) return (
+    <div className="fixed inset-0 bg-white flex items-center justify-center">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 border-2 border-gray-200 border-t-gray-600 rounded-full animate-spin" />
+        <span className="text-xs text-gray-400">正在加载...</span>
+      </div>
+    </div>
+  )
 
   if (!authed) {
     return <LoginPage onLogin={() => setAuthed(true)} />
