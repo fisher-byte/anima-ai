@@ -14,43 +14,57 @@ function App() {
   const [authChecked, setAuthChecked] = useState(false)
 
   useEffect(() => {
-    // 启动时读取 localStorage token 并注入
     const saved = localStorage.getItem(TOKEN_KEY)
     if (saved) {
       setAuthToken(saved)
     }
 
-    // 探活：检查后端是否要求鉴权（用合法白名单路径）
-    fetch('/api/storage/nodes.json').then(res => {
-      if (res.status === 401 || res.status === 403) {
-        // 后端要求鉴权
-        if (saved) {
-          // 有保存的 token，先尝试用它
-          fetch('/api/storage/nodes.json', {
-            headers: { Authorization: `Bearer ${saved}` }
-          }).then(r => {
-            if (r.ok || r.status === 404) {
-              setAuthed(true)
-            }
-            // token 失效则保持未登录状态
-            setAuthChecked(true)
-          }).catch(() => {
-            setAuthed(true) // 网络错误放行
-            setAuthChecked(true)
-          })
-        } else {
-          setAuthChecked(true) // 无 token，显示登录页
+    // Step 1: 问后端是否需要鉴权
+    fetch('/api/auth/status')
+      .then(r => r.json())
+      .then(async (data: { authRequired: boolean }) => {
+        if (!data.authRequired) {
+          // 后端未启用鉴权，直接放行
+          setAuthed(true)
+          setAuthChecked(true)
+          return
         }
-      } else {
-        // 后端未启用鉴权，直接放行
-        setAuthed(true)
+
+        // 后端要求鉴权
+        if (!saved) {
+          // 没有保存的 token，显示登录页
+          setAuthChecked(true)
+          return
+        }
+
+        // Step 2: 用已保存的 token 验证是否还有效
+        try {
+          const r = await fetch('/api/storage/nodes.json', {
+            headers: { Authorization: `Bearer ${saved}` }
+          })
+          if (r.ok || r.status === 404) {
+            // token 有效
+            // 已有服务端数据的用户跳过新手教程
+            if (r.ok) {
+              localStorage.setItem('evo_onboarding_v3', 'done')
+            }
+            setAuthed(true)
+          } else {
+            // token 失效（401/403），清除并显示登录页
+            localStorage.removeItem(TOKEN_KEY)
+            setAuthToken('')
+          }
+        } catch {
+          // 网络错误，清除 token，显示登录页
+          localStorage.removeItem(TOKEN_KEY)
+          setAuthToken('')
+        }
         setAuthChecked(true)
-      }
-    }).catch(() => {
-      // 后端不可达，如果有 token 就直接进入
-      if (saved) setAuthed(true)
-      setAuthChecked(true)
-    })
+      })
+      .catch(() => {
+        // /api/auth/status 不可达，显示登录页
+        setAuthChecked(true)
+      })
   }, [])
 
   useEffect(() => {

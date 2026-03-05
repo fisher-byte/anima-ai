@@ -13,6 +13,7 @@ import { useCanvasStore } from '../stores/canvasStore'
 
 export function OnboardingGuide() {
   const openOnboarding = useCanvasStore(s => s.openOnboarding)
+  const nodes = useCanvasStore(s => s.nodes)
   const decided = useRef(false)
 
   useEffect(() => {
@@ -23,6 +24,12 @@ export function OnboardingGuide() {
 
       // 已完成，不再打开
       if (localStorage.getItem('evo_onboarding_v3')) return
+
+      // 已有节点数据的老用户，自动标记并跳过引导
+      if (nodes.length > 0) {
+        localStorage.setItem('evo_onboarding_v3', 'done')
+        return
+      }
 
       // 首次进入 或 中途退出后恢复（无节点数量限制）
       openOnboarding()

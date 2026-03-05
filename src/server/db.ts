@@ -1,159 +1,267 @@
 /**
  * SQLite database connection and schema initialization
+ *
+ * Multi-tenant: each ACCESS_TOKEN maps to an isolated database under data/{userId}/anima.db.
+ * The userId is a short hash of the token (first 12 hex chars of SHA-256).
  */
 
 import Database from 'better-sqlite3'
 import path from 'path'
 import fs from 'fs'
+import { createHash } from 'crypto'
 
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data')
 
-// Ensure data directory exists
+// Ensure base data directory exists
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true })
 }
 
-const DB_PATH = path.join(DATA_DIR, 'anima.db')
+// ── Schema & migrations ──────────────────────────────────────────────────────
 
-export const db = new Database(DB_PATH)
+function initSchema(database: InstanceType<typeof Database>) {
+  database.pragma('journal_mode = WAL')
+  database.pragma('foreign_keys = ON')
 
-// Enable WAL mode for concurrent reads
-db.pragma('journal_mode = WAL')
-db.pragma('foreign_keys = ON')
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS storage (
+      filename   TEXT PRIMARY KEY,
+      content    TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL
+    );
 
-// Initialize schema
-db.exec(`
-  CREATE TABLE IF NOT EXISTS storage (
-    filename   TEXT PRIMARY KEY,
-    content    TEXT NOT NULL DEFAULT '',
-    updated_at TEXT NOT NULL
-  );
+    CREATE TABLE IF NOT EXISTS config (
+      key        TEXT PRIMARY KEY,
+      value      TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
 
-  CREATE TABLE IF NOT EXISTS config (
-    key        TEXT PRIMARY KEY,
-    value      TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
+    CREATE TABLE IF NOT EXISTS embeddings (
+      conversation_id TEXT PRIMARY KEY,
+      vector          BLOB NOT NULL,
+      dim             INTEGER NOT NULL,
+      updated_at      TEXT NOT NULL
+    );
 
-  -- 向量记忆索引：每条对话的 embedding 向量（Float32 序列化为 BLOB）
-  CREATE TABLE IF NOT EXISTS embeddings (
-    conversation_id TEXT PRIMARY KEY,
-    vector          BLOB NOT NULL,
-    dim             INTEGER NOT NULL,
-    updated_at      TEXT NOT NULL
-  );
+    CREATE TABLE IF NOT EXISTS user_profile (
+      id            INTEGER PRIMARY KEY CHECK (id = 1),
+      occupation    TEXT,
+      interests     TEXT,
+      tools         TEXT,
+      writing_style TEXT,
+      goals         TEXT,
+      location      TEXT,
+      raw_notes     TEXT,
+      last_extracted TEXT,
+      updated_at    TEXT NOT NULL
+    );
 
-  -- 用户画像：singleton（id=1）
-  CREATE TABLE IF NOT EXISTS user_profile (
-    id            INTEGER PRIMARY KEY CHECK (id = 1),
-    occupation    TEXT,
-    interests     TEXT,
-    tools         TEXT,
-    writing_style TEXT,
-    goals         TEXT,
-    location      TEXT,
-    raw_notes     TEXT,
-    last_extracted TEXT,
-    updated_at    TEXT NOT NULL
-  );
+    CREATE TABLE IF NOT EXISTS agent_tasks (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      type        TEXT NOT NULL,
+      payload     TEXT NOT NULL DEFAULT '{}',
+      status      TEXT NOT NULL DEFAULT 'pending',
+      retries     INTEGER NOT NULL DEFAULT 0,
+      created_at  TEXT NOT NULL,
+      started_at  TEXT,
+      finished_at TEXT,
+      error       TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_agent_tasks_status ON agent_tasks(status);
 
-  -- 后台 Agent 任务队列
-  CREATE TABLE IF NOT EXISTS agent_tasks (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    type        TEXT NOT NULL,
-    payload     TEXT NOT NULL DEFAULT '{}',
-    status      TEXT NOT NULL DEFAULT 'pending',
-    retries     INTEGER NOT NULL DEFAULT 0,
-    created_at  TEXT NOT NULL,
-    started_at  TEXT,
-    finished_at TEXT,
-    error       TEXT
-  );
-  CREATE INDEX IF NOT EXISTS idx_agent_tasks_status ON agent_tasks(status);
+    CREATE TABLE IF NOT EXISTS memory_facts (
+      id             TEXT NOT NULL,
+      fact           TEXT NOT NULL,
+      source_conv_id TEXT,
+      created_at     TEXT NOT NULL,
+      invalid_at     TEXT,
+      PRIMARY KEY(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_memory_facts_created ON memory_facts(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_memory_facts_source ON memory_facts(source_conv_id);
 
-  -- 从对话中自动摘取的用户记忆事实（独立记忆板块）
-  CREATE TABLE IF NOT EXISTS memory_facts (
-    id             TEXT NOT NULL,
-    fact           TEXT NOT NULL,
-    source_conv_id TEXT,
-    created_at     TEXT NOT NULL,
-    invalid_at     TEXT,          -- 时效标记：不为空表示该事实已被新信息取代（软删除）
-    PRIMARY KEY(id)
-  );
-  CREATE INDEX IF NOT EXISTS idx_memory_facts_created ON memory_facts(created_at DESC);
-  CREATE INDEX IF NOT EXISTS idx_memory_facts_source ON memory_facts(source_conv_id);
+    CREATE TABLE IF NOT EXISTS uploaded_files (
+      id           TEXT NOT NULL,
+      filename     TEXT NOT NULL,
+      mimetype     TEXT NOT NULL DEFAULT '',
+      size         INTEGER NOT NULL DEFAULT 0,
+      content      BLOB,
+      text_content TEXT,
+      conv_id      TEXT,
+      created_at   TEXT NOT NULL,
+      PRIMARY KEY(id)
+    );
 
-  -- 用户上传的文件（真实二进制存储）
-  -- 注意：chunk_count / embed_status 由 migration 块按需添加（兼容旧数据库）
-  CREATE TABLE IF NOT EXISTS uploaded_files (
-    id           TEXT NOT NULL,
-    filename     TEXT NOT NULL,
-    mimetype     TEXT NOT NULL DEFAULT '',
-    size         INTEGER NOT NULL DEFAULT 0,
-    content      BLOB,
-    text_content TEXT,
-    conv_id      TEXT,
-    created_at   TEXT NOT NULL,
-    PRIMARY KEY(id)
-  );
+    CREATE TABLE IF NOT EXISTS file_embeddings (
+      id              TEXT NOT NULL,
+      file_id         TEXT NOT NULL,
+      chunk_index     INTEGER NOT NULL,
+      chunk_text      TEXT NOT NULL,
+      vector          BLOB NOT NULL,
+      dim             INTEGER NOT NULL,
+      created_at      TEXT NOT NULL,
+      PRIMARY KEY(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_file_embeddings_file ON file_embeddings(file_id);
+    CREATE INDEX IF NOT EXISTS idx_file_embeddings_created ON file_embeddings(created_at DESC);
 
-  -- 文件内容分块向量索引（独立于对话 embedding，避免混淆搜索结果）
-  CREATE TABLE IF NOT EXISTS file_embeddings (
-    id              TEXT NOT NULL,           -- chunk 唯一 ID
-    file_id         TEXT NOT NULL,           -- 关联 uploaded_files.id
-    chunk_index     INTEGER NOT NULL,        -- 第几块（0-based）
-    chunk_text      TEXT NOT NULL,           -- 该块的原文
-    vector          BLOB NOT NULL,           -- Float32 向量
-    dim             INTEGER NOT NULL,
-    created_at      TEXT NOT NULL,
-    PRIMARY KEY(id)
-  );
-  CREATE INDEX IF NOT EXISTS idx_file_embeddings_file ON file_embeddings(file_id);
-  CREATE INDEX IF NOT EXISTS idx_file_embeddings_created ON file_embeddings(created_at DESC);
+    CREATE TABLE IF NOT EXISTS conversation_history (
+      conversation_id TEXT PRIMARY KEY,
+      messages        TEXT NOT NULL DEFAULT '[]',
+      updated_at      TEXT NOT NULL
+    );
+  `)
 
-  -- 对话 AI 消息历史（AIMessage[] JSON），用于跨会话恢复多轮上下文
-  CREATE TABLE IF NOT EXISTS conversation_history (
-    conversation_id TEXT PRIMARY KEY,
-    messages        TEXT NOT NULL DEFAULT '[]',
-    updated_at      TEXT NOT NULL
-  );
-`)
-
-// ── 增量迁移（兼容老版本数据库） ─────────────────────────────────────────────
-// SQLite 不支持 ADD COLUMN IF NOT EXISTS，用 try/catch 处理已存在的情况
-const migrations = [
-  'ALTER TABLE agent_tasks ADD COLUMN retries INTEGER NOT NULL DEFAULT 0',
-  'ALTER TABLE memory_facts ADD COLUMN invalid_at TEXT',
-  'ALTER TABLE uploaded_files ADD COLUMN chunk_count INTEGER NOT NULL DEFAULT 0',
-  "ALTER TABLE uploaded_files ADD COLUMN embed_status TEXT NOT NULL DEFAULT 'pending'",
-  'CREATE INDEX IF NOT EXISTS idx_uploaded_files_conv ON uploaded_files(conv_id)',
-  'CREATE INDEX IF NOT EXISTS idx_uploaded_files_created ON uploaded_files(created_at DESC)',
-  "CREATE INDEX IF NOT EXISTS idx_uploaded_files_embed ON uploaded_files(embed_status)",
-  // file_embeddings 表在旧数据库中不存在，由 migration 负责建立
-  `CREATE TABLE IF NOT EXISTS file_embeddings (
-    id          TEXT NOT NULL,
-    file_id     TEXT NOT NULL,
-    chunk_index INTEGER NOT NULL,
-    chunk_text  TEXT NOT NULL,
-    vector      BLOB NOT NULL,
-    dim         INTEGER NOT NULL,
-    created_at  TEXT NOT NULL,
-    PRIMARY KEY(id)
-  )`,
-  'CREATE INDEX IF NOT EXISTS idx_file_embeddings_file ON file_embeddings(file_id)',
-  'CREATE INDEX IF NOT EXISTS idx_file_embeddings_created ON file_embeddings(created_at DESC)',
-  // 部分索引：只索引有效（未失效）的 facts，加速 WHERE invalid_at IS NULL 查询
-  'CREATE INDEX IF NOT EXISTS idx_memory_facts_active ON memory_facts(created_at DESC) WHERE invalid_at IS NULL'
-]
-for (const sql of migrations) {
-  try { db.exec(sql) } catch { /* 列/索引已存在时忽略 */ }
+  // Incremental migrations
+  const migrations = [
+    'ALTER TABLE agent_tasks ADD COLUMN retries INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE memory_facts ADD COLUMN invalid_at TEXT',
+    'ALTER TABLE uploaded_files ADD COLUMN chunk_count INTEGER NOT NULL DEFAULT 0',
+    "ALTER TABLE uploaded_files ADD COLUMN embed_status TEXT NOT NULL DEFAULT 'pending'",
+    'CREATE INDEX IF NOT EXISTS idx_uploaded_files_conv ON uploaded_files(conv_id)',
+    'CREATE INDEX IF NOT EXISTS idx_uploaded_files_created ON uploaded_files(created_at DESC)',
+    "CREATE INDEX IF NOT EXISTS idx_uploaded_files_embed ON uploaded_files(embed_status)",
+    `CREATE TABLE IF NOT EXISTS file_embeddings (
+      id          TEXT NOT NULL,
+      file_id     TEXT NOT NULL,
+      chunk_index INTEGER NOT NULL,
+      chunk_text  TEXT NOT NULL,
+      vector      BLOB NOT NULL,
+      dim         INTEGER NOT NULL,
+      created_at  TEXT NOT NULL,
+      PRIMARY KEY(id)
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_file_embeddings_file ON file_embeddings(file_id)',
+    'CREATE INDEX IF NOT EXISTS idx_file_embeddings_created ON file_embeddings(created_at DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_memory_facts_active ON memory_facts(created_at DESC) WHERE invalid_at IS NULL'
+  ]
+  for (const sql of migrations) {
+    try { database.exec(sql) } catch { /* column/index already exists */ }
+  }
 }
 
-// ── WAL checkpoint 定时任务（防止 WAL 文件无限增长）────────────────────────
-// PASSIVE 模式：不阻塞正在进行的读写；每 5 分钟运行一次
-setInterval(() => {
-  try { db.pragma('wal_checkpoint(PASSIVE)') } catch { /* 忽略偶发错误 */ }
-}, 5 * 60 * 1000)
+// ── Per-user database pool ───────────────────────────────────────────────────
+
+const dbPool = new Map<string, InstanceType<typeof Database>>()
+const dbTimers = new Map<string, ReturnType<typeof setInterval>>()
+
+/** Derive a short userId from an access token (first 12 hex chars of SHA-256) */
+export function tokenToUserId(token: string): string {
+  return createHash('sha256').update(token).digest('hex').slice(0, 12)
+}
+
+/**
+ * One-time migration: copy all data from the legacy _default db into a newly
+ * created userId db.  Runs only when the userId db file did not exist before.
+ * This handles the upgrade path from a pre-auth single-user deployment.
+ */
+function migrateFromDefault(targetDb: InstanceType<typeof Database>): void {
+  const defaultDbPath = path.join(DATA_DIR, 'anima.db')
+  if (!fs.existsSync(defaultDbPath)) return
+
+  let srcDb: InstanceType<typeof Database> | null = null
+  try {
+    srcDb = new Database(defaultDbPath, { readonly: true })
+  } catch {
+    return
+  }
+
+  try {
+    type CountRow = { cnt: number }
+    const count = (sql: string) => (srcDb!.prepare(sql).get() as CountRow).cnt
+    const hasData =
+      count('SELECT COUNT(*) as cnt FROM storage') > 0 ||
+      count('SELECT COUNT(*) as cnt FROM config') > 0 ||
+      count('SELECT COUNT(*) as cnt FROM user_profile') > 0 ||
+      count('SELECT COUNT(*) as cnt FROM memory_facts') > 0
+
+    if (!hasData) return
+
+    // storage
+    const storageRows = srcDb.prepare('SELECT filename, content, updated_at FROM storage').all() as StorageRow[]
+    const insStorage = targetDb.prepare(
+      'INSERT OR IGNORE INTO storage (filename, content, updated_at) VALUES (?, ?, ?)'
+    )
+    for (const r of storageRows) insStorage.run(r.filename, r.content, r.updated_at)
+
+    // config
+    const configRows = srcDb.prepare('SELECT key, value, updated_at FROM config').all() as ConfigRow[]
+    const insConfig = targetDb.prepare(
+      'INSERT OR IGNORE INTO config (key, value, updated_at) VALUES (?, ?, ?)'
+    )
+    for (const r of configRows) insConfig.run(r.key, r.value, r.updated_at)
+
+    // user_profile
+    const profile = srcDb.prepare('SELECT * FROM user_profile WHERE id = 1').get() as UserProfileRow | undefined
+    if (profile) {
+      targetDb.prepare(`
+        INSERT OR IGNORE INTO user_profile
+          (id, occupation, interests, tools, writing_style, goals, location, raw_notes, last_extracted, updated_at)
+        VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        profile.occupation, profile.interests, profile.tools, profile.writing_style,
+        profile.goals, profile.location, profile.raw_notes, profile.last_extracted, profile.updated_at
+      )
+    }
+
+    // memory_facts
+    const facts = srcDb.prepare('SELECT id, fact, source_conv_id, created_at, invalid_at FROM memory_facts').all() as MemoryFactRow[]
+    const insFact = targetDb.prepare(
+      'INSERT OR IGNORE INTO memory_facts (id, fact, source_conv_id, created_at, invalid_at) VALUES (?, ?, ?, ?, ?)'
+    )
+    for (const r of facts) insFact.run(r.id, r.fact, r.source_conv_id, r.created_at, r.invalid_at)
+
+    console.log(
+      `[db] Migrated legacy default data → userId db` +
+      ` (storage:${storageRows.length} config:${configRows.length}` +
+      ` facts:${facts.length} profile:${profile ? 1 : 0})`
+    )
+  } catch (e) {
+    console.error('[db] Migration from default db failed:', e)
+  } finally {
+    try { srcDb?.close() } catch { /* ignore */ }
+  }
+}
+
+/** Get (or create) a SQLite database for the given userId */
+export function getDb(userId?: string): InstanceType<typeof Database> {
+  const key = userId || '_default'
+
+  const cached = dbPool.get(key)
+  if (cached) return cached
+
+  const userDir = userId ? path.join(DATA_DIR, userId) : DATA_DIR
+  if (!fs.existsSync(userDir)) {
+    fs.mkdirSync(userDir, { recursive: true })
+  }
+
+  const dbPath = path.join(userDir, 'anima.db')
+  const isNewDb = !fs.existsSync(dbPath)
+  const database = new Database(dbPath)
+  initSchema(database)
+
+  // Auto-migrate legacy data when a userId db is created for the first time
+  if (isNewDb && userId) {
+    migrateFromDefault(database)
+  }
+
+  dbPool.set(key, database)
+
+  // WAL checkpoint every 5 minutes per db
+  const timer = setInterval(() => {
+    try { database.pragma('wal_checkpoint(PASSIVE)') } catch { /* ignore */ }
+  }, 5 * 60 * 1000)
+  dbTimers.set(key, timer)
+
+  return database
+}
+
+// ── Legacy default export (for backward compatibility during migration) ──────
+// Default db is only used when no userId context is available (e.g. agent worker startup)
+
+export const db = getDb()
+
+// ── Type exports ─────────────────────────────────────────────────────────────
 
 export type StorageRow = { filename: string; content: string; updated_at: string }
 export type ConfigRow = { key: string; value: string; updated_at: string }
