@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCanvasStore } from '../stores/canvasStore'
 import { UI_CONFIG } from '@shared/constants'
@@ -13,44 +13,16 @@ export function InputBox() {
   const [filePreviews, setFilePreviews] = useState<FilePreview[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [focused, setFocused] = useState(false)
-  
+  const [matchCount, setMatchCount] = useState(0)
+
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  
+
   const startConversation = useCanvasStore(state => state.startConversation)
   const isModalOpen = useCanvasStore(state => state.isModalOpen)
   const detectIntent = useCanvasStore(state => state.detectIntent)
   const getRelevantMemories = useCanvasStore(state => state.getRelevantMemories)
   const setHighlight = useCanvasStore(state => state.setHighlight)
-  
-  // Semantic Highlight State
-  const [matchCount, setMatchCount] = useState(0)
-  
-  // Debounced Intent Detection
-  useEffect(() => {
-      const timer = setTimeout(async () => {
-          if (!message.trim()) {
-              setMatchCount(0)
-              setHighlight(null, [])
-              return
-          }
-          
-          // 1. Detect Intent -> Highlight Category
-          const category = detectIntent(message)
-          
-          // 2. Find Relevant Memories -> Count & Highlight
-          const memories = await getRelevantMemories(message)
-          setMatchCount(memories.length)
-          
-          // 3. Map conversation ids to node ids for canvas highlight
-          const highlightedIds = memories
-            .map(m => m.nodeId ?? m.conv.id)
-            .filter((id): id is string => !!id)
-          setHighlight(category, highlightedIds)
-          
-      }, 300)
-      return () => clearTimeout(timer)
-  }, [message, detectIntent, getRelevantMemories, setHighlight])
 
   // 处理文件拖入和选择
   const handleFiles = useCallback(async (fileList: FileList | File[]) => {
@@ -122,14 +94,15 @@ export function InputBox() {
             }
           }
 
-          // 创建文件附件
+          // 创建文件附件（convId 在提交时绑定）
           const attachment: FileAttachment = {
             id: previewId,
             name: file.name,
             type: file.type,
             size: file.size,
             content,
-            preview
+            preview,
+            _rawFile: file // 暂存原始 File 对象，提交时上传用
           }
 
           setFiles(prev => [...prev, attachment])
@@ -157,16 +130,16 @@ export function InputBox() {
   // 处理粘贴
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
     const items = e.clipboardData.items
-    const files: File[] = []
+    const pasteFiles: File[] = []
 
     for (let i = 0; i < items.length; i++) {
       const file = items[i].getAsFile()
-      if (file) files.push(file)
+      if (file) pasteFiles.push(file)
     }
 
-    if (files.length > 0) {
+    if (pasteFiles.length > 0) {
       e.preventDefault()
-      handleFiles(files)
+      handleFiles(pasteFiles)
     }
   }, [handleFiles])
 
@@ -181,32 +154,74 @@ export function InputBox() {
   // 移除文件
   const removeFile = useCallback((id: string) => {
     setFilePreviews(prev => prev.filter(f => f.id !== id))
-    setFiles(prev => prev.filter(f => f.id !== id))
-
-    // 同时移除对应的图片
-    const file = files.find(f => f.id === id)
-    if (file?.preview) {
-      setImages(prev => prev.filter(img => img !== file.preview))
-    }
-  }, [files])
+    setFiles(prev => {
+      const file = prev.find(f => f.id === id)
+      if (file?.preview) {
+        setImages(imgs => imgs.filter(img => img !== file.preview))
+      }
+      return prev.filter(f => f.id !== id)
+    })
+  }, [])
 
   // 移除图片
   const removeImage = useCallback((idx: number) => {
     setImages(prev => prev.filter((_, i) => i !== idx))
   }, [])
 
-  // 提交
-  const handleSubmit = useCallback(() => {
+  // 提交：先上传文件到后端，再触发对话
+  const handleSubmit = useCallback(async () => {
     const trimmed = message.trim()
     const hasImages = images.length > 0
     const hasFiles = files.length > 0
 
     if (!trimmed && !hasImages && !hasFiles) return
+    if (isProcessing) return
 
-    // 组合用户消息和文件内容
+    setIsProcessing(true)
+
+    // 1. 提交前检索相关记忆，用于画布 highlight
+    const category = detectIntent(trimmed)
+    if (trimmed) {
+      getRelevantMemories(trimmed).then(memories => {
+        setMatchCount(memories.length)
+        const highlightedIds = memories
+          .map(m => m.nodeId ?? m.conv.id)
+          .filter((id): id is string => !!id)
+        setHighlight(category, highlightedIds)
+      }).catch(() => {})
+    }
+
+    // 2. 上传文件到后端（仅非图片文件需走存储接口）
+    const uploadedFiles: FileAttachment[] = []
+    for (const f of files) {
+      const rawFile = f._rawFile
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { _rawFile, ...clean } = f
+      if (!rawFile || f.preview) {
+        // 图片不单独上传（base64 已在 content），直接保留
+        uploadedFiles.push(clean)
+        continue
+      }
+      try {
+        const formData = new FormData()
+        formData.append('file', rawFile)
+        formData.append('id', f.id)
+        formData.append('textContent', f.content || '')
+        const res = await fetch('/api/storage/file', { method: 'POST', body: formData })
+        if (!res.ok) {
+          uploadedFiles.push({ ...clean, uploadError: `上传失败（${res.status}）` })
+        } else {
+          uploadedFiles.push(clean)
+        }
+      } catch {
+        uploadedFiles.push({ ...clean, uploadError: '网络错误，文件未能上传到记忆库' })
+      }
+    }
+
+    // 3. 组合消息并启动对话
     let fullMessage = trimmed
-    if (hasFiles) {
-      const fileContext = formatFilesForAI(files.map(f => ({
+    if (uploadedFiles.length > 0) {
+      const fileContext = formatFilesForAI(uploadedFiles.map(f => ({
         name: f.name,
         type: f.type,
         size: f.size,
@@ -215,13 +230,15 @@ export function InputBox() {
       fullMessage = trimmed + fileContext
     }
 
-    startConversation(fullMessage, images, files)
+    startConversation(fullMessage, images, uploadedFiles)
 
     // 清空状态
     setMessage('')
     setImages([])
     setFiles([])
     setFilePreviews([])
+    setMatchCount(0)
+    setIsProcessing(false)
 
     // 重置textarea高度
     requestAnimationFrame(() => {
@@ -230,7 +247,7 @@ export function InputBox() {
         textarea.style.height = 'auto'
       }
     })
-  }, [message, images, files, startConversation])
+  }, [message, images, files, isProcessing, startConversation, detectIntent, getRelevantMemories, setHighlight])
 
   // 键盘处理
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -279,7 +296,7 @@ export function InputBox() {
         {/* 文件预览区 */}
         <AnimatePresence>
             {(filePreviews.length > 0 || images.length > 0) && (
-            <motion.div 
+            <motion.div
                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -287,8 +304,8 @@ export function InputBox() {
             >
                 {/* 图片预览 */}
                 {images.map((img, idx) => (
-                <motion.div 
-                    key={`img-${idx}`} 
+                <motion.div
+                    key={`img-${idx}`}
                     layout
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}

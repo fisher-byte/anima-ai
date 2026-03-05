@@ -1,6 +1,33 @@
 # Anima 变更日志
 
-## [0.2.19] - 2026-03-04
+## [0.2.23] - 2026-03-05
+
+### MVP 上线准备（P0 修复 + 登录门槛 + 长期价值）
+
+基于全量代码核查，完成上线前最后一轮修复，同时补齐价值层功能。
+
+#### P0 修复（保命）
+- **SSE 前端分包解析**（`services/ai.ts`）：原 `chunk.split('\n')` 直接切割，JSON 跨 TCP chunk 时静默丢失；改为与后端一致的 `sseBuffer + \n\n` 边界分割，跨包内容不再截断
+- **InputBox 实时 embedding 请求消除**（`components/InputBox.tsx`）：删除输入时防抖 300ms 调用 `getRelevantMemories` 的 useEffect；改为提交时 fire-and-forget 检索，F12 Network 面板输入期间零余请求
+- **InputBox 文件首次走上传接口**（`components/InputBox.tsx`）：文件原先仅存本地 state 拼入 prompt；改为提交前调用 `/api/storage/file` 上传（图片 base64 跳过），上传失败降级而非阻断发送
+- **.env.example 变量名与代码一致**（`.env.example`）：`AUTH_ENABLED=false` 改为 `AUTH_DISABLED=false`，与 `auth.ts` 中实际读取的变量名对齐，补充 Fail Closed 语义注释
+
+#### P1 修复（闭环）
+- **AnswerModal 上传文件绑定 convId**（`components/AnswerModal.tsx`）：FormData 追加 `convId`，后端可将文件与对话关联，检索命中时能溯源到正确对话
+
+#### 上线门槛
+- **登录页 + token 注入**（`components/LoginPage.tsx` 新建、`App.tsx`）：启动时探活检测后端鉴权状态；有 localStorage token 自动注入并验证；未设置 token 时显示简洁登录页（输入框 + 确认按钮）；后端未启用鉴权时透明放行
+
+#### 长期价值
+- **节点标题 AI 异步摘要**（`server/routes/ai.ts` 新增 `/api/ai/summarize`、`stores/canvasStore.ts`）：节点创建后异步发起 10 字摘要请求，回写节点 title；失败静默降级为截断句
+- **连线关系 label**（`stores/canvasStore.ts`、`components/Edge.tsx`、`components/Canvas.tsx`）：分支连线自动填 label="延续"，同主题连线 label="同主题"；连线 hover 时以 SVG tooltip 展示 label
+
+#### 类型系统
+- **`FileAttachment._rawFile?: File`**（`@shared/types.ts`）：新增临时字段，InputBox 提交前暂存原始 File 对象用于上传；已从正式传输的 FileAttachment 中剔除（`_rawFile` 在上传后析构）
+
+---
+
+
 
 ### 前端联调专项修复（对标顶级开源体验）
 

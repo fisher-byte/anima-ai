@@ -54,6 +54,7 @@ export interface FileAttachment {
   content?: string  // 解析后的文本内容（用于文档）
   preview?: string  // 预览图（用于图片）
   uploadError?: string  // 上传失败时的错误信息
+  _rawFile?: File  // 原始 File 对象（仅 InputBox 提交前暂存，不持久化）
 }
 
 /**

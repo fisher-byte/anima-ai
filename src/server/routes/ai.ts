@@ -454,3 +454,51 @@ aiRoutes.post('/stream', async (c) => {
     }
   })
 })
+
+/**
+ * POST /api/ai/summarize
+ * Body: { userMessage: string, assistantMessage: string }
+ * Response: { title: string }
+ *
+ * 用一句话总结对话核心决策/结论，用于节点标题回写。
+ */
+aiRoutes.post('/summarize', async (c) => {
+  const { userMessage, assistantMessage } = await c.req.json<{
+    userMessage: string
+    assistantMessage: string
+  }>()
+
+  const row = db.prepare('SELECT value FROM config WHERE key = ?').get('apiKey') as
+    | { value: string }
+    | undefined
+  const apiKey = row?.value ?? ''
+  if (!apiKey) return c.json({ title: null, error: 'API Key 未配置' }, 400)
+
+  const baseUrlRow = db.prepare('SELECT value FROM config WHERE key = ?').get('baseUrl') as
+    | { value: string }
+    | undefined
+  const baseUrl = (baseUrlRow?.value ?? 'https://api.moonshot.cn/v1').replace(/\/$/, '')
+
+  const prompt = `请用一句话（10字以内）总结以下对话的核心问题或结论，只输出标题，不加标点：\n\n用户：${userMessage.slice(0, 200)}\nAI：${assistantMessage.slice(0, 300)}`
+
+  try {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: FAST_MODEL,
+        max_tokens: 30,
+        messages: [{ role: 'user', content: prompt }],
+        stream: false
+      }),
+      signal: AbortSignal.timeout(8000)
+    })
+
+    if (!response.ok) return c.json({ title: null })
+    const data = await response.json() as any
+    const title = data.choices?.[0]?.message?.content?.trim() ?? null
+    return c.json({ title })
+  } catch {
+    return c.json({ title: null })
+  }
+})

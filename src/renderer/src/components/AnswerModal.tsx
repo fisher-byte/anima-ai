@@ -111,6 +111,9 @@ export function AnswerModal() {
           formData.append('file', rawFile)
           formData.append('id', id)
           formData.append('textContent', f.content || '')
+          // 绑定当前对话 ID，确保文件可被检索时关联到正确对话
+          const convId = currentConversation?.id
+          if (convId) formData.append('convId', convId)
           const uploadRes = await fetch('/api/storage/file', { method: 'POST', body: formData })
           if (!uploadRes.ok) {
             uploadError = uploadRes.status === 413 ? '文件过大，无法上传到记忆库' : `上传失败（${uploadRes.status}）`
@@ -132,7 +135,7 @@ export function AnswerModal() {
     } catch (error) {
       console.error('文件上传失败:', error)
     }
-  }, [])
+  }, [currentConversation])
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) handleFiles(e.target.files)
