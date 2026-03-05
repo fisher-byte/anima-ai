@@ -118,6 +118,7 @@ export function Canvas() {
   const edges = useCanvasStore(state => state.edges)
   const isModalOpen = useCanvasStore(state => state.isModalOpen)
   const highlightedNodeIds = useCanvasStore(state => state.highlightedNodeIds)
+  const nodesLoaded = useCanvasStore(state => state.nodesLoaded)
   // actions 从 getState() 取，不订阅 store，不触发重渲染
   const setOffset = useCallback((o: {x:number;y:number}) => useCanvasStore.getState().setOffset(o), [])
   const setScale = useCallback((s: number) => useCanvasStore.getState().setScale(s), [])
@@ -611,7 +612,7 @@ export function Canvas() {
             ))}
 
             {/* empty state */}
-            {nodes.length === 0 && (
+            {nodes.length === 0 && nodesLoaded && (
               <div
                 style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
                 className="text-gray-300 text-sm select-none pointer-events-none whitespace-nowrap"

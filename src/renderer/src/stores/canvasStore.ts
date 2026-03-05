@@ -104,7 +104,11 @@ interface CanvasState {
 
   // API Key 状态
   hasApiKey: boolean
+  apiKeyChecked: boolean   // checkApiKey 至少执行过一次后为 true
   checkApiKey: () => Promise<void>
+
+  // 节点初次加载是否完成（防止空画布提示闪烁）
+  nodesLoaded: boolean
 }
 
 // 防止 completeOnboarding 并发重复执行
@@ -142,6 +146,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   // API Key 状态初始化
   hasApiKey: false,
+  apiKeyChecked: false,
+  nodesLoaded: false,
 
   setConversationHistory: (history) => set({ conversationHistory: history }),
   resetConversationHistory: () => set({ conversationHistory: [] }),
@@ -315,9 +321,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   checkApiKey: async () => {
     try {
       const key = await configService.getApiKey()
-      set({ hasApiKey: !!key })
+      set({ hasApiKey: !!key, apiKeyChecked: true })
     } catch {
-      set({ hasApiKey: false })
+      set({ hasApiKey: false, apiKeyChecked: true })
     }
   },
 
@@ -488,6 +494,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     } catch (error) {
       console.error('Failed to load nodes:', error)
     }
+    set({ nodesLoaded: true })
   },
 
   // 加载用户偏好
