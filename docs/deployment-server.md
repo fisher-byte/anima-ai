@@ -100,6 +100,14 @@ server {
     root /opt/evocanvas/dist;
     index index.html;
 
+    # gzip on-the-fly（注意：gzip_static 必须为 off，否则新 chunk 文件名变化后
+    # 找不到旧 .gz 文件会返回 ERR_EMPTY_RESPONSE）
+    gzip on;
+    gzip_types text/plain text/css application/javascript application/json text/xml;
+    gzip_min_length 1000;
+    gzip_comp_level 6;
+    gzip_static off;
+
     location /assets/ {
         expires 1y;
         add_header Cache-Control "public, immutable";
@@ -120,8 +128,9 @@ server {
         proxy_send_timeout 120s;
     }
 
-    # SPA fallback
+    # SPA fallback — 禁止缓存 index.html，确保每次部署后获取最新版本
     location / {
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
         try_files $uri $uri/ /index.html;
     }
 }

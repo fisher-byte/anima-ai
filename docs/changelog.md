@@ -1,5 +1,31 @@
 # Anima 变更日志
 
+## [0.2.33] - 2026-03-06
+
+### 首屏性能优化 + 白屏修复 + gzip_static 修复
+
+#### 代码分割（`vite.config.ts`）
+- 新增 `manualChunks`：`vendor-react`(43KB)、`vendor-zustand`(4KB)、`vendor-markdown`(47KB) 拆为独立 chunk，主 bundle 从 1.08MB 降至 283KB（gzip：315KB → 89KB，减少 72%）
+- 首屏需下载约 183KB gzip，减少 42%；浏览器并行下载多个小 chunk 比顺序下载一个大文件更快
+
+#### mammoth 动态导入（`src/services/fileParsing.ts`）
+- 将 `import * as mammoth from 'mammoth'`（静态，~400KB）改为 lazy singleton 动态 import，仅在用户首次上传 Word 文档时加载，不阻塞首屏
+
+#### Loading Spinner（`src/renderer/src/App.tsx`）
+- `authChecked=false`（bundle 加载期间）改为显示居中 spinner + "正在加载..."，消除纯白屏体验
+
+#### gzip_static 修复（Nginx，服务器端）
+- 代码分割后新 chunk 文件名变化，服务器上旧 `.gz` 预压缩文件不匹配，`gzip_static on` 导致 `ERR_EMPTY_RESPONSE`
+- 已将生产服务器 nginx 配置改为 `gzip_static off`，on-the-fly gzip 正常返回 `Content-Encoding: gzip`
+- `docs/deployment-server.md` 同步更新
+
+#### 测试
+- `npm test`：216 tests 全部通过
+- `playwright test`：10 E2E tests 全部通过
+- 线上 API 验证：health/auth/storage/config/memory 全部正常
+
+---
+
 ## [0.2.32] - 2026-03-06
 
 ### 老用户数据迁移 + 新手引导误触发修复 + E2E 鉴权修复
