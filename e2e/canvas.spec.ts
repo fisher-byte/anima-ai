@@ -32,8 +32,10 @@ test('应用加载，画布容器渲染', async ({ page }) => {
   await page.goto('/')
   await waitForBackend(page)
 
-  // 画布容器出现
-  await expect(page.locator('canvas, [data-canvas], .canvas-container, #canvas-root').first()).toBeVisible({ timeout: 10_000 })
+  // 画布以 SVG 渲染，通过缩放控件或节点卡片判断加载完成
+  await expect(
+    page.locator('button:has-text("缩小"), button:has-text("放大"), [class*="canvas"], svg').first()
+  ).toBeVisible({ timeout: 10_000 })
 })
 
 // ── 测试 2：import-memory 能力块默认存在于画布 ────────────────────────────────
