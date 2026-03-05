@@ -36,14 +36,15 @@ npm run test:watch    # 监听模式（开发时用）
   - Config API（apikey、settings）：GET / PUT / 覆盖写入
   - Conversation History API（GET / PUT / DELETE）：保存/读取/删除、100 条截断、多对话隔离
 
-- ✅ `memory.test.ts` — 记忆路由集成测试（19 个用例）
+- ✅ `memory.test.ts` — 记忆路由集成测试（21 个用例）
   - **User Profile CRUD**：新建、GET、merge 更新（interests/tools 数组去重合并）、DELETE 清空
   - **Memory Facts CRUD**：GET 过滤失效条目、单条软删除、批量软删除（DB 行仍保留）
+  - **全量清空附带清理**：`DELETE /api/memory/facts` 同时清空 config.preference_rules + 删除 pending tasks（v0.2.24 新增）
   - **Queue API**：任务写入、缺少 type 时 400
   - **Classify / Extract 无 Key 降级**：无 API Key 时返回 fallback 响应
   - **Embedding Index**：DELETE 单条 / 全量
 
-**总测试数**: **208 个用例，7 个测试文件，全部通过**
+**总测试数**: **210 个用例，7 个测试文件，全部通过**
 
 ---
 
