@@ -457,6 +457,15 @@ export function Canvas() {
           </button>
         </div>
 
+        {/* 对话历史按钮（独立） */}
+        <button
+          onClick={() => { setSidebarTab('history'); setIsSidebarOpen(true) }}
+          className="p-3 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm hover:shadow-md transition-all border border-gray-100 text-gray-500 hover:text-gray-900"
+          title="对话历史"
+        >
+          <History className="w-5 h-5" />
+        </button>
+
         {/* 应用菜单挂件 */}
         <div className="relative">
           <button
@@ -482,13 +491,6 @@ export function Canvas() {
                   <Search className="w-4 h-4" />
                   <span className="font-medium">全局搜索</span>
                   <span className="ml-auto text-[10px] text-gray-300 font-bold border px-1 rounded">⌘K</span>
-                </button>
-                <button
-                  onClick={() => { setSidebarTab('history'); setIsSidebarOpen(true); setIsMenuOpen(false); }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
-                >
-                  <History className="w-4 h-4" />
-                  <span className="font-medium">对话历史</span>
                 </button>
                 <button
                   onClick={() => { setSidebarTab('memory'); setIsSidebarOpen(true); setIsMenuOpen(false); }}
