@@ -1,5 +1,30 @@
 # Anima 变更日志
 
+## [0.2.25] - 2026-03-05
+
+### Canvas Resize 居中 + 清空按钮移除 + 数据迁移与鉴权开启
+
+#### Canvas 窗口 Resize 居中适配
+- **`src/renderer/src/components/Canvas.tsx`**：新增 `window.resize` 监听器；窗口尺寸变化时计算 `Δw/Δh`，将当前 offset 各加 `Δw/2, Δh/2`，通过 `applyTransform` 直操 DOM 并同步写回 store。拖拽浏览器边框放大后，画布内容随视口中心等比例位移，不再偏左上角
+
+#### 删除"全量清空并开启新手教程"UI 入口
+- **`src/renderer/src/components/ConversationSidebar.tsx`**：删除"进化基因"tab 底部的全量清空按钮区块（原 lines 691–717）。后端 `DELETE /api/memory/facts`、`clearAllForOnboarding` store action 均保留，供开发者 curl 调用
+
+#### 数据迁移：旧 Electron 对话迁移至 Web 版
+- 编写一次性迁移脚本 `scripts/migrate-electron-data.cjs`，将旧 Electron 版数据（`~/Library/Application Support/evocanvas/data/`）迁移至 Web 版 SQLite：
+  - 20 条旧对话 + 2 条现有对话 → 22 条合并写入（旧数据优先）
+  - 17 个旧节点（补 `nodeType: "conversation"`）+ 1 个 capability 节点 → 18 个节点合并写入
+  - 使用 `ON CONFLICT DO UPDATE` 原子写入，不影响其他 storage 行
+
+#### Bearer Token 鉴权开启
+- **`.env`**：添加 `AUTH_DISABLED=false` + `ACCESS_TOKEN`（64 位随机十六进制）；鉴权正式开启（Fail Closed 模式）
+- 未持有 token 的浏览器访问 `http://localhost:5173` 时将显示 `LoginPage` 输入令牌；输入正确 token 后自动存入 `localStorage` 并注入所有后续 API 请求头
+
+#### E2E 测试
+- **`e2e/canvas.spec.ts`**、**`playwright.config.ts`**：E2E 请求增加 `Authorization: Bearer` 头，适配开启鉴权后的后端
+
+---
+
 ## [0.2.24] - 2026-03-05
 
 ### 记忆与进化基因侧边栏根因修复

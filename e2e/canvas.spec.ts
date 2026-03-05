@@ -12,23 +12,45 @@
 
 import { test, expect } from '@playwright/test'
 
+// E2E 测试 Bearer token（从环境变量读取，本地通过 .env 注入）
+const ACCESS_TOKEN = process.env.ACCESS_TOKEN ?? ''
+
+// 统一请求头（鉴权开启时需要带 token）
+function authHeaders(): Record<string, string> {
+  if (!ACCESS_TOKEN) return {}
+  return { Authorization: `Bearer ${ACCESS_TOKEN}` }
+}
+
 // ── 工具：等待后端就绪 ───────────────────────────────────────────────────────
 async function waitForBackend(page: import('@playwright/test').Page) {
+  const token = ACCESS_TOKEN
   await page.waitForFunction(
-    async () => {
+    async (tok: string) => {
       try {
-        const r = await fetch('/api/memory/facts')
+        const headers: Record<string, string> = {}
+        if (tok) headers['Authorization'] = `Bearer ${tok}`
+        const r = await fetch('/api/memory/facts', { headers })
         return r.ok
       } catch {
         return false
       }
     },
+    token,
     { timeout: 15_000 }
   )
 }
 
+// ── 工具：注入 token 到 localStorage（让 App.tsx 自动鉴权通过）─────────────
+async function injectToken(page: import('@playwright/test').Page) {
+  if (!ACCESS_TOKEN) return
+  await page.addInitScript((token: string) => {
+    localStorage.setItem('anima_access_token', token)
+  }, ACCESS_TOKEN)
+}
+
 // ── 测试 1：应用基础加载 ──────────────────────────────────────────────────────
 test('应用加载，画布容器渲染', async ({ page }) => {
+  await injectToken(page)
   await page.goto('/')
   await waitForBackend(page)
 
@@ -40,6 +62,7 @@ test('应用加载，画布容器渲染', async ({ page }) => {
 
 // ── 测试 2：import-memory 能力块默认存在于画布 ────────────────────────────────
 test('画布上存在「导入外部记忆」能力块', async ({ page }) => {
+  await injectToken(page)
   await page.goto('/')
   await waitForBackend(page)
 
@@ -53,26 +76,30 @@ test('画布上存在「导入外部记忆」能力块', async ({ page }) => {
 
 // ── 测试 3：后端 API 健康检查 ──────────────────────────────────────────────────
 test('后端核心接口返回正常', async ({ request }) => {
+  const headers = authHeaders()
+
   // memory facts
-  const factsResp = await request.get('http://localhost:3000/api/memory/facts')
+  const factsResp = await request.get('http://localhost:3000/api/memory/facts', { headers })
   expect(factsResp.ok()).toBeTruthy()
   const factsData = await factsResp.json()
   expect(factsData).toHaveProperty('facts')
   expect(Array.isArray(factsData.facts)).toBe(true)
 
   // memory profile
-  const profileResp = await request.get('http://localhost:3000/api/memory/profile')
+  const profileResp = await request.get('http://localhost:3000/api/memory/profile', { headers })
   expect(profileResp.ok()).toBeTruthy()
 
   // storage read (profile.json)
-  const storageResp = await request.get('http://localhost:3000/api/storage/profile.json')
+  const storageResp = await request.get('http://localhost:3000/api/storage/profile.json', { headers })
   expect(storageResp.status()).toBeLessThan(500)
 })
 
 // ── 测试 4：记忆条目 PUT 编辑接口 ────────────────────────────────────────────
 test('PUT /api/memory/facts/:id 接口正常响应', async ({ request }) => {
+  const headers = authHeaders()
   const resp = await request.put('http://localhost:3000/api/memory/facts/nonexistent-id', {
-    data: { fact: 'test fact content' }
+    data: { fact: 'test fact content' },
+    headers
   })
   // 无此 id 时仍返回 200（UPDATE 影响 0 行是合法的）
   expect(resp.ok()).toBeTruthy()
@@ -82,6 +109,7 @@ test('PUT /api/memory/facts/:id 接口正常响应', async ({ request }) => {
 
 // ── 测试 5：侧栏可以打开 ───────────────────────────────────────────────────────
 test('侧栏按钮存在并可点击', async ({ page }) => {
+  await injectToken(page)
   await page.goto('/')
   await waitForBackend(page)
   await page.waitForTimeout(1500)
@@ -100,6 +128,7 @@ test('侧栏按钮存在并可点击', async ({ page }) => {
 
 // ── 测试 6：节点标签不出现省略号截断 ─────────────────────────────────────────
 test('节点卡片标题不被省略号截断', async ({ page }) => {
+  await injectToken(page)
   await page.goto('/')
   await waitForBackend(page)
   await page.waitForTimeout(2000)
@@ -117,11 +146,13 @@ test('节点卡片标题不被省略号截断', async ({ page }) => {
 
 // ── 测试 7：agentWorker queue 接口接受任务入队 ────────────────────────────────
 test('POST /api/memory/queue 入队成功', async ({ request }) => {
+  const headers = authHeaders()
   const resp = await request.post('http://localhost:3000/api/memory/queue', {
     data: {
       type: 'extract_preference',
       payload: { userMessage: '回答简洁一点', assistantMessage: 'test', context: 'e2e_test' }
-    }
+    },
+    headers
   })
   expect(resp.ok()).toBeTruthy()
   const data = await resp.json()

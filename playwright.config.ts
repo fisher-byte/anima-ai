@@ -1,4 +1,8 @@
 import { defineConfig, devices } from '@playwright/test'
+import { config } from 'dotenv'
+
+// 加载 .env，使 ACCESS_TOKEN 对 E2E 测试进程可见
+config()
 
 export default defineConfig({
   testDir: './e2e',
