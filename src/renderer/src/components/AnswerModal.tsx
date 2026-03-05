@@ -60,6 +60,7 @@ export function AnswerModal() {
   const setConversationHistory = useCanvasStore(state => state.setConversationHistory)
   const setHighlight = useCanvasStore(state => state.setHighlight)
   const focusNode = useCanvasStore(state => state.focusNode)
+  const isLoading = useCanvasStore(state => state.isLoading)
   const isOnboardingMode = useCanvasStore(state => state.isOnboardingMode)
   const completeOnboarding = useCanvasStore(state => state.completeOnboarding)
   const addCapabilityNode = useCanvasStore(state => state.addCapabilityNode)
@@ -238,6 +239,15 @@ export function AnswerModal() {
     }
   })
 
+  // ── 加载状态：重置本地状态，避免显示上一个对话的内容 ──────────────────────
+  useEffect(() => {
+    if (isLoading) {
+      setTurns([])
+      setIsStreaming(false)
+      setErrorMessage(null)
+    }
+  }, [isLoading])
+
   // ── 新手引导：打开时注入问候语（或恢复已有 turns） ─────────────────────────
   useEffect(() => {
     if (!isModalOpen || !isOnboardingMode) return
@@ -293,7 +303,7 @@ export function AnswerModal() {
 
   // ── 普通模式：对话准备 ──────────────────────────────────────────────────────
   useEffect(() => {
-    if (!isModalOpen || !currentConversation || isOnboardingMode) return
+    if (!isModalOpen || !currentConversation || isOnboardingMode || isLoading) return
 
     const prepareConversation = async () => {
       if (currentConversation.assistantMessage) {
@@ -367,7 +377,7 @@ export function AnswerModal() {
     }
 
     prepareConversation()
-  }, [isModalOpen, currentConversation, isOnboardingMode, resetHistory, sendMessage, getPreferencesForPrompt, getRelevantMemories])
+  }, [isModalOpen, currentConversation, isOnboardingMode, isLoading, resetHistory, sendMessage, getPreferencesForPrompt, getRelevantMemories])
 
   // ── 编辑 / 重生成 / 复制 ────────────────────────────────────────────────────
   const handleStartEdit = (index: number, content: string) => {
@@ -810,7 +820,14 @@ export function AnswerModal() {
                 {/* 对话内容区 */}
                 <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6 scroll-smooth space-y-8">
                   <div className="max-w-2xl mx-auto space-y-10">
-                    {turns.map((t, idx) => (
+                    {isLoading ? (
+                      <div className="flex items-center justify-center py-20 text-gray-300">
+                        <svg className="animate-spin w-6 h-6" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                        </svg>
+                      </div>
+                    ) : turns.map((t, idx) => (
                       <div key={idx} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
 
                         {/* 用户消息 + 文件气泡 */}

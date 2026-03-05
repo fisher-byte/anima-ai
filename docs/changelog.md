@@ -1,5 +1,41 @@
 # Anima 变更日志
 
+## [0.2.35] - 2026-03-06
+
+### 在线版 modal 竞态修复 + 网络错误友好提示
+
+#### 问题
+在线部署（在线服务器版）出现多个关联 bug：
+1. **点击卡片无响应/等待久**：`openModalById` 需先完成 `conversations.jsonl` 网络读取才打开 modal，网络慢时 UI 无任何响应
+2. **进去的不是点的那个**：找不到对话时 `currentConversation: null` 但 modal 仍打开，显示上一个对话内容
+3. **已完成卡片点进去重新生成**：`openModalById` 先设 `isModalOpen: true`（旧 conversation 残留）触发 `prepareConversation` effect，再异步更新 conversation，导致 effect 在旧数据上跑了一遍，触发重生成
+4. **快速连续点击多个卡片**：多个并发异步请求，先发后返的覆盖了后发先返的，显示错误的对话
+5. **`[API错误: fetch failed]` / `[API错误: BodyStreamBuffer was aborted]`**：网络中断时底层原始错误直接透传给用户
+
+#### 修复
+
+**`canvasStore.ts` — `openModalById`**
+- 改为立即 `set({ isModalOpen: true, isLoading: true })`，modal 立刻打开显示 loading spinner，不等网络
+- 引入模块级 `_openModalToken` 递增令牌，异步回调中只有持有最新令牌的请求才被接受，彻底解决快速点击竞态
+- 找不到对话时 `set({ isModalOpen: false })`（不再打开空 modal）
+
+**`AnswerModal.tsx`**
+- 订阅 `isLoading` 状态：`isLoading === true` 时 `prepareConversation` effect 提前返回，防止在旧 conversation 上触发生成
+- 新增 `isLoading` 监听 effect：loading 开始时立即清空 `turns`/`isStreaming`/`errorMessage`，避免 modal loading 期间显示上一个对话内容
+- 对话内容区加条件渲染：`isLoading` 时显示居中 spinner，不渲染 turns
+
+**`ai.ts` — 网络错误归一化**
+- 捕获 `fetch failed`（含大小写变体）、`BodyStreamBuffer was aborted`、`NetworkError`、`ERR_NETWORK` 等底层网络错误，统一替换为"网络连接中断，请检查网络后重试"
+
+#### 新增测试（`src/renderer/src/services/__tests__/ai.test.ts`）
+- 新增 16 个单元测试，覆盖：5 种网络错误归一化、3 种 HTTP 状态码映射、SSE 内容/推理流解析、error 事件、malformed JSON 容错、callAI 汇总
+
+#### 测试结果
+- `npm test`：232 tests 全部通过（新增 16 个）
+- `playwright test`：10 E2E tests 全部通过
+
+---
+
 ## [0.2.34] - 2026-03-06
 
 ### 刷新闪烁修复（nodesLoaded + apiKeyChecked 状态防抖）
