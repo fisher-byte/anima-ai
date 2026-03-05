@@ -590,11 +590,35 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       existingIndex >= 0
         ? nodes.map((n, idx) => (idx === existingIndex ? { ...n, title, keywords, color, category } : n))
         : [...nodes, newNode]
-    
+
     set({ nodes: updatedNodes })
     get().updateEdges() // 添加后更新连线
     get().focusNode(conversation.id)
     await storageService.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
+
+    // 异步生成 AI 摘要标题（不阻塞主流程，失败静默降级为截断句子）
+    if (conversation.assistantMessage && conversation.userMessage) {
+      fetch('/api/ai/summarize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userMessage: conversation.userMessage,
+          assistantMessage: conversation.assistantMessage
+        })
+      }).then(async res => {
+        if (!res.ok) return
+        const data = await res.json() as { title: string | null }
+        if (!data.title) return
+        const aiTitle = data.title.trim()
+        if (!aiTitle) return
+        const { nodes: currentNodes } = get()
+        const withTitle = currentNodes.map(n =>
+          n.id === conversation.id ? { ...n, title: aiTitle } : n
+        )
+        set({ nodes: withTitle })
+        await storageService.write(STORAGE_FILES.NODES, JSON.stringify(withTitle, null, 2))
+      }).catch(() => { /* 静默忽略 */ })
+    }
   },
 
   // 更新节点位置
@@ -611,7 +635,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const { nodes } = get()
     const newEdges: Edge[] = []
     const connectedNodeIds = new Set<string>()
-    
+
     // 1. 基于 parentId 的分支连线 (树状结构)
     nodes.forEach(node => {
       if (node.parentId) {
@@ -621,13 +645,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
             id: `edge-branch-${parentNode.id}-${node.id}`,
             source: parentNode.id,
             target: node.id,
+            label: '延续',
             createdAt: new Date().toISOString()
           })
           connectedNodeIds.add(node.id)
         }
       }
     })
-    
+
     // 2. 按类别分组的板块连线 (星型拓扑 - 仅针对没有父节点的根节点)
     const categories = new Map<string, Node[]>()
     nodes.forEach(n => {
@@ -637,7 +662,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       if (!categories.has(cat)) categories.set(cat, [])
       categories.get(cat)!.push(n)
     })
-    
+
     categories.forEach((catNodes) => {
       if (catNodes.length < 2) return
       const centerNode = catNodes[0]
@@ -646,11 +671,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           id: `edge-cat-${centerNode.id}-${catNodes[i].id}`,
           source: centerNode.id,
           target: catNodes[i].id,
+          label: '同主题',
           createdAt: new Date().toISOString()
         })
       }
     })
-    
+
     set({ edges: newEdges })
   },
 

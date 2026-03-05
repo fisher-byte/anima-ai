@@ -569,6 +569,7 @@ export function Canvas() {
                     key={edge.id}
                     sourceNode={sourceNode}
                     targetNode={targetNode}
+                    label={edge.label}
                   />
                 )
               })}

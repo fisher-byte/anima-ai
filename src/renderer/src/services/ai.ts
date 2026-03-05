@@ -66,6 +66,8 @@ export async function* streamAI(
     if (!reader) throw new Error('No response body')
 
     const decoder = new TextDecoder()
+    // SSE buffer：累积跨 TCP chunk 的不完整行，按 \n\n 边界分割完整事件
+    let sseBuffer = ''
 
     while (true) {
       if (signal?.aborted) throw new Error('生成已停止')
@@ -73,34 +75,38 @@ export async function* streamAI(
       const { done, value } = await reader.read()
       if (done) break
 
-      const chunk = decoder.decode(value, { stream: true })
-      const lines = chunk.split('\n').filter((l) => l.trim())
+      sseBuffer += decoder.decode(value, { stream: true })
+      // SSE 事件以 \n\n 分隔；split 后最后一段留在 buffer 等待后续 chunk 补全
+      const parts = sseBuffer.split('\n\n')
+      sseBuffer = parts.pop() ?? ''
 
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue
-        const raw = line.slice(6)
+      for (const part of parts) {
+        for (const line of part.split('\n')) {
+          if (!line.startsWith('data: ')) continue
+          const raw = line.slice(6)
 
-        try {
-          const evt = JSON.parse(raw) as {
-            type: 'content' | 'reasoning' | 'done' | 'error'
-            content?: string
-            fullText?: string
-            message?: string
+          try {
+            const evt = JSON.parse(raw) as {
+              type: 'content' | 'reasoning' | 'done' | 'error'
+              content?: string
+              fullText?: string
+              message?: string
+            }
+
+            if (evt.type === 'content' && evt.content) {
+              fullContent += evt.content
+              yield { type: 'content', content: evt.content }
+            } else if (evt.type === 'reasoning' && evt.content) {
+              yield { type: 'reasoning', content: evt.content }
+            } else if (evt.type === 'done') {
+              // Stream finished
+            } else if (evt.type === 'error') {
+              throw new Error(evt.message ?? 'Unknown AI error')
+            }
+          } catch (parseErr) {
+            if (parseErr instanceof SyntaxError) continue
+            throw parseErr
           }
-
-          if (evt.type === 'content' && evt.content) {
-            fullContent += evt.content
-            yield { type: 'content', content: evt.content }
-          } else if (evt.type === 'reasoning' && evt.content) {
-            yield { type: 'reasoning', content: evt.content }
-          } else if (evt.type === 'done') {
-            // Stream finished
-          } else if (evt.type === 'error') {
-            throw new Error(evt.message ?? 'Unknown AI error')
-          }
-        } catch (parseErr) {
-          if (parseErr instanceof SyntaxError) continue
-          throw parseErr
         }
       }
     }
