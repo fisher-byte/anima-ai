@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCanvasStore } from '../stores/canvasStore'
 import { UI_CONFIG } from '@shared/constants'
@@ -17,12 +17,28 @@ export function InputBox() {
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // 防抖计时器：输入停止 600ms 后再检索记忆
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const startConversation = useCanvasStore(state => state.startConversation)
   const isModalOpen = useCanvasStore(state => state.isModalOpen)
   const detectIntent = useCanvasStore(state => state.detectIntent)
   const getRelevantMemories = useCanvasStore(state => state.getRelevantMemories)
   const setHighlight = useCanvasStore(state => state.setHighlight)
+
+  // 组件卸载或 modal 打开时，清空 badge 并取消未完成的防抖
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [])
+
+  // modal 关闭后（InputBox 重新挂载）确保 badge 归零
+  useEffect(() => {
+    if (!isModalOpen) {
+      setMatchCount(0)
+    }
+  }, [isModalOpen])
 
   // 处理文件拖入和选择
   const handleFiles = useCallback(async (fileList: FileList | File[]) => {
@@ -179,16 +195,10 @@ export function InputBox() {
 
     setIsProcessing(true)
 
-    // 1. 提交前检索相关记忆，用于画布 highlight
-    const category = detectIntent(trimmed)
-    if (trimmed) {
-      getRelevantMemories(trimmed).then(memories => {
-        setMatchCount(memories.length)
-        const highlightedIds = memories
-          .map(m => m.nodeId ?? m.conv.id)
-          .filter((id): id is string => !!id)
-        setHighlight(category, highlightedIds)
-      }).catch(() => {})
+    // 取消输入中可能未触发的防抖，避免提交后又回调 setMatchCount
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+      debounceRef.current = null
     }
 
     // 2. 上传文件到后端（仅非图片文件需走存储接口）
@@ -238,6 +248,7 @@ export function InputBox() {
     setFiles([])
     setFilePreviews([])
     setMatchCount(0)
+    setHighlight(null, [])
     setIsProcessing(false)
 
     // 重置textarea高度
@@ -247,7 +258,7 @@ export function InputBox() {
         textarea.style.height = 'auto'
       }
     })
-  }, [message, images, files, isProcessing, startConversation, detectIntent, getRelevantMemories, setHighlight])
+  }, [message, images, files, isProcessing, startConversation, setHighlight])
 
   // 键盘处理
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -257,13 +268,37 @@ export function InputBox() {
     }
   }, [handleSubmit])
 
-  // 自动调整高度
+  // 自动调整高度 + 输入时防抖检索记忆（badge 反馈）
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setMessage(e.target.value)
+    const val = e.target.value
+    setMessage(val)
     const textarea = e.target
     textarea.style.height = 'auto'
     textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`
-  }, [])
+
+    // 清空旧防抖
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+
+    const trimmed = val.trim()
+    if (!trimmed) {
+      setMatchCount(0)
+      setHighlight(null, [])
+      return
+    }
+
+    // 600ms 防抖，输入停止后才触发检索
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const category = detectIntent(trimmed)
+        const memories = await getRelevantMemories(trimmed)
+        setMatchCount(memories.length)
+        const highlightedIds = memories
+          .map(m => m.nodeId ?? m.conv.id)
+          .filter((id): id is string => !!id)
+        setHighlight(category, highlightedIds)
+      } catch { /* ignore */ }
+    }, 600)
+  }, [detectIntent, getRelevantMemories, setHighlight])
 
   // 获取文件图标
   const getFileIcon = (type: FilePreview['type']) => {

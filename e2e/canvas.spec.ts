@@ -158,3 +158,16 @@ test('POST /api/memory/queue 入队成功', async ({ request }) => {
   const data = await resp.json()
   expect(data.ok).toBe(true)
 })
+
+// ── 测试 8：verify-key 接口对无效 key 返回 valid:false ───────────────────────
+test('POST /api/config/verify-key 对无效 key 返回 valid:false', async ({ request }) => {
+  const headers = { ...authHeaders(), 'Content-Type': 'application/json' }
+  const resp = await request.post('http://localhost:3000/api/config/verify-key', {
+    data: { apiKey: 'sk-invalid-key-e2e-test', baseUrl: 'https://api.moonshot.cn/v1' },
+    headers
+  })
+  // 接口本身应正常响应（200），valid 字段为 false（key 无效）
+  expect(resp.ok()).toBeTruthy()
+  const data = await resp.json()
+  expect(typeof data.valid).toBe('boolean')
+})

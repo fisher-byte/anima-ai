@@ -1,6 +1,34 @@
 # Anima 变更日志
 
-## [0.2.25] - 2026-03-05
+## [0.2.27] - 2026-03-05
+
+### 五项前端体验修复（鉴权 + 记忆 badge + 连线 + 拖拽 + Key 校验）
+
+#### Bug 1：InputBox 记忆 badge 实时显示
+- **`src/renderer/src/components/InputBox.tsx`**：将记忆检索从"提交时 fire-and-forget"改为"输入时 600ms 防抖检索"，badge 在用户停止输入 600ms 后立刻亮起，不再因 InputBox 被 modal 替换而消失；提交时取消未触发的防抖，清空 badge 和 highlight，防止残留；`useEffect` 监听 `isModalOpen` 切换回 false 时归零 badge，保证对话框关闭后 badge 不会因异步回调写入而重现
+
+#### Bug 2：关闭对话框后 highlight 残留 + 多余连线
+- **`src/renderer/src/stores/canvasStore.ts`**：`closeModal` 新增清除 `highlightedCategory` 和 `highlightedNodeIds`；`updateEdges` 类别星型连线增加距离约束（> 600px 不连），避免远距离同类节点产生视觉干扰连线
+
+#### Bug 3：拖动节点时连线实时跟随
+- **`src/renderer/src/stores/canvasStore.ts`**：新增 `updateNodePositionInMemory(id, x, y)` 方法，仅更新 store 内存中的节点坐标，不写磁盘、不调 `updateEdges`；用于拖动中每帧更新，Edge 组件的 `useMemo` 即可响应坐标变化
+- **`src/renderer/src/components/NodeCard.tsx`**：`RegularNodeCard` 拖动中通过 `requestAnimationFrame` 节流调用 `updateNodePositionInMemory`，连线随节点实时流畅移动；mouseUp 时调原 `updateNodePosition`（写磁盘 + 重算连线）；同时在 mouseUp 时 `cancelAnimationFrame` 清理待执行帧
+
+#### Bug 4：正确 API Key 仍报"无效或已过期"
+- **`src/renderer/src/services/storageService.ts`**：导出 `getAuthToken()` 函数
+- **`src/renderer/src/services/ai.ts`**：`streamAI` 请求注入 `Authorization: Bearer <token>` 头
+- **`src/renderer/src/stores/canvasStore.ts`**：新增内部 `authFetch()` 辅助函数，统一处理 auth + JSON header；替换全部 6 处裸 `fetch('/api/...')` 调用（`/api/ai/summarize`、`/api/memory/classify`、`/api/memory/search`、`/api/memory/index`、`/api/memory/queue`、`/api/memory/extract`）
+
+#### Bug 5：设置页保存 API Key 时加校验
+- **`src/server/routes/config.ts`**：新增 `POST /api/config/verify-key` 路由，向 upstream `<baseUrl>/models` 发请求（6s 超时），返回 `{ valid: boolean }`
+- **`src/renderer/src/components/SettingsModal.tsx`**：`handleSave` 保存后异步调用验证接口（8s 超时），key 无效时在 API Key 输入框下方显示红色 `keyError` 提示；网络失败静默跳过，不阻止保存
+
+#### 测试
+- `npm test`：210 tests 全部通过，无新增失败
+
+---
+
+
 
 ### Canvas Resize 居中 + 清空按钮移除 + 数据迁移与鉴权开启
 

@@ -9,6 +9,7 @@
  */
 
 import type { AIMessage } from '../../../shared/types'
+import { getAuthToken } from './storageService'
 
 export interface AIStreamChunk {
   type: 'content' | 'reasoning'
@@ -42,9 +43,13 @@ export async function* streamAI(
   let fullContent = ''
 
   try {
+    const token = getAuthToken()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
     const res = await fetch('/api/ai/stream', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ messages, preferences, compressedMemory, isOnboarding }),
       signal: combinedSignal
     })

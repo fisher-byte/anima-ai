@@ -2,6 +2,16 @@ import { create } from 'zustand'
 import type { Node, Edge, Conversation, Profile, PreferenceRule, NodePosition } from '@shared/types'
 import { STORAGE_FILES, FEEDBACK_TRIGGERS, CONFIDENCE_CONFIG, UI_CONFIG } from '@shared/constants'
 import { storageService, historyService } from '../services/storageService'
+import { getAuthToken } from '../services/storageService'
+
+/** Internal helper: attach auth + JSON headers to all /api/* fetch calls */
+function authFetch(url: string, init?: RequestInit): Promise<Response> {
+  const token = getAuthToken()
+  const headers = new Headers(init?.headers)
+  if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  return fetch(url, { ...init, headers })
+}
 
 interface CanvasState {
   // 数据
@@ -17,8 +27,9 @@ interface CanvasState {
   loadProfile: () => Promise<void>
   
   // 方法：节点操作
-  addNode: (conversation: Conversation, position?: NodePosition, explicitCategory?: string) => Promise<void>
+  addNode: (conversation: Conversation, position?: NodePosition, explicitCategory?: string, memoryCount?: number) => Promise<void>
   updateNodePosition: (id: string, x: number, y: number) => Promise<void>
+  updateNodePositionInMemory: (id: string, x: number, y: number) => void
   removeNode: (id: string) => Promise<void>
   
   // 方法：连线操作
@@ -473,7 +484,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   // 添加节点（explicitCategory 由 endConversation 传入时优先使用，保证话题拆分分类正确）
-  addNode: async (conversation: Conversation, position?: NodePosition, explicitCategory?: string) => {
+  addNode: async (conversation: Conversation, position?: NodePosition, explicitCategory?: string, memoryCount?: number) => {
     const { nodes } = get()
 
     // 生成标题
@@ -600,7 +611,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       y: y!,
       category,
       color,
-      groupId: conversation.parentId ? nodes.find(n => n.id === conversation.parentId)?.groupId : undefined
+      groupId: conversation.parentId ? nodes.find(n => n.id === conversation.parentId)?.groupId : undefined,
+      memoryCount: memoryCount ?? 0
     }
 
     const existingIndex = nodes.findIndex(n => n.id === conversation.id)
@@ -616,9 +628,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
     // 异步生成 AI 摘要标题（不阻塞主流程，失败静默降级为截断句子）
     if (conversation.assistantMessage && conversation.userMessage) {
-      fetch('/api/ai/summarize', {
+      authFetch('/api/ai/summarize', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userMessage: conversation.userMessage,
           assistantMessage: conversation.assistantMessage
@@ -646,6 +657,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set({ nodes: updatedNodes })
     updateEdges() // 更新连线位置
     await storageService.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
+  },
+
+  // 轻量位置更新（仅内存，不写磁盘、不重算连线）——用于拖动中 rAF 节流
+  updateNodePositionInMemory: (id: string, x: number, y: number) => {
+    const { nodes } = get()
+    set({ nodes: nodes.map(n => n.id === id ? { ...n, x, y } : n) })
   },
 
   // 更新连线逻辑 (优先基于分支关系，其次基于板块)
@@ -685,6 +702,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       if (catNodes.length < 2) return
       const centerNode = catNodes[0]
       for (let i = 1; i < catNodes.length; i++) {
+        const dist = Math.hypot(catNodes[i].x - centerNode.x, catNodes[i].y - centerNode.y)
+        if (dist > 600) continue  // 距离太远不连线，避免视觉上的多余连线
         newEdges.push({
           id: `edge-cat-${centerNode.id}-${catNodes[i].id}`,
           source: centerNode.id,
@@ -739,41 +758,37 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   // 开始对话 (增强：检测意图并智能分支)
   startConversation: async (userMessage: string, images?: string[], files?: import('@shared/types').FileAttachment[], parentId?: string) => {
     const { nodes, detectIntent, getRelevantMemories } = get()
-    
+
     // 1. 检测当前意图分类
     const category = detectIntent(userMessage)
-    
+
     // 2. 只有在没有明确 parentId（即不是用户手动点击分支）时，才尝试自动联结
     let effectiveParentId = parentId
+    let appliedMemories: { conv: Conversation; category?: string; nodeId?: string }[] = []
     if (!effectiveParentId) {
-      // 找寻关于这个分类的“最近活跃节点”
-      const catNodes = nodes.filter(n => n.category === category)
-      if (catNodes.length > 0) {
-        // 尝试找寻语义最相关的记忆
-        const memories = await getRelevantMemories(userMessage)
-        // 如果有相关记忆且属于同一分类，自动作为该记忆的分支
-        const bestMatch = memories.find(m => {
-          const n = nodes.find(node => node.id === m.conv.id)
-          return n?.category === category
-        })
-        
-        if (bestMatch) {
-          effectiveParentId = bestMatch.conv.id
-        } else {
-          // 如果没有语义非常接近的，则连接到该分类的最近一个节点（维持岛屿凝聚）
-          effectiveParentId = catNodes[catNodes.length - 1].id
-        }
+      // 尝试找寻语义最相关的记忆
+      const memories = await getRelevantMemories(userMessage)
+      appliedMemories = memories
+      // 如果有相关记忆且属于同一分类，自动作为该记忆的分支
+      const bestMatch = memories.find(m => {
+        const n = nodes.find(node => node.id === m.conv.id)
+        return n?.category === category
+      })
+      if (bestMatch) {
+        effectiveParentId = bestMatch.conv.id
       }
+      // 无语义相关节点时不强制连线，作为独立新节点
     }
 
-    const conversation: Conversation = {
+    const conversation: Conversation & { _appliedMemories?: typeof appliedMemories } = {
       id: crypto.randomUUID(),
       parentId: effectiveParentId, // 支持对话分支
       createdAt: new Date().toISOString(),
       userMessage,
       assistantMessage: '',
       images: images || [],
-      files: files || []
+      files: files || [],
+      _appliedMemories: appliedMemories
     }
     set({ currentConversation: conversation, isModalOpen: true, isLoading: true })
   },
@@ -798,9 +813,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     /** 调后端 AI 分类，5s 超时后降级为关键词 */
     const classifyText = async (text: string): Promise<string> => {
       try {
-        const resp = await fetch('/api/memory/classify', {
+        const resp = await authFetch('/api/memory/classify', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text }),
           signal: AbortSignal.timeout(5000)
         })
@@ -845,10 +859,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     })
 
     // 3. 为每个分组创建独立的对话记录和节点
+    const appliedMemories = (currentConversation as any)._appliedMemories as { conv: Conversation; category?: string; nodeId?: string }[] | undefined
+    const appliedMemoryIds = appliedMemories?.map(m => m.conv.id) ?? []
+
     for (let i = 0; i < groups.length; i++) {
       const group = groups[i]
       const isFirst = i === 0
-      
+
       const conv: Conversation = {
         id: isFirst ? currentConversation.id : crypto.randomUUID(),
         parentId: isFirst ? currentConversation.parentId : currentConversation.id, // 后续话题作为第一话题的分支
@@ -857,13 +874,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         assistantMessage: group.ai,
         reasoning_content: isFirst ? reasoning_content : undefined, // 简单起见，只在第一话题保留全量推理
         appliedPreferences,
+        appliedMemoryIds: isFirst ? appliedMemoryIds : [],
         images: isFirst ? currentConversation.images : [], // 文件通常只在第一轮
         files: isFirst ? currentConversation.files : []
       }
 
       try {
         await appendConversation(conv)
-        await addNode(conv, undefined, group.category)
+        await addNode(conv, undefined, group.category, isFirst ? appliedMemoryIds.length : 0)
       } catch (error) {
         console.error(`保存话题分组 ${i} 失败:`, error)
       }
@@ -879,7 +897,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     if (currentConversation?.id && conversationHistory.length > 0) {
       historyService.saveHistory(currentConversation.id, conversationHistory)
     }
-    set({ isModalOpen: false, currentConversation: null, isLoading: false })
+    set({ isModalOpen: false, currentConversation: null, isLoading: false, highlightedCategory: null, highlightedNodeIds: [] })
   },
 
   // 打开模态框（用于回放）
@@ -1038,9 +1056,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
       // 1. 尝试后端向量检索
       try {
-        const resp = await fetch('/api/memory/search', {
+        const resp = await authFetch('/api/memory/search', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query, topK: 5 })
         })
         if (resp.ok) {
@@ -1089,7 +1106,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       })
 
       const fallbackResults: { conv: Conversation; category?: string; nodeId?: string }[] = []
-      for (const s of scored.filter(s => s.score > 0).sort((a, b) => b.score - a.score).slice(0, 3)) {
+      for (const s of scored.filter(s => s.score > 0).sort((a, b) => b.score - a.score).slice(0, 5)) {
         const node = nodeByConvId.get(s.conv.id) ?? nodeById.get(s.conv.id)
         if (!node) continue
         fallbackResults.push({ conv: s.conv, category: node.category, nodeId: node.id })
@@ -1110,16 +1127,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
     // fire-and-forget：向量索引
     const indexText = conversation.userMessage + ' ' + conversation.assistantMessage
-    fetch('/api/memory/index', {
+    authFetch('/api/memory/index', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ conversationId: conversation.id, text: indexText })
     }).catch(() => { /* 静默忽略，不影响主流程 */ })
 
     // fire-and-forget：画像提取（排入 Agent 队列）
-    fetch('/api/memory/queue', {
+    authFetch('/api/memory/queue', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: 'extract_profile',
         payload: {
@@ -1131,9 +1146,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
     // fire-and-forget：从对话中摘取用户记忆事实（独立记忆板块）
     if (conversation.userMessage?.trim().length > 5) {
-      fetch('/api/memory/extract', {
+      authFetch('/api/memory/extract', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           conversationId: conversation.id,
           userMessage: conversation.userMessage,
