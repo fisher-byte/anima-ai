@@ -172,3 +172,84 @@ test('POST /api/config/verify-key 对无效 key 返回 valid:false', async ({ re
   const data = await resp.json()
   expect(typeof data.valid).toBe('boolean')
 })
+
+// ── 测试 9：confirm dialog — 出现后可取消 ────────────────────────────────────
+test('删除按钮触发 confirm dialog，取消后节点不消失', async ({ page }) => {
+  await injectToken(page)
+  await page.goto('/')
+  await waitForBackend(page)
+  await page.waitForTimeout(2000)
+
+  // 找到第一个节点卡片并悬停以显示删除按钮
+  const nodeCard = page.locator('[id^="node-"]').first()
+  if (!(await nodeCard.isVisible())) {
+    test.skip() // 画布无节点时跳过
+    return
+  }
+
+  await nodeCard.hover()
+
+  // 等待删除按钮出现（hover 触发）
+  const deleteBtn = page.locator('[id^="node-"]').first().locator('button').last()
+  await deleteBtn.waitFor({ state: 'visible', timeout: 3000 }).catch(() => null)
+
+  if (!(await deleteBtn.isVisible())) {
+    test.skip()
+    return
+  }
+
+  await deleteBtn.click()
+
+  // confirm dialog 出现
+  await expect(page.getByText('删除这条对话？')).toBeVisible({ timeout: 3000 })
+
+  // 点取消
+  await page.getByRole('button', { name: '取消' }).click()
+
+  // dialog 消失
+  await expect(page.getByText('删除这条对话？')).not.toBeVisible({ timeout: 2000 })
+
+  // 节点仍然存在
+  await expect(nodeCard).toBeVisible()
+})
+
+// ── 测试 10：API Key 提示条 — 引导完成且无 key 时出现 ─────────────────────────
+test('引导完成且无 API Key 时 InputBox 显示配置提示', async ({ page }) => {
+  // 注入引导完成标记，但不注入 apikey（模拟新用户）
+  await page.addInitScript((token: string) => {
+    if (token) localStorage.setItem('anima_access_token', token)
+    localStorage.setItem('evo_onboarding_v3', 'done')
+    // 不预置 hasApiKey，让 store 从后端查（后端无 key 时返回空）
+  }, ACCESS_TOKEN)
+
+  // 先确保后端没有存 apiKey（清空）
+  if (ACCESS_TOKEN) {
+    await page.request.put('http://localhost:3000/api/config/apikey', {
+      data: { apiKey: '' },
+      headers: { Authorization: `Bearer ${ACCESS_TOKEN}`, 'Content-Type': 'application/json' }
+    })
+  }
+
+  await page.goto('/')
+  await waitForBackend(page)
+  await page.waitForTimeout(2000)
+
+  // 应看到 Kimi API Key 配置提示
+  const hint = page.getByText('需要配置 Kimi API Key 才能开始对话')
+  const setupBtn = page.getByRole('button', { name: '设置 API Key' })
+
+  if (await hint.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await expect(setupBtn).toBeVisible()
+
+    // 点「设置 API Key」展开输入框
+    await setupBtn.click()
+    await expect(page.getByPlaceholder(/Kimi API Key/)).toBeVisible({ timeout: 2000 })
+
+    // 点取消，回到提示状态
+    await page.getByRole('button', { name: '取消' }).click()
+    await expect(hint).toBeVisible({ timeout: 2000 })
+  } else {
+    // 如果后端已存有 key（本地开发环境），跳过此测试
+    test.skip()
+  }
+})

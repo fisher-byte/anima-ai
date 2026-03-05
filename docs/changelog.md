@@ -1,5 +1,35 @@
 # Anima 变更日志
 
+## [0.2.31] - 2026-03-05
+
+### API Key 引导流 + GlobalUI 交互组件系统
+
+#### 引导模式演示 key fallback
+- **`src/server/routes/ai.ts`**：引导模式（`isOnboarding=true`）且用户未配置 key 时，自动 fallback 到 `process.env.ONBOARDING_API_KEY`，确保新用户无需提前配置即可完成引导对话；fallback key 用于所有 3 处上游 fetch（主轮次、语义检索、第二轮 tool_calls）
+- **`.env`**：新增 `ONBOARDING_API_KEY=` 占位行
+
+#### canvasStore 新增 hasApiKey / checkApiKey
+- **`src/renderer/src/stores/canvasStore.ts`**：新增 `hasApiKey: boolean` state 和 `checkApiKey()` action（调用 `configService.getApiKey()`，成功后更新 store）；`completeOnboarding()` 和 `loadNodes()` 的 `onboardingDone` 分支末尾各触发一次 `checkApiKey()`
+
+#### InputBox API Key 提示 + 内联配置
+- **`src/renderer/src/components/InputBox.tsx`**：引导完成且无 key 时 InputBox 变为提示条（"需要配置 Kimi API Key 才能开始对话"）+ 「设置 API Key」按钮；点击展开内联 password 输入框，粘贴 key 后回车或点「保存」即触发 `POST /api/config/verify-key` 验证；验证成功后恢复正常输入状态；`handleSubmit` 开头加 `needsApiKey` 守卫防止无 key 发送
+
+#### GlobalUI — 全局 Toast + ConfirmDialog 系统
+- **`src/renderer/src/components/GlobalUI.tsx`**（新增）：提供 `useToast()` 和 `useConfirm()` 两个 hook；Toast 顶部居中弹出，3 秒自动消失，入场/出场弹簧动画；ConfirmDialog 毛玻璃蒙层 + 居中卡片，支持 `danger` 红色按钮，返回 `Promise<boolean>`；`useMemo` 稳定 toastAPI 引用，`useEffect` + `useRef` 追踪 timer 防止内存泄漏
+- **`src/renderer/src/App.tsx`**：用 `<GlobalUI>` 包裹整个 App，全局可用
+
+#### 删除确认改造（移除浏览器原生 confirm）
+- **`src/renderer/src/components/NodeCard.tsx`**：删除按钮尺寸从 `w-6 h-6` 放大到 `w-8 h-8`，X 图标 12→14px；删除前调用 `useConfirm()` 展示 Web confirm dialog（危险样式）
+- **`src/renderer/src/components/ConversationSidebar.tsx`**：「清空用户画像」「遗忘偏好」两处 `window.confirm` 全部替换为 `useConfirm()` Web dialog
+
+#### 测试
+- **新增** `src/server/__tests__/ai-onboarding.test.ts`：6 个集成测试覆盖 ONBOARDING_API_KEY fallback 全部分支
+- **新增** `e2e/canvas.spec.ts`：新增测试 9（confirm dialog 出现+取消）、测试 10（API Key 提示条+内联输入框流程）
+- `tsc --noEmit`：零错误
+- `npm test`：216 tests 全部通过
+
+---
+
 ## [0.2.30] - 2026-03-05
 
 ### 节点布局优化 + 通用记忆导入 + 整理体验提升 + 合并逻辑改进

@@ -139,7 +139,12 @@ aiRoutes.post('/stream', async (c) => {
     | undefined
   const apiKey = row?.value ?? ''
 
-  if (!apiKey) {
+  // 引导模式下，若无用户 key，使用演示 key（仅供新手引导消耗）
+  const effectiveApiKey = isOnboarding && !apiKey
+    ? (process.env.ONBOARDING_API_KEY ?? '')
+    : apiKey
+
+  if (!effectiveApiKey) {
     return c.json({ error: 'API Key 未配置，请在设置中填写' }, 400)
   }
 
@@ -231,7 +236,7 @@ aiRoutes.post('/stream', async (c) => {
     try {
       let relevantFacts: string[] = []
       if (trimmedText.length > 5) {
-        relevantFacts = await fetchRelevantFacts(trimmedText, apiKey, baseUrl)
+        relevantFacts = await fetchRelevantFacts(trimmedText, effectiveApiKey, baseUrl)
       }
       // 语义检索无结果时降级：最近 15 条有效事实
       if (relevantFacts.length === 0) {
@@ -292,7 +297,7 @@ aiRoutes.post('/stream', async (c) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`
+          Authorization: `Bearer ${effectiveApiKey}`
         },
         body: JSON.stringify(requestBody),
         signal: c.req.raw.signal
@@ -393,7 +398,7 @@ aiRoutes.post('/stream', async (c) => {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  Authorization: `Bearer ${apiKey}`
+                  Authorization: `Bearer ${effectiveApiKey}`
                 },
                 body: JSON.stringify(round2Body),
                 signal: c.req.raw.signal

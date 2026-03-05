@@ -4,6 +4,7 @@ import { InputBox } from './components/InputBox'
 import { AnswerModal } from './components/AnswerModal'
 import { OnboardingGuide } from './components/OnboardingGuide'
 import { LoginPage, TOKEN_KEY } from './components/LoginPage'
+import { GlobalUI } from './components/GlobalUI'
 import { useCanvasStore } from './stores/canvasStore'
 import { setAuthToken } from './services/storageService'
 
@@ -66,12 +67,14 @@ function App() {
   }
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-white">
-      <Canvas />
-      <InputBox />
-      <AnswerModal />
-      <OnboardingGuide />
-    </div>
+    <GlobalUI>
+      <div className="relative w-full h-full overflow-hidden bg-white">
+        <Canvas />
+        <InputBox />
+        <AnswerModal />
+        <OnboardingGuide />
+      </div>
+    </GlobalUI>
   )
 }
 

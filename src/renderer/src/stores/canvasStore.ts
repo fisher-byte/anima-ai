@@ -101,6 +101,10 @@ interface CanvasState {
   closeCapability: () => void
   addCapabilityNode: (capabilityId: 'import-memory' | 'onboarding') => Promise<void>
   saveMemoryImport: (content: string, sourceName: string) => Promise<void>
+
+  // API Key 状态
+  hasApiKey: boolean
+  checkApiKey: () => Promise<void>
 }
 
 // 防止 completeOnboarding 并发重复执行
@@ -135,6 +139,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   // 能力节点初始化
   activeCapabilityId: null,
+
+  // API Key 状态初始化
+  hasApiKey: false,
 
   setConversationHistory: (history) => set({ conversationHistory: history }),
   resetConversationHistory: () => set({ conversationHistory: [] }),
@@ -197,6 +204,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       await get().loadProfile()
       // 标记待轮询：agentWorker 最长 30s 后才处理队列，侧栏需轮询刷新
       set({ pendingProfileRefresh: true, pendingMemoryRefresh: true })
+      // 检查用户是否已配置 API Key，供 InputBox 判断是否需要引导配置
+      void get().checkApiKey()
     } finally {
       _completingOnboarding = false
     }
@@ -301,6 +310,16 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       files: []
     }
     await endConversation(content, [], undefined, conv)
+  },
+
+  checkApiKey: async () => {
+    try {
+      const { configService } = await import('../services/storageService')
+      const key = await configService.getApiKey()
+      set({ hasApiKey: !!key })
+    } catch {
+      set({ hasApiKey: false })
+    }
   },
 
   setOffset: (offset) => set({ offset }),
@@ -464,6 +483,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       } else {
         // 已完成引导：确保 import-memory 存在；onboarding 保留（文件里有就有）
         if (!hasImportMemory) await get().addCapabilityNode('import-memory')
+        // 检查用户是否已配置 API Key
+        void get().checkApiKey()
       }
     } catch (error) {
       console.error('Failed to load nodes:', error)

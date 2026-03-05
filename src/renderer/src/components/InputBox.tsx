@@ -5,7 +5,7 @@ import { UI_CONFIG } from '@shared/constants'
 import { X, Paperclip, FileText, FileCode, File as FileIcon, Loader2, ArrowUp, Sparkles } from 'lucide-react'
 import { formatFilesForAI, FilePreview, getFileType, readImageAsBase64, formatFileSize } from '../../../services/fileParsing'
 import type { FileAttachment } from '@shared/types'
-import { getAuthToken } from '../services/storageService'
+import { getAuthToken, configService } from '../services/storageService'
 
 export function InputBox() {
   const [message, setMessage] = useState('')
@@ -15,6 +15,12 @@ export function InputBox() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [focused, setFocused] = useState(false)
   const [matchCount, setMatchCount] = useState(0)
+
+  // API Key 内联输入状态
+  const [isApiKeyMode, setIsApiKeyMode] = useState(false)
+  const [apiKeyInput, setApiKeyInput] = useState('')
+  const [apiKeyError, setApiKeyError] = useState('')
+  const [isVerifyingKey, setIsVerifyingKey] = useState(false)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -26,6 +32,23 @@ export function InputBox() {
   const detectIntent = useCanvasStore(state => state.detectIntent)
   const getRelevantMemories = useCanvasStore(state => state.getRelevantMemories)
   const setHighlight = useCanvasStore(state => state.setHighlight)
+  const isOnboardingMode = useCanvasStore(state => state.isOnboardingMode)
+  const hasApiKey = useCanvasStore(state => state.hasApiKey)
+  const checkApiKey = useCanvasStore(state => state.checkApiKey)
+
+  // 引导完成后检测是否需要配置 API Key
+  // isOnboardingMode 从 true→false 时触发检查（completeOnboarding 已调用 checkApiKey，但防止漏掉边缘情况）
+  const prevOnboardingMode = useRef(isOnboardingMode)
+  useEffect(() => {
+    if (prevOnboardingMode.current && !isOnboardingMode) {
+      void checkApiKey()
+    }
+    prevOnboardingMode.current = isOnboardingMode
+  }, [isOnboardingMode, checkApiKey])
+
+  // 引导已完成 && 没有 key && 不在引导中 → 需要设置 key
+  const onboardingDone = typeof localStorage !== 'undefined' && !!localStorage.getItem('evo_onboarding_v3')
+  const needsApiKey = onboardingDone && !hasApiKey && !isOnboardingMode
 
   // 组件卸载或 modal 打开时，清空 badge 并取消未完成的防抖
   useEffect(() => {
@@ -185,8 +208,45 @@ export function InputBox() {
     setImages(prev => prev.filter((_, i) => i !== idx))
   }, [])
 
+  // 保存 API Key：验证后写入并刷新状态
+  const handleSaveApiKey = useCallback(async () => {
+    const key = apiKeyInput.trim()
+    if (!key || isVerifyingKey) return
+    setIsVerifyingKey(true)
+    setApiKeyError('')
+    try {
+      await configService.setApiKey(key)
+      const token = getAuthToken()
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (token) headers['Authorization'] = `Bearer ${token}`
+      const settings = await configService.getSettings()
+      const baseUrl = settings.baseUrl || 'https://api.moonshot.cn/v1'
+      const res = await fetch('/api/config/verify-key', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ apiKey: key, baseUrl }),
+        signal: AbortSignal.timeout(8000)
+      })
+      const result = await res.json() as { valid: boolean }
+      if (result.valid) {
+        await checkApiKey()
+        setIsApiKeyMode(false)
+        setApiKeyInput('')
+      } else {
+        setApiKeyError('Key 无效，请检查后重试')
+      }
+    } catch {
+      setApiKeyError('验证超时，请检查网络')
+    } finally {
+      setIsVerifyingKey(false)
+    }
+  }, [apiKeyInput, isVerifyingKey, checkApiKey])
+
   // 提交：先上传文件到后端，再触发对话
   const handleSubmit = useCallback(async () => {
+    // 无 key 时禁止提交
+    if (needsApiKey) return
+
     const trimmed = message.trim()
     const hasImages = images.length > 0
     const hasFiles = files.length > 0
@@ -262,7 +322,7 @@ export function InputBox() {
         textarea.style.height = 'auto'
       }
     })
-  }, [message, images, files, isProcessing, startConversation, setHighlight])
+  }, [message, images, files, isProcessing, needsApiKey, startConversation, setHighlight])
 
   // 键盘处理
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -319,6 +379,60 @@ export function InputBox() {
   }
 
   if (isModalOpen) return null
+
+  // 需要配置 API Key 且未展开输入框 → 提示状态
+  if (needsApiKey && !isApiKeyMode) {
+    return (
+      <div className="fixed bottom-0 left-0 right-0 flex justify-center pb-6 z-30">
+        <div className="w-full max-w-xl mx-4 flex items-center gap-3 px-4 py-3 bg-white rounded-2xl shadow-lg border border-gray-100">
+          <span className="flex-1 text-sm text-gray-400">需要配置 Kimi API Key 才能开始对话</span>
+          <button
+            onClick={() => setIsApiKeyMode(true)}
+            className="px-3 py-1.5 text-sm font-medium bg-gray-900 text-white rounded-xl hover:bg-black transition-colors"
+          >
+            设置 API Key
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // 需要配置 API Key 且已展开输入框 → 内联输入状态
+  if (needsApiKey && isApiKeyMode) {
+    return (
+      <div className="fixed bottom-0 left-0 right-0 flex justify-center pb-6 z-30">
+        <div className="w-full max-w-xl mx-4 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-3">
+            <input
+              type="password"
+              value={apiKeyInput}
+              onChange={e => setApiKeyInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') void handleSaveApiKey() }}
+              placeholder="粘贴你的 Kimi API Key（moonshot.cn 获取，如 sk-…）"
+              autoFocus
+              className="flex-1 text-sm outline-none bg-transparent text-gray-800 placeholder-gray-300"
+            />
+            <button
+              onClick={() => { setIsApiKeyMode(false); setApiKeyError('') }}
+              className="text-xs text-gray-400 hover:text-gray-600 px-2"
+            >
+              取消
+            </button>
+            <button
+              onClick={() => void handleSaveApiKey()}
+              disabled={!apiKeyInput.trim() || isVerifyingKey}
+              className="px-3 py-1.5 text-sm font-medium bg-gray-900 text-white rounded-xl hover:bg-black disabled:opacity-40 transition-colors"
+            >
+              {isVerifyingKey ? '验证中…' : '保存'}
+            </button>
+          </div>
+          {apiKeyError && (
+            <div className="px-4 pb-3 text-xs text-red-500">{apiKeyError}</div>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
       // 外层普通 div 负责 fixed 定位——Framer Motion 的 animate 不会覆盖它的 transform
