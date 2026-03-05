@@ -1,5 +1,28 @@
 # Anima 变更日志
 
+## [0.2.30] - 2026-03-05
+
+### 节点布局优化 + 通用记忆导入 + 整理体验提升 + 合并逻辑改进
+
+#### 新节点贴近同类岛屿（push-outward 布局）
+- **`src/renderer/src/stores/canvasStore.ts`** `addNode`：新节点优先落在同类节点岛屿附近（螺旋搜索半径 120–600px 共 100 个候选点）；若岛屿周围全满，选最优方向后将阻塞节点沿"岛屿中心→阻塞节点"方向往外推移（写磁盘同步更新），确保新节点始终紧邻同类群落
+
+#### ImportMemoryModal 通用方案入口
+- **`src/renderer/src/components/ImportMemoryModal.tsx`**：新增 `generic` step，点击「其他 AI / 通用方式」后展示可复制的提示词文本框（含复制按钮 + 2s 已复制反馈），下方直接提供粘贴区和「保存为记忆节点」，适用于豆包、文心、通义等任意 LLM
+- **`src/shared/constants.ts`**：`IMPORT_MEMORY_PROMPTS` 新增 `generic` 键（与其他平台相同 prompt）
+
+#### 整理按钮 hover 提示
+- **`src/renderer/src/components/ConversationSidebar.tsx`**：整理按钮从纯图标改为「图标 + 文字」形式，外层 `group` 容器在 hover 时展示 tooltip（44px 宽，描述"AI 合并重复或过时的记忆条目，新信息优先保留"）
+
+#### 合并逻辑时序感知改进
+- **`src/server/agentWorker.ts`** `consolidateFacts`：新 prompt 将 facts 按创建时间排序后传给 LLM，明确要求：①新信息优先（同主题新旧不同时丢弃旧条目）；②真正重复才合并；③不相关不硬合；④保留独特信息；⑤每条 ≤ 25 字
+
+#### 测试
+- `tsc --noEmit`：零错误
+- `npm test`：210 tests 全部通过
+
+---
+
 ## [0.2.29] - 2026-03-05
 
 ### 对话历史独立入口 + 记忆自动整理

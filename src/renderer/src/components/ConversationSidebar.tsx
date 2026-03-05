@@ -394,14 +394,20 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                       <RotateCcw className={`w-3 h-3 ${isMemoryLoading ? 'animate-spin' : ''}`} />
                     </button>
                     {memoryFacts.length >= 5 && (
-                      <button
-                        onClick={handleConsolidate}
-                        disabled={isConsolidating}
-                        className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all disabled:opacity-40"
-                        title="整理记忆（AI 合并重复条目）"
-                      >
-                        <Layers className={`w-3 h-3 ${isConsolidating ? 'animate-pulse' : ''}`} />
-                      </button>
+                      <div className="relative group">
+                        <button
+                          onClick={handleConsolidate}
+                          disabled={isConsolidating}
+                          className="flex items-center gap-1 px-1.5 py-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all disabled:opacity-40"
+                        >
+                          <Layers className={`w-3 h-3 ${isConsolidating ? 'animate-pulse' : ''}`} />
+                          <span className="text-[10px] font-medium">{isConsolidating ? '整理中…' : '整理'}</span>
+                        </button>
+                        {/* hover tooltip */}
+                        <div className="absolute right-0 top-full mt-1.5 w-44 px-3 py-2 bg-gray-800 text-white text-[10px] leading-relaxed rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 whitespace-normal">
+                          AI 合并重复或过时的记忆条目，新信息优先保留
+                        </div>
+                      </div>
                     )}
                   </div>
                   <p className="text-[10px] text-gray-400 leading-relaxed">
