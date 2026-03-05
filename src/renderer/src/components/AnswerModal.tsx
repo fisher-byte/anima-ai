@@ -25,6 +25,17 @@ import {
   stripLeadingNumberHeading,
   buildAIHistory
 } from '../utils/conversationUtils'
+import { getAuthToken } from '../services/storageService'
+
+function authFetch(url: string, init?: RequestInit): Promise<Response> {
+  const token = getAuthToken()
+  const headers = new Headers(init?.headers)
+  if (!headers.has('Content-Type') && !(init?.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json')
+  }
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  return fetch(url, { ...init, headers })
+}
 
 /** 从用户自我介绍消息中提取姓名/职业关键词，用于 toast 展示 */
 function extractUserInfo(message: string): string {
@@ -114,7 +125,7 @@ export function AnswerModal() {
           // 绑定当前对话 ID，确保文件可被检索时关联到正确对话
           const convId = currentConversation?.id
           if (convId) formData.append('convId', convId)
-          const uploadRes = await fetch('/api/storage/file', { method: 'POST', body: formData })
+          const uploadRes = await authFetch('/api/storage/file', { method: 'POST', body: formData })
           if (!uploadRes.ok) {
             uploadError = uploadRes.status === 413 ? '文件过大，无法上传到记忆库' : `上传失败（${uploadRes.status}）`
           }
@@ -419,9 +430,8 @@ export function AnswerModal() {
     const isOnboardingPhase2 = isOnboardingMode && onboardingPhaseRef.current === 2
     if (trimmed.length >= 5 && !isOnboardingPhase2) {
       const lastAssistant = turns.length > 0 ? (turns[turns.length - 1].assistant || '') : ''
-      fetch('/api/memory/queue', {
+      authFetch('/api/memory/queue', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'extract_preference',
           payload: { userMessage: trimmed, assistantMessage: lastAssistant.slice(0, 300) }
@@ -468,9 +478,8 @@ export function AnswerModal() {
       onboardingStreamTimerRef2.current = setTimeout(scheduleNext2, 400)
 
       // 方案A：引导 phase2 完成后触发进化基因提取（后台 fire-and-forget）
-      fetch('/api/memory/queue', {
+      authFetch('/api/memory/queue', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'extract_preference',
           payload: { userMessage: trimmed, assistantMessage: ONBOARDING_GENE_SAVED.slice(0, 300), context: 'onboarding_phase2' }
@@ -489,9 +498,8 @@ export function AnswerModal() {
       let charIndex = 0
 
       // 方案A：引导 phase0 完成后触发用户画像提取（fire-and-forget）
-      fetch('/api/memory/queue', {
+      authFetch('/api/memory/queue', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'extract_profile',
           payload: { userMessage: trimmed, assistantMessage: ONBOARDING_DEFAULT_RESPONSE.slice(0, 300), context: 'onboarding_phase0' }
@@ -701,7 +709,7 @@ export function AnswerModal() {
 
   const handleExportAll = useCallback(async () => {
     try {
-      const resp = await fetch('/api/storage/export')
+      const resp = await authFetch('/api/storage/export')
       if (!resp.ok) return
       const blob = await resp.blob()
       const url = URL.createObjectURL(blob)

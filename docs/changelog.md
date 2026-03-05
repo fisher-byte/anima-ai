@@ -1,5 +1,27 @@
 # Anima 变更日志
 
+## [0.2.28] - 2026-03-05
+
+### 全站 auth header 全量修复（记忆 tab、AnswerModal、文件上传）
+
+#### 根因
+`ConversationSidebar.tsx`、`AnswerModal.tsx`、`InputBox.tsx` 共 **15 处** `fetch('/api/...')` 调用缺少 `Authorization: Bearer <token>` 请求头，导致 auth 开启时所有请求返回 401，引发：
+- 记忆 tab（「关于你的记忆」「进化基因」「用户画像」）一直显示空
+- 对话中偏好提取、onboarding 阶段画像提取静默失败
+- 文件上传（InputBox & AnswerModal）、导出功能 401 失败
+
+#### 修复文件
+- **`src/renderer/src/components/ConversationSidebar.tsx`**：新增 `authFetch` helper，替换全部 7 处裸 fetch（`/api/memory/profile` × 4、`/api/memory/facts` × 1、`/api/memory/facts/:id` PUT/DELETE × 2）
+- **`src/renderer/src/components/AnswerModal.tsx`**：新增 `authFetch` helper，替换全部 5 处裸 fetch（`/api/storage/file`、`/api/memory/queue` × 3、`/api/storage/export`）
+- **`src/renderer/src/stores/canvasStore.ts`**：补全 `authFetch` 覆盖节点删除时的 `DELETE /api/memory/index/:id`（之前遗漏）
+- **`src/renderer/src/components/InputBox.tsx`**：文件上传 `POST /api/storage/file` 补充 Authorization header
+
+#### 测试
+- `tsc --noEmit`：零错误
+- `npm test`：210 tests 全部通过
+
+---
+
 ## [0.2.27] - 2026-03-05
 
 ### 五项前端体验修复（鉴权 + 记忆 badge + 连线 + 拖拽 + Key 校验）
