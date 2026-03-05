@@ -30,6 +30,7 @@ export interface Node {
   // 能力节点扩展字段（普通记忆节点不设此字段）
   nodeType?: 'memory' | 'capability'
   capabilityData?: CapabilityData
+  memoryCount?: number // 引用记忆数量（冗余自 Conversation，方便 NodeCard 直接读取）
 }
 
 /**
@@ -71,6 +72,7 @@ export interface Conversation {
   files?: FileAttachment[]  // 文件附件列表
   negativeFeedback?: string
   appliedPreferences?: string[]
+  appliedMemoryIds?: string[]   // 本次对话引用的 conversationId 列表
 }
 
 /**

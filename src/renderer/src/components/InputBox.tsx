@@ -5,6 +5,7 @@ import { UI_CONFIG } from '@shared/constants'
 import { X, Paperclip, FileText, FileCode, File as FileIcon, Loader2, ArrowUp, Sparkles } from 'lucide-react'
 import { formatFilesForAI, FilePreview, getFileType, readImageAsBase64, formatFileSize } from '../../../services/fileParsing'
 import type { FileAttachment } from '@shared/types'
+import { getAuthToken } from '../services/storageService'
 
 export function InputBox() {
   const [message, setMessage] = useState('')
@@ -217,7 +218,10 @@ export function InputBox() {
         formData.append('file', rawFile)
         formData.append('id', f.id)
         formData.append('textContent', f.content || '')
-        const res = await fetch('/api/storage/file', { method: 'POST', body: formData })
+        const token = getAuthToken()
+        const uploadHeaders = new Headers()
+        if (token) uploadHeaders.set('Authorization', `Bearer ${token}`)
+        const res = await fetch('/api/storage/file', { method: 'POST', body: formData, headers: uploadHeaders })
         if (!res.ok) {
           uploadedFiles.push({ ...clean, uploadError: `上传失败（${res.status}）` })
         } else {

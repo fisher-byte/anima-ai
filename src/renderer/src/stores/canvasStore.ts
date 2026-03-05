@@ -749,7 +749,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       }
 
       // fire-and-forget：删除向量索引 + 对话历史
-      fetch(`/api/memory/index/${nodeToRemove.conversationId}`, { method: 'DELETE' })
+      authFetch(`/api/memory/index/${nodeToRemove.conversationId}`, { method: 'DELETE' })
         .catch(() => { /* 静默忽略 */ })
       historyService.deleteHistory(nodeToRemove.conversationId)
     }

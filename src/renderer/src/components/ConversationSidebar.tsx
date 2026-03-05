@@ -7,7 +7,17 @@ import {
 } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import type { Conversation } from '@shared/types'
-import { storageService } from '../services/storageService'
+import { storageService, getAuthToken } from '../services/storageService'
+
+function authFetch(url: string, init?: RequestInit): Promise<Response> {
+  const token = getAuthToken()
+  const headers = new Headers(init?.headers)
+  if (!headers.has('Content-Type') && !(init?.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json')
+  }
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  return fetch(url, { ...init, headers })
+}
 
 interface UserProfile {
   occupation?: string | null
@@ -87,7 +97,7 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
   // 加载用户画像
   useEffect(() => {
     if (!isOpen) return
-    fetch('/api/memory/profile')
+    authFetch('/api/memory/profile')
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setUserProfile(data) })
       .catch(() => {})
@@ -100,7 +110,7 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
 
   const fetchMemoryFacts = useCallback((silent = false) => {
     setIsMemoryLoading(true)
-    fetch('/api/memory/facts')
+    authFetch('/api/memory/facts')
       .then(r => r.ok ? r.json() : { facts: [] })
       .then(data => {
         const facts: MemoryFact[] = data.facts || []
@@ -155,7 +165,7 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
 
   const handleDeleteFact = useCallback(async (id: string) => {
     try {
-      await fetch(`/api/memory/facts/${id}`, { method: 'DELETE' })
+      await authFetch(`/api/memory/facts/${id}`, { method: 'DELETE' })
       setMemoryFacts(prev => prev.filter(f => f.id !== id))
     } catch {}
   }, [])
@@ -164,7 +174,7 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
     const text = editingFactText.trim()
     if (!text) return
     try {
-      await fetch(`/api/memory/facts/${id}`, {
+      await authFetch(`/api/memory/facts/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fact: text })
@@ -207,14 +217,14 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
         tools: editProfileDraft.tools ?? [],
         goals: editProfileDraft.goals ?? [],
       }
-      const resp = await fetch('/api/memory/profile', {
+      const resp = await authFetch('/api/memory/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
       if (resp.ok) {
         // 后端 PUT /profile 返回 { ok: true }，这里重新拉取最新画像以刷新 UI
-        const latest = await fetch('/api/memory/profile')
+        const latest = await authFetch('/api/memory/profile')
         if (latest.ok) {
           const data = await latest.json()
           setUserProfile(data)
@@ -496,7 +506,7 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                             <button
                               onClick={async () => {
                                 if (confirm('确定清空用户画像？')) {
-                                  await fetch('/api/memory/profile', { method: 'DELETE' })
+                                  await authFetch('/api/memory/profile', { method: 'DELETE' })
                                   setUserProfile(null)
                                 }
                               }}
