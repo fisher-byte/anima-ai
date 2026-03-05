@@ -375,9 +375,9 @@ ${assistantMessage ? `AI回复：${assistantMessage.slice(0, 200)}` : ''}
 
     if (candidates.length === 0) return c.json({ ok: true, extracted: 0 })
 
-    // 读取最近 30 条已有 facts 做语义去重
+    // 读取最近 30 条已有 facts 做语义去重（排除已软删除的记录）
     const existingRows = db.prepare(
-      'SELECT fact FROM memory_facts ORDER BY created_at DESC LIMIT 30'
+      'SELECT fact FROM memory_facts WHERE invalid_at IS NULL ORDER BY created_at DESC LIMIT 30'
     ).all() as { fact: string }[]
     const existingFacts = existingRows.map(r => r.fact)
 
@@ -468,6 +468,11 @@ memoryRoutes.put('/facts/:id', async (c) => {
 /** 清空全部记忆事实（用于重置/体验新手教程） */
 memoryRoutes.delete('/facts', (c) => {
   db.prepare('UPDATE memory_facts SET invalid_at = ?').run(new Date().toISOString())
+  // 清空 config 中的偏好规则缓存，避免旧规则干扰新手教程
+  db.prepare("UPDATE config SET value = '[]', updated_at = ? WHERE key = 'preference_rules'")
+    .run(new Date().toISOString())
+  // 清除待处理的提取任务，避免旧任务产生脏数据
+  db.prepare("DELETE FROM agent_tasks WHERE status = 'pending'").run()
   return c.json({ ok: true })
 })
 
