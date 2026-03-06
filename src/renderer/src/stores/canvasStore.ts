@@ -176,42 +176,17 @@ async function _buildSemanticEdgesForNode(
 }
 
 /** 历史节点语义边全量回算（仅当 semantic-edges.json 不存在或为空时触发）
- *  步骤：先补齐向量索引，再串行计算语义相似度
+ *  服务端启动时已预跑 embedding，此处直接查询即可
  */
-async function _rebuildAllSemanticEdges(
-  get: () => CanvasState,
-  conversationsMap: Map<string, { userMessage: string; assistantMessage: string }>
-): Promise<void> {
+async function _rebuildAllSemanticEdges(get: () => CanvasState): Promise<void> {
   const { nodes } = get()
   const memoryNodes = nodes.filter(n => !n.nodeType || n.nodeType === 'memory')
+  if (memoryNodes.length === 0) return
 
-  // Phase 1：为没有向量的历史节点补充索引（并行批次，每批 3 个，避免 API 过载）
-  const BATCH = 3
-  for (let i = 0; i < memoryNodes.length; i += BATCH) {
-    const batch = memoryNodes.slice(i, i + BATCH)
-    await Promise.all(batch.map(async node => {
-      const conv = conversationsMap.get(node.conversationId)
-      if (!conv) return
-      const text = conv.userMessage + ' ' + conv.assistantMessage
-      try {
-        await authFetch('/api/memory/index', {
-          method: 'POST',
-          body: JSON.stringify({ conversationId: node.conversationId, text })
-        })
-      } catch { /* 静默 */ }
-    }))
-    if (i + BATCH < memoryNodes.length) {
-      await new Promise(r => setTimeout(r, 500)) // 批次间隔
-    }
-  }
-
-  // Phase 2：等待所有向量写入完成（阿里云 API 最慢约 4 秒）
-  await new Promise(r => setTimeout(r, 5000))
-
-  // Phase 3：串行计算语义边（skipDelay=true，因为 Phase 2 已等够）
+  // 串行查询每个节点的语义相似度
   for (const node of memoryNodes) {
-    await _buildSemanticEdgesForNode(node.id, get, true)
-    await new Promise(r => setTimeout(r, 200))
+    await _buildSemanticEdgesForNode(node.id, get, true)  // skipDelay=true，服务端已索引
+    await new Promise(r => setTimeout(r, 150))
   }
 }
 
@@ -593,10 +568,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
         // 首次使用语义边功能：延迟回算历史节点
         if (!hasSemEdges && nodes.filter(n => !n.nodeType || n.nodeType === 'memory').length > 0) {
-          const convMapSnapshot = new Map(conversationsFullMap)
           setTimeout(() => {
-            _rebuildAllSemanticEdges(get, convMapSnapshot).catch(() => {})
-          }, 1000)
+            _rebuildAllSemanticEdges(get).catch(() => {})
+          }, 2000)
         }
 
         // 初始加载后，如果有节点，聚焦到第一个
