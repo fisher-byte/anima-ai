@@ -9,15 +9,50 @@ const THINK_MIN_LEN = 50
 interface ThinkingSectionProps {
   content: string
   isStreaming: boolean
+  isWaiting?: boolean   // true = 已发送，等待第一个 token（无思考内容）
   forceCollapsed?: boolean
 }
 
-export function ThinkingSection({ content, isStreaming, forceCollapsed }: ThinkingSectionProps) {
+export function ThinkingSection({ content, isStreaming, isWaiting, forceCollapsed }: ThinkingSectionProps) {
   const [isExpanded, setIsExpanded] = useState(() => !(forceCollapsed ?? false))
+  const [dot, setDot] = useState(0)
 
   useEffect(() => {
     if (forceCollapsed) setIsExpanded(false)
   }, [forceCollapsed])
+
+  // 滚动跳跳点动画（3个点循环）
+  useEffect(() => {
+    if (!isStreaming && !isWaiting) return
+    const id = setInterval(() => setDot(d => (d + 1) % 4), 420)
+    return () => clearInterval(id)
+  }, [isStreaming, isWaiting])
+
+  // 等待第一个 token 时：显示专属加载状态，不可折叠
+  if (isWaiting && !content) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-4 flex items-center gap-2.5"
+      >
+        {/* 三点跳动动画 */}
+        <div className="flex items-center gap-1">
+          {[0, 1, 2].map(i => (
+            <motion.span
+              key={i}
+              className="block w-1.5 h-1.5 rounded-full bg-gray-400"
+              animate={{ y: dot === i ? -3 : 0, opacity: dot === i ? 1 : 0.4 }}
+              transition={{ duration: 0.2 }}
+            />
+          ))}
+        </div>
+        <span className="text-xs text-gray-400 font-medium tracking-wide">
+          {'正在思考' + '.'.repeat(dot === 3 ? 0 : dot + 1)}
+        </span>
+      </motion.div>
+    )
+  }
 
   if (!content && !isStreaming) return null
   if (content && content.length < THINK_MIN_LEN && !isStreaming) return null
@@ -31,8 +66,17 @@ export function ThinkingSection({ content, isStreaming, forceCollapsed }: Thinki
         <div className="flex items-center justify-center w-4 h-4 rounded-full bg-gray-100 group-hover:bg-gray-200 transition-colors">
           {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
         </div>
-        <span className="font-medium tracking-tight uppercase">
-          {isStreaming ? '正在思考中...' : '已完成思考'}
+        <span className="font-medium tracking-wide">
+          {isStreaming
+            ? <span className="flex items-center gap-1.5">
+                <motion.span
+                  animate={{ opacity: [1, 0.4, 1] }}
+                  transition={{ repeat: Infinity, duration: 1.2, ease: 'easeInOut' }}
+                  className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400"
+                />
+                正在思考中
+              </span>
+            : '思考完毕'}
         </span>
       </button>
       <AnimatePresence>
@@ -43,9 +87,9 @@ export function ThinkingSection({ content, isStreaming, forceCollapsed }: Thinki
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <div className="mt-2 pl-4 border-l-2 border-gray-200/60 bg-gray-50/50 rounded-r-lg text-sm text-gray-500 leading-relaxed italic">
+            <div className="mt-2 pl-4 border-l-2 border-blue-100 bg-blue-50/40 rounded-r-lg text-sm text-gray-500 leading-relaxed italic">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {content || (isStreaming ? '...' : '')}
+                {content || '...'}
               </ReactMarkdown>
             </div>
           </motion.div>
