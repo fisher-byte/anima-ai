@@ -57,7 +57,7 @@ function UserMessageContent({ content }: { content: string }) {
 function ReferenceBlockBubble({ content }: { content: string }) {
   const [expanded, setExpanded] = useState(false)
   const firstLine = content.split('\n')[0].trim()
-  const preview = firstLine.slice(0, 40) + (content.length > 40 ? '…' : '')
+  const preview = firstLine.slice(0, 40) + (firstLine.length > 40 ? '…' : '')
   const wordCount = content.length
   return (
     <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl px-3 py-2 text-amber-700 text-[13px]">
@@ -222,6 +222,7 @@ export function AnswerModal() {
   // ── AI Hook ───────────────────────────────────────────────────────────────
   const { sendMessage, resetHistory, cancel } = useAI({
     onThinking: (chunk) => {
+      if (!chunk) return  // A-2: 空 chunk 防御，避免 reasoning='' 导致 isWaiting ghost 状态
       setTurns(prev => {
         if (!prev.length) return prev
         const next = [...prev]
@@ -528,7 +529,7 @@ export function AnswerModal() {
     if (isOnboardingMode && onboardingPhaseRef.current === 2) {
       onboardingPhaseRef.current = 3
       setIsStreaming(true)
-      setTurns(prev => [...prev, { user: trimmed, assistant: '' }])
+      setTurns(prev => [...prev, { user: fullTrimmed, assistant: '' }])
       showToast('✦ 进化基因已记录', trimmed.slice(0, 45))
 
       const fullText = ONBOARDING_GENE_SAVED
@@ -572,7 +573,7 @@ export function AnswerModal() {
     if (isOnboardingMode && onboardingPhaseRef.current === 0) {
       onboardingPhaseRef.current = 2
       setIsStreaming(true)
-      setTurns(prev => [...prev, { user: trimmed, assistant: '' }])
+      setTurns(prev => [...prev, { user: fullTrimmed, assistant: '' }])
 
       const fullText = ONBOARDING_DEFAULT_RESPONSE
       let charIndex = 0
@@ -691,6 +692,10 @@ export function AnswerModal() {
     const savedTurns = [...turns]
 
     setIsClosing(true)
+    // A-5: 关闭时主动清理 onboarding 流式定时器，防止资源泄漏
+    if (onboardingStreamTimerRef.current) clearTimeout(onboardingStreamTimerRef.current)
+    if (onboardingStreamTimerRef2.current) clearTimeout(onboardingStreamTimerRef2.current)
+    if (onboardingStreamTimerRef3.current) clearTimeout(onboardingStreamTimerRef3.current)
     setTimeout(() => {
       setIsClosing(false)
       setTurns([])
@@ -730,9 +735,10 @@ export function AnswerModal() {
           saveOnboardingTurns(savedTurns)
         }
         // 确保画布上保留 onboarding 能力块入口
-        const hasOnboarding = canvasNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding')
+        // A-4: 用 getState() 读最新 nodes，避免 closure 快照导致重复添加能力块
+        const hasOnboarding = useCanvasStore.getState().nodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding')
         if (!hasOnboarding) void addCapabilityNode('onboarding')
-        const hasImportMemory = canvasNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
+        const hasImportMemory = useCanvasStore.getState().nodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
         if (!hasImportMemory) void addCapabilityNode('import-memory')
       } else {
         if (shouldSave && conversationSnapshot && conversationSnapshot.userMessage) {
@@ -741,8 +747,8 @@ export function AnswerModal() {
         }
         // 中途退出引导（phase < 2）：补齐能力块，确保画布上始终有 import-memory 和 onboarding 入口
         if (isOnboardingMode) {
-          const hasImportMemory = canvasNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
-          const hasOnboarding = canvasNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding')
+          const hasImportMemory = useCanvasStore.getState().nodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
+          const hasOnboarding = useCanvasStore.getState().nodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding')
           if (!hasImportMemory) void addCapabilityNode('import-memory')
           if (!hasOnboarding) void addCapabilityNode('onboarding')
         }
@@ -1112,6 +1118,8 @@ function InputArea({
   onAddReferenceBlock, onRemoveReferenceBlock
 }: InputAreaProps) {
   const handlePaste = (e: React.ClipboardEvent) => {
+    // A-3: 有文件时不处理文本（图片/文件粘贴由父组件 fileInputRef 处理）
+    if (e.clipboardData.files.length > 0) return
     const pastedText = e.clipboardData.getData('text')
     if (pastedText.length > 500) {
       e.preventDefault()

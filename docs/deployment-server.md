@@ -1,7 +1,7 @@
 # Anima 服务器部署文档
 
 **最后更新**: 2026-03-06
-**应用版本**: v0.2.43
+**应用版本**: v0.2.44
 
 ---
 
@@ -196,6 +196,32 @@ REMOTE
 ```
 
 > 也可以直接运行 `docs/scripts/deploy.sh`（见下节），输入密码即可。
+
+---
+
+## SSH 免密登录配置
+
+本机公钥（`~/.ssh/id_ed25519`）已推送至服务器，无需再输密码。`~/.ssh/config` 中已配置快捷别名：
+
+```ssh
+Host evocanvas-prod
+    HostName 101.32.215.209
+    User root
+    Port 22
+    IdentityFile ~/.ssh/id_ed25519
+    IdentitiesOnly yes
+```
+
+**一键部署（推荐）**：
+```bash
+# 在 evocanvas 项目目录下，全自动无需密码
+bash docs/scripts/deploy.sh
+```
+
+**直接 SSH 进服务器**：
+```bash
+ssh evocanvas-prod
+```
 
 ---
 

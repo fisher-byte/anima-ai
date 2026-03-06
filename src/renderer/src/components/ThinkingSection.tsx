@@ -18,14 +18,19 @@ export function ThinkingSection({ content, isStreaming, isWaiting, forceCollapse
   const [dot, setDot] = useState(0)
 
   useEffect(() => {
-    if (forceCollapsed) setIsExpanded(false)
-  }, [forceCollapsed])
+    if (forceCollapsed) {
+      setIsExpanded(false)
+    } else if (!forceCollapsed) {
+      // 当 forceCollapsed 从 true 变回 false 时，恢复展开（仅 isWaiting/isStreaming 状态下）
+      if (isWaiting || isStreaming) setIsExpanded(true)
+    }
+  }, [forceCollapsed, isWaiting, isStreaming])
 
-  // 滚动跳跳点动画（3个点循环）
+  // 三点跳动动画（%3 循环，避免全暗帧）
   useEffect(() => {
     if (!isStreaming && !isWaiting) return
-    const id = setInterval(() => setDot(d => (d + 1) % 4), 420)
-    return () => clearInterval(id)
+    const id = setInterval(() => setDot(d => (d + 1) % 3), 420)
+    return () => { clearInterval(id); setDot(0) }
   }, [isStreaming, isWaiting])
 
   // 等待第一个 token 时：显示专属加载状态，不可折叠
@@ -48,7 +53,7 @@ export function ThinkingSection({ content, isStreaming, isWaiting, forceCollapse
           ))}
         </div>
         <span className="text-xs text-gray-400 font-medium tracking-wide">
-          {'正在思考' + '.'.repeat(dot === 3 ? 0 : dot + 1)}
+          {'正在思考' + '.'.repeat(dot + 1)}
         </span>
       </motion.div>
     )
