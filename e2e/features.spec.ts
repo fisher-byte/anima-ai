@@ -399,3 +399,53 @@ test('POST /api/memory/search/by-id 接口存在且返回正常格式', async ({
     expect(data.reason).toBe('source not indexed')
   }
 })
+
+// ── 测试 24：GET /api/memory/logical-edges 接口存在 (v0.2.48) ─────────────────
+test('GET /api/memory/logical-edges 接口存在且返回 edges 数组', async ({ request }) => {
+  const resp = await request.get(`${API_BASE}/api/memory/logical-edges`, {
+    headers: authHeaders()
+  })
+  expect(resp.status()).not.toBe(404)
+  expect(resp.status()).toBeLessThan(500)
+  const data = await resp.json()
+  expect(Array.isArray(data.edges)).toBe(true)
+})
+
+// ── 测试 25：GET /api/memory/logical-edges/:id 接口存在 (v0.2.48) ──────────────
+test('GET /api/memory/logical-edges/:id 未知 id 返回空数组', async ({ request }) => {
+  const resp = await request.get(`${API_BASE}/api/memory/logical-edges/nonexistent-conv-e2e`, {
+    headers: authHeaders()
+  })
+  expect(resp.status()).not.toBe(404)
+  expect(resp.status()).toBeLessThan(500)
+  const data = await resp.json()
+  expect(Array.isArray(data.edges)).toBe(true)
+  expect(data.edges).toEqual([])
+})
+
+// ── 测试 26：PUT /api/config/apikey 拒绝空字符串 (v0.2.48 fix) ─────────────────
+test('PUT /api/config/apikey 发送空字符串返回 skipped:true', async ({ request }) => {
+  const resp = await request.put(`${API_BASE}/api/config/apikey`, {
+    data: { apiKey: '' },
+    headers: authHeaders()
+  })
+  expect(resp.ok()).toBe(true)
+  const data = await resp.json()
+  expect(data.ok).toBe(true)
+  expect(data.skipped).toBe(true)
+})
+
+// ── 测试 27：GET /api/storage/logical-edges.json 首次读取返回 [] (v0.2.48) ──────
+test('GET /api/storage/logical-edges.json 未设置时返回空数组', async ({ request }) => {
+  const resp = await request.get(`${API_BASE}/api/storage/logical-edges.json`, {
+    headers: authHeaders()
+  })
+  // 应 200，不应 404
+  expect(resp.status()).toBeLessThan(500)
+  expect(resp.status()).not.toBe(404)
+  const text = await resp.text()
+  // 内容应是合法 JSON 数组
+  let parsed: unknown
+  expect(() => { parsed = JSON.parse(text) }).not.toThrow()
+  expect(Array.isArray(parsed)).toBe(true)
+})

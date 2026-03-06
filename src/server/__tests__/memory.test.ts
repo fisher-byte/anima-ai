@@ -8,7 +8,7 @@
  * those tests verify the "no-key" fallback path only.
  */
 
-import { describe, it, expect, beforeEach, afterAll } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest'
 import { Hono } from 'hono'
 import Database from 'better-sqlite3'
 
