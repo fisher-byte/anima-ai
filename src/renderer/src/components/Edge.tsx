@@ -115,7 +115,7 @@ export const Edge = memo(function Edge({
   const panelH = panelReason ? 72 : 44
 
   return (
-    <g onClick={isInteractive ? handleClick : undefined}>
+    <g style={{ pointerEvents: 'none' }}>
       {/* 可见连线 */}
       <path
         d={path}
@@ -134,9 +134,10 @@ export const Edge = memo(function Edge({
           fill="none"
           stroke="transparent"
           strokeWidth={14}
-          style={{ cursor: 'pointer' }}
+          style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
+          onClick={handleClick}
         />
       )}
       {/* branch/category 边的普通 hover label */}

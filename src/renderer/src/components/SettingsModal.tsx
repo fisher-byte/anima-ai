@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Settings, X, Save, Shield, Cpu, Link } from 'lucide-react'
 import { API_CONFIG, AI_CONFIG, SUPPORTED_MODELS } from '@shared/constants'
-import { configService, storageService } from '../services/storageService'
+import { configService, storageService, isElectronEnvironment } from '../services/storageService'
 import { getAuthToken } from '../services/storageService'
 
 interface SettingsModalProps {
@@ -12,6 +12,7 @@ interface SettingsModalProps {
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState('')
+  const [hasExistingKey, setHasExistingKey] = useState(false)
   const [baseUrl, setBaseUrl] = useState(API_CONFIG.BASE_URL)
   const [model, setModel] = useState<string>(AI_CONFIG.MODEL)
   const [isSaving, setIsSaving] = useState(false)
@@ -22,16 +23,23 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   // 加载配置
   useEffect(() => {
     if (isOpen) {
+      setApiKey('')  // 每次打开重置，不回填旧密文
       const loadConfig = async () => {
         const savedKey = await configService.getApiKey()
-        if (savedKey) setApiKey(savedKey)
+        if (savedKey) {
+          setHasExistingKey(true)
+          // 不回填密文，让用户主动输入新 key 才覆盖
+        } else {
+          setHasExistingKey(false)
+        }
 
         // Web mode: load model/baseUrl from config service (backend DB)
         // Electron mode: falls back to settings.json via storageService
         const backendSettings = await configService.getSettings()
+        const isElectron = isElectronEnvironment()
         if (backendSettings.model) {
           setModel(backendSettings.model)
-        } else {
+        } else if (isElectron) {
           const settingsJson = await storageService.read('settings.json')
           if (settingsJson) {
             const settings = JSON.parse(settingsJson)
@@ -40,7 +48,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         }
         if (backendSettings.baseUrl) {
           setBaseUrl(backendSettings.baseUrl)
-        } else {
+        } else if (isElectron) {
           const settingsJson = await storageService.read('settings.json')
           if (settingsJson) {
             const settings = JSON.parse(settingsJson)
@@ -152,11 +160,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 type="password"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder="sk-..."
+                placeholder={hasExistingKey ? '已保存，填写新值可覆盖' : 'sk-...'}
                 className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-100 focus:bg-white outline-none transition-all"
               />
               <p className="text-[10px] text-gray-400 px-1">
-                你的密钥加密保存在服务端数据库，不会暴露给浏览器。
+                {hasExistingKey ? 'API Key 已保存。留空不修改，填写新值可覆盖。' : '你的密钥加密保存在服务端数据库，不会暴露给浏览器。'}
               </p>
               {keyError && (
                 <p className="text-[11px] text-red-500 font-medium px-1">{keyError}</p>
