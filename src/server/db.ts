@@ -282,6 +282,30 @@ export function getDb(userId?: string): InstanceType<typeof Database> {
 
 export const db = getDb()
 
+/**
+ * Return all currently active per-user databases (excludes the _default fallback).
+ * Used by agentWorker to iterate over all tenants and process their tasks.
+ */
+export function getAllUserDbs(): Array<{ userId: string; db: InstanceType<typeof Database> }> {
+  const result: Array<{ userId: string; db: InstanceType<typeof Database> }> = []
+  // Scan the data directory for per-user subdirectories (12-char hex userId)
+  try {
+    const entries = fs.readdirSync(DATA_DIR, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      // userId directories are 12-char hex strings
+      if (!/^[0-9a-f]{12}$/.test(entry.name)) continue
+      const userId = entry.name
+      const dbPath = path.join(DATA_DIR, userId, 'anima.db')
+      if (!fs.existsSync(dbPath)) continue
+      result.push({ userId, db: getDb(userId) })
+    }
+  } catch (e) {
+    console.warn('[db] getAllUserDbs scan failed:', e)
+  }
+  return result
+}
+
 // ── Type exports ─────────────────────────────────────────────────────────────
 
 export type StorageRow = { filename: string; content: string; updated_at: string }
