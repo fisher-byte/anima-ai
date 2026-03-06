@@ -3,6 +3,7 @@ import type { Node, Edge, Conversation, Profile, PreferenceRule, NodePosition } 
 import { STORAGE_FILES, FEEDBACK_TRIGGERS, CONFIDENCE_CONFIG, UI_CONFIG } from '@shared/constants'
 import { storageService, historyService, configService } from '../services/storageService'
 import { getAuthToken } from '../services/storageService'
+import { FILE_BLOCK_PREFIX } from '../utils/conversationUtils'
 
 /** Internal helper: attach auth + JSON headers to all /api/* fetch calls */
 function authFetch(url: string, init?: RequestInit): Promise<Response> {
@@ -530,8 +531,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   addNode: async (conversation: Conversation, position?: NodePosition, explicitCategory?: string, memoryCount?: number) => {
     const { nodes } = get()
 
-    // 生成标题：截断文件内容块（formatFilesForAI 前缀截断法，避免正则被文件内容干扰）
-    const FILE_BLOCK_PREFIX = '\n\n以下是我上传的文件内容，请分析并回答我的问题：\n'
+    // 生成标题：截断文件内容块（FILE_BLOCK_PREFIX 截断法，避免正则被文件内容干扰）
     const fileBlockIdx = conversation.userMessage.indexOf(FILE_BLOCK_PREFIX)
     const msgWithoutFiles = (fileBlockIdx >= 0
       ? conversation.userMessage.slice(0, fileBlockIdx)
