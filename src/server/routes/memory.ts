@@ -300,9 +300,10 @@ memoryRoutes.put('/profile', async (c) => {
 
 /** 前端提交 Agent 任务（画像提取等），fire-and-forget */
 memoryRoutes.post('/queue', async (c) => {
+  const db = userDb(c)
   const { type, payload } = await c.req.json<{ type: string; payload: Record<string, unknown> }>()
   if (!type) return c.json({ error: 'type required' }, 400)
-  enqueueTask(type, payload ?? {})
+  enqueueTask(db, type, payload ?? {})
   return c.json({ ok: true })
 })
 

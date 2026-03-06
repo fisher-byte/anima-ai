@@ -99,7 +99,7 @@ storageRoutes.post('/file', async (c) => {
 
   // 将 embedding 任务排入 Agent 队列（分块处理，不阻塞上传响应）
   if (textContent.trim().length > 10) {
-    enqueueTask('embed_file', { fileId: id, textContent, filename: file.name })
+    enqueueTask(db, 'embed_file', { fileId: id, textContent, filename: file.name })
   } else {
     // 无文本内容（如图片），直接标记完成
     db.prepare("UPDATE uploaded_files SET embed_status = 'done' WHERE id = ?").run(id)
