@@ -357,10 +357,15 @@ async function embedFileContent(fileId: string, textContent: string, filename: s
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({ model: embModel, input: chunk }),
-        signal: AbortSignal.timeout(10_000)
+        signal: AbortSignal.timeout(5_000)
       })
 
       if (!resp.ok) {
+        if (resp.status === 403) {
+          console.info(`[agent] embed_file: embedding not available (403) for ${filename}, skipping`)
+          db.prepare("UPDATE uploaded_files SET embed_status = 'failed' WHERE id = ?").run(fileId)
+          return
+        }
         console.warn(`[agent] embed_file chunk ${i} failed for ${filename}:`, resp.status)
         continue
       }

@@ -1,6 +1,30 @@
 # Anima 变更日志
 
-## [0.2.39] - 2026-03-06
+## [0.2.40] - 2026-03-06
+
+### 修复主输入框卡死 + 优化 embedding 超时处理
+
+#### 问题
+1. 从主输入框发消息后 modal 不打开（一直无响应）
+2. Moonshot embedding API 返回 403 导致每次请求等待 10 秒超时，全面拖慢体验
+3. 日志被 403 warning 刷屏
+
+#### 根本原因
+- `startConversation` 调用 `await getRelevantMemories()`，后者请求后端 `/api/memory/search`，
+  后端调 Moonshot embedding 接口（未开通 403），等待 10 秒超时后才返回
+- 在 10 秒等待期间 modal 没有打开，用户以为按钮无响应
+- 之后 `startConversation` 虽然执行了 `set({isLoading: true})`，但 `AnswerModal` 的发送 effect 检测到
+  `isLoading=true` 就跳过不执行，造成二次死锁（modal 永远转圈）
+
+#### 修复
+- `startConversation` 改为**立即打开 modal**（`isLoading: false`），后台异步获取记忆用于自动连线
+- embedding 超时从 10s 缩短至 5s
+- 403 由 `warn` 降级为 `info`，不再刷屏日志
+- agentWorker 的 embed_file 遇到 403 时立即标记 `failed` 并退出，不再重试
+
+---
+
+
 
 ### 修复跨账号切换导致 onboarding 状态污染
 
