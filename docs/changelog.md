@@ -1,5 +1,38 @@
 # Anima 变更日志
 
+## [0.2.36] - 2026-03-06
+
+### 严重安全漏洞修复：多用户数据隔离泄露
+
+#### 漏洞描述
+**高危**：任意持有合法 token 的用户（包括测试 token `evo_test_002~005`）首次登录时，
+`migrateFromDefault()` 函数会把 `data/anima.db`（主用户的全部历史数据）复制到新用户数据库，
+导致其他用户可以看到主用户的全部聊天记录、记忆、节点数据。
+
+#### 根本原因（`src/server/db.ts`）
+`migrateFromDefault()` 的设计意图是"从旧版无鉴权 anima.db 迁移到新版多租户数据库"，
+但缺少用户身份校验——对任意 userId 的新数据库都会执行迁移，不区分是否是数据的真实所有者。
+
+#### 修复
+1. **身份校验**：`migrateFromDefault(db, userId)` 新增 `userId` 参数，函数内部通过 `ACCESS_TOKEN` 计算主用户 userId，只有匹配时才执行迁移，其他用户直接返回
+2. **幂等锁文件**：迁移成功后写入 `data/{userId}/.migrated` 标记文件，防止重复迁移
+3. **废除泄露 token**：`.env` 中删除 `evo_test_002~005`，`ACCESS_TOKENS` 只保留 `evo_yuzhiyang_001`
+
+#### 线上服务器紧急操作（需手动执行）
+```bash
+# 删除已被污染数据的测试用户数据库（这些 db 包含了主用户数据的副本）
+rm -rf data/f767c37874d2  # evo_test_002
+rm -rf data/f554a7fa04b6  # evo_test_003
+rm -rf data/77bbe65307a8  # evo_test_004
+rm -rf data/8984a18ab49a  # evo_test_005
+# 重启服务
+```
+
+#### 测试
+- `npm test`：232 tests 全部通过
+
+---
+
 ## [0.2.35] - 2026-03-06
 
 ### 在线版 modal 竞态修复 + 网络错误友好提示

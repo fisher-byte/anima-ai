@@ -151,13 +151,31 @@ export function tokenToUserId(token: string): string {
 }
 
 /**
- * One-time migration: copy all data from the legacy _default db into a newly
- * created userId db.  Runs only when the userId db file did not exist before.
- * This handles the upgrade path from a pre-auth single-user deployment.
+ * One-time migration: copy all data from the legacy _default db into the
+ * PRIMARY user's newly created userId db.
+ *
+ * SECURITY: Only runs for the primary token (ACCESS_TOKEN env var).
+ * Other users MUST NOT receive someone else's historical data.
+ * A sentinel file (.migrated) is written after the first successful migration
+ * so the operation is idempotent even if the server restarts.
  */
-function migrateFromDefault(targetDb: InstanceType<typeof Database>): void {
+function migrateFromDefault(targetDb: InstanceType<typeof Database>, userId: string): void {
+  // Only migrate for the primary user (ACCESS_TOKEN, not ACCESS_TOKENS extras)
+  const primaryToken = process.env.ACCESS_TOKEN?.trim()
+  if (!primaryToken) return
+  const primaryUserId = tokenToUserId(primaryToken)
+  if (userId !== primaryUserId) {
+    // Different user — never copy another user's data
+    return
+  }
+
   const defaultDbPath = path.join(DATA_DIR, 'anima.db')
   if (!fs.existsSync(defaultDbPath)) return
+
+  // Idempotency guard: if we already migrated, skip
+  const userDir = path.join(DATA_DIR, userId)
+  const migratedFlag = path.join(userDir, '.migrated')
+  if (fs.existsSync(migratedFlag)) return
 
   let srcDb: InstanceType<typeof Database> | null = null
   try {
@@ -216,6 +234,8 @@ function migrateFromDefault(targetDb: InstanceType<typeof Database>): void {
       ` (storage:${storageRows.length} config:${configRows.length}` +
       ` facts:${facts.length} profile:${profile ? 1 : 0})`
     )
+    // Write idempotency flag so we never migrate again
+    try { fs.writeFileSync(migratedFlag, new Date().toISOString()) } catch { /* ignore */ }
   } catch (e) {
     console.error('[db] Migration from default db failed:', e)
   } finally {
@@ -241,8 +261,9 @@ export function getDb(userId?: string): InstanceType<typeof Database> {
   initSchema(database)
 
   // Auto-migrate legacy data when a userId db is created for the first time
+  // SECURITY: migrateFromDefault checks userId matches the primary token owner
   if (isNewDb && userId) {
-    migrateFromDefault(database)
+    migrateFromDefault(database, userId)
   }
 
   dbPool.set(key, database)
