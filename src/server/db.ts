@@ -159,7 +159,18 @@ function initSchema(database: InstanceType<typeof Database>) {
     'CREATE INDEX IF NOT EXISTS idx_memory_facts_active ON memory_facts(created_at DESC) WHERE invalid_at IS NULL',
     // 存量 memory_facts 回填到 FTS5 索引（已在虚拟表中的会被 OR IGNORE 跳过）
     `INSERT OR IGNORE INTO memory_facts_fts(id, fact)
-      SELECT id, fact FROM memory_facts WHERE invalid_at IS NULL`
+      SELECT id, fact FROM memory_facts WHERE invalid_at IS NULL`,
+    `CREATE TABLE IF NOT EXISTS logical_edges (
+      id           TEXT PRIMARY KEY,
+      source_conv  TEXT NOT NULL,
+      target_conv  TEXT NOT NULL,
+      relation     TEXT NOT NULL,
+      reason       TEXT NOT NULL,
+      confidence   REAL NOT NULL DEFAULT 0.7,
+      created_at   TEXT NOT NULL
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_logical_edges_source ON logical_edges(source_conv)',
+    'CREATE INDEX IF NOT EXISTS idx_logical_edges_target ON logical_edges(target_conv)'
   ]
   for (const sql of migrations) {
     try { database.exec(sql) } catch { /* column/index already exists */ }

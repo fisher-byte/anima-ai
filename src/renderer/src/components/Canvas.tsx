@@ -594,6 +594,9 @@ export function Canvas() {
                     label={edge.label}
                     edgeType={edge.edgeType}
                     weight={edge.weight}
+                    relation={edge.relation}
+                    reason={edge.reason}
+                    confidence={edge.confidence}
                   />
                 )
               })}

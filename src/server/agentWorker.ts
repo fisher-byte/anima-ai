@@ -33,6 +33,13 @@ interface EmbedFilePayload {
   filename: string
 }
 
+interface ExtractLogicalEdgesPayload {
+  conversationId: string
+  userMessage: string
+  assistantMessage: string
+  candidateNodes: Array<{ conversationId: string; title: string; userMessage: string; score: number }>
+}
+
 /** 把现有 facts 传给 LLM，合并语义重叠条目，软删除旧条目，写入合并后的新条目 */
 async function consolidateFacts(db: InstanceType<typeof Database>): Promise<void> {
   const { apiKey, baseUrl, model } = getApiConfig(db)
@@ -103,6 +110,98 @@ ${factsText}
     console.log(`[agent] consolidate_facts: ${rows.length} → ${cleaned.length} facts`)
   } catch (e) {
     console.warn('[agent] consolidateFacts failed:', e)
+  }
+}
+
+/** AI 提取两个节点之间的显式逻辑关系，写入 logical_edges 表 */
+async function extractLogicalEdges(
+  db: InstanceType<typeof Database>,
+  payload: ExtractLogicalEdgesPayload
+): Promise<void> {
+  const { apiKey, baseUrl, model } = getApiConfig(db)
+  if (!apiKey) return
+
+  const { conversationId, userMessage, assistantMessage, candidateNodes } = payload
+  if (candidateNodes.length === 0) return
+
+  const candidatesText = candidateNodes.map((n, i) =>
+    `${i + 1}. 标题：${n.title}\n   内容摘要：${n.userMessage.slice(0, 120)}`
+  ).join('\n\n')
+
+  const prompt = `你正在分析一个用户的思维图谱。
+
+【当前对话】
+用户问：${userMessage.slice(0, 200)}
+AI 答：${assistantMessage.slice(0, 200)}
+
+【候选关联节点】
+${candidatesText}
+
+任务：判断当前对话与上述每个候选节点之间是否存在明确的逻辑关系。
+
+关系类型定义：
+- 深化了：当前对话对候选节点的问题进行了更深入的探讨
+- 解决了：当前对话回答或解决了候选节点中提出的问题
+- 矛盾于：当前对话的观点或结论与候选节点相反
+- 依赖于：理解当前对话需要先理解候选节点
+- 启发了：候选节点的内容启发或引导了当前对话
+- 重新思考了：当前对话修正或推翻了候选节点的结论
+
+仅在关系明确（置信度 >= 0.7）时输出。相似主题但无明确逻辑关系的不输出。
+
+严格按 JSON 数组输出，不要有任何其他文字：
+[
+  {"index": 1, "relation": "解决了", "reason": "当前对话直接回答了候选节点中关于XX的疑问", "confidence": 0.85},
+  {"index": 2, "relation": "深化了", "reason": "当前对话在候选节点的基础上进一步探讨了YY", "confidence": 0.75}
+]
+
+如果没有明确关系，输出空数组：[]`
+
+  try {
+    const resp = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 500,
+        temperature: 0.2
+      }),
+      signal: AbortSignal.timeout(15_000)
+    })
+
+    if (!resp.ok) return
+
+    const data = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> }
+    const raw = data?.choices?.[0]?.message?.content?.trim() ?? ''
+
+    // 提取 JSON（容错：去掉 markdown 代码块包裹）
+    const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+    let results: Array<{ index: number; relation: string; reason: string; confidence: number }> = []
+    try { results = JSON.parse(jsonStr) } catch { return }
+
+    const now = new Date().toISOString()
+    for (const r of results) {
+      const candidate = candidateNodes[r.index - 1]
+      if (!candidate) continue
+      if (r.confidence < 0.7) continue
+
+      // 去重：同一对之间同一关系类型只存一条
+      const existing = db.prepare(
+        'SELECT id FROM logical_edges WHERE source_conv = ? AND target_conv = ? AND relation = ?'
+      ).get(conversationId, candidate.conversationId, r.relation)
+      if (existing) continue
+
+      const edgeId = `ledge-${conversationId}-${candidate.conversationId}-${Date.now()}`
+      db.prepare(`
+        INSERT INTO logical_edges (id, source_conv, target_conv, relation, reason, confidence, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(edgeId, conversationId, candidate.conversationId, r.relation, r.reason, r.confidence, now)
+
+      console.log(`[agent] logical edge: ${r.relation} (${r.confidence}) → ${candidate.title.slice(0, 20)}`)
+    }
+  } catch (e) {
+    console.warn('[agent] extractLogicalEdges failed:', e)
   }
 }
 
@@ -513,6 +612,9 @@ async function processTask(
       await embedFileContent(db, payload.fileId, payload.textContent, payload.filename)
     } else if (task.type === 'consolidate_facts') {
       await consolidateFacts(db)
+    } else if (task.type === 'extract_logical_edges') {
+      const payload = JSON.parse(task.payload) as ExtractLogicalEdgesPayload
+      await extractLogicalEdges(db, payload)
     }
 
     db.prepare('UPDATE agent_tasks SET status = ?, finished_at = ? WHERE id = ?').run('done', new Date().toISOString(), task.id)

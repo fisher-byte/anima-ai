@@ -43,8 +43,11 @@ export interface Edge {
   target: string  // 目标节点ID
   label?: string  // 连线标签（可选）
   createdAt: string
-  edgeType?: 'branch' | 'category' | 'semantic'  // 边类型，undefined 向后兼容
-  weight?: number  // 语义边的余弦相似度分数（0-1）
+  edgeType?: 'branch' | 'category' | 'semantic' | 'logical'  // 边类型，undefined 向后兼容
+  weight?: number        // 语义边的余弦相似度分数（0-1）
+  relation?: string      // L3 逻辑关系类型（中文）：深化了|解决了|矛盾于|依赖于|启发了|重新思考了
+  reason?: string        // AI 生成的中文解释（1-2句话）
+  confidence?: number    // AI 置信度 0-1
 }
 
 /**
