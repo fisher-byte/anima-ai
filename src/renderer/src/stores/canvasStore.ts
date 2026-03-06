@@ -129,14 +129,17 @@ const _semanticBuildingSet = new Set<string>()
 /** 为指定节点异步计算语义关联边（复用已有向量，无额外 embedding 调用） */
 async function _buildSemanticEdgesForNode(
   nodeId: string,
-  get: () => CanvasState
+  get: () => CanvasState,
+  skipDelay = false
 ): Promise<void> {
   if (_semanticBuildingSet.has(nodeId)) return
   _semanticBuildingSet.add(nodeId)
 
   try {
-    // 给向量写入留时间
-    await new Promise(r => setTimeout(r, 300))
+    // 给向量写入留时间（阿里云 embedding API 需要 2-4 秒）；批量回算时由调用方统一等待
+    if (!skipDelay) {
+      await new Promise(r => setTimeout(r, 4000))
+    }
 
     const resp = await authFetch('/api/memory/search/by-id', {
       method: 'POST',
@@ -172,13 +175,42 @@ async function _buildSemanticEdgesForNode(
   }
 }
 
-/** 历史节点语义边全量回算（仅当 semantic-edges.json 不存在或为空时触发） */
-async function _rebuildAllSemanticEdges(get: () => CanvasState): Promise<void> {
+/** 历史节点语义边全量回算（仅当 semantic-edges.json 不存在或为空时触发）
+ *  步骤：先补齐向量索引，再串行计算语义相似度
+ */
+async function _rebuildAllSemanticEdges(
+  get: () => CanvasState,
+  conversationsMap: Map<string, { userMessage: string; assistantMessage: string }>
+): Promise<void> {
   const { nodes } = get()
   const memoryNodes = nodes.filter(n => !n.nodeType || n.nodeType === 'memory')
 
+  // Phase 1：为没有向量的历史节点补充索引（并行批次，每批 3 个，避免 API 过载）
+  const BATCH = 3
+  for (let i = 0; i < memoryNodes.length; i += BATCH) {
+    const batch = memoryNodes.slice(i, i + BATCH)
+    await Promise.all(batch.map(async node => {
+      const conv = conversationsMap.get(node.conversationId)
+      if (!conv) return
+      const text = conv.userMessage + ' ' + conv.assistantMessage
+      try {
+        await authFetch('/api/memory/index', {
+          method: 'POST',
+          body: JSON.stringify({ conversationId: node.conversationId, text })
+        })
+      } catch { /* 静默 */ }
+    }))
+    if (i + BATCH < memoryNodes.length) {
+      await new Promise(r => setTimeout(r, 500)) // 批次间隔
+    }
+  }
+
+  // Phase 2：等待所有向量写入完成（阿里云 API 最慢约 4 秒）
+  await new Promise(r => setTimeout(r, 5000))
+
+  // Phase 3：串行计算语义边（skipDelay=true，因为 Phase 2 已等够）
   for (const node of memoryNodes) {
-    await _buildSemanticEdgesForNode(node.id, get)
+    await _buildSemanticEdgesForNode(node.id, get, true)
     await new Promise(r => setTimeout(r, 200))
   }
 }
@@ -497,6 +529,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         }
 
         // 全量按对话首句重新分类，修正历史错分（如美食归到生活日常）；类别名与 detectIntent 保持一致
+        const conversationsFullMap = new Map<string, { userMessage: string; assistantMessage: string }>()
         try {
           const convContent = await storageService.read(STORAGE_FILES.CONVERSATIONS)
           const conversationsById = new Map<string, string>()
@@ -504,7 +537,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
             for (const line of convContent.trim().split('\n').filter(Boolean)) {
               try {
                 const conv = JSON.parse(line) as Conversation
-                if (conv.id && conv.userMessage) conversationsById.set(conv.id, conv.userMessage)
+                if (conv.id && conv.userMessage) {
+                  conversationsById.set(conv.id, conv.userMessage)
+                  conversationsFullMap.set(conv.id, {
+                    userMessage: conv.userMessage,
+                    assistantMessage: conv.assistantMessage || ''
+                  })
+                }
               } catch { /* ignore */ }
             }
           }
@@ -554,8 +593,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
         // 首次使用语义边功能：延迟回算历史节点
         if (!hasSemEdges && nodes.filter(n => !n.nodeType || n.nodeType === 'memory').length > 0) {
+          const convMapSnapshot = new Map(conversationsFullMap)
           setTimeout(() => {
-            _rebuildAllSemanticEdges(get).catch(() => {})
+            _rebuildAllSemanticEdges(get, convMapSnapshot).catch(() => {})
           }, 1000)
         }
 
