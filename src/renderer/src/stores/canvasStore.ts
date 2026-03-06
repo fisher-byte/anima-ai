@@ -530,12 +530,21 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   addNode: async (conversation: Conversation, position?: NodePosition, explicitCategory?: string, memoryCount?: number) => {
     const { nodes } = get()
 
-    // 生成标题（剥离文件内容标记，避免标题显示 === 文件 N: === 原始内容）
-    const cleanUserMessage = conversation.userMessage
-      .replace(/\n?=== 文件 \d+: [^\n]+ ===\n[\s\S]*?\n=== 结束 [^\n]+ ===\n?/g, '')
-      .replace(/\[REFERENCE_START\][\s\S]*?\[REFERENCE_END\]/g, '')
-      .trim()
-    const title = (cleanUserMessage || conversation.userMessage).slice(0, UI_CONFIG.NODE_TITLE_MAX_LENGTH)
+    // 生成标题：截断文件内容块（formatFilesForAI 前缀截断法，避免正则被文件内容干扰）
+    const FILE_BLOCK_PREFIX = '\n\n以下是我上传的文件内容，请分析并回答我的问题：\n'
+    const fileBlockIdx = conversation.userMessage.indexOf(FILE_BLOCK_PREFIX)
+    const msgWithoutFiles = (fileBlockIdx >= 0
+      ? conversation.userMessage.slice(0, fileBlockIdx)
+      : conversation.userMessage
+    ).replace(/\[REFERENCE_START\][\s\S]*?\[REFERENCE_END\]/g, '').trim()
+
+    // P1-2: 仅上传文件无文字时，用文件名作为标题 fallback
+    let titleSource = msgWithoutFiles
+    if (!titleSource && fileBlockIdx >= 0) {
+      const firstFileMatch = conversation.userMessage.match(/=== 文件 \d+: ([^\n]+) ===/)
+      titleSource = firstFileMatch ? `📎 ${firstFileMatch[1]}` : '文件对话'
+    }
+    const title = (titleSource || conversation.userMessage).slice(0, UI_CONFIG.NODE_TITLE_MAX_LENGTH)
 
     // 生成关键词并清理结构词
     const keywords = conversation.assistantMessage
@@ -668,9 +677,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
             // 从新节点位置向外推（避免重叠）
             const dx = n.x - x!
             const dy = n.y - y!
-            const dist = Math.hypot(dx, dy) || 1
-            const pushDist = pushRadius - dist + 20
-            const dir = dist > 0 ? { x: dx / dist, y: dy / dist } : { x: Math.cos(Math.random() * Math.PI * 2), y: Math.sin(Math.random() * Math.PI * 2) }
+            const rawDist = Math.hypot(dx, dy)
+            const pushDist = pushRadius - rawDist + 20
+            // rawDist === 0 时（完全重叠），随机方向推开
+            const dir = rawDist > 0
+              ? { x: dx / rawDist, y: dy / rawDist }
+              : { x: Math.cos(Math.random() * Math.PI * 2), y: Math.sin(Math.random() * Math.PI * 2) }
             return { ...n, x: n.x + dir.x * pushDist, y: n.y + dir.y * pushDist }
           })
           set({ nodes: pushedNodes })
