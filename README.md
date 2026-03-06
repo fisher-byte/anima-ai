@@ -130,6 +130,8 @@ evocanvas/
 | [测试手册](./docs/testing.md) | 测试策略与手动核查清单 |
 | [排查指南](./docs/troubleshooting.md) | 常见问题与解决方案 |
 | [部署指南](./docs/deployment.md) | Docker / VPS 部署 |
+| [服务器部署](./docs/deployment-server.md) | 生产服务器配置与 CD 流程 |
+| [发版 SOP](./docs/sop-release.md) | 发版流程、文档同步标准、版本命名规范 |
 | [更新路线图](./docs/ROADMAP.md) | 版本规划与已完成记录 |
 | [变更日志](./docs/changelog.md) | 详细版本变更历史 |
 
