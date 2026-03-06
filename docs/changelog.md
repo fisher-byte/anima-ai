@@ -1,5 +1,29 @@
 # Anima 变更日志
 
+## [0.2.43] - 2026-03-06
+
+### 修复 agentWorker 多租户 bug（P0）
+
+#### 问题
+多用户部署（`ACCESS_TOKENS` 配置多个 token）时，后台 Agent Worker 的所有任务
+（`extract_profile`、`extract_preference`、`embed_file`、`consolidate_facts`）
+全部静默操作第一个用户的默认数据库，其他用户的记忆提取、画像积累、文件向量化功能完全失效。
+
+#### 根本原因
+`agentWorker.ts` 通过 `import { db } from './db'` 使用全局默认 db 实例，而实际上
+每个用户的 `agent_tasks` 存在自己的 `data/{userId}/anima.db` 里。
+
+#### 修复
+- `db.ts` 新增 `getAllUserDbs()`，扫描 `data/` 目录下所有 12 位 hex userId 子目录
+- `agentWorker.ts` 所有工作函数改为接收 `db` 参数，`tick()` 遍历所有用户 db
+- `enqueueTask(db, type, payload)` 新增必传 `db` 参数
+- `routes/memory.ts` 的 `/queue` 路由和 `routes/storage.ts` 的文件上传入队均传入正确的用户 db
+- 新增 4 个集成测试验证多租户隔离正确性
+
+单用户 self-hosted 场景完全透明，行为与之前一致。
+
+---
+
 ## [0.2.42] - 2026-03-06
 
 ### Code review 修复

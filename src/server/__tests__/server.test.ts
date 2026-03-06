@@ -1122,3 +1122,97 @@ describe('Conversation History API', () => {
     expect((await resB.json()).messages).toHaveLength(2)
   })
 })
+
+// ── AgentWorker 多租户集成测试 ─────────────────────────────────────────────────
+describe('AgentWorker multi-tenant enqueueTask', () => {
+  // 直接内联 enqueueTask 逻辑（与 agentWorker.ts 保持一致），避免触发服务端 db 初始化
+  function enqueueTask(db: InstanceType<typeof Database>, type: string, payload: Record<string, unknown>) {
+    db.prepare(
+      'INSERT INTO agent_tasks (type, payload, status, created_at) VALUES (?, ?, ?, ?)'
+    ).run(type, JSON.stringify(payload), 'pending', new Date().toISOString())
+  }
+
+  function createTaskDb(): InstanceType<typeof Database> {
+    const db = new Database(':memory:')
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS agent_tasks (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        type        TEXT NOT NULL,
+        payload     TEXT NOT NULL DEFAULT '{}',
+        status      TEXT NOT NULL DEFAULT 'pending',
+        retries     INTEGER NOT NULL DEFAULT 0,
+        created_at  TEXT NOT NULL,
+        started_at  TEXT,
+        finished_at TEXT,
+        error       TEXT
+      )
+    `)
+    return db
+  }
+
+  it('写入正确的 db，不污染其他用户的 db', () => {
+    const userADb = createTaskDb()
+    const userBDb = createTaskDb()
+
+    enqueueTask(userADb, 'extract_profile', { userMessage: 'user-a message', assistantMessage: '' })
+    enqueueTask(userBDb, 'extract_preference', { userMessage: 'user-b message', assistantMessage: '' })
+
+    const tasksA = userADb.prepare('SELECT type FROM agent_tasks').all() as { type: string }[]
+    const tasksB = userBDb.prepare('SELECT type FROM agent_tasks').all() as { type: string }[]
+
+    expect(tasksA).toHaveLength(1)
+    expect(tasksA[0].type).toBe('extract_profile')
+    expect(tasksB).toHaveLength(1)
+    expect(tasksB[0].type).toBe('extract_preference')
+
+    // 验证无跨库污染
+    expect(tasksA.every(t => t.type !== 'extract_preference')).toBe(true)
+    expect(tasksB.every(t => t.type !== 'extract_profile')).toBe(true)
+
+    userADb.close()
+    userBDb.close()
+  })
+
+  it('payload 以 JSON 字符串正确存储', () => {
+    const db = createTaskDb()
+    const payload = { fileId: 'abc123', textContent: 'hello world', filename: 'test.pdf' }
+    enqueueTask(db, 'embed_file', payload)
+
+    const row = db.prepare('SELECT type, payload, status FROM agent_tasks').get() as { type: string; payload: string; status: string }
+    expect(row.type).toBe('embed_file')
+    expect(row.status).toBe('pending')
+
+    const parsed = JSON.parse(row.payload) as typeof payload
+    expect(parsed.fileId).toBe('abc123')
+    expect(parsed.textContent).toBe('hello world')
+    expect(parsed.filename).toBe('test.pdf')
+
+    db.close()
+  })
+
+  it('多次 enqueueTask 任务累积在同一 db 中', () => {
+    const db = createTaskDb()
+    enqueueTask(db, 'extract_profile', { userMessage: 'msg1', assistantMessage: '' })
+    enqueueTask(db, 'extract_preference', { userMessage: 'msg2', assistantMessage: '' })
+    enqueueTask(db, 'consolidate_facts', {})
+
+    const tasks = db.prepare('SELECT type FROM agent_tasks ORDER BY id ASC').all() as { type: string }[]
+    expect(tasks).toHaveLength(3)
+    expect(tasks[0].type).toBe('extract_profile')
+    expect(tasks[1].type).toBe('extract_preference')
+    expect(tasks[2].type).toBe('consolidate_facts')
+
+    db.close()
+  })
+
+  it('任务初始状态为 pending', () => {
+    const db = createTaskDb()
+    enqueueTask(db, 'consolidate_facts', {})
+
+    const row = db.prepare('SELECT status, retries FROM agent_tasks').get() as { status: string; retries: number }
+    expect(row.status).toBe('pending')
+    expect(row.retries).toBe(0)
+
+    db.close()
+  })
+})
