@@ -162,3 +162,25 @@ export function buildAIHistory(
       ...(t.assistant ? [{ role: 'assistant' as const, content: t.assistant }] : [])
     ])
 }
+
+/**
+ * 从用户消息中剥离文件内容块，返回纯文字部分。
+ * formatFilesForAI 生成的块以固定前缀 FILE_BLOCK_PREFIX 开头，截断该前缀之后的所有内容即可。
+ * 同时剥离 [REFERENCE_START]...[REFERENCE_END] 引用块标记（保留引号胶囊，但纯文本场景下全剥离）。
+ */
+export const FILE_BLOCK_PREFIX = '\n\n以下是我上传的文件内容，请分析并回答我的问题：\n'
+
+export function stripFileBlocksFromMessage(content: string): string {
+  const idx = content.indexOf(FILE_BLOCK_PREFIX)
+  const withoutFiles = idx >= 0 ? content.slice(0, idx) : content
+  return withoutFiles.replace(/\[REFERENCE_START\][\s\S]*?\[REFERENCE_END\]/g, '').trim()
+}
+
+/**
+ * 从用户消息中仅剥离文件内容块（保留引用块标记，供 UserMessageContent 单独解析）。
+ * 用于对话气泡渲染：只把文件内容去掉，引用块由 ReferenceBlockBubble 折叠展示。
+ */
+export function stripFileBlocksOnly(content: string): string {
+  const idx = content.indexOf(FILE_BLOCK_PREFIX)
+  return idx >= 0 ? content.slice(0, idx).trim() : content
+}

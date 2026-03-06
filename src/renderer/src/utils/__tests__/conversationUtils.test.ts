@@ -13,7 +13,10 @@ import {
   compressMemoriesForPrompt,
   parseTurnsFromAssistantMessage,
   stripLeadingNumberHeading,
-  buildAIHistory
+  buildAIHistory,
+  stripFileBlocksOnly,
+  stripFileBlocksFromMessage,
+  FILE_BLOCK_PREFIX
 } from '../conversationUtils'
 import type { Conversation } from '../../../../shared/types'
 
@@ -228,5 +231,78 @@ describe('buildAIHistory', () => {
       { role: 'user', content: 'q2' },
       { role: 'assistant', content: 'a2' }
     ])
+  })
+})
+
+// ── stripFileBlocksOnly ────────────────────────────────────────────────────
+
+describe('stripFileBlocksOnly', () => {
+  const FILE_PREFIX = FILE_BLOCK_PREFIX  // '\n\n以下是我上传的文件内容，请分析并回答我的问题：\n'
+
+  it('returns plain message unchanged when no file block present', () => {
+    expect(stripFileBlocksOnly('请帮我写一首诗')).toBe('请帮我写一首诗')
+  })
+
+  it('strips everything after FILE_BLOCK_PREFIX', () => {
+    const msg = '帮我分析这个文件' + FILE_PREFIX + '=== 文件 1: a.txt ===\n内容\n=== 结束 a.txt ===\n'
+    expect(stripFileBlocksOnly(msg)).toBe('帮我分析这个文件')
+  })
+
+  it('handles message with ONLY file block (no user text)', () => {
+    const msg = FILE_PREFIX + '=== 文件 1: data.csv ===\ndata\n=== 结束 data.csv ===\n'
+    // 只有文件块时，截断后得到空串，trim() 返回空
+    expect(stripFileBlocksOnly(msg)).toBe('')
+  })
+
+  it('preserves [REFERENCE_START]...[REFERENCE_END] blocks (not stripped by this function)', () => {
+    const msg = '问题[REFERENCE_START]\n引用内容\n[REFERENCE_END]' + FILE_PREFIX + '文件内容'
+    const result = stripFileBlocksOnly(msg)
+    expect(result).toContain('[REFERENCE_START]')
+    expect(result).not.toContain('文件内容')
+  })
+
+  it('is not confused by === 结束 === pattern inside file content', () => {
+    // 关键：文件内容包含和结束标记相似的字符串，不应影响前缀截断
+    const contentWithFakeEnd = '内容 === 结束 report === 更多内容'
+    const msg = '问题' + FILE_PREFIX + `=== 文件 1: report.txt ===\n${contentWithFakeEnd}\n=== 结束 report.txt ===\n`
+    expect(stripFileBlocksOnly(msg)).toBe('问题')
+  })
+
+  it('handles duplicate filenames correctly', () => {
+    const msg = '问题' + FILE_PREFIX +
+      '=== 文件 1: data.txt ===\ncontent1\n=== 结束 data.txt ===\n' +
+      '=== 文件 2: data.txt ===\ncontent2\n=== 结束 data.txt ===\n'
+    expect(stripFileBlocksOnly(msg)).toBe('问题')
+  })
+
+  it('preserves empty string input', () => {
+    expect(stripFileBlocksOnly('')).toBe('')
+  })
+})
+
+// ── stripFileBlocksFromMessage ─────────────────────────────────────────────
+
+describe('stripFileBlocksFromMessage', () => {
+  it('strips file blocks AND reference blocks', () => {
+    const msg = '用户问题[REFERENCE_START]\n引用\n[REFERENCE_END]' + FILE_BLOCK_PREFIX + '文件内容'
+    const result = stripFileBlocksFromMessage(msg)
+    expect(result).toBe('用户问题')
+    expect(result).not.toContain('[REFERENCE_START]')
+    expect(result).not.toContain('文件内容')
+  })
+
+  it('only strips reference blocks when no file block', () => {
+    const msg = '问题[REFERENCE_START]\n大段引用\n[REFERENCE_END]后续文字'
+    const result = stripFileBlocksFromMessage(msg)
+    expect(result).toBe('问题后续文字')
+  })
+
+  it('returns original trimmed text when nothing to strip', () => {
+    expect(stripFileBlocksFromMessage('  普通消息  ')).toBe('普通消息')
+  })
+
+  it('returns empty string when only file markers remain', () => {
+    const msg = FILE_BLOCK_PREFIX + '文件内容'
+    expect(stripFileBlocksFromMessage(msg)).toBe('')
   })
 })
