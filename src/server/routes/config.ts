@@ -49,6 +49,11 @@ configRoutes.put('/apikey', async (c) => {
     return c.json({ error: 'apiKey must be a string' }, 400)
   }
 
+  // 空字符串不覆盖已有 key，防止用户误操作清空
+  if (apiKey.trim() === '') {
+    return c.json({ ok: true, skipped: true })
+  }
+
   upsertConfig(db, 'apiKey', apiKey)
   return c.json({ ok: true })
 })
