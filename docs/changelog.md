@@ -1,5 +1,42 @@
 # Anima 变更日志
 
+## [0.2.48] - 2026-03-07
+
+### feat(v0.2.48): 连线可解释性 + L3 逻辑边提取 (commit 3d3d55d)
+
+#### 变更 A：L3 逻辑边提取
+- **agentWorker.ts** 新增 `extractLogicalEdges` 异步任务：对话结束后对比当前节点与 top-5 语义相近节点，调用 moonshot-v1-8k 提取显式逻辑关系（`deepens` / `solves` / `contradicts` / `depends` / `inspires` / `revises`），写入 `logical_edges` 表。
+- **db.ts** 新增 `logical_edges` 表（`from_id`, `to_id`, `relation`, `reason`, `confidence`, `created_at`），支持多租户 `conversation_id` 隔离。
+- **memory.ts** 新增 `GET /api/memory/logical-edges` 路由：前端可按 `conversationId` 拉取逻辑边列表；新增 `POST /api/memory/logical-edges` 供 agentWorker 批量写入。
+- **types.ts** `Edge` 新增 `edgeType: 'logical'`、`relation?: string`、`reason?: string`、`confidence?: number` 字段，向后兼容。
+
+#### 变更 B：连线可解释性（Edge.tsx）
+- 新增 `RELATION_STYLES` 映射表，为 6 种逻辑关系分配独立视觉样式（颜色、虚线类型、箭头）：深化(蓝实线)、解决(绿实线)、矛盾(红虚线)、依赖(灰实线)、启发(金虚线)、重新思考(橙波浪线)。
+- 点击逻辑边弹出解释面板（`EdgeInfoPanel`）：显示关系类型、AI 置信度百分比、中文解释（reason 字段）、时间戳。
+- LOD（细节层次）支持：缩放比例 < 0.4 时标签与面板自动隐藏，保持画布性能。
+- 修复 `pointerEvents` 问题：语义边和逻辑边的 hit area 扩展为透明宽 stroke，确保细线可点击。
+
+#### 变更 C：canvasStore logicalEdges 状态机
+- 新增 `logicalEdges` 状态（与 `semanticEdges` 平行管理）。
+- 新增 `addLogicalEdges()`、`clearLogicalEdgesForNode()`、`loadLogicalEdges()` 方法。
+- `addNode()` 完成后异步触发 `_triggerLogicalEdgeExtraction()`（500ms 延迟，等待 AI 回复稳定），逻辑边提取对主流程完全透明。
+- `removeNode()` 同步清除相关逻辑边，防止悬空引用。
+- 逻辑边持久化到 `logical-edges.json`，重启后恢复。
+
+---
+
+### fix: API key 不保存 + 连线 hover/click 无响应 (commit 856f3b0)
+
+#### 修复 A：API Key 不保存
+- **server/index.ts** `/api/settings` PUT 路由：新增空字符串守卫（`if (!key || key.trim() === '')`），拒绝写入空 key，避免覆盖已存在的有效 key。
+- **SettingsModal.tsx**：新增 `hasExistingKey` 状态，已配置 key 时显示 `●●●●●●●●` 掩码 + "已配置，输入新值以替换"提示，用户不必重复粘贴 key。
+
+#### 修复 B：连线 hover/click 无响应
+- **Edge.tsx**：将所有边的 SVG `<path>` 元素分为视觉层（细线）和交互层（透明宽 stroke，12px），交互层独立处理 `onMouseEnter`/`onMouseLeave`/`onClick`，彻底解决细线无法命中的问题。
+- 修复语义边在 `pointerEvents: none` 状态下 tooltip 无法触发的问题（改为 `pointerEvents: 'auto'` 并通过 z-index 管理层级）。
+
+---
+
 ## [0.2.47] - 2026-03-07
 
 ### Embedding 内置化 + 节点语义关联（知识图谱化）

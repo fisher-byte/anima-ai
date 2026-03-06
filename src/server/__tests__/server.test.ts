@@ -63,7 +63,10 @@ function buildTestApp() {
     const { filename } = c.req.param()
     if (!isValidFilename(filename)) return c.json({ error: 'Invalid filename' }, 400)
     const row = testDb.prepare('SELECT content FROM storage WHERE filename = ?').get(filename) as { content: string } | undefined
-    if (!row) return c.text('', 404)
+    if (!row) {
+      if (filename === 'semantic-edges.json' || filename === 'logical-edges.json') return c.text('[]')
+      return c.text('', 404)
+    }
     return c.text(row.content)
   })
 
@@ -138,6 +141,7 @@ function buildTestApp() {
   app.put('/api/config/apikey', async (c) => {
     const { apiKey } = await c.req.json<{ apiKey: unknown }>()
     if (typeof apiKey !== 'string') return c.json({ error: 'apiKey must be a string' }, 400)
+    if (apiKey.trim() === '') return c.json({ ok: true, skipped: true })
     upsert('apiKey', apiKey)
     return c.json({ ok: true })
   })
@@ -433,10 +437,22 @@ memDb.exec(`
   CREATE INDEX IF NOT EXISTS idx_agent_tasks_status ON agent_tasks(status);
   CREATE INDEX IF NOT EXISTS idx_memory_facts_created ON memory_facts(created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_memory_facts_source ON memory_facts(source_conv_id);
+
+  CREATE TABLE IF NOT EXISTS logical_edges (
+    id          TEXT NOT NULL PRIMARY KEY,
+    source_conv TEXT NOT NULL,
+    target_conv TEXT NOT NULL,
+    relation    TEXT NOT NULL DEFAULT '',
+    reason      TEXT NOT NULL DEFAULT '',
+    confidence  REAL NOT NULL DEFAULT 0,
+    created_at  TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_logical_edges_source ON logical_edges(source_conv);
+  CREATE INDEX IF NOT EXISTS idx_logical_edges_target ON logical_edges(target_conv);
 `)
 
 function resetMemDb() {
-  memDb.exec('DELETE FROM config; DELETE FROM user_profile; DELETE FROM agent_tasks; DELETE FROM memory_facts;')
+  memDb.exec('DELETE FROM config; DELETE FROM user_profile; DELETE FROM agent_tasks; DELETE FROM memory_facts; DELETE FROM logical_edges;')
 }
 
 function buildMemApp() {
@@ -519,6 +535,28 @@ function buildMemApp() {
     if (!query) return c.json({ results: [] })
     const topK = Math.max(1, Math.min(20, Math.floor(Number(rawTopK) || 5)))
     return c.json({ results: [], topKUsed: topK })
+  })
+
+  // ── Logical edges routes ──
+  memApp.get('/api/memory/logical-edges', (c) => {
+    const rows = memDb.prepare(
+      'SELECT id, source_conv, target_conv, relation, reason, confidence, created_at FROM logical_edges ORDER BY created_at DESC LIMIT 500'
+    ).all()
+    return c.json({ edges: rows })
+  })
+
+  memApp.get('/api/memory/logical-edges/:id', (c) => {
+    const id = c.req.param('id')
+    const rows = memDb.prepare(
+      'SELECT id, source_conv, target_conv, relation, reason, confidence, created_at FROM logical_edges WHERE source_conv = ? OR target_conv = ? ORDER BY created_at DESC'
+    ).all(id, id)
+    return c.json({ edges: rows })
+  })
+
+  memApp.delete('/api/memory/logical-edges/:id', (c) => {
+    const id = c.req.param('id')
+    memDb.prepare('DELETE FROM logical_edges WHERE source_conv = ? OR target_conv = ?').run(id, id)
+    return c.json({ ok: true })
   })
 
   return memApp
@@ -1214,5 +1252,74 @@ describe('AgentWorker multi-tenant enqueueTask', () => {
     expect(row.retries).toBe(0)
 
     db.close()
+  })
+})
+
+// ── Config API – empty apiKey guard ──────────────────────────────────────────
+
+describe('PUT /api/config/apikey - empty key guard', () => {
+  beforeEach(resetDb)
+
+  it('should reject empty string and not overwrite existing key', async () => {
+    // First set a real key
+    await app.request('/api/config/apikey', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ apiKey: 'sk-realkey' }) })
+    // Then try to save empty
+    const res = await app.request('/api/config/apikey', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ apiKey: '' }) })
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.ok).toBe(true)
+    expect(data.skipped).toBe(true)
+    // Verify original key was preserved
+    const getRes = await app.request('/api/config/apikey')
+    const getData = await getRes.json()
+    expect(getData.apiKey).toBe('sk-realkey')
+  })
+
+  it('should save non-empty key normally', async () => {
+    const res = await app.request('/api/config/apikey', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ apiKey: 'sk-newkey' }) })
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.ok).toBe(true)
+    expect(data.skipped).toBeUndefined()
+  })
+})
+
+// ── Logical Edges API ─────────────────────────────────────────────────────────
+
+describe('Logical Edges API', () => {
+  beforeEach(resetMemDb)
+
+  it('GET /api/memory/logical-edges returns empty array initially', async () => {
+    const res = await memReq('GET', '/api/memory/logical-edges')
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.edges).toEqual([])
+  })
+
+  it('GET /api/memory/logical-edges/:id returns empty for unknown id', async () => {
+    const res = await memReq('GET', '/api/memory/logical-edges/unknown-conv')
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.edges).toEqual([])
+  })
+
+  it('DELETE /api/memory/logical-edges/:id returns ok', async () => {
+    const res = await memReq('DELETE', '/api/memory/logical-edges/some-conv')
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.ok).toBe(true)
+  })
+})
+
+// ── Storage API: logical-edges.json fallback ──────────────────────────────────
+
+describe('Storage API - logical-edges.json fallback', () => {
+  beforeEach(resetDb)
+
+  it('GET /api/storage/logical-edges.json returns [] when not stored', async () => {
+    const res = await req('GET', '/api/storage/logical-edges.json')
+    expect(res.status).toBe(200)
+    const text = await res.text()
+    expect(JSON.parse(text)).toEqual([])
   })
 })

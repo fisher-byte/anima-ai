@@ -127,6 +127,30 @@ export function useAI(options: UseAIOptions = {}) {
         return fullText
       }
 
+      const isNetworkTailFailure =
+        fullText.trim().length > 0 &&
+        (
+          errorMessage.toLowerCase().includes('network') ||
+          errorMessage.toLowerCase().includes('fetch') ||
+          errorMessage.toLowerCase().includes('incomplete') ||
+          errorMessage.toLowerCase().includes('chunk')
+        )
+
+      if (isNetworkTailFailure) {
+        const nextHistory: AIMessage[] = [
+          ...messages,
+          {
+            role: 'assistant',
+            content: fullText,
+            reasoning_content: fullReasoning || undefined
+          }
+        ]
+        setConversationHistory(nextHistory)
+        if (conversationId) persistHistory(conversationId, nextHistory)
+        callbacksRef.current.onComplete?.(fullText)
+        return fullText
+      }
+
       callbacksRef.current.onError?.(errorMessage)
       return ''
     } finally {

@@ -255,6 +255,10 @@ export const historyService: WebHistoryService | NoopHistoryService = isElectron
   ? new NoopHistoryService()
   : new WebHistoryService(_webStorage)
 
+export function isElectronEnvironment(): boolean {
+  return isElectron
+}
+
 /**
  * Set the Bearer token for Web mode (used when AUTH_ENABLED=true on the server).
  * Call this once at app startup after reading the token from localStorage or env.

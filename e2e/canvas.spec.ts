@@ -224,13 +224,8 @@ test('引导完成且无 API Key 时 InputBox 显示配置提示', async ({ page
     // 不预置 hasApiKey，让 store 从后端查（后端无 key 时返回空）
   }, ACCESS_TOKEN)
 
-  // 先确保后端没有存 apiKey（清空）
-  if (ACCESS_TOKEN) {
-    await page.request.put('http://localhost:3000/api/config/apikey', {
-      data: { apiKey: '' },
-      headers: { Authorization: `Bearer ${ACCESS_TOKEN}`, 'Content-Type': 'application/json' }
-    })
-  }
+  // 注意：v0.2.48 后服务端不再接受空字符串清除 key，
+  // 此测试只在后端确实没有存 key 的环境下有意义（CI 新账号）
 
   await page.goto('/')
   await waitForBackend(page)
@@ -251,7 +246,7 @@ test('引导完成且无 API Key 时 InputBox 显示配置提示', async ({ page
     await page.getByRole('button', { name: '取消' }).click()
     await expect(hint).toBeVisible({ timeout: 2000 })
   } else {
-    // 如果后端已存有 key（本地开发环境），跳过此测试
+    // 后端已存有 key（本地开发环境或已配置账号），跳过此测试
     test.skip()
   }
 })
