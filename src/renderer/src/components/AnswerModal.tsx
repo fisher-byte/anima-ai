@@ -28,19 +28,22 @@ import {
 } from '../utils/conversationUtils'
 import { getAuthToken } from '../services/storageService'
 
-/** 解析并渲染用户消息，将 [REFERENCE_START]...[REFERENCE_END] 块展示为折叠胶囊 */
+/** 解析并渲染用户消息，将 [REFERENCE_START]...[REFERENCE_END] 块展示为折叠胶囊，剥离文件内容标记 */
 function UserMessageContent({ content }: { content: string }) {
+  // 先剥离文件内容标记（=== 文件 N: filename ===\n...\n=== 结束 filename ===\n），不展示原始文件内容
+  const stripped = content.replace(/\n?=== 文件 \d+: [^\n]+ ===\n[\s\S]*?\n=== 结束 [^\n]+ ===\n?/g, '').trim()
+
   const parts: Array<{ type: 'text' | 'reference'; value: string }> = []
   const regex = /\[REFERENCE_START\]([\s\S]*?)\[REFERENCE_END\]/g
   let last = 0
   let match: RegExpExecArray | null
-  while ((match = regex.exec(content)) !== null) {
-    if (match.index > last) parts.push({ type: 'text', value: content.slice(last, match.index) })
+  while ((match = regex.exec(stripped)) !== null) {
+    if (match.index > last) parts.push({ type: 'text', value: stripped.slice(last, match.index) })
     parts.push({ type: 'reference', value: match[1].trim() })
     last = match.index + match[0].length
   }
-  if (last < content.length) parts.push({ type: 'text', value: content.slice(last) })
-  if (parts.length === 0) return <div>{content}</div>
+  if (last < stripped.length) parts.push({ type: 'text', value: stripped.slice(last) })
+  if (parts.length === 0) return <div>{stripped}</div>
   return (
     <div className="flex flex-col gap-2">
       {parts.map((p, i) =>

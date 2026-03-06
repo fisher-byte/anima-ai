@@ -530,8 +530,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   addNode: async (conversation: Conversation, position?: NodePosition, explicitCategory?: string, memoryCount?: number) => {
     const { nodes } = get()
 
-    // 生成标题
-    const title = conversation.userMessage.slice(0, UI_CONFIG.NODE_TITLE_MAX_LENGTH)
+    // 生成标题（剥离文件内容标记，避免标题显示 === 文件 N: === 原始内容）
+    const cleanUserMessage = conversation.userMessage
+      .replace(/\n?=== 文件 \d+: [^\n]+ ===\n[\s\S]*?\n=== 结束 [^\n]+ ===\n?/g, '')
+      .replace(/\[REFERENCE_START\][\s\S]*?\[REFERENCE_END\]/g, '')
+      .trim()
+    const title = (cleanUserMessage || conversation.userMessage).slice(0, UI_CONFIG.NODE_TITLE_MAX_LENGTH)
 
     // 生成关键词并清理结构词
     const keywords = conversation.assistantMessage
@@ -605,17 +609,17 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       islandY = Math.max(centerY - 800, Math.min(centerY + 800, islandY))
     }
 
-    // 在岛屿周围寻找空位（螺旋搜索，半径上限600px）
+    // 在岛屿周围寻找空位（螺旋搜索，半径上限 1000px）
     let x = position?.x
     let y = position?.y
     const nodeGap = 240
 
     if (x == null || y == null) {
       let found = false
-      for (let i = 0; i < 100; i++) {
+      for (let i = 0; i < 120; i++) {
         // 最小半径 150，让中心区域保持空旷，节点围绕中心分布
         const radius = 150 + Math.floor(i / 8) * 60
-        if (radius > 700) break
+        if (radius > 1000) break
         const angle = (i % 8) * (Math.PI / 4) + (radius / 200)
         const tx = islandX + Math.cos(angle) * radius
         const ty = islandY + Math.sin(angle) * radius
@@ -634,34 +638,40 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       }
 
       if (!found) {
-        // 岛屿空间不足：把离岛屿质心最远的同类节点向外推 nodeGap，为新节点腾出紧邻质心的位置
-        // 1. 找最佳候选位置（贴近质心，角度均匀分布）
+        // 空间不足：找离岛屿质心最近但距所有节点最远的候选位置
         let bestTx = islandX
         let bestTy = islandY
         let bestMinDist = 0
-        for (let a = 0; a < 8; a++) {
-          const angle = a * (Math.PI / 4)
-          const tx = islandX + Math.cos(angle) * 160
-          const ty = islandY + Math.sin(angle) * 160
-          const minDist = catNodes.reduce((min, n) => Math.min(min, Math.hypot(n.x - tx, n.y - ty)), Infinity)
-          if (minDist > bestMinDist) { bestMinDist = minDist; bestTx = tx; bestTy = ty }
+        for (let a = 0; a < 16; a++) {
+          const angle = a * (Math.PI / 8)
+          for (const r of [160, 260, 360]) {
+            const tx = islandX + Math.cos(angle) * r
+            const ty = islandY + Math.sin(angle) * r
+            const minDist = nodes
+              .filter(n => n.conversationId !== conversation.id)
+              .reduce((min, n) => Math.min(min, Math.hypot(n.x - tx, n.y - ty)), Infinity)
+            if (minDist > bestMinDist) { bestMinDist = minDist; bestTx = tx; bestTy = ty }
+          }
         }
         x = bestTx
         y = bestTy
 
-        // 2. 推挤：把距离新位置 < nodeGap 的同类节点向外移（沿离质心方向推）
+        // 推挤：把距离新位置 < nodeGap 的所有节点向外移
         const pushRadius = nodeGap * 1.1
-        const nodesToPush = catNodes.filter(n => Math.hypot(n.x - x!, n.y - y!) < pushRadius)
+        const nodesToPush = nodes.filter(n =>
+          n.conversationId !== conversation.id && Math.hypot(n.x - x!, n.y - y!) < pushRadius
+        )
         if (nodesToPush.length > 0) {
           const { nodes: currentNodes } = get()
           const pushedNodes = currentNodes.map(n => {
             if (!nodesToPush.some(p => p.id === n.id)) return n
-            // 从岛屿质心方向向外推
-            const dx = n.x - islandX
-            const dy = n.y - islandY
+            // 从新节点位置向外推（避免重叠）
+            const dx = n.x - x!
+            const dy = n.y - y!
             const dist = Math.hypot(dx, dy) || 1
-            const pushDist = pushRadius - Math.hypot(n.x - x!, n.y - y!) + 20
-            return { ...n, x: n.x + (dx / dist) * pushDist, y: n.y + (dy / dist) * pushDist }
+            const pushDist = pushRadius - dist + 20
+            const dir = dist > 0 ? { x: dx / dist, y: dy / dist } : { x: Math.cos(Math.random() * Math.PI * 2), y: Math.sin(Math.random() * Math.PI * 2) }
+            return { ...n, x: n.x + dir.x * pushDist, y: n.y + dir.y * pushDist }
           })
           set({ nodes: pushedNodes })
           // 推挤后的节点位置持久化（异步，不阻塞）
@@ -687,7 +697,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       category,
       color,
       groupId: conversation.parentId ? nodes.find(n => n.id === conversation.parentId)?.groupId : undefined,
-      memoryCount: memoryCount ?? 0
+      memoryCount: memoryCount ?? 0,
+      files: (conversation.files || []).filter(f => !f.preview) // 非图片文件供 NodeCard 展示
     }
 
     const existingIndex = nodes.findIndex(n => n.id === conversation.id)
