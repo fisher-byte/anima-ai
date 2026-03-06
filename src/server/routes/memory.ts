@@ -62,11 +62,17 @@ async function fetchEmbedding(db: InstanceType<typeof Database>, text: string): 
         Authorization: `Bearer ${apiKey}`
       },
       body: JSON.stringify({ model, input }),
-      signal: AbortSignal.timeout(10_000)
+      signal: AbortSignal.timeout(5_000)
     })
 
     if (!resp.ok) {
-      console.warn('[memory] embedding API error:', resp.status, await resp.text())
+      const errText = await resp.text()
+      // 403 = embedding API 未开通，降低日志级别避免刷屏
+      if (resp.status === 403) {
+        console.info('[memory] embedding not available (403), using keyword fallback')
+      } else {
+        console.warn('[memory] embedding API error:', resp.status, errText)
+      }
       return null
     }
 

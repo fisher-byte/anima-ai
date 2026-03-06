@@ -836,35 +836,41 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     // 1. 检测当前意图分类
     const category = detectIntent(userMessage)
 
-    // 2. 只有在没有明确 parentId（即不是用户手动点击分支）时，才尝试自动联结
-    let effectiveParentId = parentId
-    let appliedMemories: { conv: Conversation; category?: string; nodeId?: string }[] = []
-    if (!effectiveParentId) {
-      // 尝试找寻语义最相关的记忆
-      const memories = await getRelevantMemories(userMessage)
-      appliedMemories = memories
-      // 如果有相关记忆且属于同一分类，自动作为该记忆的分支
-      const bestMatch = memories.find(m => {
-        const n = nodes.find(node => node.id === m.conv.id)
-        return n?.category === category
-      })
-      if (bestMatch) {
-        effectiveParentId = bestMatch.conv.id
-      }
-      // 无语义相关节点时不强制连线，作为独立新节点
-    }
-
-    const conversation: Conversation & { _appliedMemories?: typeof appliedMemories } = {
-      id: crypto.randomUUID(),
-      parentId: effectiveParentId, // 支持对话分支
+    // 2. 先立即打开 modal（不等待 embedding），提升响应速度
+    const convId = crypto.randomUUID()
+    const conversation: Conversation & { _appliedMemories?: { conv: Conversation; category?: string; nodeId?: string }[] } = {
+      id: convId,
+      parentId: parentId,
       createdAt: new Date().toISOString(),
       userMessage,
       assistantMessage: '',
       images: images || [],
       files: files || [],
-      _appliedMemories: appliedMemories
+      _appliedMemories: []
     }
-    set({ currentConversation: conversation, isModalOpen: true, isLoading: true })
+    set({ currentConversation: conversation, isModalOpen: true, isLoading: false })
+
+    // 3. 后台异步获取记忆，用于自动连线（不阻塞 modal 打开）
+    if (!parentId) {
+      getRelevantMemories(userMessage).then(memories => {
+        const bestMatch = memories.find(m => {
+          const n = nodes.find(node => node.id === m.conv.id)
+          return n?.category === category
+        })
+        const effectiveParentId = bestMatch?.conv.id
+        // 仅当对话还是当前活跃的且还未发送（assistantMessage 为空）时才更新
+        const current = get().currentConversation
+        if (current?.id === convId && current.assistantMessage === '') {
+          set({
+            currentConversation: {
+              ...current,
+              parentId: effectiveParentId ?? current.parentId,
+              _appliedMemories: memories
+            } as Conversation & { _appliedMemories: typeof memories }
+          })
+        }
+      }).catch(() => { /* 静默忽略，不影响对话 */ })
+    }
   },
 
   // 更新对话记录（用于编辑消息等场景）
