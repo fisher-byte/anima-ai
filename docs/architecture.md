@@ -1,247 +1,288 @@
 # Anima 架构文档
 
+*最后更新: 2026-03-06 | 版本: v0.2.43*
+
+---
+
 ## 项目概述
 
-Anima 是一个本地优先的 AI 画布应用，核心功能是**积累用户的记忆与偏好**，在每次对话中体现这些理解，让用户感到"被真正记住"。
+Anima 是一个本地优先的 AI 画布应用。核心功能是**积累用户的记忆与偏好**，在每次对话中体现这些理解，让用户感到"被真正记住"。
+
+**架构定位**：Web-first（Hono + React），Electron 作为可选桌面打包方式，两者共享同一套代码。
+
+---
 
 ## 技术栈
 
-- **框架**: Electron + React + TypeScript
-- **构建**: Vite + electron-vite
-- **状态管理**: Zustand
-- **样式**: Tailwind CSS
-- **AI接入**: OpenAI Compatible API
+| 层级 | 技术 |
+|------|------|
+| 后端框架 | Hono 4.12（Node.js，轻量 HTTP + SSE） |
+| 数据库 | better-sqlite3 12（WAL 模式，同步 API） |
+| 前端框架 | React 18.2 + TypeScript 5.4 |
+| 状态管理 | Zustand 4.5 |
+| 样式 | Tailwind CSS 3.4 |
+| 动画 | Framer Motion 12 |
+| 构建 | Vite 5 + electron-vite 2（可选） |
+| 桌面（可选） | Electron 29 |
+| AI 接入 | OpenAI-compatible API（默认接 Kimi 2.5） |
+
+---
 
 ## 目录结构
 
 ```
 evocanvas/
 ├── src/
-│   ├── main/           # Electron 主进程
-│   ├── preload/        # Preload 脚本
-│   ├── renderer/       # React 渲染进程
-│   │   ├── components/ # UI组件
-│   │   ├── hooks/      # 自定义Hooks
-│   │   └── stores/     # Zustand状态
-│   ├── shared/         # 共享类型和常量
-│   └── services/       # 业务逻辑服务
-├── data/               # 本地数据存储
-└── docs/               # 文档
+│   ├── server/                    # Hono 后端
+│   │   ├── index.ts               # 服务入口（多租户中间件、路由注册）
+│   │   ├── db.ts                  # SQLite 初始化、多租户连接池、getAllUserDbs()
+│   │   ├── agentWorker.ts         # 后台 AI 任务 Worker（每 30s tick）
+│   │   ├── routes/
+│   │   │   ├── storage.ts         # 文件存储 API + 文件上传
+│   │   │   ├── config.ts          # API Key / 模型设置
+│   │   │   ├── ai.ts              # AI 代理（SSE 流式）
+│   │   │   └── memory.ts          # 记忆 / 画像 / 向量检索
+│   │   ├── middleware/
+│   │   │   └── auth.ts            # Bearer Token 多租户鉴权
+│   │   └── __tests__/
+│   │       ├── server.test.ts     # HTTP 集成测试（77 个用例）
+│   │       └── memory.test.ts     # 记忆路由集成测试（21 个用例）
+│   │
+│   ├── renderer/                  # React 前端
+│   │   └── src/
+│   │       ├── components/        # UI 组件（Canvas / NodeCard / AnswerModal 等）
+│   │       ├── stores/
+│   │       │   └── canvasStore.ts # 主 Zustand Store（节点 / 对话 / 偏好 / 画布状态）
+│   │       ├── services/
+│   │       │   ├── storageService.ts  # 存储抽象层（自动适配 Web HTTP / Electron IPC）
+│   │       │   └── ai.ts              # 前端 AI 调用（SSE 流解析）
+│   │       └── hooks/
+│   │           └── useAI.ts           # AI 调用 Hook
+│   │
+│   ├── services/                  # 纯函数业务逻辑（可复用、可单测）
+│   │   ├── feedback.ts            # 负反馈检测 & 置信度计算
+│   │   ├── profile.ts             # 偏好规则 CRUD
+│   │   ├── prompt.ts              # Prompt 工具函数（触发词检测、灰字提示）
+│   │   ├── fileParsing.ts         # PDF / Word 文档解析
+│   │   └── __tests__/             # 单元测试
+│   │
+│   └── shared/                    # 共享类型和常量
+│       ├── types.ts               # StorageService 接口、Node / Conversation 类型
+│       └── constants.ts           # 文件名白名单、分类常量
+│
+├── e2e/                           # Playwright E2E 测试
+├── data/                          # 用户数据（不进 git）
+│   └── {userId}/anima.db          # 每用户独立 SQLite 数据库
+├── dist/                          # Vite 前端构建产物
+└── docs/                          # 文档
 ```
+
+---
 
 ## 核心模块
 
-### 1. 存储层 (Storage)
+### 1. 存储层
 
-**Web 全栈模式（当前默认）**：
-- `src/server/index.ts` — Hono HTTP 服务器，所有存储操作通过 REST API 完成
-- 数据写入 SQLite（`data/anima.db`），API Key 永不暴露给浏览器
-- `agentWorker.ts` — 后台任务 Worker，处理向量化、画像提取、记忆合并等异步任务
+**Web 模式（默认）**：
+- `src/server/index.ts` — Hono HTTP 服务，API Key 永不暴露给浏览器
+- 数据写入 SQLite（`data/{userId}/anima.db`），多租户完全隔离
+- `agentWorker.ts` — 后台 Worker，轮询 `agent_tasks` 表处理异步任务
 
-**Electron 模式（桌面打包）**：
+**Electron 模式（可选桌面打包）**：
 - `src/main/index.ts` — 主进程，`ipcMain` 提供安全的文件操作
 - `src/preload/index.ts` — `contextBridge` 暴露安全 API 给渲染进程
 
 **前端抽象层**：
-- `src/renderer/src/services/storageService.ts` — 自动适配 Web（HTTP）和 Electron（IPC）
+- `src/renderer/src/services/storageService.ts` — 检测 `window.electronAPI` 自动适配 Web / Electron，上层代码无感知
 
-**数据文件**:
-- `profile.json` - 用户偏好规则
-- `nodes.json` - 画布节点数据
-- `conversations.jsonl` - 对话记录（追加模式）
-- SQLite `memory_facts` — 记忆事实条目（支持 soft-delete）
-- SQLite `user_profile` — 用户画像（JSON）
-- SQLite `memory_index` — 对话向量索引（RAG 检索）
-- SQLite `agent_tasks` — 后台任务队列
+### 2. SQLite 数据库 Schema
 
-### 2. 状态管理 (Zustand)
+```sql
+-- 文件存储（profile.json / nodes.json / conversations.jsonl）
+CREATE TABLE storage (filename TEXT PRIMARY KEY, content TEXT, updated_at TEXT);
+
+-- 应用配置（apiKey / model / baseUrl / preference_rules）
+CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT);
+
+-- 对话向量索引（RAG 检索用）
+CREATE TABLE embeddings (conversation_id TEXT PRIMARY KEY, vector BLOB, dim INTEGER, updated_at TEXT);
+
+-- 用户画像（AI 后台提取）
+CREATE TABLE user_profile (id INTEGER PRIMARY KEY CHECK (id = 1),
+  occupation TEXT, interests TEXT, tools TEXT, writing_style TEXT,
+  goals TEXT, location TEXT, raw_notes TEXT, last_extracted TEXT, updated_at TEXT);
+
+-- 后台任务队列
+CREATE TABLE agent_tasks (id INTEGER PRIMARY KEY AUTOINCREMENT,
+  type TEXT, payload TEXT, status TEXT, retries INTEGER,
+  created_at TEXT, started_at TEXT, finished_at TEXT, error TEXT);
+
+-- 记忆事实（软删除）
+CREATE TABLE memory_facts (id TEXT PRIMARY KEY, fact TEXT,
+  source_conv_id TEXT, created_at TEXT, invalid_at TEXT);
+
+-- 上传文件（含二进制）
+CREATE TABLE uploaded_files (id TEXT PRIMARY KEY, filename TEXT, mimetype TEXT,
+  size INTEGER, content BLOB, text_content TEXT, conv_id TEXT,
+  chunk_count INTEGER, embed_status TEXT, created_at TEXT);
+
+-- 文件分块向量（语义搜索）
+CREATE TABLE file_embeddings (id TEXT PRIMARY KEY, file_id TEXT,
+  chunk_index INTEGER, chunk_text TEXT, vector BLOB, dim INTEGER, created_at TEXT);
+
+-- 服务端对话历史（多轮上下文，最多 100 条）
+CREATE TABLE conversation_history (conversation_id TEXT PRIMARY KEY,
+  messages TEXT, updated_at TEXT);
+```
+
+### 3. 多租户架构
+
+```
+ACCESS_TOKENS=token_a,token_b,token_c   # 环境变量
+
+请求携带 Bearer token_a
+  ↓
+auth.ts: tokenToUserId('token_a') → SHA-256 前 12 位 hex → "a1b2c3d4e5f6"
+  ↓
+index.ts 中间件: c.set('db', getDb('a1b2c3d4e5f6'))
+  ↓
+所有路由通过 c.get('db') 操作该用户专属的 data/a1b2c3d4e5f6/anima.db
+```
+
+- 每个用户数据库完全隔离，互不可见
+- `agentWorker` 后台任务通过 `getAllUserDbs()` 遍历所有用户数据库，用正确的 db 处理各自任务
+- 老数据（legacy `data/anima.db`）首次建库时自动迁移到主用户目录，且只迁移一次（`.migrated` 哨兵文件）
+
+### 4. Agent Worker（后台任务系统）
+
+每 30 秒轮询所有用户数据库中的 `agent_tasks` 表：
+
+| 任务类型 | 触发时机 | 做什么 |
+|---------|---------|-------|
+| `extract_profile` | 对话结束后入队 | AI 从用户发言提取职业 / 兴趣 / 工具等画像增量 |
+| `extract_preference` | 对话结束后入队 | AI 判断用户反馈是否含偏好规则，写入 profile.json |
+| `embed_file` | 文件上传后入队 | 对文件文本分块并生成向量，存入 file_embeddings |
+| `consolidate_facts` | 每满 20 条 memory_facts 自动入队 | AI 合并语义重叠的记忆条目 |
+
+特性：指数退避重试（最多 3 次）、崩溃恢复（服务重启时将 running 状态重置为 pending）、7 天旧任务清理。
+
+### 5. AI 代理（SSE 流式）
+
+`POST /api/ai/stream` 的 System Prompt 分层注入（优先级从高到低）：
+
+```
+1. 进化基因（preference_rules）— 用户习得的行为偏好
+2. 用户画像（user_profile）— AI 后台提炼的结构化画像
+3. 记忆事实（memory_facts）— 记忆碎片，语义检索最相关的
+4. 压缩记忆（前端传入）— 本次对话相关的历史对话摘要
+```
+
+支持工具调用（`$web_search`，Kimi 2.5 原生联网），工具结果自动进入第二轮请求。
+
+### 6. 状态管理（Zustand）
 
 **文件**: `src/renderer/src/stores/canvasStore.ts`
 
-核心状态:
-- `nodes`: 画布节点数组
-- `currentConversation`: 当前对话
-- `profile`: 用户偏好配置
-- `isModalOpen`: 回答层开关
-- `selectedNodeId` / `highlightedNodeIds`: 节点选中与语义高亮
-- `offset` / `scale`: 画布平移与缩放
+核心状态分区：
 
-核心方法:
-- `loadNodes/loadProfile`: 数据加载
-- `addNode`: 添加节点（螺旋搜索同类岛屿附近空位，满时 push-outward）
-- `startConversation/endConversation`: 对话生命周期
-- `detectFeedback/addPreference`: 偏好学习
-- `detectIntent` / `getRelevantMemories` / `setHighlight`: 意图检测与语义高亮
-- `selectNode` / `openModalById`: 节点详情与回放
-- `updateNodePositionInMemory`: 拖动中轻量更新（不写磁盘、不 updateEdges）
-- `closeModal`: 关闭回答层并清除 highlight
+| 分区 | 字段 |
+|------|------|
+| 画布数据 | `nodes`, `edges` |
+| 对话 | `currentConversation`, `conversationHistory`, `isModalOpen` |
+| 用户画像 | `profile`（包含 `rules` 偏好规则数组） |
+| 认证 | `authed`, `userId` |
+| 引导 | `onboardingState`, `capabilityNodes` |
+| 视口 | `offset`, `scale` |
+| 交互 | `selectedNodeId`, `highlightedNodeIds`, `searchQuery` |
 
-### 3. 组件层 (React)
-
-**Canvas** (`components/Canvas.tsx`)
-- 无限画布，支持拖拽、缩放（wheel/touch pinch）、惯性滑动
-- 极光背景（AmbientBackground）+ 点阵背景
-- LOD：`scale < 0.6` 时节点淡出并显示 ClusterLabel 宏观视图
-- 渲染 NodeCard、Edge、ClusterLabel
-
-**Canvas 缩放性能架构**（关键设计，请勿随意改动）：
-- `offset` / `scale` **完全存在 `viewRef`**，不走 React state；缩放期间零重渲染
-- `applyTransform()` 直接操作 `contentLayerRef.current.style.transform`，绕过 React
-- wheel 事件在 useEffect 里用 `{ passive: false }` 监听，按帧累计 delta，每帧只触发一次 RAF
-- **300ms debounce** 后才做唯一一次 `useCanvasStore.setState`，驱动 useLodScale LOD 切换
-- `useLodScale`：用 `useCanvasStore.subscribe()`（非 React hook）订阅 scale；只在跨越 LOD bucket 时才 `setState`，zoom 过程中完全不触发重渲染
-- 根包装层用普通 `<div>` + CSS `transition`（非 `motion.div`），消除 Framer Motion 常驻 rAF 上下文
-
-**NodeCard** (`components/NodeCard.tsx`)
-- 显示标题、关键词、日期；LOD 透明度；高亮态（highlightedNodeIds）
-- **细粒度 selector**：`removeNode`/`updateNodePosition`/`openModalById`/`isHighlighted` 各自独立订阅，不订阅全 store
-- **漂浮动画用纯 CSS `@keyframes`**（compositor thread），不用 Framer Motion `repeat: Infinity`（主线程）
-- 拖拽通过 `window.addEventListener` + DOM 直写坐标实现，不 setState
-
-**NodeDetailPanel** (`components/NodeDetailPanel.tsx`)
-- 节点详情侧边面板：继续话题、重命名、删除
-
-**OnboardingGuide** (`components/OnboardingGuide.tsx`)
-- 新用户首次引导（漫游、对话、宏微观切换），localStorage 记录已读
-
-**GrayHint** (`components/GrayHint.tsx`)
-- 灰色小字提示，仅在偏好被应用时显示
-
-### 4. 服务层
-
-**AI服务** (`services/ai.ts`)
-- `callAI`: 非流式调用
-- `streamAI`: 流式调用（生成器）
-- `generateNodeTitle`: 生成节点标题
-- `generateKeywords`: 生成关键词
-
-**反馈服务** (`services/feedback.ts`)
-- `detectNegativeFeedback`: 检测负反馈触发词
-- `updateConfidence`: 更新规则置信度
-- `analyzeFeedbackIntensity`: 分析反馈强度
-
-**偏好服务** (`services/profile.ts`)
-- `loadProfile/saveProfile`: 配置文件读写
-- `addOrUpdateRule`: 添加/更新规则
-- `getHighConfidencePreferences`: 获取高置信度偏好
-- `decayOldPreferences`: 旧偏好置信度衰减
-
-**Prompt服务** (`services/prompt.ts`)
-- `buildSystemPrompt`: 组装System Prompt
-- `buildMessages`: 组装消息列表
-- `detectAppliedPreferences`: 检测被应用的偏好
-- `generateGrayHint`: 生成灰字提示文本
+---
 
 ## 数据流
 
 ```
 用户输入 → InputBox → canvasStore.startConversation()
-                          ↓
-                    AI调用 (useAI.sendMessage)
-                          ↓
-                    流式响应 → AnswerModal显示
-                          ↓
-                    用户反馈 → detectFeedback()
-                          ↓
-                    更新profile.json → 下次生效
-                          ↓
-                    关闭 → 生成Node → nodes.json
+    ↓ (立即打开 modal，不等记忆检索)
+    ├── 异步: getRelevantMemories() → /api/memory/search (向量检索)
+    │         结果用于画布节点高亮，不阻塞对话
+    │
+    ↓
+POST /api/ai/stream (SSE)
+    ├── 服务端读取用户 db 中的 apiKey / preferences / profile / memory_facts
+    ├── 构建分层 System Prompt
+    ├── 代理 Kimi API，转发 SSE 流
+    └── 工具调用时自动执行第二轮
+    ↓
+用户看到流式回复 → canvasStore.endConversation()
+    ├── 话题拆分：多意图时自动分裂为多个节点
+    ├── addNode() → 螺旋搜索同类岛屿附近空位 → 写入 nodes.json
+    ├── appendConversation() → 追加 conversations.jsonl
+    ├── /api/memory/index → 生成对话向量索引
+    ├── /api/memory/extract → 提取记忆事实（异步）
+    └── /api/memory/queue (extract_profile / extract_preference) → 入队后台任务
 ```
+
+---
+
+## 画布渲染性能架构
+
+**关键设计，请勿随意改动：**
+
+- `offset` / `scale` **完全存在 `viewRef`**，不走 React state；缩放期间零重渲染
+- `applyTransform()` 直接操作 `contentLayerRef.current.style.transform`，绕过 React
+- wheel 事件用 `{ passive: false }` 监听，按帧累计 delta，每帧只触发一次 RAF
+- **300ms debounce** 后才做唯一一次 `store.setState`，驱动 LOD 切换
+- `useLodScale` 用 `store.subscribe()`（非 React hook）订阅 scale；只在跨越 LOD 阈值时 `setState`
+- `NodeCard` 用细粒度 selector 订阅（各字段独立订阅），避免全量 re-render
+- 节点漂浮动画用纯 CSS `@keyframes`（compositor thread），不用 Framer Motion `repeat: Infinity`
+
+---
 
 ## 偏好学习流程
 
-1. **检测**: 用户在反馈区输入包含触发词的消息
-2. **抽取**: 根据触发词映射表提取偏好规则
-3. **存储**: 写入 `profile.json`，更新置信度
-4. **应用**: 下次对话时，高置信度偏好注入System Prompt
-5. **反馈**: 当偏好被应用时，显示灰字提示
+1. **检测**: 用户对话中含触发词（"简洁点"、"太长了"、"别用这个"……）
+2. **入队**: `endConversation` 后写入 `extract_preference` 后台任务
+3. **AI 提取**: agentWorker 用小模型判断并提炼偏好规则文字
+4. **存储**: 写入用户 db 的 `storage.profile.json` + `config.preference_rules`（双写保持兼容）
+5. **去重**: 新规则与已有规则子串比对，避免语义重复写入；启动时也做全量去重
+6. **应用**: 下次对话时，`preference_rules` 作为 System Prompt 最高优先级注入
+7. **提示**: 偏好被应用时，回答层顶部显示灰色小字提示
 
-## 负反馈触发词
-
-| 用户表达 | 偏好规则 |
-|---------|---------|
-| "简洁点" / "太复杂" | 表达更简洁：先结论，后要点，少铺垫 |
-| "别用这个" | 避免使用刚才提到的方案/工具 |
-| "换个思路" / "重来" | 换一种组织方式：给要点/给步骤/给对比 |
-| "不对" | 重新理解需求，确认后再回答 |
-
-## 本地存储结构
-
-### profile.json
-```json
-{
-  "rules": [
-    {
-      "trigger": "简洁点",
-      "preference": "保持表达简洁：先结论，后要点，避免冗长铺垫",
-      "confidence": 0.7,
-      "updatedAt": "2026-02-28"
-    }
-  ]
-}
-```
-
-### nodes.json
-```json
-[
-  {
-    "id": "uuid",
-    "title": "标题",
-    "keywords": ["关键词1", "关键词2"],
-    "date": "2026-02-28",
-    "conversationId": "uuid",
-    "x": 100,
-    "y": 200
-  }
-]
-```
-
-### conversations.jsonl
-```jsonl
-{"id": "uuid", "createdAt": "...", "userMessage": "...", "assistantMessage": "...", "appliedPreferences": ["..."]}
-{"id": "uuid", "createdAt": "...", "userMessage": "...", "assistantMessage": "...", "negativeFeedback": "..."}
-```
+---
 
 ## 配置说明
 
 ### 环境变量
 
 ```bash
-# AI API配置
-EVOCANVAS_API_URL=https://api.openai.com/v1
-RENDERER_VITE_API_KEY=your_api_key
+PORT=3000                  # 服务端口（默认 3000）
+DATA_DIR=./data            # SQLite 数据目录
+AUTH_DISABLED=false        # true = 本地开发免登录
+ACCESS_TOKEN=xxx           # 单用户 token
+ACCESS_TOKENS=a,b,c        # 多租户，逗号分隔
+ONBOARDING_API_KEY=xxx     # 演示用途（新用户引导时临时使用）
 ```
 
-### 开发运行
+API Key 不在环境变量中设置，启动后在 UI 设置页面填写，存入 SQLite config 表。
 
-```bash
-npm install
-npm run dev
-```
-
-### 构建
-
-```bash
-npm run build
-```
+---
 
 ## 扩展点
 
-1. **多模型支持**: 修改 `services/ai.ts` 中的配置
-2. **新的触发词**: 在 `shared/constants.ts` 中添加
-3. **新的偏好类型**: 在 `services/feedback.ts` 中扩展检测逻辑
-4. **导入/导出**: 使用 `services/profile.ts` 中的 `exportProfile`/`importProfile`
+1. **接入其他模型**: 在 UI 设置中修改 `baseUrl` 和 `model`，兼容任何 OpenAI-compatible 接口
+2. **新的偏好触发词**: `src/services/feedback.ts` 的 `NEGATIVE_TRIGGERS` 数组
+3. **新的分类**: `src/renderer/src/stores/canvasStore.ts` 的 `detectIntent` 函数
+4. **新的后台任务类型**: `agentWorker.ts` 的 `processTask` switch 分支 + `enqueueTask` 调用
+5. **导入/导出**: `/api/storage/export` 已支持全量 JSON 导出
 
-## 性能考虑
+---
 
-1. 对话记录使用 `.jsonl` 格式，支持高效追加
-2. 偏好规则数量控制在合理范围（<100条）
-3. 节点渲染使用虚拟列表（后续优化）
-4. AI流式响应，避免长文本卡顿
+## 安全模型
 
-## 安全考虑
-
-1. Preload脚本使用 `contextBridge` 隔离主进程API
-2. 存储操作限制在特定数据目录
-3. API Key从环境变量读取，不硬编码
-4. 用户输入转义后显示（防止XSS）
+| 机制 | 实现 |
+|------|------|
+| 多租户隔离 | SHA-256 token → userId → 独立 SQLite 文件 |
+| API Key 保护 | 存服务端 SQLite，不暴露给浏览器 |
+| 文件路径防护 | 白名单验证，拒绝 `..` `/` `\` |
+| 时序安全比较 | `timingSafeEqual` 防止 timing attack |
+| 文件类型校验 | MIME 白名单 + 魔数（magic bytes）双重校验 |
+| SQL 注入防护 | 全量使用 better-sqlite3 预编译 statement |

@@ -1,9 +1,7 @@
-# Evocanvas 服务器部署文档
+# Anima 服务器部署文档
 
-**部署日期**: 2026-03-06
-**服务器**: 101.32.215.209（腾讯云 OpenCloudOS 9.4）
-**应用版本**: v0.2.34
-**访问地址**: http://101.32.215.209:8080
+**最后更新**: 2026-03-06
+**应用版本**: v0.2.43
 
 ---
 
@@ -24,37 +22,39 @@
 ## 目录结构
 
 ```
-/opt/evocanvas/          ← 应用根目录
+/opt/anima/              ← 应用根目录
 ├── src/                 ← 服务端源码（tsx 直接运行）
 ├── dist/                ← Vite 构建的前端静态文件
 ├── data/                ← SQLite 数据库（自动创建）
+│   └── {userId}/        ← 每用户独立数据库目录
+│       └── anima.db
 ├── node_modules/
 ├── .env                 ← 生产环境变量（见下）
 ├── ecosystem.config.cjs ← PM2 配置
 └── package.json
 
 /etc/nginx/conf.d/
-├── winratelabs.conf     ← 已有项目（winratelabs.com → :5055）不要修改
-└── evocanvas.conf       ← Evocanvas 反代配置（:8080 → :3001）
+└── anima.conf           ← Anima 反代配置
 
 /var/log/pm2/
-├── evocanvas-out.log    ← 应用 stdout 日志
-└── evocanvas-error.log  ← 应用 stderr 日志
+├── anima-out.log        ← 应用 stdout 日志
+└── anima-error.log      ← 应用 stderr 日志
 ```
 
 ---
 
-## 生产环境变量 `/opt/evocanvas/.env`
+## 生产环境变量 `/opt/anima/.env`
 
 ```env
 NODE_ENV=production
 PORT=3001
 AUTH_DISABLED=false
-ACCESS_TOKEN=evo_prod_2026_yuzhiyang
-ONBOARDING_API_KEY=          # 填入演示用 Kimi key（供新用户引导）
+ACCESS_TOKEN=<your-secret-token>
+# ACCESS_TOKENS=token_a,token_b   # 多租户时用这个
+ONBOARDING_API_KEY=               # 填入演示用 Kimi key（供新用户引导）
 ```
 
-> **注意**：用户自己的 API Key 存储在 SQLite DB 里，不在 .env 中。
+> **注意**：用户自己的 API Key 存储在 SQLite DB 里，不在 .env 中。Token 请使用强随机值（`openssl rand -hex 32`）。
 
 ---
 
@@ -63,18 +63,18 @@ ONBOARDING_API_KEY=          # 填入演示用 Kimi key（供新用户引导）
 ### 查看状态
 ```bash
 pm2 list
-pm2 logs evocanvas --lines 50
+pm2 logs anima --lines 50
 ```
 
 ### 重启
 ```bash
-pm2 restart evocanvas
+pm2 restart anima
 ```
 
 ### 停止 / 删除
 ```bash
-pm2 stop evocanvas
-pm2 delete evocanvas
+pm2 stop anima
+pm2 delete anima
 ```
 
 ### 开机自启（已配置）
@@ -89,7 +89,7 @@ pm2 save
 
 ## Nginx 配置
 
-### `/etc/nginx/conf.d/evocanvas.conf`
+### `/etc/nginx/conf.d/anima.conf`
 ```nginx
 server {
     listen 8080;
@@ -97,7 +97,7 @@ server {
     client_max_body_size 20M;
 
     # 静态文件直接从磁盘提供（绕过 Node.js，避免大文件 chunked encoding 截断）
-    root /opt/evocanvas/dist;
+    root /opt/anima/dist;
     index index.html;
 
     # gzip on-the-fly（注意：gzip_static 必须为 off，否则新 chunk 文件名变化后
@@ -186,20 +186,20 @@ tar --exclude='.git' \
     --exclude='node_modules' \
     --exclude='.env' \
     --exclude='test-results' \
-    -czf /tmp/evocanvas-deploy.tar.gz .
+    -czf /tmp/anima-deploy.tar.gz .
 
 # 3. 上传
-scp /tmp/evocanvas-deploy.tar.gz root@101.32.215.209:/opt/
+scp /tmp/anima-deploy.tar.gz root@<server-ip>:/opt/
 
-# 4. 远程解压并重启（密码 yuzhiyang_22）
-ssh root@101.32.215.209 << 'REMOTE'
+# 4. 远程解压并重启
+ssh root@<server-ip> << 'REMOTE'
   set -e
-  cd /opt/evocanvas
-  tar -xzf /opt/evocanvas-deploy.tar.gz
-  rm /opt/evocanvas-deploy.tar.gz
+  cd /opt/anima
+  tar -xzf /opt/anima-deploy.tar.gz
+  rm /opt/anima-deploy.tar.gz
   npm install --omit=dev
-  pm2 restart evocanvas
-  pm2 logs evocanvas --lines 10 --nostream
+  pm2 restart anima
+  pm2 logs anima --lines 10 --nostream
 REMOTE
 ```
 
@@ -215,23 +215,32 @@ REMOTE
 
 ## 数据持久化
 
-SQLite 数据库自动创建在 `/opt/evocanvas/data/` 目录，包含：
-- 用户配置（API Key、模型设置）
-- 对话历史
-- 记忆事实
-- 用户画像
+SQLite 数据库自动创建在 `/opt/anima/data/` 目录，多租户模式下每个用户一个独立子目录：
+
+```
+/opt/anima/data/
+└── {userId}/           ← token SHA-256 前12位
+    └── anima.db        ← 包含用户配置、对话历史、记忆事实、用户画像等
+```
 
 **备份建议**：
 ```bash
-# 在服务器上每天备份 DB
-cp /opt/evocanvas/data/anima.db /opt/evocanvas/data/anima.db.bak.$(date +%Y%m%d)
+# 全量备份
+tar -czf /opt/anima-backup-$(date +%Y%m%d).tar.gz /opt/anima/data/
+
+# 定时备份（crontab）
+0 3 * * * tar -czf /opt/backups/anima-$(date +\%Y\%m\%d).tar.gz /opt/anima/data/ && find /opt/backups -name "anima-*.tar.gz" -mtime +30 -delete
 ```
 
 ---
 
 ## 已有项目共存
 
-`/opt/multiagent/` 的两个服务（`multiagent-viewer` :5055 + `multiagent-scheduler`）通过 `systemd` 独立运行，与 Evocanvas 的 PM2 进程完全隔离。两者共用同一个 Nginx，各自通过不同端口（443/8080）对外服务，互不影响。
+如服务器上有其他服务，确保端口不冲突。Anima 使用：
+- Node.js 内网端口（如 `:3001`）
+- Nginx 对外端口（如 `:8080`）
+
+两者互不影响，通过 Nginx 各自独立代理。
 
 ---
 
@@ -239,7 +248,7 @@ cp /opt/evocanvas/data/anima.db /opt/evocanvas/data/anima.db.bak.$(date +%Y%m%d)
 
 ```bash
 # 查看应用日志
-pm2 logs evocanvas --lines 100
+pm2 logs anima --lines 100
 
 # 查看 Nginx 错误
 tail -50 /var/log/nginx/error.log
@@ -248,5 +257,9 @@ tail -50 /var/log/nginx/error.log
 ss -tlnp | grep -E '3001|8080'
 
 # 检查 PM2 进程
-pm2 show evocanvas
+pm2 show anima
+
+# 查看后台任务状态
+sqlite3 /opt/anima/data/{userId}/anima.db \
+  "SELECT type, status, retries, error FROM agent_tasks ORDER BY id DESC LIMIT 20"
 ```
