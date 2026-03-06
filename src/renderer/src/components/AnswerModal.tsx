@@ -30,8 +30,11 @@ import { getAuthToken } from '../services/storageService'
 
 /** 解析并渲染用户消息，将 [REFERENCE_START]...[REFERENCE_END] 块展示为折叠胶囊，剥离文件内容标记 */
 function UserMessageContent({ content }: { content: string }) {
-  // 先剥离文件内容标记（=== 文件 N: filename ===\n...\n=== 结束 filename ===\n），不展示原始文件内容
-  const stripped = content.replace(/\n?=== 文件 \d+: [^\n]+ ===\n[\s\S]*?\n=== 结束 [^\n]+ ===\n?/g, '').trim()
+  // 先剥离文件内容块：formatFilesForAI 的前缀 \n\n以下是我上传的文件内容…\n 之后的所有内容
+  // 用前缀截断比逐块正则更可靠，不受文件内容中包含 === 结束 === 模式的影响
+  const FILE_BLOCK_PREFIX = '\n\n以下是我上传的文件内容，请分析并回答我的问题：\n'
+  const fileBlockIdx = content.indexOf(FILE_BLOCK_PREFIX)
+  const stripped = (fileBlockIdx >= 0 ? content.slice(0, fileBlockIdx) : content).trim()
 
   const parts: Array<{ type: 'text' | 'reference'; value: string }> = []
   const regex = /\[REFERENCE_START\]([\s\S]*?)\[REFERENCE_END\]/g
