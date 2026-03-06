@@ -137,6 +137,7 @@ export function AnswerModal() {
   const [appliedPreferences, setAppliedPreferences] = useState<string[]>([])
   const [pendingImages, setPendingImages] = useState<string[]>([])
   const [pendingFiles, setPendingFiles] = useState<FileAttachment[]>([])
+  const [pendingReferenceBlocks, setPendingReferenceBlocks] = useState<string[]>([])
   const [showXPulse, setShowXPulse] = useState(false)
   const [showOnboardingComplete, setShowOnboardingComplete] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
@@ -491,7 +492,17 @@ export function AnswerModal() {
     const trimmed = feedbackMessage.trim()
     const hasImages = pendingImages.length > 0
     const hasFiles = pendingFiles.length > 0
-    if ((!trimmed && !hasImages && !hasFiles) || isStreaming) return
+    const hasRefs = pendingReferenceBlocks.length > 0
+    if ((!trimmed && !hasImages && !hasFiles && !hasRefs) || isStreaming) return
+
+    // 拼接引用块到消息体
+    let fullTrimmed = trimmed
+    if (hasRefs) {
+      const refSection = pendingReferenceBlocks
+        .map(r => `[REFERENCE_START]\n${r}\n[REFERENCE_END]`)
+        .join('\n')
+      fullTrimmed = trimmed + (trimmed ? '\n\n' : '') + refSection
+    }
 
     // 偏好检测改走后端 Agent（fire-and-forget），不再前端关键词判断
     // 注意：新手引导 phase2 在下方有专用的 extract_preference 调用（使用更准确的 assistant 上下文），此处跳过避免重复
@@ -510,6 +521,7 @@ export function AnswerModal() {
     setFeedbackMessage('')
     setPendingImages([])
     setPendingFiles([])
+    setPendingReferenceBlocks([])
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
 
     // ── 引导 phase 2：用户给出风格反馈 → Agent 后台提取 + 流式输出 GENE_SAVED ──
@@ -618,7 +630,7 @@ export function AnswerModal() {
     if (highlightedNodeIds.length > 0) focusNode(highlightedNodeIds[0])
     const compressed = compressMemoriesForPrompt(memories)
 
-    let fullMessage = trimmed
+    let fullMessage = fullTrimmed
     if (hasFiles) {
       fullMessage += formatFilesForAI(pendingFiles.map(f => ({
         name: f.name, type: f.type, size: f.size, content: f.content || ''
@@ -628,7 +640,7 @@ export function AnswerModal() {
     // Bug fix: 历史中跳过空 user 的预设引导轮次，避免空消息传入 AI
     const history = buildAIHistory(turns)
     const currentTurn: Turn = {
-      user: trimmed,
+      user: fullTrimmed,
       assistant: '',
       images: pendingImages,
       files: pendingFiles,
@@ -640,7 +652,7 @@ export function AnswerModal() {
     const preferences = getPreferencesForPrompt()
     didMutateRef.current = true
     sendMessage(fullMessage, preferences, history, pendingImages, compressed, isOnboardingMode, isOnboardingMode ? undefined : currentConversation?.id)
-  }, [feedbackMessage, pendingImages, pendingFiles, isStreaming, isOnboardingMode,
+  }, [feedbackMessage, pendingImages, pendingFiles, pendingReferenceBlocks, isStreaming, isOnboardingMode,
       getPreferencesForPrompt, sendMessage, turns, getRelevantMemories, setHighlight, focusNode])
 
   // ── 关闭并保存 ────────────────────────────────────────────────────────────
@@ -879,11 +891,18 @@ export function AnswerModal() {
                 <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6 scroll-smooth space-y-8">
                   <div className="max-w-2xl mx-auto space-y-10">
                     {isLoading ? (
-                      <div className="flex items-center justify-center py-20 text-gray-300">
-                        <svg className="animate-spin w-6 h-6" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                        </svg>
+                      <div className="flex flex-col items-center justify-center py-20 gap-3">
+                        <div className="flex items-center gap-1.5">
+                          {[0, 1, 2].map(i => (
+                            <motion.span
+                              key={i}
+                              className="block w-2 h-2 rounded-full bg-gray-300"
+                              animate={{ y: [0, -6, 0], opacity: [0.4, 1, 0.4] }}
+                              transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.18, ease: 'easeInOut' }}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-[13px] text-gray-400">正在连接…</span>
                       </div>
                     ) : turns.map((t, idx) => (
                       <div key={idx} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -966,7 +985,8 @@ export function AnswerModal() {
                           <div className="max-w-[95%] w-full">
                             <ThinkingSection
                               content={t.reasoning || ''}
-                              isStreaming={isStreaming && idx === turns.length - 1 && !t.assistant}
+                              isStreaming={isStreaming && idx === turns.length - 1 && !t.assistant && !!(t.reasoning)}
+                              isWaiting={isStreaming && idx === turns.length - 1 && !t.assistant && !t.reasoning}
                               forceCollapsed={!!t.assistant || idx > 0}
                             />
                             <div className="text-gray-800 text-[15px] leading-7 group/aimsg">
@@ -1004,6 +1024,7 @@ export function AnswerModal() {
                   feedbackMessage={feedbackMessage}
                   pendingImages={pendingImages}
                   pendingFiles={pendingFiles}
+                  referenceBlocks={pendingReferenceBlocks}
                   isStreaming={isStreaming}
                   isOnboardingMode={isOnboardingMode}
                   evolutionToast={evolutionToast}
@@ -1015,6 +1036,8 @@ export function AnswerModal() {
                   onFileSelect={handleFileSelect}
                   onDrop={handleDrop}
                   onRemoveFile={removeFile}
+                  onAddReferenceBlock={text => setPendingReferenceBlocks(prev => [...prev, text].slice(0, 5))}
+                  onRemoveReferenceBlock={i => setPendingReferenceBlocks(prev => prev.filter((_, j) => j !== i))}
                 />
               </motion.div>
             </div>
@@ -1066,6 +1089,7 @@ interface InputAreaProps {
   feedbackMessage: string
   pendingImages: string[]
   pendingFiles: FileAttachment[]
+  referenceBlocks: string[]
   isStreaming: boolean
   isOnboardingMode: boolean
   evolutionToast: { label: string; detail: string } | null
@@ -1077,13 +1101,24 @@ interface InputAreaProps {
   onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void
   onDrop: (e: React.DragEvent) => void
   onRemoveFile: (id: string) => void
+  onAddReferenceBlock: (text: string) => void
+  onRemoveReferenceBlock: (index: number) => void
 }
 
 function InputArea({
-  feedbackMessage, pendingImages, pendingFiles, isStreaming, isOnboardingMode,
+  feedbackMessage, pendingImages, pendingFiles, referenceBlocks, isStreaming, isOnboardingMode,
   evolutionToast, fileInputRef, textareaRef,
-  onFeedbackChange, onFeedbackSubmit, onStopGeneration, onFileSelect, onDrop, onRemoveFile
+  onFeedbackChange, onFeedbackSubmit, onStopGeneration, onFileSelect, onDrop, onRemoveFile,
+  onAddReferenceBlock, onRemoveReferenceBlock
 }: InputAreaProps) {
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const pastedText = e.clipboardData.getData('text')
+    if (pastedText.length > 500) {
+      e.preventDefault()
+      onAddReferenceBlock(pastedText)
+    }
+  }
+
   return (
     <div className="p-4 bg-white border-t border-gray-100">
       <div className="max-w-2xl mx-auto relative">
@@ -1138,6 +1173,28 @@ function InputArea({
           <input type="file" ref={fileInputRef} className="hidden" onChange={onFileSelect} multiple />
 
           <div className="flex-1 relative" onDrop={onDrop} onDragOver={e => e.preventDefault()}>
+            {/* 引用块胶囊列表 */}
+            <AnimatePresence>
+              {referenceBlocks.map((ref, i) => (
+                <motion.div
+                  key={i}
+                  layout
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="flex items-center gap-1.5 mb-1 px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded-xl text-[12px] text-amber-800"
+                >
+                  <Quote className="w-3 h-3 flex-shrink-0 text-amber-500" />
+                  <span className="flex-1 truncate opacity-80">{ref.slice(0, 40)}{ref.length > 40 ? '…' : ''}</span>
+                  <button
+                    onClick={() => onRemoveReferenceBlock(i)}
+                    className="flex-shrink-0 text-amber-400 hover:text-amber-700 transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </motion.div>
+              ))}
+            </AnimatePresence>
             <textarea
               ref={textareaRef}
               value={feedbackMessage}
@@ -1145,6 +1202,7 @@ function InputArea({
               placeholder={isOnboardingMode ? '在这里介绍你自己…' : '回复…'}
               className="w-full bg-transparent border-none outline-none resize-none py-3 text-[15px] max-h-[120px]"
               rows={1}
+              onPaste={handlePaste}
               onKeyDown={e => {
                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onFeedbackSubmit() }
               }}
@@ -1158,7 +1216,7 @@ function InputArea({
           ) : (
             <button
               onClick={onFeedbackSubmit}
-              disabled={!feedbackMessage.trim() && pendingFiles.length === 0}
+              disabled={!feedbackMessage.trim() && pendingFiles.length === 0 && referenceBlocks.length === 0}
               className="p-2.5 bg-gray-900 text-white rounded-xl hover:bg-black disabled:opacity-40 disabled:bg-gray-200 transition-all shadow-sm"
             >
               <ArrowUp className="w-5 h-5 stroke-[3px]" />
