@@ -150,26 +150,18 @@ systemctl status nginx
 | 端口 | 服务 | 说明 |
 |------|------|------|
 | 22 | sshd | SSH |
-| 80 | Nginx | winratelabs.com HTTP→HTTPS 跳转 |
-| 443 | Nginx + SSL | winratelabs.com HTTPS |
-| 3001 | Evocanvas Node | 内网监听（不对外） |
-| 5055 | multiagent Python | winratelabs.com 后端（不对外） |
-| 8080 | Nginx | **Evocanvas 对外入口** |
+| 3001 | Anima Node | 内网监听（不对外） |
+| 8080 | Nginx | **Anima 对外入口** |
 
 ---
 
-## 腾讯云安全组（需手动在控制台操作）
+## 腾讯云安全组
 
-访问 http://101.32.215.209:8080 前，**必须**在腾讯云控制台开放 8080 端口：
+公网访问前，需在腾讯云控制台确认入站规则已开放对应端口（如 8080）：
 
 1. 登录 [腾讯云控制台](https://console.cloud.tencent.com/)
-2. 进入「云服务器 CVM」→ 找到 101.32.215.209
-3. 点击「安全组」→ 「修改规则」
-4. 添加入站规则：
-   - 协议：TCP
-   - 端口：8080
-   - 来源：0.0.0.0/0（或限制为自己 IP）
-   - 动作：允许
+2. 进入「云服务器 CVM」→ 目标实例 → 「安全组」→ 「修改规则」
+3. 添加入站规则：TCP / 端口 8080 / 来源 0.0.0.0/0（或限制为自己 IP）
 
 ---
 
