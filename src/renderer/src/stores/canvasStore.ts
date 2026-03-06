@@ -1532,7 +1532,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
     // fire-and-forget：逻辑边提取
     // 延迟 3 秒，等语义边先计算出候选节点
-    setTimeout(() => {
+    // 先检查该 conversationId 是否已提取过逻辑边，已有则跳过，避免重复 AI 请求
+    setTimeout(async () => {
+      try {
+        const checkResp = await authFetch(`/api/memory/logical-edges/${conversation.id}`)
+        if (checkResp.ok) {
+          const checkData = await checkResp.json() as { edges: unknown[] }
+          if (checkData.edges && checkData.edges.length > 0) return
+        }
+      } catch { /* 网络失败则继续触发 */ }
       get()._triggerLogicalEdgeExtraction(
         conversation.id,
         conversation.userMessage,

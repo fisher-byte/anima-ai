@@ -100,7 +100,9 @@ export const Edge = memo(function Edge({
     : label
 
   // 解释面板文字
-  const panelTitle = edgeType === 'logical' ? `${relation}` : '语义相似'
+  const panelTitle = edgeType === 'logical'
+    ? (relation ?? '逻辑关联')
+    : '语义关联'
   const panelScore = edgeType === 'logical'
     ? `置信度 ${((confidence ?? 0.75) * 100).toFixed(0)}%`
     : `相似度 ${((weight ?? 0.65) * 100).toFixed(0)}%`
@@ -109,10 +111,6 @@ export const Edge = memo(function Edge({
       ? (weight ?? 0) >= 0.85 ? '两次对话高度相关' : (weight ?? 0) >= 0.75 ? '话题有明显重叠' : '话题存在关联'
       : ''
   )
-
-  // 面板宽度自适应文字长度
-  const panelW = Math.max(160, Math.min(240, panelReason.length * 12 + 32))
-  const panelH = panelReason ? 72 : 44
 
   return (
     <g style={{ pointerEvents: 'none' }}>
@@ -144,76 +142,87 @@ export const Edge = memo(function Edge({
       {!isInteractive && displayLabel && hovered && (
         <g transform={`translate(${midX}, ${midY})`}>
           <rect x={-22} y={-11} width={44} height={20} rx={6}
-            fill="rgba(15,15,15,0.75)" style={{ pointerEvents: 'none' }} />
-          <text x={0} y={4} textAnchor="middle" fill="white" fontSize={10} fontWeight={500}
+            fill="rgba(255,255,255,0.92)"
+            stroke="rgba(200,200,215,0.6)" strokeWidth={1}
+            style={{ pointerEvents: 'none', filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.07))' }} />
+          <text x={0} y={4} textAnchor="middle" fill="rgba(50,50,70,0.85)" fontSize={10} fontWeight={500}
             style={{ pointerEvents: 'none', fontFamily: 'system-ui, sans-serif' }}>
             {displayLabel}
           </text>
         </g>
       )}
       {/* 语义/逻辑边：hover 时显示简要标签 */}
-      {isInteractive && hovered && !clicked && displayLabel && (
-        <g transform={`translate(${midX}, ${midY})`}>
-          <rect x={-26} y={-12} width={52} height={22} rx={7}
-            fill={edgeType === 'logical' ? (RELATION_STYLES[relation ?? '']?.color ?? 'rgba(139,92,246,0.9)') : 'rgba(139,92,246,0.85)'}
-            opacity={0.92}
-            style={{ pointerEvents: 'none' }} />
-          <text x={0} y={5} textAnchor="middle" fill="white" fontSize={10} fontWeight={600}
-            style={{ pointerEvents: 'none', fontFamily: 'system-ui, sans-serif' }}>
-            {displayLabel}
-          </text>
-        </g>
-      )}
+      {isInteractive && hovered && !clicked && displayLabel && (() => {
+        const accentColor = edgeType === 'logical'
+          ? (RELATION_STYLES[relation ?? '']?.color ?? 'rgba(139,92,246,0.9)')
+          : 'rgba(139,92,246,0.9)'
+        const labelW = displayLabel.length * 13 + 24
+        return (
+          <g transform={`translate(${midX}, ${midY})`}>
+            <rect x={-labelW/2} y={-13} width={labelW} height={24} rx={8}
+              fill="rgba(255,255,255,0.92)"
+              stroke={accentColor} strokeWidth={1} strokeOpacity={0.4}
+              style={{ pointerEvents: 'none', filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.08))' }} />
+            <text x={0} y={5} textAnchor="middle" fill={accentColor} fontSize={11} fontWeight={600}
+              style={{ pointerEvents: 'none', fontFamily: 'system-ui, sans-serif' }}>
+              {displayLabel}
+            </text>
+          </g>
+        )
+      })()}
       {/* 点击展开的解释面板 */}
-      {isInteractive && clicked && (
-        <g transform={`translate(${midX - panelW / 2}, ${midY - panelH - 12})`}>
-          {/* 背景卡片 */}
-          <rect
-            x={0} y={0} width={panelW} height={panelH} rx={10}
-            fill="rgba(15, 15, 20, 0.92)"
-            style={{ pointerEvents: 'none', filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.4))' }}
-          />
-          {/* 顶部色条 */}
-          <rect
-            x={0} y={0} width={panelW} height={4} rx={10}
-            fill={edgeType === 'logical' ? (RELATION_STYLES[relation ?? '']?.color ?? 'rgba(139,92,246,0.9)') : 'rgba(139,92,246,0.9)'}
-            style={{ pointerEvents: 'none' }}
-          />
-          {/* 关系类型 */}
-          <text x={12} y={22} fill="white" fontSize={12} fontWeight={700}
-            style={{ pointerEvents: 'none', fontFamily: 'system-ui, sans-serif' }}>
-            {panelTitle}
-          </text>
-          {/* 分数 */}
-          <text x={panelW - 12} y={22} textAnchor="end"
-            fill="rgba(255,255,255,0.5)" fontSize={10}
-            style={{ pointerEvents: 'none', fontFamily: 'system-ui, sans-serif' }}>
-            {panelScore}
-          </text>
-          {/* 原因说明 */}
-          {panelReason && (
-            <foreignObject x={10} y={30} width={panelW - 20} height={panelH - 36}>
-              <div
-                style={{
-                  color: 'rgba(255,255,255,0.75)',
-                  fontSize: '10px',
-                  lineHeight: '1.5',
-                  fontFamily: 'system-ui, sans-serif',
+      {isInteractive && clicked && (() => {
+        const accentColor = edgeType === 'logical'
+          ? (RELATION_STYLES[relation ?? '']?.color ?? 'rgba(139,92,246,0.9)')
+          : 'rgba(139,92,246,0.9)'
+        const panelW2 = Math.max(160, Math.min(240, (panelReason?.length ?? 0) * 11 + 48))
+        const panelH2 = panelReason ? 82 : 52
+        return (
+          <g transform={`translate(${midX - panelW2 / 2}, ${midY - panelH2 - 14})`}>
+            {/* 白色毛玻璃背景 */}
+            <rect
+              x={0} y={0} width={panelW2} height={panelH2} rx={12}
+              fill="rgba(255,255,255,0.93)"
+              stroke="rgba(220,220,235,0.8)" strokeWidth={1}
+              style={{ pointerEvents: 'none', filter: 'drop-shadow(0 8px 24px rgba(0,0,0,0.10))' }}
+            />
+            {/* 左侧 accent 竖条 */}
+            <rect x={0} y={8} width={3} height={panelH2 - 16} rx={2}
+              fill={accentColor} style={{ pointerEvents: 'none' }} />
+            {/* 标题 */}
+            <text x={16} y={22} fill="#1a1a2e" fontSize={12} fontWeight={700}
+              style={{ pointerEvents: 'none', fontFamily: 'system-ui, sans-serif' }}>
+              {panelTitle}
+            </text>
+            {/* 分数 badge */}
+            <rect x={panelW2 - 58} y={11} width={50} height={16} rx={8}
+              fill={accentColor} fillOpacity={0.12} style={{ pointerEvents: 'none' }} />
+            <text x={panelW2 - 33} y={22} textAnchor="middle"
+              fill={accentColor} fontSize={9} fontWeight={600}
+              style={{ pointerEvents: 'none', fontFamily: 'system-ui, sans-serif' }}>
+              {panelScore}
+            </text>
+            {/* reason 文字 */}
+            {panelReason && (
+              <foreignObject x={14} y={30} width={panelW2 - 24} height={panelH2 - 38}>
+                <div style={{
+                  color: 'rgba(60,60,80,0.85)', fontSize: '10px',
+                  lineHeight: '1.6', fontFamily: 'system-ui, sans-serif',
                   wordBreak: 'break-all'
-                }}
-              >
-                {panelReason}
-              </div>
-            </foreignObject>
-          )}
-          {/* 关闭提示 */}
-          <text x={panelW / 2} y={panelH - 4} textAnchor="middle"
-            fill="rgba(255,255,255,0.25)" fontSize={8}
-            style={{ pointerEvents: 'none', fontFamily: 'system-ui, sans-serif' }}>
-            点击边关闭
-          </text>
-        </g>
-      )}
+                }}>
+                  {panelReason}
+                </div>
+              </foreignObject>
+            )}
+            {/* 关闭提示 */}
+            <text x={panelW2 / 2} y={panelH2 - 5} textAnchor="middle"
+              fill="rgba(150,150,170,0.6)" fontSize={8}
+              style={{ pointerEvents: 'none', fontFamily: 'system-ui, sans-serif' }}>
+              再次点击关闭
+            </text>
+          </g>
+        )
+      })()}
     </g>
   )
 })
