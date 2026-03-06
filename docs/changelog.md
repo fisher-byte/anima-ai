@@ -1,6 +1,19 @@
 # Anima 变更日志
 
-## [0.2.41] - 2026-03-06
+## [0.2.42] - 2026-03-06
+
+### Code review 修复
+
+根据 v0.2.37-v0.2.41 整体 code review 发现的三个边界问题：
+
+1. **OnboardingGuide.tsx**：`localStorage.getItem('evo_onboarding_v3')` 改为严格比较 `=== 'done'`，
+   与 canvasStore.ts 保持一致，避免存入非预期值时误判已完成
+2. **agentWorker.ts** `mergeArr`：`JSON.parse(existing)` 加 try/catch，防止存储数据损坏时崩溃
+3. 单元测试 232 / 232 全通过，E2E 测试 10 / 10 全通过
+
+---
+
+
 
 ### 彻底消除 embedding 超时等待
 

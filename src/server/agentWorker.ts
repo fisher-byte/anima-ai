@@ -259,7 +259,8 @@ function mergeProfile(extracted: Record<string, unknown>) {
 
   const mergeArr = (existing: string | null, incoming: unknown): string | null => {
     if (!incoming || !Array.isArray(incoming)) return existing
-    const base: string[] = existing ? JSON.parse(existing) : []
+    let base: string[] = []
+    if (existing) { try { base = JSON.parse(existing) } catch { base = [] } }
     return JSON.stringify([...new Set([...base, ...(incoming as string[])])])
   }
 
