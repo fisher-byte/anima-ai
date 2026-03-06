@@ -251,6 +251,8 @@ export function AnswerModal() {
   // ── 新手引导：打开时注入问候语（或恢复已有 turns） ─────────────────────────
   useEffect(() => {
     if (!isModalOpen || !isOnboardingMode) return
+    // 进入 onboarding 时清除任何残留的错误提示
+    setErrorMessage(null)
     if (!currentConversation || currentConversation.userMessage !== '') return
 
     if (onboardingResumeTurns && onboardingResumeTurns.length > 0) {

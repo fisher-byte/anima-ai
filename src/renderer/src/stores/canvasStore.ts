@@ -487,7 +487,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         // 聚焦到 onboarding 节点
         const onboardingNode = get().nodes.find(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding')
         if (onboardingNode) get().focusNode(onboardingNode.id)
-        get().openOnboarding()
+        // openOnboarding 由 OnboardingGuide 组件统一负责触发，避免重复调用导致闪烁
       } else {
         // 已完成引导：确保 import-memory 存在；onboarding 保留（文件里有就有）
         if (!hasImportMemory) await get().addCapabilityNode('import-memory')
