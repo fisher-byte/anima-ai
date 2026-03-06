@@ -2,11 +2,12 @@
 
 ## [0.2.44] - 2026-03-06
 
-### 引用块功能 + 记忆系统升级 + P2 修复
+### 引用块功能 + 记忆系统升级 + 加载体验优化 + P2 修复
 
-#### 变更 A：引用块 UI（InputBox.tsx + AnswerModal.tsx）
+#### 变更 A：引用块 UI（InputBox.tsx + AnswerModal.tsx InputArea）
 
 - 粘贴内容 > 500 字时，自动识别为引用块，在输入框上方显示折叠胶囊（`ReferenceBlockPreview`）
+- **AnswerModal 底部 InputArea 同步支持引用块**（之前仅主画布 InputBox 有此功能）
 - 用户消息渲染改用 `UserMessageContent` 组件，解析 `[REFERENCE_START]...[REFERENCE_END]` 标记为折叠胶囊
 - 引用块样式：`bg-amber-50` 系，与普通文字有明显区分；可展开查看全文
 
@@ -17,16 +18,27 @@
 
 #### 变更 C：FTS5 BM25 替换 Jaccard fallback
 
-- **db.ts**：`initSchema` 新建 `memory_facts_fts` FTS5 虚拟表及三个触发器（insert/invalidate/delete 同步），migrations 补充存量回填
+- **db.ts**：`initSchema` 新建 `memory_facts_fts` FTS5 虚拟表及四个触发器（insert/invalidate/delete/update 同步），migrations 补充存量回填
 - **ai.ts**：新增 `bm25FallbackFacts` 函数；`fetchRelevantFacts` 的 embedding 失败分支改为返回 BM25 结果；层 3 fallback 链：embedding → BM25 → 时间序 top-10（从15降到10）；移除低效 Jaccard 分支
 
 #### 变更 D：激活 decayOldPreferences
 
-- **agentWorker.ts**：新增 `maybeDecayPreferences`（每24小时对偏好规则做 -0.05 衰减，最低 0.3），在 `tick()` 每用户 db 循环中调用
+- **agentWorker.ts**：新增 `maybeDecayPreferences`（每24小时对 `config.preference_rules` 做 -0.05 衰减，最低 0.3），在 `tick()` 每用户 db 循环中调用
 
 #### 变更 E：统一 enqueueTask
 
 - **memory.ts**：`/consolidate` 路由和 `/extract` 自动触发处，改用已有 `enqueueTask()` 替换裸 SQL INSERT
+
+#### 变更 F：加载状态动画优化（ThinkingSection + AnswerModal）
+
+- **ThinkingSection.tsx**：新增 `isWaiting` prop，发送后等待首 token 时显示三点跳动动画 + "正在思考..."；streaming 时左侧蓝色脉冲圆点 + "正在思考中"；思考内容边框改蓝色系（`border-blue-100 bg-blue-50/40`）；完成后显示"思考完毕"
+- **AnswerModal.tsx**：初始 `isLoading` 状态改为三点弹跳动画 + "正在连接…"，替代原来的小转圈
+
+#### P2 修复
+
+- **agentWorker.ts**：`maybeDecayPreferences` 操作正确数据源 `config.preference_rules`（而非 `storage.profile.json`）
+- **db.ts**：补充 `fts_sync_update` trigger（fact 内容编辑时同步 FTS5 索引）
+- **InputBox.tsx**：引用块数量上限 5 个（`.slice(0, 5)`）
 
 ---
 
@@ -51,8 +63,6 @@
 单用户 self-hosted 场景完全透明，行为与之前一致。
 
 ---
-
-## [0.2.44] - 2026-03-06
 
 ### 生产环境问答与体验修复
 
@@ -91,6 +101,7 @@
 详细过程与小结见项目根目录《0306生产环境问答修复与总结.md》。
 
 ---
+
 
 ## [0.2.42] - 2026-03-06
 

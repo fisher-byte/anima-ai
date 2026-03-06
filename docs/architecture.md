@@ -1,6 +1,6 @@
 # Anima 架构文档
 
-*最后更新: 2026-03-06 | 版本: v0.2.43*
+*最后更新: 2026-03-06 | 版本: v0.2.44*
 
 ---
 
@@ -45,9 +45,10 @@ evocanvas/
 │   │   ├── middleware/
 │   │   │   └── auth.ts            # Bearer Token 多租户鉴权
 │   │   └── __tests__/
-│   │       ├── server.test.ts     # HTTP 集成测试（81 个用例）
-│   │       ├── ai-onboarding.test.ts  # onboarding 模式测试（6 个用例）
-│   │       └── memory.test.ts     # 记忆路由集成测试（21 个用例）
+│   │       ├── server.test.ts     # HTTP 集成测试（含多租户 enqueueTask）
+│   │       ├── ai-onboarding.test.ts  # onboarding 模式测试
+│   │       └── memory.test.ts     # 记忆路由集成测试（含 FTS5 trigger、引用块过滤、decayPreferences）
+│   │                              # 共 246 个测试用例
 │   │
 │   ├── renderer/                  # React 前端
 │   │   └── src/
