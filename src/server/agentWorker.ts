@@ -333,10 +333,18 @@ function splitTextIntoChunks(text: string, chunkSize = 800, overlap = 80): strin
   return chunks.filter(c => c.trim().length > 0)
 }
 
+/** 已确认 403 的 apiKey，跳过 embedding */
+const embeddingDisabledKeys = new Set<string>()
+
 /** 对文件内容分块并生成 embedding，写入 file_embeddings 表 */
 async function embedFileContent(fileId: string, textContent: string, filename: string): Promise<void> {
   const { apiKey, baseUrl } = getApiConfig()
   if (!apiKey) {
+    db.prepare("UPDATE uploaded_files SET embed_status = 'failed' WHERE id = ?").run(fileId)
+    return
+  }
+  // 该 key 已确认不支持 embedding，直接跳过
+  if (embeddingDisabledKeys.has(apiKey)) {
     db.prepare("UPDATE uploaded_files SET embed_status = 'failed' WHERE id = ?").run(fileId)
     return
   }
@@ -362,7 +370,8 @@ async function embedFileContent(fileId: string, textContent: string, filename: s
 
       if (!resp.ok) {
         if (resp.status === 403) {
-          console.info(`[agent] embed_file: embedding not available (403) for ${filename}, skipping`)
+          embeddingDisabledKeys.add(apiKey)
+          console.info(`[agent] embed_file: embedding not available (403), disabling for this session`)
           db.prepare("UPDATE uploaded_files SET embed_status = 'failed' WHERE id = ?").run(fileId)
           return
         }

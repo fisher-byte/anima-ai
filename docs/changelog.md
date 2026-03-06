@@ -1,6 +1,21 @@
 # Anima 变更日志
 
-## [0.2.40] - 2026-03-06
+## [0.2.41] - 2026-03-06
+
+### 彻底消除 embedding 超时等待
+
+#### 问题
+Moonshot embedding API（`moonshot-v1-embedding`）对当前账号未开通，每次请求先等 5s 超时才
+fallback 到关键词搜索，导致记忆检索有可感知的延迟。
+
+#### 修复
+- `memory.ts`：首次收到 403 后将 apiKey 加入内存黑名单，后续请求直接跳过，零等待
+- `agentWorker.ts`：文件 embedding 遇 403 同样加入黑名单并立即标记 failed，不再消耗重试次数
+- 效果：服务重启后第一次 embedding 请求仍会收到 403（约 < 1s），之后所有请求直接走关键词搜索
+
+---
+
+
 
 ### 修复主输入框卡死 + 优化 embedding 超时处理
 
