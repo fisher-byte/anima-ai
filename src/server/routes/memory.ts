@@ -45,12 +45,17 @@ function getApiConfig(db: InstanceType<typeof Database>): { apiKey: string; base
 const BUILTIN_EMBED = {
   apiKey: 'sk-af1d01c2c2ff4e23baafc404b1c23c78',
   baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-  model: 'text-embedding-v3'
+  model: 'text-embedding-v4'  // Qwen3 最新，支持 2048 维
+}
+const BUILTIN_EMBED_MULTIMODAL = {
+  apiKey: 'sk-af1d01c2c2ff4e23baafc404b1c23c78',
+  baseUrl: 'https://dashscope.aliyuncs.com/api/v1/services/embeddings/multimodal-embedding',
+  model: 'qwen3-vl-embedding'  // 多模态：图片+文本统一向量空间
 }
 let builtinEmbeddingFailed = false
 
 /** 调 embedding API 返回 number[]，使用内置阿里云 key */
-async function fetchEmbedding(
+export async function fetchEmbedding(
   _db: InstanceType<typeof Database>,  // 保留签名，不再使用 db
   text: string
 ): Promise<number[] | null> {
@@ -65,7 +70,7 @@ async function fetchEmbedding(
         'Content-Type': 'application/json',
         Authorization: `Bearer ${BUILTIN_EMBED.apiKey}`
       },
-      body: JSON.stringify({ model: BUILTIN_EMBED.model, input, dimensions: 1024 }),
+      body: JSON.stringify({ model: BUILTIN_EMBED.model, input, dimensions: 2048 }),
       signal: AbortSignal.timeout(8_000)
     })
 
@@ -89,8 +94,45 @@ async function fetchEmbedding(
   }
 }
 
+/** 多模态 embedding：文本+图片 URL → 统一向量（用于图片文件检索） */
+export async function fetchMultimodalEmbedding(
+  contents: Array<{ text?: string; image?: string }>
+): Promise<number[] | null> {
+  if (builtinEmbeddingFailed) return null
+  try {
+    const resp = await fetch(
+      `${BUILTIN_EMBED_MULTIMODAL.baseUrl}/multimodal-embedding`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${BUILTIN_EMBED_MULTIMODAL.apiKey}`,
+          'X-DashScope-DataInspection': 'enable'
+        },
+        body: JSON.stringify({
+          model: BUILTIN_EMBED_MULTIMODAL.model,
+          input: { contents },
+          parameters: { dimension: 1024 }
+        }),
+        signal: AbortSignal.timeout(15_000)
+      }
+    )
+    if (!resp.ok) {
+      console.warn('[memory] multimodal embedding error:', resp.status)
+      return null
+    }
+    const data = (await resp.json()) as { output?: { embeddings?: Array<{ embedding: number[] }> } }
+    const embedding = data?.output?.embeddings?.[0]?.embedding
+    if (!Array.isArray(embedding) || embedding.length === 0) return null
+    return embedding
+  } catch (e) {
+    console.warn('[memory] fetchMultimodalEmbedding failed:', e)
+    return null
+  }
+}
+
 /** Float32Array ↔ Buffer 序列化 */
-function vecToBuffer(vec: number[]): Buffer {
+export function vecToBuffer(vec: number[]): Buffer {
   const f32 = new Float32Array(vec)
   return Buffer.from(f32.buffer)
 }

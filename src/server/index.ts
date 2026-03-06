@@ -21,7 +21,7 @@ import { storageRoutes } from './routes/storage'
 import { configRoutes } from './routes/config'
 import { aiRoutes } from './routes/ai'
 import { memoryRoutes } from './routes/memory'
-import { startAgentWorker } from './agentWorker'
+import { startAgentWorker, bootstrapAllEmbeddings } from './agentWorker'
 
 type AppEnv = {
   Variables: {
@@ -91,4 +91,6 @@ serve({ fetch: app.fetch, port: PORT }, () => {
   console.log(`Anima server running at http://localhost:${PORT}`)
   // 启动后台 Agent Worker（画像提取、记忆索引等）
   startAgentWorker()
+  // 启动时预跑历史 embedding（仅补充缺失的，不重复计算）
+  bootstrapAllEmbeddings().catch(e => console.warn('[bootstrap] failed:', e))
 })

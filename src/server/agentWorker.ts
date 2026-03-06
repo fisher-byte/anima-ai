@@ -345,9 +345,79 @@ function splitTextIntoChunks(text: string, chunkSize = 800, overlap = 80): strin
 const BUILTIN_EMBED_WORKER = {
   apiKey: 'sk-af1d01c2c2ff4e23baafc404b1c23c78',
   baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-  model: 'text-embedding-v3'
+  model: 'text-embedding-v4'
 }
 let builtinEmbedWorkerFailed = false
+
+const MULTIMODAL_EMBED_WORKER = {
+  apiKey: 'sk-af1d01c2c2ff4e23baafc404b1c23c78',
+  baseUrl: 'https://dashscope.aliyuncs.com/api/v1/services/embeddings/multimodal-embedding',
+  model: 'qwen3-vl-embedding'
+}
+
+/** 对图片文件做多模态 embedding（图片 URL + 可选描述文字） */
+async function embedImageFile(
+  db: InstanceType<typeof Database>,
+  fileId: string,
+  filename: string,
+  textContent: string  // 可能包含 OCR 文字或描述
+): Promise<void> {
+  // 从 DB 读取图片的 base64 内容
+  const fileRow = db.prepare('SELECT content, mimetype FROM uploaded_files WHERE id = ?').get(fileId) as
+    { content: Buffer; mimetype: string } | undefined
+  if (!fileRow?.content) return
+
+  const base64 = fileRow.content.toString('base64')
+  const dataUrl = `data:${fileRow.mimetype};base64,${base64}`
+
+  const contents: Array<{ text?: string; image?: string }> = [{ image: dataUrl }]
+  if (textContent.trim().length > 0) {
+    contents.push({ text: textContent.slice(0, 500) })
+  }
+
+  try {
+    const resp = await fetch(
+      `${MULTIMODAL_EMBED_WORKER.baseUrl}/multimodal-embedding`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${MULTIMODAL_EMBED_WORKER.apiKey}`,
+          'X-DashScope-DataInspection': 'enable'
+        },
+        body: JSON.stringify({
+          model: MULTIMODAL_EMBED_WORKER.model,
+          input: { contents },
+          parameters: { dimension: 1024 }
+        }),
+        signal: AbortSignal.timeout(20_000)
+      }
+    )
+    if (!resp.ok) {
+      console.warn(`[agent] image embed failed for ${filename}:`, resp.status)
+      db.prepare("UPDATE uploaded_files SET embed_status = 'text_only' WHERE id = ?").run(fileId)
+      return
+    }
+    const data = (await resp.json()) as { output?: { embeddings?: Array<{ embedding: number[] }> } }
+    const vec = data?.output?.embeddings?.[0]?.embedding
+    if (!Array.isArray(vec) || vec.length === 0) {
+      db.prepare("UPDATE uploaded_files SET embed_status = 'text_only' WHERE id = ?").run(fileId)
+      return
+    }
+    const f32 = new Float32Array(vec)
+    const vecBuf = Buffer.from(f32.buffer)
+    const chunkId = `${fileId}-chunk-0`
+    db.prepare(`
+      INSERT OR REPLACE INTO file_embeddings (id, file_id, chunk_index, chunk_text, vector, dim, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(chunkId, fileId, 0, textContent.slice(0, 200) || filename, vecBuf, vec.length, new Date().toISOString())
+    db.prepare('UPDATE uploaded_files SET embed_status = ?, chunk_count = ? WHERE id = ?').run('done', 1, fileId)
+    console.log(`[agent] image embed ${filename}: multimodal vector dim=${vec.length}`)
+  } catch (e) {
+    console.warn(`[agent] image embed error for ${filename}:`, e)
+    db.prepare("UPDATE uploaded_files SET embed_status = 'text_only' WHERE id = ?").run(fileId)
+  }
+}
 
 /** 对文件内容分块并生成 embedding，写入 file_embeddings 表 */
 async function embedFileContent(
@@ -358,6 +428,13 @@ async function embedFileContent(
 ): Promise<void> {
   if (builtinEmbedWorkerFailed) {
     db.prepare("UPDATE uploaded_files SET embed_status = 'text_only' WHERE id = ?").run(fileId)
+    return
+  }
+
+  // 图片文件走多模态 embedding（base64 直接传入）
+  const mimeRow = db.prepare('SELECT mimetype FROM uploaded_files WHERE id = ?').get(fileId) as { mimetype: string } | undefined
+  if (mimeRow?.mimetype?.startsWith('image/')) {
+    await embedImageFile(db, fileId, filename, textContent)
     return
   }
 
@@ -373,7 +450,7 @@ async function embedFileContent(
       const resp = await fetch(`${BUILTIN_EMBED_WORKER.baseUrl}/embeddings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${BUILTIN_EMBED_WORKER.apiKey}` },
-        body: JSON.stringify({ model: BUILTIN_EMBED_WORKER.model, input: chunk, dimensions: 1024 }),
+        body: JSON.stringify({ model: BUILTIN_EMBED_WORKER.model, input: chunk, dimensions: 2048 }),
         signal: AbortSignal.timeout(15_000)
       })
 
@@ -598,4 +675,77 @@ export function enqueueTask(
   db.prepare(
     'INSERT INTO agent_tasks (type, payload, status, created_at) VALUES (?, ?, ?, ?)'
   ).run(type, JSON.stringify(payload), 'pending', new Date().toISOString())
+}
+
+/**
+ * 服务启动时预跑：为所有用户的历史对话补充向量索引
+ * 只处理 embeddings 表中没有记录的对话，已有向量的跳过
+ * 串行处理每个用户，避免并发压垮 API 配额
+ */
+export async function bootstrapAllEmbeddings(): Promise<void> {
+  const { fetchEmbedding, vecToBuffer } = await import('./routes/memory')
+  const userDbs = getAllUserDbs()
+  let totalIndexed = 0
+
+  for (const { userId, db } of userDbs) {
+    try {
+      // 读取 conversations.jsonl
+      const storageRow = db.prepare('SELECT content FROM storage WHERE filename = ?').get('conversations.jsonl') as { content: string } | undefined
+      if (!storageRow?.content) continue
+
+      const lines = storageRow.content.trim().split('\n').filter(Boolean)
+      if (lines.length === 0) continue
+
+      // 已有 embedding 的对话 ID 集合
+      const indexed = new Set<string>(
+        (db.prepare('SELECT conversation_id FROM embeddings').all() as { conversation_id: string }[])
+          .map(r => r.conversation_id)
+      )
+
+      // 按对话 ID 合并（同一 conversationId 可能有多轮，取最后一轮）
+      const convMap = new Map<string, { userMessage: string; assistantMessage: string }>()
+      for (const line of lines) {
+        try {
+          const conv = JSON.parse(line) as { id?: string; userMessage?: string; assistantMessage?: string }
+          if (conv.id && conv.userMessage) {
+            convMap.set(conv.id, {
+              userMessage: conv.userMessage,
+              assistantMessage: conv.assistantMessage || ''
+            })
+          }
+        } catch { /* ignore */ }
+      }
+
+      const toIndex = Array.from(convMap.entries()).filter(([id]) => !indexed.has(id))
+      if (toIndex.length === 0) continue
+
+      console.log(`[bootstrap] user ${userId}: ${toIndex.length} conversations to index`)
+
+      for (const [convId, conv] of toIndex) {
+        try {
+          const text = conv.userMessage + ' ' + conv.assistantMessage
+          const vec = await fetchEmbedding(db, text)
+          if (vec) {
+            const now = new Date().toISOString()
+            db.prepare(`
+              INSERT INTO embeddings (conversation_id, vector, dim, updated_at)
+              VALUES (?, ?, ?, ?)
+              ON CONFLICT(conversation_id) DO UPDATE SET vector=excluded.vector, dim=excluded.dim, updated_at=excluded.updated_at
+            `).run(convId, vecToBuffer(vec), vec.length, now)
+            totalIndexed++
+          }
+        } catch (e) {
+          console.warn(`[bootstrap] embed failed for conv ${convId}:`, e)
+        }
+        // 每条间隔 200ms，避免 API 限流
+        await new Promise(r => setTimeout(r, 200))
+      }
+
+      console.log(`[bootstrap] user ${userId}: done`)
+    } catch (e) {
+      console.warn(`[bootstrap] user ${userId} failed:`, e)
+    }
+  }
+
+  console.log(`[bootstrap] completed: ${totalIndexed} conversations indexed across all users`)
 }
