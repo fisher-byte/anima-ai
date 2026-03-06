@@ -36,7 +36,7 @@ cp .env.example .env
 | `npm run dev:server` | 仅启动后端（tsx watch 热重载） |
 | `npm run build` | 构建前端到 `dist/` |
 | `npm start` | 生产模式启动（同时服务 API + 静态文件，端口 3000） |
-| `npm test` | 运行所有测试（单元 + 集成，当前 236 个用例） |
+| `npm test` | 运行所有测试（单元 + 集成，当前 236 个用例，9 个文件） |
 | `npm run test:watch` | 监听模式（开发时用） |
 | `npm run typecheck` | TypeScript 类型检查 |
 | `npm run lint` | ESLint 检查 |
@@ -61,7 +61,8 @@ evocanvas/
 │   │   ├── middleware/
 │   │   │   └── auth.ts            # Bearer Token 多租户鉴权
 │   │   └── __tests__/
-│   │       ├── server.test.ts     # HTTP 集成测试（215 个用例）
+│   │       ├── server.test.ts     # HTTP 集成测试（81 个用例：77 路由 + 4 多租户）
+│   │       ├── ai-onboarding.test.ts  # onboarding 模式测试（6 个用例）
 │   │       └── memory.test.ts     # 记忆路由集成测试（21 个用例）
 │   │
 │   ├── renderer/                  # React 前端

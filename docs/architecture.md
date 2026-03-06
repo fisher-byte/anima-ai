@@ -45,7 +45,8 @@ evocanvas/
 │   │   ├── middleware/
 │   │   │   └── auth.ts            # Bearer Token 多租户鉴权
 │   │   └── __tests__/
-│   │       ├── server.test.ts     # HTTP 集成测试（77 个用例）
+│   │       ├── server.test.ts     # HTTP 集成测试（81 个用例）
+│   │       ├── ai-onboarding.test.ts  # onboarding 模式测试（6 个用例）
 │   │       └── memory.test.ts     # 记忆路由集成测试（21 个用例）
 │   │
 │   ├── renderer/                  # React 前端

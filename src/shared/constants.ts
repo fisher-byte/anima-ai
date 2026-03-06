@@ -8,7 +8,7 @@
  * 应用信息
  */
 export const APP_NAME = 'Anima'
-export const APP_VERSION = '0.2.11'
+export const APP_VERSION = '0.2.43'
 
 /**
  * 存储文件名
@@ -178,7 +178,8 @@ export const CONFIDENCE_CONFIG = {
 
 /**
  * API配置
- * API Key将在运行时从主进程或环境变量获取
+ * API Key 存储在服务端 SQLite config 表中，通过 UI 设置页面写入（Web 模式）。
+ * BASE_URL 仅作 Electron 模式直接调用的回退。
  */
 // Safe env access: works in both Vite (import.meta.env) and Node (process.env)
 const _envApiUrl = (() => {
