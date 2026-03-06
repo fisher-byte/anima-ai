@@ -1,6 +1,6 @@
 # Anima 架构文档
 
-*最后更新: 2026-03-06 | 版本: v0.2.45*
+*最后更新: 2026-03-07 | 版本: v0.2.47*
 
 ---
 
@@ -47,14 +47,14 @@ evocanvas/
 │   │   └── __tests__/
 │   │       ├── server.test.ts     # HTTP 集成测试（含多租户 enqueueTask）
 │   │       ├── ai-onboarding.test.ts  # onboarding 模式测试
-│   │       └── memory.test.ts     # 记忆路由集成测试（含 FTS5 trigger、引用块过滤、decayPreferences）
-│   │                              # 共 246 个测试用例
+│   │       └── memory.test.ts     # 记忆路由集成测试（含 FTS5 trigger、引用块过滤、decayPreferences、语义边 by-id）
+│   │                              # 共 ~265 个测试用例
 │   │
 │   ├── renderer/                  # React 前端
 │   │   └── src/
 │   │       ├── components/        # UI 组件（Canvas / NodeCard / AnswerModal 等）
 │   │       ├── stores/
-│   │       │   └── canvasStore.ts # 主 Zustand Store（节点 / 对话 / 偏好 / 画布状态）
+│   │       │   └── canvasStore.ts # 主 Zustand Store（节点 / 对话 / 偏好 / 画布状态 / 语义边）
 │   │       ├── services/
 │   │       │   ├── storageService.ts  # 存储抽象层（自动适配 Web HTTP / Electron IPC）
 │   │       │   └── ai.ts              # 前端 AI 调用（SSE 流解析）
@@ -168,7 +168,21 @@ index.ts 中间件: c.set('db', getDb('a1b2c3d4e5f6'))
 
 特性：指数退避重试（最多 3 次）、崩溃恢复（服务重启时将 running 状态重置为 pending）、7 天旧任务清理。
 
-### 5. AI 代理（SSE 流式）
+### 5. 语义边系统（知识图谱化）
+
+每个新记忆节点创建后，系统异步构建与其他节点的语义关联边：
+
+1. **触发**：`addNode()` 完成后，300ms 延迟触发 `_buildSemanticEdgesForNode()`
+2. **检索**：调用 `POST /api/memory/search/by-id`，使用已有节点向量做 k-NN，无额外 embedding 开销
+3. **过滤**：余弦相似度 ≥ 0.65，每节点最多生成 5 条语义边，全局上限 200 条
+4. **渲染**：语义边（`edgeType: 'semantic'`）显示为紫色虚线（rgba(139,92,246,0.9)，`strokeDasharray="4 4"`）；weight 0.65→1px，1.0→3.5px；透明度 0.1–0.4
+5. **边标签**：score ≥ 0.85 → "强关联"，≥ 0.75 → "关联"，其他 → "相关"
+6. **持久化**：语义边单独存储在 `semantic-edges.json`，与普通结构边（branch/category）分离
+7. **历史回算**：首次加载时若 `semantic-edges.json` 不存在，串行处理所有历史节点（每节点间隔 200ms），用户可实时看到图谱"生长"
+
+**Embedding 内置化**（v0.2.47+）：`fetchEmbedding` 使用内置阿里云 Key（`text-embedding-v3`，1536 维），用户无需配置 embedding 专用 Key。文件 embedding（`embedFileContent`）同步采用内置 Key。
+
+### 6. AI 代理（SSE 流式）
 
 `POST /api/ai/stream` 的 System Prompt 分层注入（优先级从高到低）：
 
@@ -181,7 +195,7 @@ index.ts 中间件: c.set('db', getDb('a1b2c3d4e5f6'))
 
 支持工具调用（`$web_search`，Kimi 2.5 原生联网），工具结果自动进入第二轮请求。
 
-### 6. 状态管理（Zustand）
+### 7. 状态管理（Zustand）
 
 **文件**: `src/renderer/src/stores/canvasStore.ts`
 
@@ -189,7 +203,7 @@ index.ts 中间件: c.set('db', getDb('a1b2c3d4e5f6'))
 
 | 分区 | 字段 |
 |------|------|
-| 画布数据 | `nodes`, `edges` |
+| 画布数据 | `nodes`, `edges`, `semanticEdges` |
 | 对话 | `currentConversation`, `conversationHistory`, `isModalOpen` |
 | 用户画像 | `profile`（包含 `rules` 偏好规则数组） |
 | 认证 | `authed`, `userId` |
@@ -217,6 +231,9 @@ POST /api/ai/stream (SSE)
 用户看到流式回复 → canvasStore.endConversation()
     ├── 话题拆分：多意图时自动分裂为多个节点
     ├── addNode() → 螺旋搜索同类岛屿附近空位 → 写入 nodes.json
+    ├── _buildSemanticEdgesForNode() → 300ms 延迟后 POST /api/memory/search/by-id
+    │         → 过滤 score ≥ 0.65，每节点最多 5 条，全局上限 200 条
+    │         → 生成 edgeType: 'semantic' 紫色虚线边 → 持久化 semantic-edges.json
     ├── appendConversation() → 追加 conversations.jsonl
     ├── /api/memory/index → 生成对话向量索引
     ├── /api/memory/extract → 提取记忆事实（异步）

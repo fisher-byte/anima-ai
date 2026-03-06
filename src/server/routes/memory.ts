@@ -6,6 +6,7 @@
  * DELETE /api/memory/index              批量删除全部对话索引
  * POST   /api/memory/search             向量检索 { query, topK? } → { results: [{conversationId, score}] }
  * POST   /api/memory/search/files       文件语义检索 { query, topK? } → { results: [{fileId, filename, chunkIndex, chunkText, score}] }
+ * POST   /api/memory/search/by-id       以已有节点向量做 k-NN { conversationId, topK?, threshold? } → { results: [{conversationId, score}] }
  * GET    /api/memory/profile            读取用户画像
  * PUT    /api/memory/profile            更新用户画像（手动/Agent 写入）
  * DELETE /api/memory/profile            清空用户画像
@@ -40,44 +41,40 @@ function getApiConfig(db: InstanceType<typeof Database>): { apiKey: string; base
   }
 }
 
-/** 记录已确认 403 的 apiKey，避免反复等待超时 */
-const embeddingDisabledKeys = new Set<string>()
+// 内置 embedding 配置（阿里云，不依赖用户配置）
+const BUILTIN_EMBED = {
+  apiKey: 'sk-af1d01c2c2ff4e23baafc404b1c23c78',
+  baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  model: 'text-embedding-v3'
+}
+let builtinEmbeddingFailed = false
 
-/** 调 embedding API 返回 number[]，兼容 moonshot / openai / 兼容接口 */
-async function fetchEmbedding(db: InstanceType<typeof Database>, text: string): Promise<number[] | null> {
-  const { apiKey, baseUrl } = getApiConfig(db)
-  if (!apiKey) return null
-  // 该 key 已知不支持 embedding，直接跳过不发请求
-  if (embeddingDisabledKeys.has(apiKey)) return null
+/** 调 embedding API 返回 number[]，使用内置阿里云 key */
+async function fetchEmbedding(
+  _db: InstanceType<typeof Database>,  // 保留签名，不再使用 db
+  text: string
+): Promise<number[] | null> {
+  if (builtinEmbeddingFailed) return null
 
-  let input = text.slice(0, 4000)
-  if (text.length > 4000) {
-    const lastSpace = input.lastIndexOf(' ')
-    if (lastSpace > 3800) input = input.slice(0, lastSpace)
-  }
-
-  const isMoonshot = baseUrl.includes('moonshot')
-  const model = isMoonshot ? 'moonshot-v1-embedding' : 'text-embedding-3-small'
+  const input = text.slice(0, 6000)
 
   try {
-    const resp = await fetch(`${baseUrl}/embeddings`, {
+    const resp = await fetch(`${BUILTIN_EMBED.baseUrl}/embeddings`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`
+        Authorization: `Bearer ${BUILTIN_EMBED.apiKey}`
       },
-      body: JSON.stringify({ model, input }),
-      signal: AbortSignal.timeout(5_000)
+      body: JSON.stringify({ model: BUILTIN_EMBED.model, input, dimensions: 1536 }),
+      signal: AbortSignal.timeout(8_000)
     })
 
     if (!resp.ok) {
-      const errText = await resp.text()
-      // 403 = embedding API 未开通，缓存该 key 后续直接跳过
-      if (resp.status === 403) {
-        embeddingDisabledKeys.add(apiKey)
-        console.info('[memory] embedding not available (403), switching to keyword fallback')
+      if (resp.status === 401 || resp.status === 403) {
+        builtinEmbeddingFailed = true
+        console.error('[memory] BUILTIN embedding key invalid!')
       } else {
-        console.warn('[memory] embedding API error:', resp.status, errText)
+        console.warn('[memory] embedding API error:', resp.status)
       }
       return null
     }
@@ -207,6 +204,46 @@ memoryRoutes.post('/search/files', async (c) => {
       return { fileId: row.file_id, filename: row.filename, chunkIndex: row.chunk_index, chunkText: row.chunk_text, score }
     })
     .filter(r => r.score > 0.3)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topK)
+
+  return c.json({ results: scored })
+})
+
+/** 以已有节点向量为基准做 k-NN，无需额外 embedding 调用（用于节点语义关联） */
+memoryRoutes.post('/search/by-id', async (c) => {
+  const db = userDb(c)
+  const { conversationId, topK: rawTopK = 8, threshold = 0.65 } =
+    await c.req.json<{ conversationId: string; topK?: number; threshold?: number }>()
+
+  if (!conversationId) return c.json({ results: [] })
+  const topK = Math.max(1, Math.min(20, Number(rawTopK) || 8))
+  const thresholdNum = Math.max(0, Math.min(1, Number(threshold) || 0.65))
+
+  const sourceRow = db.prepare(
+    'SELECT vector, dim FROM embeddings WHERE conversation_id = ?'
+  ).get(conversationId) as { vector: Buffer; dim: number } | undefined
+
+  if (!sourceRow) return c.json({ results: [], reason: 'source not indexed' })
+
+  const sourceVec = bufferToVec(sourceRow.vector)
+
+  const rows = db.prepare(
+    `SELECT conversation_id, vector, dim FROM embeddings
+     WHERE conversation_id != ? AND conversation_id NOT LIKE 'file-%'
+     ORDER BY updated_at DESC LIMIT 2000`
+  ).all(conversationId) as { conversation_id: string; vector: Buffer; dim: number }[]
+
+  const scored = rows
+    .map(row => {
+      const vec = bufferToVec(row.vector)
+      if (vec.length !== sourceVec.length) return null  // 维度不匹配时跳过
+      const score = cosineSim(sourceVec, vec)
+      return { conversationId: row.conversation_id, score }
+    })
+    .filter((r): r is { conversationId: string; score: number } =>
+      r !== null && r.score >= thresholdNum
+    )
     .sort((a, b) => b.score - a.score)
     .slice(0, topK)
 

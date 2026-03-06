@@ -35,6 +35,11 @@ interface CanvasState {
   
   // 方法：连线操作
   updateEdges: () => void
+
+  // 语义边
+  semanticEdges: Edge[]
+  addSemanticEdges: (newEdges: Edge[]) => void
+  clearSemanticEdgesForNode: (nodeId: string) => void
   
   // 方法：画布操作
   offset: NodePosition
@@ -118,9 +123,70 @@ let _completingOnboarding = false
 // 防止 openModalById 并发竞态：每次调用递增，异步回调中只有最新的令牌才被接受
 let _openModalToken = 0
 
+// 防止同一节点重复进入语义边计算
+const _semanticBuildingSet = new Set<string>()
+
+/** 为指定节点异步计算语义关联边（复用已有向量，无额外 embedding 调用） */
+async function _buildSemanticEdgesForNode(
+  nodeId: string,
+  get: () => CanvasState
+): Promise<void> {
+  if (_semanticBuildingSet.has(nodeId)) return
+  _semanticBuildingSet.add(nodeId)
+
+  try {
+    // 给向量写入留时间
+    await new Promise(r => setTimeout(r, 300))
+
+    const resp = await authFetch('/api/memory/search/by-id', {
+      method: 'POST',
+      body: JSON.stringify({ conversationId: nodeId, topK: 8, threshold: 0.65 })
+    })
+    if (!resp.ok) return
+
+    const data = await resp.json() as { results: { conversationId: string; score: number }[] }
+    if (!data.results?.length) return
+
+    const { nodes, semanticEdges, addSemanticEdges } = get()
+    const nodeIds = new Set(nodes.map(n => n.id))
+    const existingPairs = new Set(semanticEdges.map(e => `${e.source}:${e.target}`))
+
+    const newEdges: Edge[] = data.results
+      .slice(0, 5)  // 每节点最多 5 条语义边
+      .filter(r => nodeIds.has(r.conversationId))
+      .filter(r => !existingPairs.has(`${nodeId}:${r.conversationId}`) &&
+                   !existingPairs.has(`${r.conversationId}:${nodeId}`))
+      .map(r => ({
+        id: `edge-sem-${nodeId}-${r.conversationId}`,
+        source: nodeId,
+        target: r.conversationId,
+        label: r.score >= 0.85 ? '强关联' : r.score >= 0.75 ? '相关' : '关联',
+        createdAt: new Date().toISOString(),
+        edgeType: 'semantic' as const,
+        weight: r.score
+      }))
+
+    if (newEdges.length > 0) addSemanticEdges(newEdges)
+  } finally {
+    _semanticBuildingSet.delete(nodeId)
+  }
+}
+
+/** 历史节点语义边全量回算（仅当 semantic-edges.json 不存在或为空时触发） */
+async function _rebuildAllSemanticEdges(get: () => CanvasState): Promise<void> {
+  const { nodes } = get()
+  const memoryNodes = nodes.filter(n => !n.nodeType || n.nodeType === 'memory')
+
+  for (const node of memoryNodes) {
+    await _buildSemanticEdgesForNode(node.id, get)
+    await new Promise(r => setTimeout(r, 200))
+  }
+}
+
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   nodes: [],
   edges: [],
+  semanticEdges: [],
   currentConversation: null,
   profile: { rules: [] },
   isModalOpen: false,
@@ -236,6 +302,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set({
       nodes: [],
       edges: [],
+      semanticEdges: [],
       profile: emptyProfile,
       conversationHistory: [],
       selectedNodeId: null,
@@ -248,7 +315,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     await Promise.all([
       storageService.write(STORAGE_FILES.PROFILE, JSON.stringify(emptyProfile, null, 2)),
       storageService.write(STORAGE_FILES.NODES, JSON.stringify([], null, 2)),
-      storageService.write(STORAGE_FILES.CONVERSATIONS, '')
+      storageService.write(STORAGE_FILES.CONVERSATIONS, ''),
+      storageService.write(STORAGE_FILES.SEMANTIC_EDGES, '[]')
     ])
     get().openOnboarding()
   },
@@ -468,7 +536,28 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         }
 
         set({ nodes })
-        get().updateEdges() // 加载后更新连线
+
+        // 加载语义边（持久化文件）
+        let hasSemEdges = false
+        try {
+          const semContent = await storageService.read(STORAGE_FILES.SEMANTIC_EDGES)
+          if (semContent) {
+            const semEdges = JSON.parse(semContent) as Edge[]
+            if (Array.isArray(semEdges) && semEdges.length > 0) {
+              set({ semanticEdges: semEdges })
+              hasSemEdges = true
+            }
+          }
+        } catch { /* 静默忽略 */ }
+
+        get().updateEdges() // 加载后更新连线（含语义边）
+
+        // 首次使用语义边功能：延迟回算历史节点
+        if (!hasSemEdges && nodes.filter(n => !n.nodeType || n.nodeType === 'memory').length > 0) {
+          setTimeout(() => {
+            _rebuildAllSemanticEdges(get).catch(() => {})
+          }, 1000)
+        }
 
         // 初始加载后，如果有节点，聚焦到第一个
         if (nodes.length > 0) {
@@ -724,6 +813,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     get().focusNode(conversation.id)
     await storageService.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
 
+    // 异步语义关联，fire-and-forget（capability: 前缀的节点不参与语义关联）
+    if (!conversation.id.startsWith('capability:')) {
+      _buildSemanticEdgesForNode(conversation.id, get).catch(() => {})
+    }
+
     // 异步生成 AI 摘要标题（不阻塞主流程，失败静默降级为截断句子）
     if (conversation.assistantMessage && conversation.userMessage) {
       authFetch('/api/ai/summarize', {
@@ -763,7 +857,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set({ nodes: nodes.map(n => n.id === id ? { ...n, x, y } : n) })
   },
 
-  // 更新连线逻辑 (优先基于分支关系，其次基于板块)
+  // 更新连线逻辑 (优先基于分支关系，其次基于板块，最后合并语义边)
   updateEdges: () => {
     const { nodes } = get()
     const newEdges: Edge[] = []
@@ -779,7 +873,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
             source: parentNode.id,
             target: node.id,
             label: '延续',
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            edgeType: 'branch'
           })
           connectedNodeIds.add(node.id)
         }
@@ -807,12 +902,35 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           source: centerNode.id,
           target: catNodes[i].id,
           label: '同主题',
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          edgeType: 'category'
         })
       }
     })
 
-    set({ edges: newEdges })
+    // 3. 合并有效语义边（过滤掉已删除节点的悬空边）
+    const nodeIds = new Set(nodes.map(n => n.id))
+    const validSemanticEdges = get().semanticEdges.filter(
+      e => nodeIds.has(e.source) && nodeIds.has(e.target)
+    )
+
+    set({ edges: [...newEdges, ...validSemanticEdges] })
+  },
+
+  addSemanticEdges: (newEdges: Edge[]) => {
+    const { semanticEdges } = get()
+    const merged = [...semanticEdges, ...newEdges]
+    const trimmed = merged.length > 200 ? merged.slice(-200) : merged
+    set({ semanticEdges: trimmed })
+    get().updateEdges()
+    storageService.write(STORAGE_FILES.SEMANTIC_EDGES, JSON.stringify(trimmed, null, 2)).catch(() => {})
+  },
+
+  clearSemanticEdgesForNode: (nodeId: string) => {
+    const { semanticEdges } = get()
+    const filtered = semanticEdges.filter(e => e.source !== nodeId && e.target !== nodeId)
+    set({ semanticEdges: filtered })
+    storageService.write(STORAGE_FILES.SEMANTIC_EDGES, JSON.stringify(filtered, null, 2)).catch(() => {})
   },
 
   // 删除节点
@@ -821,6 +939,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const nodeToRemove = nodes.find(n => n.id === id)
     const updatedNodes = nodes.filter(n => n.id !== id)
     set({ nodes: updatedNodes })
+    get().clearSemanticEdgesForNode(id) // 清理该节点相关的语义边
     get().updateEdges() // 删除后同步更新连线
     
     // 1. 同步删除节点文件记录

@@ -341,8 +341,13 @@ function splitTextIntoChunks(text: string, chunkSize = 800, overlap = 80): strin
   return chunks.filter(c => c.trim().length > 0)
 }
 
-/** 已确认 403 的 apiKey，跳过 embedding（进程级缓存，重启自动清空） */
-const embeddingDisabledKeys = new Set<string>()
+// 内置 embedding 配置（阿里云，不依赖用户配置）
+const BUILTIN_EMBED_WORKER = {
+  apiKey: 'sk-af1d01c2c2ff4e23baafc404b1c23c78',
+  baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  model: 'text-embedding-v3'
+}
+let builtinEmbedWorkerFailed = false
 
 /** 对文件内容分块并生成 embedding，写入 file_embeddings 表 */
 async function embedFileContent(
@@ -351,19 +356,10 @@ async function embedFileContent(
   textContent: string,
   filename: string
 ): Promise<void> {
-  const { apiKey, baseUrl } = getApiConfig(db)
-  if (!apiKey) {
-    db.prepare("UPDATE uploaded_files SET embed_status = 'failed' WHERE id = ?").run(fileId)
+  if (builtinEmbedWorkerFailed) {
+    db.prepare("UPDATE uploaded_files SET embed_status = 'text_only' WHERE id = ?").run(fileId)
     return
   }
-  // 该 key 已确认不支持 embedding，直接跳过
-  if (embeddingDisabledKeys.has(apiKey)) {
-    db.prepare("UPDATE uploaded_files SET embed_status = 'failed' WHERE id = ?").run(fileId)
-    return
-  }
-
-  const isMoonshot = baseUrl.includes('moonshot')
-  const embModel = isMoonshot ? 'moonshot-v1-embedding' : 'text-embedding-3-small'
 
   const chunks = splitTextIntoChunks(textContent)
   let embeddedCount = 0
@@ -374,18 +370,18 @@ async function embedFileContent(
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i]
     try {
-      const resp = await fetch(`${baseUrl}/embeddings`, {
+      const resp = await fetch(`${BUILTIN_EMBED_WORKER.baseUrl}/embeddings`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ model: embModel, input: chunk }),
-        signal: AbortSignal.timeout(5_000)
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${BUILTIN_EMBED_WORKER.apiKey}` },
+        body: JSON.stringify({ model: BUILTIN_EMBED_WORKER.model, input: chunk, dimensions: 1536 }),
+        signal: AbortSignal.timeout(15_000)
       })
 
       if (!resp.ok) {
-        if (resp.status === 403) {
-          embeddingDisabledKeys.add(apiKey)
-          console.info(`[agent] embed_file: embedding not available (403), disabling for this session`)
-          db.prepare("UPDATE uploaded_files SET embed_status = 'failed' WHERE id = ?").run(fileId)
+        if (resp.status === 401 || resp.status === 403) {
+          builtinEmbedWorkerFailed = true
+          console.error('[agent] BUILTIN embedding key invalid, disabling file embedding')
+          db.prepare("UPDATE uploaded_files SET embed_status = 'text_only' WHERE id = ?").run(fileId)
           return
         }
         console.warn(`[agent] embed_file chunk ${i} failed for ${filename}:`, resp.status)
@@ -411,8 +407,8 @@ async function embedFileContent(
     }
   }
 
-  // 更新文件状态
-  const status = embeddedCount > 0 ? 'done' : 'failed'
+  // 更新文件状态：有向量 → done；无向量 → text_only（文本可读，不报错）
+  const status = embeddedCount > 0 ? 'done' : 'text_only'
   db.prepare('UPDATE uploaded_files SET embed_status = ?, chunk_count = ? WHERE id = ?').run(status, embeddedCount, fileId)
   console.log(`[agent] embed_file ${filename}: ${embeddedCount}/${chunks.length} chunks embedded, status=${status}`)
 }

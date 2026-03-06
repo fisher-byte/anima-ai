@@ -1,5 +1,38 @@
 # Anima 变更日志
 
+## [0.2.47] - 2026-03-07
+
+### Embedding 内置化 + 节点语义关联（知识图谱化）
+
+#### 变更 A：Embedding 内置化
+- **memory.ts** `fetchEmbedding`：从使用用户配置 API Key 改为内置阿里云 Key（`text-embedding-v3`，1536 维）。用户无需配置 embedding 专用 Key，向量化能力开箱即用。
+- **agentWorker.ts** `embedFileContent`：同步改为内置 Key，文件 embedding 不再依赖用户 Key。
+- 移除 `embeddingDisabledKeys` 缓存逻辑，替换为 `builtinEmbeddingFailed` 进程级标志。
+
+#### 变更 B：节点语义关联边
+- **types.ts** `Edge`：新增 `edgeType?: 'branch' | 'category' | 'semantic'` 和 `weight?: number` 字段。
+- **canvasStore.ts**：新增 `semanticEdges` 状态、`addSemanticEdges()`、`clearSemanticEdgesForNode()` 方法。`addNode()` 完成后异步触发 `_buildSemanticEdgesForNode()`，300ms 延迟后调用 `/api/memory/search/by-id`，过滤 score ≥ 0.65，每节点最多生成 5 条语义边，全局上限 200 条，持久化到 `semantic-edges.json`。
+- **memory.ts**：新增 `POST /api/memory/search/by-id` 路由，以已有节点向量做 k-NN，零额外 embedding 调用。
+- **Edge.tsx**：语义边渲染为紫色虚线（rgba(139,92,246,0.9)，`strokeDasharray="4 4"`），weight 越高越粗（1–3.5px），透明度 0.1–0.4。
+- **constants.ts**：`STORAGE_FILES` 新增 `SEMANTIC_EDGES`，`ALLOWED_FILENAMES` 新增 `'semantic-edges.json'`。
+
+#### 历史节点回算
+- `loadNodes()` 完成后，若 `semantic-edges.json` 不存在或为空，自动串行回算所有历史记忆节点的语义边（每节点间隔 200ms），用户可直观看到图谱"生长"过程。
+
+## [0.2.46] - 2026-03-07
+
+### 文件上传 embed_file 稳定性修复
+
+#### 问题根因
+Moonshot API 对 embedding 端点返回 403（需单独开通权限），且 5 秒 AbortSignal 超时太短导致第一个分块超时。前两次尝试失败后文件被标记为 `failed`，给用户呈现错误状态，但实际上文件文本内容已完整存储，AI 对话完全可用。
+
+#### 变更 A：`embed_file` 失败状态语义修正
+- **agentWorker.ts**：embedding 无法完成（无 key / 403 权限不足 / 全部 chunk 超时）时，`embed_status` 从 `'failed'` 改为 `'text_only'`，准确表达"文本可读，无向量索引"
+- **agentWorker.ts**：embedding API 超时从 `AbortSignal.timeout(5_000)` 提升至 `15_000`，避免慢响应被误判为失败
+
+#### 变更 B：生产数据库修复
+- 服务端 `data/0937432a3330/anima.db` 中已存在的 `failed` 记录直接 UPDATE 为 `text_only`
+
 ## [0.2.45] - 2026-03-06
 
 ### 文件上传 UI 修复 + 节点布局优化
