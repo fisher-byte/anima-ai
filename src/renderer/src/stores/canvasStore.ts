@@ -476,9 +476,21 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
       // 统一处理能力块初始化（只在节点文件里没有对应节点时才补建）
       const currentNodes = get().nodes
-      const onboardingDone = typeof localStorage !== 'undefined' && localStorage.getItem('evo_onboarding_v3')
       const hasOnboarding = currentNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding')
       const hasImportMemory = currentNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
+      const hasRealNodes = currentNodes.some(n => n.nodeType !== 'capability')
+
+      // onboarding 完成条件：localStorage 标记 AND（有真实对话节点 OR onboarding节点已完成）
+      // 防止跨账号登录时上一个账号的 localStorage 标记污染新账号
+      const lsOnboardingDone = typeof localStorage !== 'undefined' && localStorage.getItem('evo_onboarding_v3')
+      const serverConfirmsOnboardingDone = hasRealNodes ||
+        currentNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding' && n.capabilityData?.state === 'completed')
+      const onboardingDone = lsOnboardingDone && serverConfirmsOnboardingDone
+
+      // 如果 localStorage 说完成但服务端数据不一致，清除本地标记
+      if (lsOnboardingDone && !serverConfirmsOnboardingDone) {
+        typeof localStorage !== 'undefined' && localStorage.removeItem('evo_onboarding_v3')
+      }
 
       if (!onboardingDone) {
         // 未完成引导：两块都要有
