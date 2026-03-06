@@ -14,7 +14,7 @@ export function OnboardingGuide() {
     decided.current = true
 
     // 已完成，不再打开
-    if (localStorage.getItem('evo_onboarding_v3')) return
+    if (localStorage.getItem('evo_onboarding_v3') === 'done') return
 
     // 已有节点数据的老用户，自动标记并跳过引导
     if (nodes.some(n => n.nodeType !== 'capability')) {
