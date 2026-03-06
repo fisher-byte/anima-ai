@@ -247,6 +247,12 @@ storageRoutes.get('/:filename', (c) => {
     | undefined
 
   if (!row) {
+    if (filename === 'profile.json') {
+      return c.text(JSON.stringify({ rules: [] }))
+    }
+    if (filename === 'semantic-edges.json') {
+      return c.text('[]')
+    }
     return c.text('', 404)
   }
 
