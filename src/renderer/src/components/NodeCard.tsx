@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo, memo, type ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Import, BookOpen, Layers } from 'lucide-react'
+import { Import, BookOpen, Layers, Paperclip } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useLodScale } from '../hooks/useLodScale'
 import { useConfirm } from './GlobalUI'
@@ -244,6 +244,22 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
           <div className="flex items-center gap-1 mt-2 text-[10px] text-gray-400">
             <Layers className="w-3 h-3" />
             <span>引用了 {node.memoryCount} 条记忆</span>
+          </div>
+        )}
+
+        {/* 文件附件（非图片） */}
+        {node.files && node.files.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {node.files.map(file => (
+              <div
+                key={file.id}
+                className="flex items-center gap-1 px-2 py-0.5 bg-white/60 border border-gray-200/60 rounded-lg text-[10px] text-gray-500 max-w-[120px]"
+                title={file.name}
+              >
+                <Paperclip className="w-2.5 h-2.5 flex-shrink-0" />
+                <span className="truncate">{file.name}</span>
+              </div>
+            ))}
           </div>
         )}
       </motion.div>

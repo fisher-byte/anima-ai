@@ -31,6 +31,7 @@ export interface Node {
   nodeType?: 'memory' | 'capability'
   capabilityData?: CapabilityData
   memoryCount?: number // 引用记忆数量（冗余自 Conversation，方便 NodeCard 直接读取）
+  files?: FileAttachment[] // 附件列表（非图片文件，供 NodeCard 展示文件胶囊）
 }
 
 /**
