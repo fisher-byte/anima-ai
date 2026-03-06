@@ -40,7 +40,14 @@ interface CanvasState {
   semanticEdges: Edge[]
   addSemanticEdges: (newEdges: Edge[]) => void
   clearSemanticEdgesForNode: (nodeId: string) => void
-  
+
+  // L3 逻辑边（AI 提取的显式关系）
+  logicalEdges: Edge[]
+  addLogicalEdges: (newEdges: Edge[]) => void
+  clearLogicalEdgesForNode: (nodeId: string) => void
+  loadLogicalEdges: () => Promise<void>
+  _triggerLogicalEdgeExtraction: (conversationId: string, userMessage: string, assistantMessage: string) => Promise<void>
+
   // 方法：画布操作
   offset: NodePosition
   scale: number
@@ -194,6 +201,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   nodes: [],
   edges: [],
   semanticEdges: [],
+  logicalEdges: [],
   currentConversation: null,
   profile: { rules: [] },
   isModalOpen: false,
@@ -310,6 +318,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       nodes: [],
       edges: [],
       semanticEdges: [],
+      logicalEdges: [],
       profile: emptyProfile,
       conversationHistory: [],
       selectedNodeId: null,
@@ -325,6 +334,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       storageService.write(STORAGE_FILES.CONVERSATIONS, ''),
       storageService.write(STORAGE_FILES.SEMANTIC_EDGES, '[]')
     ])
+    storageService.write(STORAGE_FILES.LOGICAL_EDGES, '[]').catch(() => {})
     get().openOnboarding()
   },
 
@@ -565,6 +575,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         } catch { /* 静默忽略 */ }
 
         get().updateEdges() // 加载后更新连线（含语义边）
+
+        // 异步加载逻辑边（不阻塞节点渲染）
+        get().loadLogicalEdges().catch(() => {})
 
         // 首次使用语义边功能：延迟回算历史节点
         if (!hasSemEdges && nodes.filter(n => !n.nodeType || n.nodeType === 'memory').length > 0) {
@@ -927,8 +940,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const validSemanticEdges = get().semanticEdges.filter(
       e => nodeIds.has(e.source) && nodeIds.has(e.target)
     )
+    const validLogicalEdges = get().logicalEdges.filter(
+      e => nodeIds.has(e.source) && nodeIds.has(e.target)
+    )
 
-    set({ edges: [...newEdges, ...validSemanticEdges] })
+    set({ edges: [...newEdges, ...validSemanticEdges, ...validLogicalEdges] })
   },
 
   addSemanticEdges: (newEdges: Edge[]) => {
@@ -947,6 +963,109 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     storageService.write(STORAGE_FILES.SEMANTIC_EDGES, JSON.stringify(filtered, null, 2)).catch(() => {})
   },
 
+  clearLogicalEdgesForNode: (nodeId: string) => {
+    const { logicalEdges } = get()
+    const filtered = logicalEdges.filter(e => e.source !== nodeId && e.target !== nodeId)
+    set({ logicalEdges: filtered })
+    get().updateEdges()
+    storageService.write(STORAGE_FILES.LOGICAL_EDGES, JSON.stringify(filtered, null, 2)).catch(() => {})
+  },
+
+  addLogicalEdges: (newEdges: Edge[]) => {
+    const { logicalEdges } = get()
+    const existingIds = new Set(logicalEdges.map(e => e.id))
+    const toAdd = newEdges.filter(e => !existingIds.has(e.id))
+    if (toAdd.length === 0) return
+    const merged = [...logicalEdges, ...toAdd]
+    const trimmed = merged.length > 300 ? merged.slice(-300) : merged
+    set({ logicalEdges: trimmed })
+    get().updateEdges()
+    storageService.write(STORAGE_FILES.LOGICAL_EDGES, JSON.stringify(trimmed, null, 2)).catch(() => {})
+  },
+
+  loadLogicalEdges: async () => {
+    try {
+      // 先从本地缓存加载
+      const cached = await storageService.read(STORAGE_FILES.LOGICAL_EDGES)
+      if (cached) {
+        try {
+          const edges = JSON.parse(cached) as Edge[]
+          if (Array.isArray(edges) && edges.length > 0) {
+            set({ logicalEdges: edges })
+            get().updateEdges()
+            return
+          }
+        } catch { /* ignore */ }
+      }
+      // 从服务器加载
+      const resp = await authFetch('/api/memory/logical-edges')
+      if (!resp.ok) return
+      const data = await resp.json() as { edges: Array<{ id: string; source_conv: string; target_conv: string; relation: string; reason: string; confidence: number; created_at: string }> }
+      if (!data.edges?.length) return
+      const { nodes } = get()
+      const nodeByConv = new Map(nodes.map(n => [n.conversationId, n.id]))
+      const edges: Edge[] = data.edges
+        .map(row => {
+          const sourceId = nodeByConv.get(row.source_conv)
+          const targetId = nodeByConv.get(row.target_conv)
+          if (!sourceId || !targetId) return null
+          const e: Edge = {
+            id: row.id,
+            source: sourceId,
+            target: targetId,
+            label: row.relation,
+            createdAt: row.created_at,
+            edgeType: 'logical' as const,
+            relation: row.relation,
+            reason: row.reason,
+            confidence: row.confidence
+          }
+          return e
+        })
+        .filter((e): e is Edge => e !== null)
+      if (edges.length > 0) {
+        set({ logicalEdges: edges })
+        get().updateEdges()
+        storageService.write(STORAGE_FILES.LOGICAL_EDGES, JSON.stringify(edges, null, 2)).catch(() => {})
+      }
+    } catch (e) {
+      console.warn('[canvasStore] loadLogicalEdges failed:', e)
+    }
+  },
+
+  _triggerLogicalEdgeExtraction: async (conversationId: string, userMessage: string, assistantMessage: string) => {
+    try {
+      const resp = await authFetch('/api/memory/search/by-id', {
+        method: 'POST',
+        body: JSON.stringify({ conversationId, topK: 5, threshold: 0.7 })
+      })
+      if (!resp.ok) return
+      const data = await resp.json() as { results: { conversationId: string; score: number }[] }
+      if (!data.results?.length) return
+
+      const { nodes } = get()
+      const nodeByConv = new Map(nodes.map(n => [n.conversationId, n]))
+
+      const candidates = data.results
+        .map(r => {
+          const node = nodeByConv.get(r.conversationId)
+          if (!node) return null
+          return { conversationId: r.conversationId, title: node.title, userMessage: '', score: r.score }
+        })
+        .filter((c): c is NonNullable<typeof c> => c !== null)
+
+      if (candidates.length === 0) return
+
+      await authFetch('/api/memory/queue', {
+        method: 'POST',
+        body: JSON.stringify({
+          type: 'extract_logical_edges',
+          payload: { conversationId, userMessage, assistantMessage, candidateNodes: candidates }
+        })
+      })
+    } catch { /* 静默 */ }
+  },
+
   // 删除节点
   removeNode: async (id: string) => {
     const { nodes } = get()
@@ -954,6 +1073,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const updatedNodes = nodes.filter(n => n.id !== id)
     set({ nodes: updatedNodes })
     get().clearSemanticEdgesForNode(id) // 清理该节点相关的语义边
+    get().clearLogicalEdgesForNode(id) // 清理该节点相关的逻辑边
     get().updateEdges() // 删除后同步更新连线
     
     // 1. 同步删除节点文件记录
@@ -982,6 +1102,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       // fire-and-forget：删除向量索引 + 对话历史
       authFetch(`/api/memory/index/${nodeToRemove.conversationId}`, { method: 'DELETE' })
         .catch(() => { /* 静默忽略 */ })
+      authFetch(`/api/memory/logical-edges/${nodeToRemove.conversationId}`, { method: 'DELETE' })
+        .catch(() => {})
       historyService.deleteHistory(nodeToRemove.conversationId)
     }
   },
@@ -1407,5 +1529,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         })
       }).catch(() => { /* 静默忽略 */ })
     }
+
+    // fire-and-forget：逻辑边提取
+    // 延迟 3 秒，等语义边先计算出候选节点
+    setTimeout(() => {
+      get()._triggerLogicalEdgeExtraction(
+        conversation.id,
+        conversation.userMessage,
+        conversation.assistantMessage
+      ).catch(() => {})
+    }, 3000)
   }
 }))

@@ -17,7 +17,8 @@ export const STORAGE_FILES = {
   PROFILE: 'profile.json',
   NODES: 'nodes.json',
   CONVERSATIONS: 'conversations.jsonl',
-  SEMANTIC_EDGES: 'semantic-edges.json'
+  SEMANTIC_EDGES: 'semantic-edges.json',
+  LOGICAL_EDGES: 'logical-edges.json'
 } as const
 
 /**
@@ -206,7 +207,8 @@ export const ALLOWED_FILENAMES = [
   'nodes.json',
   'conversations.jsonl',
   'settings.json',
-  'semantic-edges.json'
+  'semantic-edges.json',
+  'logical-edges.json'
 ] as const
 
 /**

@@ -16,6 +16,9 @@
  * DELETE /api/memory/facts              批量软删除全部 facts
  * POST   /api/memory/queue              向 agent 任务队列写入任务 { type, payload }
  * POST   /api/memory/classify           对话主题分类 { text } → { category }
+ * GET    /api/memory/logical-edges           所有逻辑边列表（画布加载）
+ * GET    /api/memory/logical-edges/:id       指定对话的逻辑边
+ * DELETE /api/memory/logical-edges/:id       删除节点相关逻辑边
  */
 
 import { Hono } from 'hono'
@@ -645,4 +648,47 @@ memoryRoutes.post('/classify', async (c) => {
   } catch {
     return c.json({ category: null })
   }
+})
+
+/** 读取指定对话的逻辑边 */
+memoryRoutes.get('/logical-edges/:conversationId', (c) => {
+  const db = userDb(c)
+  const { conversationId } = c.req.param()
+
+  const rows = db.prepare(`
+    SELECT id, source_conv, target_conv, relation, reason, confidence, created_at
+    FROM logical_edges
+    WHERE source_conv = ? OR target_conv = ?
+    ORDER BY created_at DESC
+  `).all(conversationId, conversationId) as Array<{
+    id: string; source_conv: string; target_conv: string;
+    relation: string; reason: string; confidence: number; created_at: string
+  }>
+
+  return c.json({ edges: rows })
+})
+
+/** 读取所有逻辑边（画布加载时批量获取） */
+memoryRoutes.get('/logical-edges', (c) => {
+  const db = userDb(c)
+
+  const rows = db.prepare(`
+    SELECT id, source_conv, target_conv, relation, reason, confidence, created_at
+    FROM logical_edges
+    ORDER BY created_at DESC
+    LIMIT 500
+  `).all() as Array<{
+    id: string; source_conv: string; target_conv: string;
+    relation: string; reason: string; confidence: number; created_at: string
+  }>
+
+  return c.json({ edges: rows })
+})
+
+/** 删除某节点相关的所有逻辑边 */
+memoryRoutes.delete('/logical-edges/:conversationId', (c) => {
+  const db = userDb(c)
+  const { conversationId } = c.req.param()
+  db.prepare('DELETE FROM logical_edges WHERE source_conv = ? OR target_conv = ?').run(conversationId, conversationId)
+  return c.json({ ok: true })
 })
