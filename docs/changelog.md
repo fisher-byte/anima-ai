@@ -1,6 +1,34 @@
 # Anima 变更日志
 
-## [0.2.43] - 2026-03-06
+## [0.2.44] - 2026-03-06
+
+### 引用块功能 + 记忆系统升级 + P2 修复
+
+#### 变更 A：引用块 UI（InputBox.tsx + AnswerModal.tsx）
+
+- 粘贴内容 > 500 字时，自动识别为引用块，在输入框上方显示折叠胶囊（`ReferenceBlockPreview`）
+- 用户消息渲染改用 `UserMessageContent` 组件，解析 `[REFERENCE_START]...[REFERENCE_END]` 标记为折叠胶囊
+- 引用块样式：`bg-amber-50` 系，与普通文字有明显区分；可展开查看全文
+
+#### 变更 B：记忆提取引用块过滤
+
+- **canvasStore.ts**：调用 `/api/memory/extract` 前，正则剥离引用块内容，只传对话核心
+- **memory.ts**：服务端 `/extract` 路由做防御性二次剥离，防止前端漏传
+
+#### 变更 C：FTS5 BM25 替换 Jaccard fallback
+
+- **db.ts**：`initSchema` 新建 `memory_facts_fts` FTS5 虚拟表及三个触发器（insert/invalidate/delete 同步），migrations 补充存量回填
+- **ai.ts**：新增 `bm25FallbackFacts` 函数；`fetchRelevantFacts` 的 embedding 失败分支改为返回 BM25 结果；层 3 fallback 链：embedding → BM25 → 时间序 top-10（从15降到10）；移除低效 Jaccard 分支
+
+#### 变更 D：激活 decayOldPreferences
+
+- **agentWorker.ts**：新增 `maybeDecayPreferences`（每24小时对偏好规则做 -0.05 衰减，最低 0.3），在 `tick()` 每用户 db 循环中调用
+
+#### 变更 E：统一 enqueueTask
+
+- **memory.ts**：`/consolidate` 路由和 `/extract` 自动触发处，改用已有 `enqueueTask()` 替换裸 SQL INSERT
+
+---
 
 ### 修复 agentWorker 多租户 bug（P0）
 
@@ -21,6 +49,46 @@
 - 新增 4 个集成测试验证多租户隔离正确性
 
 单用户 self-hosted 场景完全透明，行为与之前一致。
+
+---
+
+## [0.2.44] - 2026-03-06
+
+### 生产环境问答与体验修复
+
+针对生产环境某账户「无法正常问答」的排查与修复，涉及接口、前端状态与流式降级。
+
+#### 问题与修复摘要
+
+1. **profile.json 404 与前端报错**
+   - 现象：控制台大量 404，新用户无 profile 时前端解析失败。
+   - 修复：`GET /api/storage/profile.json` 在无文件时返回 200 + `{ rules: [] }`，不再返回 404。
+
+2. **settings 在 web 模式无谓 404**
+   - 现象：web 模式下仍请求本地 `settings.json`，产生 404。
+   - 修复：SettingsModal 优先从 `configService.getSettings()` 拉取；仅在 Electron 下回退到本地 `settings.json`；并导出 `isElectronEnvironment()` 供区分环境。
+
+3. **重新进入对话后 TypeError（profile.rules）**
+   - 现象：进入历史会话或重试时出现「读取 rules 为 undefined」的报错。
+   - 修复：`loadProfile` 恢复从 storage 读 `profile.json`，并保证写入 store 的 `profile.rules` 始终为数组；`getPreferencesForPrompt`、`detectFeedback`、`addPreference`、`removePreference` 等处对 `profile?.rules` 做 `Array.isArray` 防御。
+
+4. **重试/重新生成时 state 陈旧**
+   - 现象：从会话进入时调用 `handleRegenerate` 使用陈旧 `turns`，导致 `currentTurn.user` 为空报错。
+   - 修复：`handleRegenerate` 支持传入 `sourceTurns`，从会话进入时传入当前会话的 `finalTurns`。
+
+5. **简单问句首包慢**
+   - 现象：「你好」「你是谁」等简单问句响应前等待时间长。
+   - 修复：扩展简单问句规则（元问句、短句等），命中时走 FAST_MODEL 快路径；服务端 SSE 解析支持 `\r\n` 换行。
+
+6. **复杂问句「网络连接中断」**
+   - 现象：开启联网搜索时上游请求失败即报错，无降级。
+   - 修复：带 `tools` 的请求在收到任何内容前失败时，自动重试一次不带 `tools` 的请求，保证至少返回无联网回答。
+
+7. **流式结束时报网络错误但内容已完整**
+   - 现象：ERR_INCOMPLETE_CHUNKED_ENCODING 等导致整次回答被标为失败。
+   - 修复：若错误为网络/fetch/incomplete/chunk 类且已累积有效 `fullText`，则视为成功结束、保存历史并调用 `onComplete`。
+
+详细过程与小结见项目根目录《0306生产环境问答修复与总结.md》。
 
 ---
 

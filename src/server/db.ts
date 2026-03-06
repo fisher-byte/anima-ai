@@ -110,6 +110,29 @@ function initSchema(database: InstanceType<typeof Database>) {
       messages        TEXT NOT NULL DEFAULT '[]',
       updated_at      TEXT NOT NULL
     );
+
+    -- FTS5 虚拟表：memory_facts 全文索引（BM25 fallback 用）
+    CREATE VIRTUAL TABLE IF NOT EXISTS memory_facts_fts
+      USING fts5(id UNINDEXED, fact, tokenize='unicode61 remove_diacritics 1');
+
+    CREATE TRIGGER IF NOT EXISTS fts_sync_insert AFTER INSERT ON memory_facts BEGIN
+      INSERT INTO memory_facts_fts(id, fact) VALUES (NEW.id, NEW.fact);
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS fts_sync_invalidate AFTER UPDATE OF invalid_at ON memory_facts
+      WHEN NEW.invalid_at IS NOT NULL BEGIN
+      DELETE FROM memory_facts_fts WHERE id = NEW.id;
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS fts_sync_delete AFTER DELETE ON memory_facts BEGIN
+      DELETE FROM memory_facts_fts WHERE id = OLD.id;
+    END;
+
+    -- fact 内容更新时同步 FTS5 索引（避免检索到已编辑的旧文本）
+    CREATE TRIGGER IF NOT EXISTS fts_sync_update AFTER UPDATE OF fact ON memory_facts
+      WHEN NEW.invalid_at IS NULL BEGIN
+      UPDATE memory_facts_fts SET fact = NEW.fact WHERE id = NEW.id;
+    END;
   `)
 
   // Incremental migrations
@@ -133,7 +156,10 @@ function initSchema(database: InstanceType<typeof Database>) {
     )`,
     'CREATE INDEX IF NOT EXISTS idx_file_embeddings_file ON file_embeddings(file_id)',
     'CREATE INDEX IF NOT EXISTS idx_file_embeddings_created ON file_embeddings(created_at DESC)',
-    'CREATE INDEX IF NOT EXISTS idx_memory_facts_active ON memory_facts(created_at DESC) WHERE invalid_at IS NULL'
+    'CREATE INDEX IF NOT EXISTS idx_memory_facts_active ON memory_facts(created_at DESC) WHERE invalid_at IS NULL',
+    // 存量 memory_facts 回填到 FTS5 索引（已在虚拟表中的会被 OR IGNORE 跳过）
+    `INSERT OR IGNORE INTO memory_facts_fts(id, fact)
+      SELECT id, fact FROM memory_facts WHERE invalid_at IS NULL`
   ]
   for (const sql of migrations) {
     try { database.exec(sql) } catch { /* column/index already exists */ }

@@ -459,6 +459,31 @@ async function processTask(
   }
 }
 
+/** 每个用户 db 每 24 小时执行一次偏好衰减（降低30天未更新的 rule 置信度） */
+function maybeDecayPreferences(db: InstanceType<typeof Database>) {
+  const lastDecayRow = db.prepare("SELECT value FROM config WHERE key = 'last_pref_decay'").get() as { value: string } | undefined
+  const lastDecay = lastDecayRow ? new Date(lastDecayRow.value).getTime() : 0
+  if (Date.now() - lastDecay < 24 * 60 * 60 * 1000) return
+
+  // 操作 config.preference_rules，与 ai.ts 的读取路径一致
+  const rulesRow = db.prepare("SELECT value, updated_at FROM config WHERE key = 'preference_rules'").get() as { value: string; updated_at: string } | undefined
+  if (!rulesRow?.value) return
+  try {
+    const rules = JSON.parse(rulesRow.value) as Array<{ confidence: number; updatedAt: string; [k: string]: unknown }>
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const updated = rules.map(r =>
+      r.updatedAt < thirtyDaysAgo
+        ? { ...r, confidence: Math.max(0.3, r.confidence - 0.05) }
+        : r
+    )
+    const nowTs = new Date().toISOString()
+    db.prepare("UPDATE config SET value = ?, updated_at = ? WHERE key = 'preference_rules'")
+      .run(JSON.stringify(updated), nowTs)
+    db.prepare("INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('last_pref_decay', ?, ?)")
+      .run(nowTs, nowTs)
+  } catch { /* 静默 */ }
+}
+
 /** 检查并处理所有用户数据库中的 pending 任务（多租户版本） */
 async function tick() {
   const userDbs = getAllUserDbs()
@@ -468,8 +493,6 @@ async function tick() {
       'SELECT id, type, payload, retries FROM agent_tasks WHERE status = ? ORDER BY id ASC LIMIT 5'
     ).all('pending') as { id: number; type: string; payload: string; retries: number }[]
 
-    if (tasks.length === 0) continue
-
     for (const task of tasks) {
       await processTask(db, task)
     }
@@ -477,6 +500,9 @@ async function tick() {
     if (tasks.length > 0) {
       console.log(`[agent] processed ${tasks.length} tasks for user ${userId}`)
     }
+
+    // 低频偏好衰减（每24小时一次，放在任务处理后统一执行）
+    maybeDecayPreferences(db)
   }
 }
 

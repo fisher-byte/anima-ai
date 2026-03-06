@@ -2,7 +2,8 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Sparkles, CheckCircle2, Copy, RefreshCw, Square, Paperclip,
-  X, Layers, ArrowUp, File as FileIcon, Download, MoreHorizontal
+  X, Layers, ArrowUp, File as FileIcon, Download, MoreHorizontal,
+  Quote, ChevronDown, ChevronUp
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -26,6 +27,59 @@ import {
   buildAIHistory
 } from '../utils/conversationUtils'
 import { getAuthToken } from '../services/storageService'
+
+/** 解析并渲染用户消息，将 [REFERENCE_START]...[REFERENCE_END] 块展示为折叠胶囊 */
+function UserMessageContent({ content }: { content: string }) {
+  const parts: Array<{ type: 'text' | 'reference'; value: string }> = []
+  const regex = /\[REFERENCE_START\]([\s\S]*?)\[REFERENCE_END\]/g
+  let last = 0
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(content)) !== null) {
+    if (match.index > last) parts.push({ type: 'text', value: content.slice(last, match.index) })
+    parts.push({ type: 'reference', value: match[1].trim() })
+    last = match.index + match[0].length
+  }
+  if (last < content.length) parts.push({ type: 'text', value: content.slice(last) })
+  if (parts.length === 0) return <div>{content}</div>
+  return (
+    <div className="flex flex-col gap-2">
+      {parts.map((p, i) =>
+        p.type === 'text' ? (
+          p.value.trim() ? <div key={i}>{p.value}</div> : null
+        ) : (
+          <ReferenceBlockBubble key={i} content={p.value} />
+        )
+      )}
+    </div>
+  )
+}
+
+function ReferenceBlockBubble({ content }: { content: string }) {
+  const [expanded, setExpanded] = useState(false)
+  const firstLine = content.split('\n')[0].trim()
+  const preview = firstLine.slice(0, 40) + (content.length > 40 ? '…' : '')
+  const wordCount = content.length
+  return (
+    <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl px-3 py-2 text-amber-700 text-[13px]">
+      <div className="flex items-center gap-2">
+        <Quote className="w-3 h-3 text-amber-400 flex-shrink-0" />
+        <span className="flex-1 truncate">{preview}</span>
+        <span className="text-[11px] text-amber-400 flex-shrink-0">{wordCount} 字</span>
+        <button
+          onClick={() => setExpanded(v => !v)}
+          className="p-0.5 text-amber-400 hover:text-amber-600 transition-colors flex-shrink-0"
+        >
+          {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+      {expanded && (
+        <div className="mt-1.5 max-h-48 overflow-y-auto text-[12px] leading-relaxed text-amber-700/90 whitespace-pre-wrap border-t border-amber-200/60 pt-1.5">
+          {content}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function authFetch(url: string, init?: RequestInit): Promise<Response> {
   const token = getAuthToken()
@@ -349,7 +403,7 @@ export function AnswerModal() {
         startedConversationIdRef.current = currentConversation.id
 
         if (finalTurns.length === 1 && (!finalTurns[0].assistant || finalTurns[0].assistant.includes('[正在生成中...]') || finalTurns[0].assistant.includes('[无回复]'))) {
-          handleRegenerate(0)
+          handleRegenerate(0, finalTurns)
         }
         return
       }
@@ -406,10 +460,12 @@ export function AnswerModal() {
 
   const handleStopGeneration = useCallback(() => { cancel() }, [cancel])
 
-  const handleRegenerate = useCallback(async (index: number) => {
+  const handleRegenerate = useCallback(async (index: number, sourceTurns?: Turn[]) => {
     if (!currentConversation) return
-    const previousTurns = turns.slice(0, index)
-    const currentTurn = turns[index]
+    const baseTurns = sourceTurns ?? turns
+    const previousTurns = baseTurns.slice(0, index)
+    const currentTurn = baseTurns[index]
+    if (!currentTurn?.user) return
     const history = buildAIHistory(previousTurns)
     const newTurns = [...previousTurns, { user: currentTurn.user, assistant: '', images: currentTurn.images, files: currentTurn.files }]
     setTurns(newTurns)
@@ -876,7 +932,7 @@ export function AnswerModal() {
                                       <button onClick={handleSaveEdit} className="bg-gray-900 text-white px-3.5 py-1 rounded-full hover:bg-black transition-colors font-medium">发送</button>
                                     </div>
                                   </div>
-                                ) : <div>{t.user}</div>}
+                                ) : <UserMessageContent content={t.user} />}
                               </div>
                             )}
 

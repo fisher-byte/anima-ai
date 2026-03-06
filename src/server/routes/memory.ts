@@ -322,6 +322,12 @@ memoryRoutes.post('/extract', async (c) => {
     if (already) return c.json({ ok: true, extracted: 0, skipped: true })
   }
 
+  // 服务端防御性剥离引用块（[REFERENCE_START]...[REFERENCE_END]），只提取对话核心
+  const cleanUserMessage = userMessage
+    .replace(/\[REFERENCE_START\][\s\S]*?\[REFERENCE_END\]/g, '')
+    .trim()
+  if (cleanUserMessage.length <= 5) return c.json({ ok: true, extracted: 0, reason: 'only reference content' })
+
   const { apiKey, baseUrl } = getApiConfig(db)
   if (!apiKey) return c.json({ ok: false, reason: 'no api key' })
 
@@ -334,7 +340,7 @@ memoryRoutes.post('/extract', async (c) => {
 - 如果没有有价值的个人信息，返回空数组
 - 只返回JSON，不要其他文字
 
-用户说：${userMessage.slice(0, 400)}
+用户说：${cleanUserMessage.slice(0, 400)}
 ${assistantMessage ? `AI回复：${assistantMessage.slice(0, 200)}` : ''}
 
 返回格式：{"facts": ["事实1", "事实2"]}`
@@ -435,7 +441,7 @@ ${assistantMessage ? `AI回复：${assistantMessage.slice(0, 200)}` : ''}
       if (milestone > Math.floor(totalBefore / 20) && milestone > 0) {
         const pending = db.prepare("SELECT id FROM agent_tasks WHERE type = 'consolidate_facts' AND status = 'pending' LIMIT 1").get()
         if (!pending) {
-          db.prepare("INSERT INTO agent_tasks (type, payload, status, created_at) VALUES ('consolidate_facts', '{}', 'pending', ?)").run(now)
+          enqueueTask(db, 'consolidate_facts', {})
           console.log(`[memory/extract] auto-queued consolidate_facts at ${totalAfter} facts`)
         }
       }
@@ -479,10 +485,9 @@ memoryRoutes.put('/facts/:id', async (c) => {
 /** 手动触发记忆整理（合并语义重叠条目），入队 consolidate_facts 任务 */
 memoryRoutes.post('/consolidate', (c) => {
   const db = userDb(c)
-  const now = new Date().toISOString()
   const pending = db.prepare("SELECT id FROM agent_tasks WHERE type = 'consolidate_facts' AND status = 'pending' LIMIT 1").get()
   if (pending) return c.json({ ok: true, queued: false, reason: 'already pending' })
-  db.prepare("INSERT INTO agent_tasks (type, payload, status, created_at) VALUES ('consolidate_facts', '{}', 'pending', ?)").run(now)
+  enqueueTask(db, 'consolidate_facts', {})
   return c.json({ ok: true, queued: true })
 })
 

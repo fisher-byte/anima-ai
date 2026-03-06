@@ -222,7 +222,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   removePreference: async (index: number) => {
     const { profile } = get()
-    const updatedRules = profile.rules.filter((_, i) => i !== index)
+    const rules = Array.isArray(profile?.rules) ? profile.rules : []
+    const updatedRules = rules.filter((_, i) => i !== index)
     const updatedProfile = { ...profile, rules: updatedRules }
     set({ profile: updatedProfile })
     await storageService.write(STORAGE_FILES.PROFILE, JSON.stringify(updatedProfile, null, 2))
@@ -518,7 +519,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       const content = await storageService.read(STORAGE_FILES.PROFILE)
       if (content) {
         const profile = JSON.parse(content) as Profile
-        set({ profile })
+        set({ profile: { rules: Array.isArray(profile.rules) ? profile.rules : [] } })
       }
     } catch (error) {
       console.error('Failed to load profile:', error)
@@ -1035,7 +1036,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         if (message.includes(keyword)) {
           // 检查是否已存在相同偏好的规则
           const { profile } = get()
-          const existingRule = profile.rules.find(r => r.preference === trigger.preference)
+          const rules = Array.isArray(profile?.rules) ? profile.rules : []
+          const existingRule = rules.find(r => r.preference === trigger.preference)
           
           if (existingRule) {
             // 更新现有规则的置信度
@@ -1063,18 +1065,19 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   // 添加偏好规则
   addPreference: async (newRule: PreferenceRule) => {
     const { profile } = get()
+    const rules = Array.isArray(profile?.rules) ? profile.rules : []
     
     // 检查是否已存在相同偏好的规则
-    const existingIndex = profile.rules.findIndex(r => r.preference === newRule.preference)
+    const existingIndex = rules.findIndex(r => r.preference === newRule.preference)
     
     let updatedRules: PreferenceRule[]
     if (existingIndex >= 0) {
       // 更新现有规则
-      updatedRules = [...profile.rules]
+      updatedRules = [...rules]
       updatedRules[existingIndex] = newRule
     } else {
       // 添加新规则
-      updatedRules = [...profile.rules, newRule]
+      updatedRules = [...rules, newRule]
     }
     
     const updatedProfile = { ...profile, rules: updatedRules }
@@ -1090,8 +1093,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   // 获取用于Prompt的偏好列表
   getPreferencesForPrompt: (): string[] => {
     const { profile } = get()
+    const rules = Array.isArray(profile?.rules) ? profile.rules : []
     // 只返回置信度较高的偏好（> 0.5）
-    return profile.rules
+    return rules
       .filter(r => r.confidence > 0.5)
       .sort((a, b) => b.confidence - a.confidence)
       .map(r => r.preference)
@@ -1233,12 +1237,16 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     }).catch(() => { /* 静默忽略 */ })
 
     // fire-and-forget：从对话中摘取用户记忆事实（独立记忆板块）
-    if (conversation.userMessage?.trim().length > 5) {
+    // 剥离 [REFERENCE_START]...[REFERENCE_END] 块，只传对话核心，避免粘贴内容污染记忆
+    const cleanUserMessage = conversation.userMessage
+      .replace(/\[REFERENCE_START\][\s\S]*?\[REFERENCE_END\]/g, '[引用内容已省略]')
+      .trim()
+    if (cleanUserMessage.length > 5) {
       authFetch('/api/memory/extract', {
         method: 'POST',
         body: JSON.stringify({
           conversationId: conversation.id,
-          userMessage: conversation.userMessage,
+          userMessage: cleanUserMessage,
           assistantMessage: conversation.assistantMessage.slice(0, 400)
         })
       }).catch(() => { /* 静默忽略 */ })

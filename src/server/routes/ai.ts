@@ -65,6 +65,28 @@ function cosineSim(a: Float32Array, b: Float32Array): number {
   return dot / (Math.sqrt(na) * Math.sqrt(nb))
 }
 
+// ── FTS5 BM25 fallback（embedding 不可用时） ──────────────────────────────────
+function bm25FallbackFacts(db: InstanceType<typeof Database>, query: string): string[] {
+  try {
+    const terms = query
+      .replace(/[^\u4e00-\u9fa5a-zA-Z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(t => t.length >= 2)
+      .slice(0, 8)
+      .join(' OR ')
+    if (!terms) return []
+    return (db.prepare(`
+      SELECT f.fact
+      FROM memory_facts_fts fts
+      JOIN memory_facts f ON f.id = fts.id
+      WHERE memory_facts_fts MATCH ?
+        AND f.invalid_at IS NULL
+      ORDER BY rank
+      LIMIT 10
+    `).all(terms) as { fact: string }[]).map(r => r.fact)
+  } catch { return [] }
+}
+
 async function fetchRelevantFacts(db: InstanceType<typeof Database>, query: string, apiKey: string, baseUrl: string): Promise<string[]> {
   if (!query.trim() || !apiKey) return []
   try {
@@ -76,10 +98,10 @@ async function fetchRelevantFacts(db: InstanceType<typeof Database>, query: stri
       body: JSON.stringify({ model: embModel, input: query.slice(0, 500) }),
       signal: AbortSignal.timeout(5_000)
     })
-    if (!embResp.ok) return []
+    if (!embResp.ok) return bm25FallbackFacts(db, query)
     const embData = (await embResp.json()) as { data: { embedding: number[] }[] }
     const queryVec = embData?.data?.[0]?.embedding
-    if (!Array.isArray(queryVec) || queryVec.length === 0) return []
+    if (!Array.isArray(queryVec) || queryVec.length === 0) return bm25FallbackFacts(db, query)
 
     const queryF32 = new Float32Array(queryVec)
 
@@ -100,14 +122,8 @@ async function fetchRelevantFacts(db: InstanceType<typeof Database>, query: stri
       if (vecBuf) {
         const vec = new Float32Array(vecBuf.buffer, vecBuf.byteOffset, vecBuf.byteLength / 4)
         score = cosineSim(queryF32, vec)
-      } else {
-        // 降级：字符级 Jaccard 作为近似
-        const qChars = new Set(query.toLowerCase().replace(/\s/g, ''))
-        const fChars = new Set(f.fact.toLowerCase().replace(/\s/g, ''))
-        const inter = [...qChars].filter(c => fChars.has(c)).length
-        const union = new Set([...qChars, ...fChars]).size
-        score = union > 0 ? inter / union : 0
       }
+      // 无 embedding 向量的 fact 直接 score=0，会被 filter 过滤
       return { fact: f.fact, score }
     })
     .filter(r => r.score > 0.2)
@@ -117,7 +133,7 @@ async function fetchRelevantFacts(db: InstanceType<typeof Database>, query: stri
 
     return scored
   } catch {
-    return []
+    return bm25FallbackFacts(db, query)
   }
 }
 
@@ -162,11 +178,25 @@ aiRoutes.post('/stream', async (c) => {
         : '')
   const trimmedText = lastText.trim()
   const GREETING_SUFFIX = /^[！!~～。，,？?。\s]*$/
+  const SIMPLE_META_PATTERNS = [
+    /^你是谁[？?！!\s]*$/,
+    /^你是做什么的[？?！!\s]*$/,
+    /^你能帮我(做什么|干什么|干嘛)[？?！!\s]*$/,
+    /^你会什么[？?！!\s]*$/,
+    /^你可以帮我(什么|做什么|干什么)[？?！!\s]*$/,
+    /^在吗[？?！!\s]*$/,
+    /^hello[!?.\s]*$/i,
+    /^hi[!?.\s]*$/i
+  ]
+  const isMetaSimpleQuery = SIMPLE_META_PATTERNS.some(pattern => pattern.test(trimmedText))
+  const isShortPlainQuestion = trimmedText.length > 0 && trimmedText.length <= 12 && !/[，。；：,\n]/.test(trimmedText)
   const isSimpleQuery = isOnboarding ||
+    isMetaSimpleQuery ||
     SIMPLE_QUERY_GREETINGS.some(w =>
       trimmedText === w ||
       (trimmedText.startsWith(w) && GREETING_SUFFIX.test(trimmedText.slice(w.length)))
-    )
+    ) ||
+    (isShortPlainQuestion && /^(谁|啥|吗|么|呢|呀|？|\?)$/.test(trimmedText.slice(-1)))
 
   const model = isSimpleQuery ? FAST_MODEL : configuredModel
   const maxTokens = isSimpleQuery ? FAST_MODEL_MAX_TOKENS : AI_CONFIG.MAX_TOKENS
@@ -230,16 +260,20 @@ aiRoutes.post('/stream', async (c) => {
       }
     } catch { /* 画像注入失败不影响主流程 */ }
 
-    // ── 层 3：记忆事实（语义检索 > 最近 N 条降级）──
+    // ── 层 3：记忆事实（语义检索 > BM25 > 最近 N 条降级）──
     try {
       let relevantFacts: string[] = []
       if (trimmedText.length > 5) {
         relevantFacts = await fetchRelevantFacts(db, trimmedText, effectiveApiKey, baseUrl)
       }
-      // 语义检索无结果时降级：最近 15 条有效事实
+      // 语义检索无结果时降级：BM25 FTS5
+      if (relevantFacts.length === 0 && trimmedText.length > 5) {
+        relevantFacts = bm25FallbackFacts(db, trimmedText)
+      }
+      // 最终 fallback：最近 10 条有效事实（节省 token）
       if (relevantFacts.length === 0) {
         const rows = db.prepare(
-          'SELECT fact FROM memory_facts WHERE invalid_at IS NULL ORDER BY created_at DESC LIMIT 15'
+          'SELECT fact FROM memory_facts WHERE invalid_at IS NULL ORDER BY created_at DESC LIMIT 10'
         ).all() as { fact: string }[]
         relevantFacts = rows.map(r => r.fact)
       }
@@ -290,16 +324,29 @@ aiRoutes.post('/stream', async (c) => {
       await stream.writeSSE({ data: JSON.stringify(data) })
     }
 
-    try {
-      const response = await fetch(`${baseUrl}/chat/completions`, {
+    const fetchCompletionStream = async (body: Record<string, unknown>) => {
+      return fetch(`${baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${effectiveApiKey}`
         },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify(body),
         signal: c.req.raw.signal
       })
+    }
+
+    try {
+      let response: Response
+      try {
+        response = await fetchCompletionStream(requestBody)
+      } catch (error) {
+        const shouldRetryWithoutTools = Boolean(requestBody.tools)
+        if (!shouldRetryWithoutTools) throw error
+        const fallbackBody = { ...requestBody }
+        delete fallbackBody.tools
+        response = await fetchCompletionStream(fallbackBody)
+      }
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -320,12 +367,13 @@ aiRoutes.post('/stream', async (c) => {
         const { done, value } = await reader.read()
         if (done) break
 
-        sseBuffer += decoder.decode(value, { stream: true })
-        const parts = sseBuffer.split('\n\n')
+        const decodedChunk = decoder.decode(value, { stream: true })
+        sseBuffer += decodedChunk
+        const parts = sseBuffer.split(/\r?\n\r?\n/)
         sseBuffer = parts.pop() ?? ''
 
         for (const part of parts) {
-          for (const line of part.split('\n')) {
+          for (const line of part.split(/\r?\n/)) {
           if (!line.startsWith('data: ')) continue
           const data = line.slice(6)
           if (data === '[DONE]') continue
@@ -408,10 +456,10 @@ aiRoutes.post('/stream', async (c) => {
                     const { done, value } = await reader2.read()
                     if (done) break
                     sseBuffer2 += decoder.decode(value, { stream: true })
-                    const parts2 = sseBuffer2.split('\n\n')
+                    const parts2 = sseBuffer2.split(/\r?\n\r?\n/)
                     sseBuffer2 = parts2.pop() ?? ''
                     for (const part2 of parts2) {
-                      for (const line2 of part2.split('\n')) {
+                      for (const line2 of part2.split(/\r?\n/)) {
                       if (!line2.startsWith('data: ')) continue
                       const data2 = line2.slice(6)
                       if (data2 === '[DONE]') continue

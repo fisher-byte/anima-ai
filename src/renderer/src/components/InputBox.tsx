@@ -2,10 +2,49 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCanvasStore } from '../stores/canvasStore'
 import { UI_CONFIG } from '@shared/constants'
-import { X, Paperclip, FileText, FileCode, File as FileIcon, Loader2, ArrowUp, Sparkles } from 'lucide-react'
+import { X, Paperclip, FileText, FileCode, File as FileIcon, Loader2, ArrowUp, Sparkles, Quote, ChevronDown, ChevronUp } from 'lucide-react'
 import { formatFilesForAI, FilePreview, getFileType, readImageAsBase64, formatFileSize } from '../../../services/fileParsing'
 import type { FileAttachment } from '@shared/types'
 import { getAuthToken, configService } from '../services/storageService'
+
+/** 引用块胶囊：折叠展示粘贴的长文本，保留在输入框上方 */
+function ReferenceBlockPreview({ content, onRemove }: { content: string; onRemove: () => void }) {
+  const [expanded, setExpanded] = useState(false)
+  const preview = content.slice(0, 30) + (content.length > 30 ? '…' : '')
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      className="flex flex-col gap-1 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[13px]"
+    >
+      <div className="flex items-center gap-2">
+        <Quote className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+        <span className="flex-1 truncate">{preview}</span>
+        <button
+          onClick={() => setExpanded(v => !v)}
+          className="p-0.5 text-amber-500 hover:text-amber-700 transition-colors"
+          title={expanded ? '折叠' : '展开'}
+        >
+          {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        </button>
+        <button
+          onClick={onRemove}
+          className="p-0.5 text-amber-400 hover:text-red-500 transition-colors"
+          title="移除引用块"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      {expanded && (
+        <div className="mt-1 max-h-40 overflow-y-auto text-[12px] leading-relaxed text-amber-700 whitespace-pre-wrap border-t border-amber-200 pt-1.5">
+          {content}
+        </div>
+      )}
+    </motion.div>
+  )
+}
 
 export function InputBox() {
   const [message, setMessage] = useState('')
@@ -15,6 +54,7 @@ export function InputBox() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [focused, setFocused] = useState(false)
   const [matchCount, setMatchCount] = useState(0)
+  const [referenceBlocks, setReferenceBlocks] = useState<string[]>([])
 
   // API Key 内联输入状态
   const [isApiKeyMode, setIsApiKeyMode] = useState(false)
@@ -181,6 +221,14 @@ export function InputBox() {
     if (pasteFiles.length > 0) {
       e.preventDefault()
       handleFiles(pasteFiles)
+      return
+    }
+
+    // 文本长度 > 500 字，自动识别为引用块（最多保留 5 个引用块）
+    const pastedText = e.clipboardData.getData('text')
+    if (pastedText.length > 500) {
+      e.preventDefault()
+      setReferenceBlocks(prev => [...prev, pastedText].slice(0, 5))
     }
   }, [handleFiles])
 
@@ -251,8 +299,9 @@ export function InputBox() {
     const trimmed = message.trim()
     const hasImages = images.length > 0
     const hasFiles = files.length > 0
+    const hasRefs = referenceBlocks.length > 0
 
-    if (!trimmed && !hasImages && !hasFiles) return
+    if (!trimmed && !hasImages && !hasFiles && !hasRefs) return
     if (isProcessing) return
 
     setIsProcessing(true)
@@ -305,6 +354,14 @@ export function InputBox() {
       fullMessage = trimmed + fileContext
     }
 
+    // 将引用块追加到消息体，用标记包裹（AI 可读，记忆提取时剥离）
+    if (referenceBlocks.length > 0) {
+      const refSection = referenceBlocks
+        .map(r => `[REFERENCE_START]\n${r}\n[REFERENCE_END]`)
+        .join('\n')
+      fullMessage = fullMessage + (fullMessage ? '\n\n' : '') + refSection
+    }
+
     startConversation(fullMessage, images, uploadedFiles)
 
     // 清空状态
@@ -312,6 +369,7 @@ export function InputBox() {
     setImages([])
     setFiles([])
     setFilePreviews([])
+    setReferenceBlocks([])
     setMatchCount(0)
     setHighlight(null, [])
     setIsProcessing(false)
@@ -323,7 +381,7 @@ export function InputBox() {
         textarea.style.height = 'auto'
       }
     })
-  }, [message, images, files, isProcessing, needsApiKey, startConversation, setHighlight])
+  }, [message, images, files, referenceBlocks, isProcessing, needsApiKey, startConversation, setHighlight])
 
   // 键盘处理
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -509,6 +567,26 @@ export function InputBox() {
             )}
         </AnimatePresence>
 
+        {/* 引用块胶囊列表（粘贴超过500字时自动折叠显示） */}
+        <AnimatePresence>
+          {referenceBlocks.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              className="flex flex-col gap-1.5 mb-2"
+            >
+              {referenceBlocks.map((ref, i) => (
+                <ReferenceBlockPreview
+                  key={i}
+                  content={ref}
+                  onRemove={() => setReferenceBlocks(prev => prev.filter((_, j) => j !== i))}
+                />
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <motion.div
             layout
             className={`
@@ -567,9 +645,9 @@ export function InputBox() {
 
             <button
             onClick={handleSubmit}
-            disabled={(!message.trim() && images.length === 0 && files.length === 0) || isProcessing}
+            disabled={(!message.trim() && images.length === 0 && files.length === 0 && referenceBlocks.length === 0) || isProcessing}
             className={`mb-1 p-2.5 rounded-2xl transition-all duration-200 flex items-center justify-center transform active:scale-95 ${
-            (!message.trim() && images.length === 0 && files.length === 0) || isProcessing
+            (!message.trim() && images.length === 0 && files.length === 0 && referenceBlocks.length === 0) || isProcessing
                 ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
                 : 'bg-gray-900 text-white hover:bg-black shadow-sm'
             }`}
