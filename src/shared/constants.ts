@@ -8,7 +8,7 @@
  * 应用信息
  */
 export const APP_NAME = 'Anima'
-export const APP_VERSION = '0.2.44'
+export const APP_VERSION = '0.2.47'
 
 /**
  * 存储文件名
@@ -16,7 +16,8 @@ export const APP_VERSION = '0.2.44'
 export const STORAGE_FILES = {
   PROFILE: 'profile.json',
   NODES: 'nodes.json',
-  CONVERSATIONS: 'conversations.jsonl'
+  CONVERSATIONS: 'conversations.jsonl',
+  SEMANTIC_EDGES: 'semantic-edges.json'
 } as const
 
 /**
@@ -204,7 +205,8 @@ export const ALLOWED_FILENAMES = [
   'profile.json',
   'nodes.json',
   'conversations.jsonl',
-  'settings.json'
+  'settings.json',
+  'semantic-edges.json'
 ] as const
 
 /**

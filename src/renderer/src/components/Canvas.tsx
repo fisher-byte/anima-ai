@@ -592,6 +592,8 @@ export function Canvas() {
                     sourceNode={sourceNode}
                     targetNode={targetNode}
                     label={edge.label}
+                    edgeType={edge.edgeType}
+                    weight={edge.weight}
                   />
                 )
               })}

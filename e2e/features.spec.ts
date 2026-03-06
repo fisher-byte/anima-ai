@@ -28,6 +28,9 @@
  * 多租户隔离 (v0.2.32)
  *   21. 无 token 请求返回 401
  *   22. 错误 token 请求返回 401
+ *
+ * 语义边 / Embedding (v0.2.47)
+ *   23. POST /api/memory/search/by-id 接口存在且返回正常格式
  */
 
 import { test, expect } from '@playwright/test'
@@ -372,4 +375,27 @@ test('错误 token 请求 /api/memory/facts 返回 401', async ({ request }) => 
   // 错误 token 应返回 4xx（401 未认证 或 403 禁止访问）
   expect(resp.status()).toBeGreaterThanOrEqual(400)
   expect(resp.status()).toBeLessThan(500)
+})
+
+// ── 测试 23：POST /api/memory/search/by-id 接口存在且返回正常格式 ───────────────
+test('POST /api/memory/search/by-id 接口存在且返回正常格式', async ({ request }) => {
+  const resp = await request.post(`${API_BASE}/api/memory/search/by-id`, {
+    data: { conversationId: `non-existent-${Date.now()}` },
+    headers: authHeaders()
+  })
+  // 接口必须存在（不应 404）
+  expect(resp.status()).not.toBe(404)
+  // 不应 5xx
+  expect(resp.status()).toBeLessThan(500)
+
+  const data = await resp.json()
+  // 响应必须包含 results 数组
+  expect(Array.isArray(data.results)).toBe(true)
+
+  // 未索引的 conversationId 应返回空数组（含或不含 reason 字段均可）
+  expect(data.results).toEqual([])
+  // reason 字段若存在应为 'source not indexed'
+  if ('reason' in data) {
+    expect(data.reason).toBe('source not indexed')
+  }
 })

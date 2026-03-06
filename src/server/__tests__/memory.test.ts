@@ -277,6 +277,61 @@ function buildMemoryApp() {
     return c.json({ ok: true })
   })
 
+  // ── search/by-id (semantic search by existing vector) ──────────────────
+
+  app.post('/api/memory/search/by-id', async (c) => {
+    const { conversationId, topK: rawTopK = 8, threshold = 0.65 } =
+      await c.req.json<{ conversationId?: string; topK?: number; threshold?: number }>()
+
+    if (!conversationId) return c.json({ results: [] })
+    const topK = Math.max(1, Math.min(20, Number(rawTopK) || 8))
+    const thresholdNum = Math.max(0, Math.min(1, Number(threshold) || 0.65))
+
+    const sourceRow = testDb.prepare(
+      'SELECT vector, dim FROM embeddings WHERE conversation_id = ?'
+    ).get(conversationId) as { vector: Buffer; dim: number } | undefined
+
+    if (!sourceRow) return c.json({ results: [], reason: 'source not indexed' })
+
+    const bufferToVec = (buf: Buffer): Float32Array =>
+      new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4)
+
+    const cosineSim = (a: Float32Array, b: Float32Array): number => {
+      let dot = 0, na = 0, nb = 0
+      const len = Math.min(a.length, b.length)
+      for (let i = 0; i < len; i++) {
+        dot += a[i] * b[i]
+        na += a[i] * a[i]
+        nb += b[i] * b[i]
+      }
+      const denom = Math.sqrt(na) * Math.sqrt(nb)
+      return denom === 0 ? 0 : dot / denom
+    }
+
+    const sourceVec = bufferToVec(sourceRow.vector)
+
+    const rows = testDb.prepare(
+      `SELECT conversation_id, vector, dim FROM embeddings
+       WHERE conversation_id != ? AND conversation_id NOT LIKE 'file-%'
+       ORDER BY updated_at DESC LIMIT 2000`
+    ).all(conversationId) as { conversation_id: string; vector: Buffer; dim: number }[]
+
+    const scored = rows
+      .map(row => {
+        const vec = bufferToVec(row.vector)
+        if (vec.length !== sourceVec.length) return null
+        const score = cosineSim(sourceVec, vec)
+        return { conversationId: row.conversation_id, score }
+      })
+      .filter((r): r is { conversationId: string; score: number } =>
+        r !== null && r.score >= thresholdNum
+      )
+      .sort((a, b) => b.score - a.score)
+      .slice(0, topK)
+
+    return c.json({ results: scored })
+  })
+
   return app
 }
 
@@ -717,5 +772,120 @@ describe('maybeDecayPreferences data source (v0.2.44)', () => {
       r.updatedAt < thirtyDaysAgo ? { ...r, confidence: Math.max(0.3, r.confidence - 0.05) } : r
     )
     expect(updated[0].confidence).toBe(0.3)
+  })
+})
+
+// ── v0.2.47: Semantic Search by ID (/search/by-id) ───────────────────────────
+
+/**
+ * Helper: convert a number[] vector into a Buffer of Float32 bytes,
+ * matching the format used by the embeddings table.
+ */
+function vecToBuffer(vec: number[]): Buffer {
+  const f32 = new Float32Array(vec)
+  return Buffer.from(f32.buffer)
+}
+
+function insertEmbedding(convId: string, vec: number[]) {
+  testDb.prepare(`
+    INSERT OR REPLACE INTO embeddings (conversation_id, vector, dim, updated_at)
+    VALUES (?, ?, ?, ?)
+  `).run(convId, vecToBuffer(vec), vec.length, new Date().toISOString())
+}
+
+describe('Semantic Search by ID (/search/by-id)', () => {
+  beforeEach(resetDb)
+
+  it('returns source not indexed when conversationId has no vector', async () => {
+    const res = await req('POST', '/api/memory/search/by-id', {
+      json: { conversationId: 'non-existent-conv' }
+    })
+    expect(res.status).toBe(200)
+    const data = await res.json() as any
+    expect(data.results).toEqual([])
+    expect(data.reason).toBe('source not indexed')
+  })
+
+  it('returns empty array when conversationId is missing from body', async () => {
+    const res = await req('POST', '/api/memory/search/by-id', { json: {} })
+    expect(res.status).toBe(200)
+    const data = await res.json() as any
+    expect(data.results).toEqual([])
+  })
+
+  it('returns empty results when no similar vectors exist (all below threshold)', async () => {
+    // conv-A: [1,0,0,0], conv-C: [0,-1,0,0] — cosine similarity = 0, below default threshold 0.65
+    insertEmbedding('conv-A', [1, 0, 0, 0])
+    insertEmbedding('conv-C', [0, -1, 0, 0])
+
+    const res = await req('POST', '/api/memory/search/by-id', {
+      json: { conversationId: 'conv-A', threshold: 0.65 }
+    })
+    expect(res.status).toBe(200)
+    const data = await res.json() as any
+    expect(data.results).toEqual([])
+  })
+
+  it('returns similar conversations above threshold', async () => {
+    // conv-A: [1,0,0,0]  (source)
+    // conv-B: normalized [0.9,0.1,0,0] → cosine sim to conv-A ≈ 0.994, above 0.65
+    // conv-C: [0,-1,0,0] → cosine sim to conv-A = 0, below 0.65
+    const normFactor = Math.sqrt(0.9 * 0.9 + 0.1 * 0.1)
+    const bVec = [0.9 / normFactor, 0.1 / normFactor, 0, 0]
+
+    insertEmbedding('conv-A', [1, 0, 0, 0])
+    insertEmbedding('conv-B', bVec)
+    insertEmbedding('conv-C', [0, -1, 0, 0])
+
+    const res = await req('POST', '/api/memory/search/by-id', {
+      json: { conversationId: 'conv-A', threshold: 0.65 }
+    })
+    expect(res.status).toBe(200)
+    const data = await res.json() as any
+
+    // Only conv-B should be returned
+    expect(data.results.length).toBe(1)
+    expect(data.results[0].conversationId).toBe('conv-B')
+    expect(data.results[0].score).toBeGreaterThanOrEqual(0.65)
+  })
+
+  it('respects topK parameter — returns at most topK results', async () => {
+    // Insert source + 5 highly similar vectors (all pointing nearly in same direction)
+    insertEmbedding('src', [1, 0, 0, 0])
+    for (let i = 1; i <= 5; i++) {
+      // Each slightly different but all have high cosine similarity to [1,0,0,0]
+      const v = [1, i * 0.001, 0, 0]
+      const mag = Math.sqrt(v[0] * v[0] + v[1] * v[1])
+      insertEmbedding(`similar-${i}`, [v[0] / mag, v[1] / mag, 0, 0])
+    }
+
+    const res = await req('POST', '/api/memory/search/by-id', {
+      json: { conversationId: 'src', topK: 2, threshold: 0.5 }
+    })
+    expect(res.status).toBe(200)
+    const data = await res.json() as any
+    expect(data.results.length).toBeLessThanOrEqual(2)
+  })
+
+  it('excludes file- prefixed conversations from results', async () => {
+    // source conv
+    insertEmbedding('conv-src', [1, 0, 0, 0])
+    // file- prefixed embedding — should never appear in results
+    insertEmbedding('file-abc123', [1, 0, 0, 0])
+    // normal conv with high similarity
+    const normFactor = Math.sqrt(0.9 * 0.9 + 0.1 * 0.1)
+    insertEmbedding('conv-regular', [0.9 / normFactor, 0.1 / normFactor, 0, 0])
+
+    const res = await req('POST', '/api/memory/search/by-id', {
+      json: { conversationId: 'conv-src', threshold: 0.5 }
+    })
+    expect(res.status).toBe(200)
+    const data = await res.json() as any
+
+    const ids = (data.results as { conversationId: string }[]).map(r => r.conversationId)
+    // file- prefixed id must not be in results
+    expect(ids.every(id => !id.startsWith('file-'))).toBe(true)
+    // The regular conv should be present (high similarity)
+    expect(ids).toContain('conv-regular')
   })
 })

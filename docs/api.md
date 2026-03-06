@@ -276,6 +276,30 @@ curl http://localhost:3000/api/storage/file/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
 ### 记忆搜索补充
 
+#### POST /api/memory/search/by-id
+
+以已有节点向量做 k-NN 相似度搜索，无需额外 embedding 调用。适用于新节点创建后异步查找语义相似节点（语义边构建场景）。
+
+- **请求 Body**：`application/json { conversationId: string, topK?: number, threshold?: number }`
+  - `conversationId`：源节点的对话 ID（必填）
+  - `topK`：返回结果数量，范围 1–20，默认 8
+  - `threshold`：余弦相似度下限，范围 0–1，默认 0.65
+- **响应**：`200 { results: [{ conversationId: string, score: number }] }`
+  - 源节点未建立索引时返回 `{ results: [], reason: 'source not indexed' }`
+- **说明**：
+  - `score` 为余弦相似度（0–1），越高越相似
+  - 仅返回记忆节点，排除 `file-` 前缀的文件分块向量
+  - 需要源节点已完成向量索引（调用过 `/api/memory/index`）
+
+```bash
+curl -X POST http://localhost:3000/api/memory/search/by-id \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"conversationId":"conv-uuid-here","topK":5,"threshold":0.7}'
+```
+
+---
+
 #### POST /api/memory/search/files
 
 文件内容语义搜索（独立端点，搜 `file_embeddings` 表，不混入对话搜索）。
