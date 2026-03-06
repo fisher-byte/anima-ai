@@ -1,5 +1,56 @@
 # Anima 变更日志
 
+## [0.2.39] - 2026-03-06
+
+### 修复跨账号切换导致 onboarding 状态污染
+
+#### 问题
+同一浏览器切换不同账号时，上一个账号完成引导后留下的 `evo_onboarding_v3=done`
+会污染新账号（新用户），导致：
+- onboarding 节点不被创建
+- 新手教程不弹出
+- 画布只显示"导入外部记忆"块或完全空白
+
+#### 根本原因（`canvasStore.ts loadNodes`）
+`onboardingDone` 只读 `localStorage`，不验证服务端数据，跨账号切换时本地标记仍然有效。
+
+#### 修复
+- 引入双重验证：`localStorage` 标记 **AND** 服务端数据确认
+  （有真实对话节点 OR onboarding 节点已完成状态）
+- 发现 localStorage 与服务端不一致时自动清除本地标记，下次加载正确触发引导
+
+---
+
+## [0.2.38] - 2026-03-06
+
+### 修复新用户 onboarding 被 App.tsx 误判跳过
+
+#### 问题
+新用户首次登录后，`loadNodes` 创建 capability 节点写入 `nodes.json`；
+第二次刷新时 `App.tsx` 发现 `nodes.json` 返回 200 就直接写入 `evo_onboarding_v3=done`，
+导致新手教程永远不再弹出。
+
+#### 修复（`App.tsx`）
+读取 `nodes.json` 内容并解析，只有当存在非 capability 的真实对话节点时才跳过引导。
+
+---
+
+## [0.2.37] - 2026-03-06
+
+### 修复新用户 onboarding 闪烁和报错提示
+
+#### 问题
+1. `canvasStore.loadNodes` 末尾调用 `openOnboarding()`，`OnboardingGuide` 组件 800ms 后也调用一次，导致 modal 开/关闪烁
+2. `OnboardingGuide` effect 依赖数组缺少 `nodes`，等不到节点加载完就触发
+3. AnswerModal 进入 onboarding 时显示残留的 errorMessage
+
+#### 修复
+- `canvasStore.ts`：删除 `loadNodes` 末尾的 `openOnboarding()` 调用
+- `OnboardingGuide.tsx`：等 `nodesLoaded=true` 后触发，修正依赖数组，正确识别老用户
+- `AnswerModal.tsx`：进入 onboarding 模式时清除残留 errorMessage
+
+---
+
 ## [0.2.36] - 2026-03-06
 
 ### 严重安全漏洞修复：多用户数据隔离泄露
