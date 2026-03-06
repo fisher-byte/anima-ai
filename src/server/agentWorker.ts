@@ -373,7 +373,7 @@ async function embedFileContent(
       const resp = await fetch(`${BUILTIN_EMBED_WORKER.baseUrl}/embeddings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${BUILTIN_EMBED_WORKER.apiKey}` },
-        body: JSON.stringify({ model: BUILTIN_EMBED_WORKER.model, input: chunk, dimensions: 1536 }),
+        body: JSON.stringify({ model: BUILTIN_EMBED_WORKER.model, input: chunk, dimensions: 1024 }),
         signal: AbortSignal.timeout(15_000)
       })
 

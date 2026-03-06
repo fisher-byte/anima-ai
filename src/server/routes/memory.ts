@@ -65,7 +65,7 @@ async function fetchEmbedding(
         'Content-Type': 'application/json',
         Authorization: `Bearer ${BUILTIN_EMBED.apiKey}`
       },
-      body: JSON.stringify({ model: BUILTIN_EMBED.model, input, dimensions: 1536 }),
+      body: JSON.stringify({ model: BUILTIN_EMBED.model, input, dimensions: 1024 }),
       signal: AbortSignal.timeout(8_000)
     })
 
