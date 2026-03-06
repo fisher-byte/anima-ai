@@ -43,10 +43,16 @@ function App() {
             headers: { Authorization: `Bearer ${saved}` }
           })
           if (r.ok || r.status === 404) {
-            // token 有效
-            // 已有服务端数据的用户跳过新手教程
+            // token 有效（200 或 404 都表示 token 认证通过）
             if (r.ok) {
-              localStorage.setItem('evo_onboarding_v3', 'done')
+              // 读取内容，判断是否有真实对话节点（非 capability 节点）
+              try {
+                const text = await r.text()
+                const nodes = JSON.parse(text)
+                if (Array.isArray(nodes) && nodes.some((n: { nodeType?: string }) => n.nodeType !== 'capability')) {
+                  localStorage.setItem('evo_onboarding_v3', 'done')
+                }
+              } catch { /* 解析失败不影响登录 */ }
             }
             setAuthed(true)
           } else {
