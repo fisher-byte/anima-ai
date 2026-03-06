@@ -40,10 +40,15 @@ function getApiConfig(db: InstanceType<typeof Database>): { apiKey: string; base
   }
 }
 
+/** 记录已确认 403 的 apiKey，避免反复等待超时 */
+const embeddingDisabledKeys = new Set<string>()
+
 /** 调 embedding API 返回 number[]，兼容 moonshot / openai / 兼容接口 */
 async function fetchEmbedding(db: InstanceType<typeof Database>, text: string): Promise<number[] | null> {
   const { apiKey, baseUrl } = getApiConfig(db)
   if (!apiKey) return null
+  // 该 key 已知不支持 embedding，直接跳过不发请求
+  if (embeddingDisabledKeys.has(apiKey)) return null
 
   let input = text.slice(0, 4000)
   if (text.length > 4000) {
@@ -67,9 +72,10 @@ async function fetchEmbedding(db: InstanceType<typeof Database>, text: string): 
 
     if (!resp.ok) {
       const errText = await resp.text()
-      // 403 = embedding API 未开通，降低日志级别避免刷屏
+      // 403 = embedding API 未开通，缓存该 key 后续直接跳过
       if (resp.status === 403) {
-        console.info('[memory] embedding not available (403), using keyword fallback')
+        embeddingDisabledKeys.add(apiKey)
+        console.info('[memory] embedding not available (403), switching to keyword fallback')
       } else {
         console.warn('[memory] embedding API error:', resp.status, errText)
       }
