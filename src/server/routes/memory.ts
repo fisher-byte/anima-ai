@@ -394,7 +394,8 @@ ${assistantMessage ? `AI回复：${assistantMessage.slice(0, 200)}` : ''}
             }],
             temperature: 0,
             max_tokens: 300
-          })
+          }),
+          signal: AbortSignal.timeout(10_000)
         })
         if (dedupeResp.ok) {
           const dedupeData = (await dedupeResp.json()) as { choices: { message: { content: string } }[] }

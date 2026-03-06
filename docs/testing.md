@@ -18,6 +18,7 @@
   - `parseTurnsFromAssistantMessage`：单轮、多轮、reasoning 提取
   - `stripLeadingNumberHeading`：THINKING 哨兵、#N 前缀、多轮前缀剥离
   - `buildAIHistory`：空消息过滤、用户/AI 交替构建
+- ✅ `services/ai.ts` — 前端 AI 服务（16 个用例）
 
 **运行命令**:
 ```bash
@@ -32,7 +33,7 @@ npm run test:watch    # 监听模式（开发时用）
 **目标**: 所有 HTTP API 端点在真实 SQLite（内存模式）下行为正确
 
 **已覆盖模块**:
-- ✅ `server.test.ts` — 核心路由集成测试（215 个用例）
+- ✅ `server.test.ts` — 核心路由集成测试（77 个用例）
   - `GET /api/health`
   - Storage API（GET / PUT / POST append）：文件名白名单、路径遍历防御、JSONL 多次追加
   - Config API（apikey、settings）：GET / PUT / 覆盖写入
@@ -43,6 +44,10 @@ npm run test:watch    # 监听模式（开发时用）
     - 多次入队在同一 db 累积、顺序正确
     - 初始任务状态为 `pending`，retries 字段为 0
 
+- ✅ `ai-onboarding.test.ts` — AI 引导模式测试（6 个用例）
+  - onboarding 标志正确路由到轻量 system prompt
+  - 无 API Key 时使用 ONBOARDING_API_KEY 降级
+
 - ✅ `memory.test.ts` — 记忆路由集成测试（21 个用例）
   - **User Profile CRUD**：新建、GET、merge 更新（interests/tools 数组去重合并）、DELETE 清空
   - **Memory Facts CRUD**：GET 过滤失效条目、单条软删除、批量软删除（DB 行仍保留）
@@ -51,7 +56,7 @@ npm run test:watch    # 监听模式（开发时用）
   - **Classify / Extract 无 Key 降级**：无 API Key 时返回 fallback 响应
   - **Embedding Index**：DELETE 单条 / 全量
 
-**总测试数**: **236 个用例，7 个测试文件，全部通过**
+**总测试数**: **236 个用例，9 个测试文件，全部通过**
 
 ---
 
