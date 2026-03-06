@@ -1,289 +1,207 @@
 # Anima 开发笔记
 
-## 设计决策
+*最后更新: 2026-03-06 | 版本: v0.2.43*
 
-### 为什么选择 Electron + React?
+这里记录架构决策、踩坑经历和性能优化心得，供后续维护参考。
 
-1. **本地优先**: 用户数据完全本地存储，保护隐私
-2. **可扩展**: 未来可添加本地模型支持（如 Ollama）
-3. **统一体验**: 跨平台一致的UI体验
-4. **开发效率**: React + TypeScript 生态成熟
+---
 
-### 为什么用 .jsonl 存储对话?
+## 架构决策
 
-- **追加写入**: 不需要读取整个文件再重写
-- **容错性**: 单条记录损坏不影响其他记录
-- **可查询**: 可以用 grep 命令行查询
-- **可恢复**: 即使文件末尾损坏，前面的记录仍可读取
+### 为什么 Web-first（Hono + SQLite），而不是纯 Electron？
 
-### 为什么置信度系统?
+Electron 模式仍保留但已降级为可选桌面打包方式。主要考量：
 
-不是简单的布尔值，而是用置信度表示：
-- 用户多次强调的偏好 → 高置信度
-- 很久之前的偏好 → 低置信度（需要衰减）
-- 只应用高置信度偏好（>0.5）
+1. **部署灵活**: Web 模式可直接部署到 VPS，多设备访问；Electron 限定单机
+2. **API Key 安全**: 服务端持有 API Key，不暴露给浏览器；Electron 模式 Key 在客户端
+3. **多租户支持**: Web 模式天然支持多用户（每个 token 一个数据库）
+4. **运维简单**: PM2 + Nginx 比 Electron 更易监控和重启
 
-这让AI"记忆"更加智能，不是机械的记住，而是有重点的记住。
+两种模式共享同一套代码：`storageService.ts` 自动检测 `window.electronAPI` 切换实现。
+
+### 为什么 SQLite 而不是文件系统（JSON/JSONL）？
+
+当前是**混合模式**：
+
+- `nodes.json` / `conversations.jsonl` / `profile.json` 依然存在 SQLite 的 `storage` 表里（以文件名为 key 的 JSON blob）
+- 向量索引、记忆事实、用户画像、任务队列等结构化数据用专门的表
+
+这个混合方案保证了前端无需改动（依然通过 storageService 读写"文件名"）的前提下，获得了 SQLite 的原子写入、多租户隔离、WAL 高并发等优势。
+
+### 为什么用置信度系统而非布尔值记录偏好？
+
+偏好不是永恒的：
+
+- 用户多次强调 → 高置信度（更频繁应用）
+- 很久以前提过一次 → 低置信度（保留但降权）
+- 只应用置信度 > 0.5 的规则
+
+这让 AI "记忆"更自然，不是机械的开关，而是有权重的倾向。
+
+### agentWorker 为什么要独立运行，不在请求链路里做？
+
+对话结束后需要做的事很多：画像提取、偏好分析、向量化、记忆整理。这些任务：
+
+- 用小模型（moonshot-v1-8k）就够，不需要阻塞用户等主模型
+- 可以失败重试，不影响主流程
+- 每 30s 批处理，而不是每次对话都立即执行
+
+所以用 `agent_tasks` 表作为任务队列，`agentWorker` 异步消费。
+
+**重要**: `enqueueTask(db, type, payload)` 中的 `db` 参数必传，确保任务写入正确的用户数据库（多租户修复 v0.2.43）。
+
+---
 
 ## 踩坑记录
 
 ### 1. 流式响应的字符处理
 
-**问题**: fetch 返回的 chunks 可能包含不完整的 UTF-8 字符
+**问题**: fetch 返回的 SSE chunks 可能包含不完整的 UTF-8 字符，或一个 chunk 包含多行 SSE 数据。
 
-**解决**: 使用 TextDecoder 的 stream 模式
+**解决**: `TextDecoder` stream 模式 + 手动按行解析 SSE：
+
 ```typescript
 const decoder = new TextDecoder()
-for await (const chunk of reader.read()) {
-  const text = decoder.decode(chunk.value, { stream: true })
-  // ...
+let buffer = ''
+for await (const chunk of reader) {
+  buffer += decoder.decode(chunk, { stream: true })
+  const lines = buffer.split('\n')
+  buffer = lines.pop() ?? ''
+  for (const line of lines) {
+    if (line.startsWith('data: ')) { /* 处理 */ }
+  }
 }
 ```
 
-### 2. Electron 主进程和渲染进程的通信
+### 2. Canvas 拖拽与点击的竞态
 
-**问题**: 直接使用 ipcRenderer 在渲染进程会报错
+**问题**: 单击节点有时触发拖拽，拖拽后节点倾斜或第二次才正确。
 
-**解决**: 必须通过 Preload 脚本暴露安全的 API
-```typescript
-// preload.ts
-contextBridge.exposeInMainWorld('electronAPI', {
-  storage: { /* ... */ }
-})
+**解决**: 引入位移阈值（mousedown 到 mouseup 位移 < 5px 判定为点击），同时拖拽监听挂在 `window` 而非节点本身，避免事件冒泡干扰。
 
-// renderer.ts
-const content = await window.electronAPI.storage.read('file.json')
-```
+### 3. Zoom 期间全量重渲染
 
-### 3. 拖拽时的坐标计算
+**问题**: 用 React state 存 scale/offset，每次滚轮触发 setState，整棵组件树重渲染，帧率惨不忍睹。
 
-**问题**: 节点位置在画布拖拽后错位
+**解决**: 参见 [架构文档 - 画布渲染性能架构](./architecture.md#画布渲染性能架构)。核心：scale/offset 存 ref，直接操作 DOM transform，300ms debounce 后才写 React state。
 
-**解决**: 使用相对坐标，拖拽时应用 offset 变换
-```typescript
-div.style.transform = `translate(${-offset.x}px, ${-offset.y}px)`
-```
+### 4. 多租户 agentWorker 静默失效（v0.2.43 修复）
 
-### 4. Zustand 的异步 action
+**问题**: `agentWorker.ts` 通过 `import { db } from './db'` 使用全局默认数据库。在多租户场景下，每个用户的 `agent_tasks` 在自己的数据库里，但 Worker 只读默认库，导致其他用户的后台任务全部静默失效。
 
-**问题**: async action 完成后 state 没有更新
+**解决**:
+- `db.ts` 新增 `getAllUserDbs()`，扫描 `data/` 目录下 12 位 hex userId 子目录
+- `tick()` 遍历所有用户 db
+- 所有工作函数接收 `db` 参数
+- `enqueueTask` 签名变为 `enqueueTask(db, type, payload)`
 
-**解决**: 在 async 函数内使用 set() 更新 state
-```typescript
-addNode: async (conversation) => {
-  // ... 计算新节点
-  const updatedNodes = [...get().nodes, newNode]
-  set({ nodes: updatedNodes })  // 正确
-  await storage.write(...)       // 然后持久化
-}
-```
+### 5. onboarding 跨账号状态污染
 
-### 5. 负反馈检测的时机
+**问题**: 同一浏览器切换账号时，上一个账号的 `localStorage.evo_onboarding_v3=done` 会让新账号跳过引导。
 
-**问题**: 应该在哪一步检测反馈？
+**解决**: 双重验证——`localStorage` 标记 **AND** 服务端节点数据同时存在才判定已完成。二者不一致时自动清除本地标记。
 
-**方案演进**:
-1. v1: 发送消息后立即检测 → 不对，用户还没看到回答
-2. v2: 回答完成后检测 → 可以，但用户需要主动输入反馈
-3. v3 (当前): 在 AnswerModal 提供反馈输入框，实时检测 → 最好
+### 6. Kimi 2.5 的 reasoning_content 要求
 
-### 6. 节点标题生成策略
+**问题**: 联网搜索工具调用返回结果后，第二轮请求必须在 `assistant` 消息里携带非空的 `reasoning_content`，否则 API 报 400。
 
-**尝试**: 用 AI 生成标题
+**解决**: 第一轮响应里解析出 `reasoning_content`；第二轮构建 history 时自动填入，如果为空则填充占位符 `"..."`。
 
-**问题**: 
-- 增加一次 API 调用
-- 延迟节点显示
-- 增加成本
+### 7. embedding 403 导致每次请求等待超时（v0.2.42 修复）
 
-**最终方案**: 从用户消息提取前8个字符
-- 简单、快速、准确
-- 用户一眼就知道是哪个问题
+**问题**: Moonshot embedding API 对部分 key 未开通，每次请求都等 5-10s 超时才降级到关键词搜索，严重拖慢响应。
 
-### 7. 关键词提取
+**解决**: 首次收到 403 后将 apiKey 加入内存黑名单（`embeddingDisabledKeys: Set<string>`），后续请求直接跳过，零等待。服务重启后自动清空缓存（下次重新尝试一次即可）。
 
-**尝试**: 用 AI 提取关键词
-
-**问题**: 
-- 和标题生成一样的问题
-- 简单的词频统计效果也不错
-
-**最终方案**: 从 AI 回答中提取 2-6 字长度的词，取前3个
+---
 
 ## 性能优化
 
-### 1. 存储写入优化
+### 1. 节点位置轻量更新
 
-**原方案**: 每次操作都立即写入文件
+拖拽中只更新内存里的 `nodes` 数组（不 trigger edge 重算、不写磁盘）。拖拽结束后才写一次 SQLite。
 
-**问题**: 频繁写入影响性能
+### 2. 聚类布局预计算
 
-**优化**: 
-- 节点位置变化：暂时不写入（后续批量写入）
-- 重要数据（对话、偏好）：立即写入
+`loadNodes` 时一次性计算所有节点的聚类分组和 `depth` 值，存入 Map，渲染时直接读取，不在每个 NodeCard 组件里各自 O(n) 查找。
 
-### 2. 状态更新优化
+### 3. Agent 任务批处理
 
-**原方案**: 每次数组操作都创建新数组
+每次 tick 最多处理 5 个任务（`LIMIT 5`），避免同时大量 API 调用。任务顺序按 id ASC（先入先出）。
 
-**优化**: 使用 Immer（通过 Zustand 中间件）
-```typescript
-import { immer } from 'zustand/middleware/immer'
+### 4. 文件 embedding 分块重叠
 
-export const useCanvasStore = create(immer<CanvasState>((set, get) => ({
-  // ...
-})))
-```
+`splitTextIntoChunks` 保留 10% 重叠（overlap=80 chars），维持块间语义连续性，提升检索召回率。
 
-### 3. 节点渲染优化
-
-**计划**: 使用虚拟列表（后续版本）
-```typescript
-// 当节点数量 > 100 时使用虚拟列表
-import { VirtualList } from 'react-virtual'
-```
-
-## 安全考虑
-
-### 1. 数据目录
-
-```typescript
-const DATA_DIR = join(app.getPath('userData'), 'data')
-```
-- 不使用项目目录，防止 git 误提交
-- 使用 Electron 的标准数据目录
-
-### 2. 存储操作限制
-
-只暴露三个操作：
-- `read(filename)` - 读指定文件
-- `write(filename, content)` - 写指定文件
-- `append(filename, content)` - 追加到指定文件
-
-不暴露：
-- 删除文件
-- 列出目录
-- 执行任意文件操作
-
-### 3. API Key 存储
-
-**当前**: 从环境变量读取
-**计划**: 
-- 首次启动时提示用户输入
-- 存储在系统 keychain（后续版本）
-
-## 测试策略
-
-### 单元测试（计划中）
-
-```typescript
-// services/feedback.test.ts
-describe('detectNegativeFeedback', () => {
-  it('should detect "简洁点"', () => {
-    const result = detectNegativeFeedback('太复杂了，简洁点')
-    expect(result?.trigger).toBe('简洁点')
-  })
-})
-```
-
-### 集成测试（计划中）
-
-```typescript
-// 测试完整对话流程
-describe('conversation flow', () => {
-  it('should create node after conversation', async () => {
-    // ...
-  })
-})
-```
-
-### 手动测试清单
-
-- [ ] 首次打开显示空白画布
-- [ ] 输入问题，点击发送
-- [ ] 看到流式AI回复
-- [ ] 关闭后画布出现节点
-- [ ] 输入"简洁点"，重新回答
-- [ ] profile.json 记录偏好
-- [ ] 再问类似问题，看到灰字提示
-- [ ] 重启应用，节点和偏好都在
+---
 
 ## 调试技巧
 
-### 查看存储数据
+### 查看后端数据
 
 ```bash
-# macOS
-open ~/Library/Application\ Support/anima/data/
+# 连接 SQLite
+sqlite3 data/{userId}/anima.db
 
-# Windows
-explorer %APPDATA%\anima\data\
+# 查看节点数据
+SELECT json_extract(content, '$.length') FROM storage WHERE filename='nodes.json';
 
-# Linux
-xdg-open ~/.config/anima/data/
+# 查看偏好规则
+SELECT value FROM config WHERE key='preference_rules';
+
+# 查看记忆事实
+SELECT fact, created_at FROM memory_facts WHERE invalid_at IS NULL ORDER BY created_at DESC;
+
+# 查看后台任务状态
+SELECT type, status, retries, created_at, error FROM agent_tasks ORDER BY id DESC LIMIT 20;
+
+# 查看用户画像
+SELECT occupation, interests, tools FROM user_profile WHERE id=1;
 ```
 
-### 调试主进程
+### 查看实时日志（生产环境）
 
 ```bash
-npm run dev -- --remote-debugging-port=9223
-# 然后在 Chrome 访问 chrome://inspect
+pm2 logs evocanvas --lines 50 --follow
 ```
 
-### 查看 Zustand 状态
+### 手动触发 Agent 任务
 
-```typescript
-// 在控制台查看
-const state = useCanvasStore.getState()
-console.log(state.nodes)
-console.log(state.profile)
+```bash
+curl -X POST http://localhost:3000/api/memory/consolidate \
+  -H "Authorization: Bearer YOUR_TOKEN"
 ```
+
+### 前端调试
+
+开发模式按 `F12`，Network 面板中过滤 `/api` 查看所有后端请求。SSE 流可在 EventStream 标签页实时查看。
+
+---
 
 ## 未来想法
 
-### 可能的改进
+### 值得做的方向
 
-1. **更智能的偏好检测**
-   - 使用简单的 NLP 而非关键词匹配
-   - 理解用户的隐含意图
+1. **结构化用户模型**（v0.3.0）：将碎片 memory_facts 升级为有层次的 User Mental Model（认知框架 / 长期目标 / 领域知识图）
+2. **主动记忆触发**：AI 在对话结束后主动判断"这次对话是否更新了我对用户的理解"
+3. **Canvas 节点虚拟化**：超过 100 个节点时只渲染视口内节点，解决大画布性能问题
+4. **时间轴视图**：X 轴时间、Y 轴话题，帮助用户看到"我最近在想什么"
+5. **多模型路由**：简单问答走小模型，复杂推理走大模型；隐私内容走本地 Ollama
 
-2. **偏好可视化**
-   - 显示当前已学习的偏好列表
-   - 让用户手动编辑置信度
+### 有意克制不做的功能
 
-3. **对话分组**
-   - 相似的对话自动聚类
-   - 不显示连线，只显示空间位置相近
+- 社交分享 / 多人实时协作（破坏本地优先的信任感）
+- 广告或推荐系统
+- 复杂权限管理（RBAC 等）
+- 内置浏览器
 
-4. **本地模型支持**
-   - 集成 Ollama
-   - 完全离线运行
-
-5. **导入/导出**
-   - 导出所有数据为 Anima 画布文件（如 .anima）
-   - 支持分享给其他用户
-
-### 不做的功能（克制）
-
-- 自动连线图谱（MVP 不验证这个）
-- DNA HUD 可视化（太复杂）
-- 多模型切换 UI（MVP 锁定单一模型）
-- 设置页面（MVP 无设置）
-- 教程/引导（MVP 无引导）
-
-## 参考资源
-
-- [Electron Vite 官方文档](https://electron-vite.org/)
-- [Zustand 文档](https://docs.pmnd.rs/zustand)
-- [Tailwind CSS 文档](https://tailwindcss.com/)
-- [OpenAI API 文档](https://platform.openai.com/docs)
+---
 
 ## 开发者心得
 
 > "最好的功能是不存在的功能。"
 
-MVP 的核心教训：
-1. 砍掉一切不直接服务于"默契感"的功能
-2. 简单规则系统比复杂 AI 更可控
-3. 本地存储比云端同步更能建立信任感
-4. 一行灰字比任何解释UI都更有效
+- 砍掉一切不直接服务于"默契感"的功能
+- 简单规则系统（偏好触发词）比复杂 NLP 更可控、更可预期
+- 本地存储比云端同步更能建立信任感
+- 一行灰字提示比任何解释 UI 都更优雅
