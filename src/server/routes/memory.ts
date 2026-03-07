@@ -57,6 +57,35 @@ const BUILTIN_EMBED_MULTIMODAL = {
 }
 let builtinEmbeddingFailed = false
 
+// 分类原型向量缓存（服务器启动时初始化一次）
+const PROTOTYPE_VECS = new Map<string, Float32Array>()
+let prototypeInitDone = false
+
+const CATEGORY_PROTOTYPES: Record<string, string> = {
+  '日常生活': '美食餐厅旅游度假电影游戏购物运动健身骑行生活方式休闲娱乐探店种草周末出游咖啡奶茶',
+  '日常事务': '医院看病健康保险法律合同租房出行签证税务报销退税行政手续证件感冒生病怎么办',
+  '学习成长': '学习编程代码考试读书技能培训语言知识获取自我提升算法数学论文作文英语备考考研',
+  '工作事业': '工作职场上班公司离职跳槽求职简历面试薪资绩效晋升创业商业产品需求方案项目运营营销',
+  '情感关系': '恋爱感情婚姻家人朋友焦虑情绪心理压力人际关系内心孤独难过沟通幸福快乐温暖陪伴',
+  '思考世界': '哲学人生意义价值观社会未来科技世界认知思考观点底层逻辑为什么探讨反思觉察存在意识',
+}
+
+export async function initCategoryPrototypes(): Promise<void> {
+  if (prototypeInitDone) return
+  try {
+    await Promise.all(
+      Object.entries(CATEGORY_PROTOTYPES).map(async ([cat, text]) => {
+        const vec = await fetchEmbedding(null as never, text)
+        if (vec) PROTOTYPE_VECS.set(cat, new Float32Array(vec))
+      })
+    )
+    prototypeInitDone = PROTOTYPE_VECS.size === Object.keys(CATEGORY_PROTOTYPES).length
+    console.log(`[classify] prototype vectors ready (${PROTOTYPE_VECS.size} categories)`)
+  } catch (e) {
+    console.warn('[classify] prototype init failed, will fallback to LLM:', e)
+  }
+}
+
 /** 调 embedding API 返回 number[]，使用内置阿里云 key */
 export async function fetchEmbedding(
   _db: InstanceType<typeof Database>,  // 保留签名，不再使用 db
@@ -606,6 +635,22 @@ memoryRoutes.post('/classify', async (c) => {
   const { text } = await c.req.json<{ text: string }>()
   if (!text?.trim()) return c.json({ category: null })
 
+  // 层1：原型向量（内置 key，不依赖用户配置）
+  if (prototypeInitDone && PROTOTYPE_VECS.size > 0) {
+    const vec = await fetchEmbedding(db, text)
+    if (vec) {
+      const queryVec = new Float32Array(vec)
+      let bestCat = '其他'
+      let bestScore = -Infinity
+      for (const [cat, protoVec] of PROTOTYPE_VECS) {
+        const score = cosineSim(queryVec, protoVec)
+        if (score > bestScore) { bestScore = score; bestCat = cat }
+      }
+      return c.json({ category: bestCat })
+    }
+  }
+
+  // 层2：LLM（用户 API key）
   const { apiKey, baseUrl } = getApiConfig(db)
   if (!apiKey) return c.json({ category: null })
 
