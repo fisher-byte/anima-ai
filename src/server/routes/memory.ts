@@ -659,6 +659,8 @@ memoryRoutes.post('/reclassify-nodes', async (c) => {
   // Use the storage service approach - read nodes from the request body instead
   const { nodes } = await c.req.json<{ nodes: { id: string; title: string; keywords: string[]; category: string }[] }>()
   if (!nodes?.length) return c.json({ updated: [] })
+  // 防止超大请求无限消耗 API 配额
+  const nodesBatch = nodes.slice(0, 200)
 
   const CATEGORIES = ['日常生活', '日常事务', '学习成长', '工作事业', '情感关系', '思考世界', '其他']
   const CATEGORY_COLORS: Record<string, string> = {
@@ -692,14 +694,14 @@ memoryRoutes.post('/reclassify-nodes', async (c) => {
       const raw = data.choices?.[0]?.message?.content?.trim() ?? ''
       const matched = CATEGORIES.find(cat => raw.includes(cat)) ?? '其他'
       if (matched !== node.category) {
-        updated.push({ id: node.id, category: matched, color: CATEGORY_COLORS[matched] })
+        updated.push({ id: node.id, category: matched, color: CATEGORY_COLORS[matched] ?? CATEGORY_COLORS['其他'] })
       }
     } catch { /* skip */ }
   }
 
   // Process in batches of 5
-  for (let i = 0; i < nodes.length; i += 5) {
-    await Promise.all(nodes.slice(i, i + 5).map(classifyOne))
+  for (let i = 0; i < nodesBatch.length; i += 5) {
+    await Promise.all(nodesBatch.slice(i, i + 5).map(classifyOne))
   }
 
   return c.json({ updated })
