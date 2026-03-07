@@ -132,12 +132,17 @@ export function AnswerModal() {
   const [feedbackMessage, setFeedbackMessage] = useState('')
   const [evolutionToast, setEvolutionToast] = useState<{ label: string; detail: string } | null>(null)
   const [onboardingDone, setOnboardingDone] = useState(false)
+  const [searchRoundMsg, setSearchRoundMsg] = useState<string | null>(null)
+  // 调研前澄清层
+  const [clarifyPending, setClarifyPending] = useState<string | null>(null)   // 触发澄清时暂存原始输入
+  const [clarifyCustom, setClarifyCustom] = useState('')
   const evolutionToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const showToast = useCallback((label: string, detail: string, duration = 4000) => {
     if (evolutionToastTimerRef.current) clearTimeout(evolutionToastTimerRef.current)
     setEvolutionToast({ label, detail })
     evolutionToastTimerRef.current = setTimeout(() => setEvolutionToast(null), duration)
   }, [])
+
   const [appliedPreferences, setAppliedPreferences] = useState<string[]>([])
   const [pendingImages, setPendingImages] = useState<string[]>([])
   const [pendingFiles, setPendingFiles] = useState<FileAttachment[]>([])
@@ -247,8 +252,12 @@ export function AnswerModal() {
       setErrorMessage(null)
       if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     },
+    onSearchRound: (_round, message) => {
+      setSearchRoundMsg(message)
+    },
     onComplete: () => {
       setIsStreaming(false)
+      setSearchRoundMsg(null)
       setErrorMessage(null)
       didMutateRef.current = true
       const prefs = getPreferencesForPrompt()
@@ -298,6 +307,24 @@ export function AnswerModal() {
       didMutateRef.current = true
     }
   })
+
+  /** 澄清层确认后发送消息的统一入口 */
+  const sendClarifiedMessage = useCallback(async (msg: string) => {
+    setClarifyPending(null)
+    setClarifyCustom('')
+    setFeedbackMessage('')
+    setIsStreaming(true)
+    const memories = await getRelevantMemories(msg)
+    const category = memories[0]?.category ?? null
+    const highlightedNodeIds = memories.map((m: { nodeId?: string; conv: { id: string } }) => m.nodeId ?? m.conv.id).filter((id: string | undefined): id is string => id != null)
+    setHighlight(category, highlightedNodeIds)
+    const compressed = compressMemoriesForPrompt(memories)
+    const history = buildAIHistory(turns)
+    setTurns(prev => [...prev, { user: msg, assistant: '', images: [] }])
+    const prefs = getPreferencesForPrompt()
+    didMutateRef.current = true
+    sendMessage(msg, prefs, history, [], compressed, false, currentConversation?.id)
+  }, [getRelevantMemories, setHighlight, compressMemoriesForPrompt, turns, getPreferencesForPrompt, sendMessage, currentConversation])
 
   // ── 加载状态：重置本地状态，避免显示上一个对话的内容 ──────────────────────
   useEffect(() => {
@@ -499,6 +526,20 @@ export function AnswerModal() {
     const hasFiles = pendingFiles.length > 0
     const hasRefs = pendingReferenceBlocks.length > 0
     if ((!trimmed && !hasImages && !hasFiles && !hasRefs) || isStreaming) return
+
+    // ── 调研前澄清：规则触发 ──────────────────────────────────────────────
+    // 满足：含调研关键词 + 无明确对象（无专有名词/引号/数字/英文词）+ 非引导模式
+    const RESEARCH_KEYWORDS = ['调研', '研究', '深度分析', '深入分析', '帮我查', '帮我搜', '查一下', '搜一下', '了解一下', '分析一下']
+    const hasResearchKw = RESEARCH_KEYWORDS.some(kw => trimmed.includes(kw))
+    // 有明确对象的特征：含引号、数字年份、英文单词、或比较长且有具体名词
+    const hasConcreteTarget = /[""「」『』]/.test(trimmed) ||          // 引号内容
+      /\d{4}/.test(trimmed) ||                                        // 年份数字
+      /[a-zA-Z]{3,}/.test(trimmed) ||                                 // 英文词（产品名等）
+      trimmed.length > 20                                             // 超过 20 字视为已足够具体
+    if (!isOnboardingMode && hasResearchKw && !hasConcreteTarget && !clarifyPending) {
+      setClarifyPending(trimmed)
+      return
+    }
 
     // 拼接引用块到消息体
     let fullTrimmed = trimmed
@@ -993,6 +1034,17 @@ export function AnswerModal() {
                         {/* AI 回复 */}
                         <div className="flex justify-start mb-2">
                           <div className="max-w-[95%] w-full">
+                            {/* 多轮搜索提示条：仅在最后一轮且正在搜索时展示 */}
+                            {isStreaming && idx === turns.length - 1 && searchRoundMsg && (
+                              <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-xl bg-blue-50/80 border border-blue-100 text-blue-600 text-[12px]">
+                                <motion.span
+                                  animate={{ opacity: [0.4, 1, 0.4] }}
+                                  transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+                                  className="block w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0"
+                                />
+                                {searchRoundMsg}
+                              </div>
+                            )}
                             <ThinkingSection
                               content={t.reasoning || ''}
                               isStreaming={isStreaming && idx === turns.length - 1 && !t.assistant && !!(t.reasoning)}
@@ -1030,7 +1082,52 @@ export function AnswerModal() {
                 </div>
 
                 {/* 底部输入区 */}
-                <InputArea
+                <div className="relative">
+                  {/* 澄清层：浮在输入框上方 */}
+                  <AnimatePresence>
+                    {clarifyPending && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+                        className="absolute bottom-full left-0 mb-2 w-full bg-white/95 backdrop-blur-md border border-gray-200 rounded-2xl shadow-lg p-4 z-10"
+                      >
+                        <p className="text-[12px] text-gray-500 mb-3">想先确认一下方向，这样调研结果更准 ✦</p>
+                        <div className="flex flex-col gap-2 mb-3">
+                          {['行业与市场数据（规模、趋势、融资）', '产品或技术方案对比（功能、优劣势）'].map((opt) => (
+                            <button
+                              key={opt}
+                              onClick={() => {
+                                const msg = `请对以下方向做深度调研：${clarifyPending} — ${opt}`
+                                sendClarifiedMessage(msg)
+                              }}
+                              className="text-left px-3 py-2 rounded-xl border border-gray-200 text-[13px] text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all"
+                            >
+                              {opt}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <input
+                            value={clarifyCustom}
+                            onChange={e => setClarifyCustom(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' && clarifyCustom.trim()) {
+                                sendClarifiedMessage(clarifyCustom.trim())
+                              }
+                            }}
+                            placeholder="或直接写出你想调研的具体问题…"
+                            className="flex-1 text-[12px] px-3 py-1.5 rounded-lg border border-gray-200 outline-none focus:border-gray-400 text-gray-700 placeholder:text-gray-400"
+                          />
+                          <button
+                            onClick={() => { setClarifyPending(null); setClarifyCustom('') }}
+                            className="text-[11px] text-gray-400 hover:text-gray-600 px-2"
+                          >
+                            取消
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  <InputArea
                   feedbackMessage={feedbackMessage}
                   pendingImages={pendingImages}
                   pendingFiles={pendingFiles}
@@ -1049,6 +1146,7 @@ export function AnswerModal() {
                   onAddReferenceBlock={text => setPendingReferenceBlocks(prev => [...prev, text].slice(0, 5))}
                   onRemoveReferenceBlock={i => setPendingReferenceBlocks(prev => prev.filter((_, j) => j !== i))}
                 />
+                </div>
               </motion.div>
             </div>
           </>

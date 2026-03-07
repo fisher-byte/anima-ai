@@ -1,6 +1,6 @@
 # Anima 开发笔记
 
-*最后更新: 2026-03-07 | 版本: v0.2.49*
+*最后更新: 2026-03-07 | 版本: v0.2.50*
 
 这里记录架构决策、踩坑经历和性能优化心得，供后续维护参考。
 
@@ -112,6 +112,18 @@ for await (const chunk of reader) {
 **问题**: Moonshot embedding API 对部分 key 未开通，每次请求都等 5-10s 超时才降级到关键词搜索，严重拖慢响应。
 
 **解决**: 首次收到 403 后将 apiKey 加入内存黑名单（`embeddingDisabledKeys: Set<string>`），后续请求直接跳过，零等待。服务重启后自动清空缓存（下次重新尝试一次即可）。
+
+### 8. ReadableStream reader.releaseLock 资源泄漏（v0.2.50 修复）
+
+**问题**: `readRound()` 在正常路径返回时正确 releaseLock，但如果 `sendEvent` 内部抛出异常或请求被 abort，reader 永远不会释放，导致 Response.body 锁死，后续无法再 getReader。
+
+**解决**: 用 `try { ... } finally { reader.releaseLock() }` 包裹整个读取循环，确保任意退出路径（正常/异常/abort）均执行 releaseLock。
+
+### 9. 多轮 web_search 续轮请求必须携带 tools 声明（v0.2.50）
+
+**问题**: 首轮请求带 `tools`，Moonshot 返回 `finish_reason: 'tool_calls'`，续轮请求如果不带 `tools`，模型无法继续调用 `$web_search`，表现为第二轮直接返回 stop 但结果不完整。
+
+**解决**: 每次续轮请求（`nextBody`）都显式声明 `tools: [{ type: 'builtin_function', function: { name: '$web_search' } }]`。
 
 ---
 

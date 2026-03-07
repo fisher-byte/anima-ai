@@ -10,6 +10,7 @@ interface UseAIOptions {
   onComplete?: (fullText: string) => void
   onError?: (error: string) => void
   onStopped?: () => void
+  onSearchRound?: (round: number, message: string) => void
 }
 
 export function useAI(options: UseAIOptions = {}) {
@@ -83,6 +84,8 @@ export function useAI(options: UseAIOptions = {}) {
         } else if (chunk.type === 'reasoning') {
           fullReasoning += chunk.content
           callbacksRef.current.onThinking?.(chunk.content)
+        } else if (chunk.type === 'search_round') {
+          callbacksRef.current.onSearchRound?.(chunk.round ?? 2, chunk.content)
         }
       }
 

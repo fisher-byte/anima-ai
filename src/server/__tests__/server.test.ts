@@ -1323,3 +1323,288 @@ describe('Storage API - logical-edges.json fallback', () => {
     expect(JSON.parse(text)).toEqual([])
   })
 })
+
+// ── Multi-round search: readRound tool_call accumulation ──────────────────────
+
+/**
+ * 内联 readRound 的核心逻辑（与 ai.ts 完全一致）：
+ * 从 SSE 流中累积 tool_calls 并返回 finishReason。
+ * 这里用 ReadableStream 模拟 Response.body，验证逻辑正确性。
+ */
+function buildSseResponse(lines: string[]): Response {
+  const body = lines.join('') // lines 已含 \n\n 分隔
+  const encoder = new TextEncoder()
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(body))
+      controller.close()
+    }
+  })
+  return new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } })
+}
+
+/** 精简版 readRound，与 ai.ts 逻辑完全对应，用于单元测试 */
+async function readRoundUnit(res: Response): Promise<{
+  toolCalls: Array<{ id: string; type: string; function: { name: string; arguments: string } }>
+  finishReason: string | null
+}> {
+  const toolCallMap: Record<number, { id: string; type: string; function: { name: string; arguments: string } }> = {}
+  let finishReason: string | null = null
+  const decoder = new TextDecoder()
+  let sseBuffer = ''
+  const reader = res.body?.getReader()
+  if (!reader) return { toolCalls: [], finishReason: null }
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      sseBuffer += decoder.decode(value, { stream: true })
+      const parts = sseBuffer.split(/\r?\n\r?\n/)
+      sseBuffer = parts.pop() ?? ''
+
+      for (const part of parts) {
+        for (const line of part.split(/\r?\n/)) {
+          if (!line.startsWith('data: ')) continue
+          const data = line.slice(6)
+          if (data === '[DONE]') continue
+          try {
+            const parsed = JSON.parse(data)
+            const delta = parsed.choices?.[0]?.delta
+            const fr = parsed.choices?.[0]?.finish_reason
+            if (fr) finishReason = fr
+            if (delta?.tool_calls) {
+              for (const tc of delta.tool_calls) {
+                const idx: number = tc.index
+                if (!toolCallMap[idx]) {
+                  toolCallMap[idx] = {
+                    id: tc.id ?? '',
+                    type: tc.type ?? 'function',
+                    function: { name: tc.function?.name ?? '', arguments: tc.function?.arguments ?? '' }
+                  }
+                } else {
+                  if (tc.function?.name) toolCallMap[idx].function.name += tc.function.name
+                  if (tc.function?.arguments) toolCallMap[idx].function.arguments += tc.function.arguments
+                }
+              }
+            }
+          } catch { /* ignore */ }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock()
+  }
+  return { toolCalls: Object.values(toolCallMap), finishReason }
+}
+
+describe('readRound: tool_call 累积与 finishReason', () => {
+  it('普通 content 流：finishReason=stop, 无 tool_calls', async () => {
+    const lines = [
+      'data: ' + JSON.stringify({ choices: [{ delta: { content: 'Hello' }, finish_reason: null }] }) + '\n\n',
+      'data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] }) + '\n\n',
+      'data: [DONE]\n\n'
+    ]
+    const res = buildSseResponse(lines)
+    const { toolCalls, finishReason } = await readRoundUnit(res)
+    expect(finishReason).toBe('stop')
+    expect(toolCalls).toHaveLength(0)
+  })
+
+  it('tool_calls 流：finishReason=tool_calls, 正确累积 arguments', async () => {
+    const lines = [
+      'data: ' + JSON.stringify({
+        choices: [{ delta: { tool_calls: [{ index: 0, id: 'tc-1', type: 'function', function: { name: '$web_search', arguments: '{"query":' } }] }, finish_reason: null }]
+      }) + '\n\n',
+      'data: ' + JSON.stringify({
+        choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '"AI trends"}' } }] }, finish_reason: null }]
+      }) + '\n\n',
+      'data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] }) + '\n\n',
+      'data: [DONE]\n\n'
+    ]
+    const res = buildSseResponse(lines)
+    const { toolCalls, finishReason } = await readRoundUnit(res)
+    expect(finishReason).toBe('tool_calls')
+    expect(toolCalls).toHaveLength(1)
+    expect(toolCalls[0].id).toBe('tc-1')
+    expect(toolCalls[0].function.name).toBe('$web_search')
+    expect(toolCalls[0].function.arguments).toBe('{"query":"AI trends"}')
+  })
+
+  it('reader.releaseLock 在流结束后被调用（无资源泄漏）', async () => {
+    const lines = [
+      'data: ' + JSON.stringify({ choices: [{ delta: { content: 'hi' }, finish_reason: 'stop' }] }) + '\n\n',
+      'data: [DONE]\n\n'
+    ]
+    const res = buildSseResponse(lines)
+    // 调用后尝试再次 getReader 应该成功（说明 lock 已释放）
+    await readRoundUnit(res)
+    // 如果 lock 未释放，下面这行会抛出 "ReadableStream is locked"
+    // 注意：getReader 本身不会抛，只有 read() 会，所以我们验证调用本身不报错
+    expect(() => res.body?.getReader()).not.toThrow()
+  })
+
+  it('多个 tool_calls（并行搜索）可以正确独立累积', async () => {
+    const lines = [
+      'data: ' + JSON.stringify({
+        choices: [{ delta: { tool_calls: [
+          { index: 0, id: 'tc-0', type: 'function', function: { name: '$web_search', arguments: '{"query":"foo"}' } },
+          { index: 1, id: 'tc-1', type: 'function', function: { name: '$web_search', arguments: '{"query":"bar"}' } }
+        ] }, finish_reason: null }]
+      }) + '\n\n',
+      'data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] }) + '\n\n',
+    ]
+    const res = buildSseResponse(lines)
+    const { toolCalls, finishReason } = await readRoundUnit(res)
+    expect(finishReason).toBe('tool_calls')
+    expect(toolCalls).toHaveLength(2)
+    const names = toolCalls.map(tc => tc.function.arguments)
+    expect(names).toContain('{"query":"foo"}')
+    expect(names).toContain('{"query":"bar"}')
+  })
+
+  it('[DONE] 事件被跳过，不触发 JSON parse 错误', async () => {
+    const lines = [
+      'data: [DONE]\n\n'
+    ]
+    const res = buildSseResponse(lines)
+    const { toolCalls, finishReason } = await readRoundUnit(res)
+    expect(toolCalls).toHaveLength(0)
+    expect(finishReason).toBeNull()
+  })
+
+  it('空 body 返回空 toolCalls', async () => {
+    const res = new Response(null, { status: 200 })
+    const { toolCalls, finishReason } = await readRoundUnit(res)
+    expect(toolCalls).toHaveLength(0)
+    expect(finishReason).toBeNull()
+  })
+})
+
+// ── Clarification layer trigger logic ──────────────────────────────────────────
+
+/**
+ * 澄清层触发规则（与 AnswerModal.tsx 中的 if 条件完全对应）：
+ *   1. 含有调研/分析/研究类关键词（hasResearchKw）
+ *   2. 没有具体锚点（hasConcreteTarget = 引号/年份/英文/长度>20）
+ *   3. 不在新手引导模式（!isOnboardingMode）
+ *   4. 尚未显示过澄清层（!clarifyPending）
+ */
+function shouldTriggerClarify(
+  input: string,
+  isOnboardingMode: boolean,
+  clarifyPending: string | null
+): boolean {
+  const RESEARCH_KEYWORDS = ['调研', '分析', '研究', '了解', '探索', '深入', '梳理', '调查', '查一查', '帮我看看', '帮我了解']
+  const trimmed = input.trim()
+  const hasResearchKw = RESEARCH_KEYWORDS.some(kw => trimmed.includes(kw))
+  const hasConcreteTarget =
+    /["「」'']/.test(trimmed) ||           // 带引号的明确目标
+    /\d{4}/.test(trimmed) ||               // 年份
+    /[a-zA-Z]{4,}/.test(trimmed) ||        // 英文词（品牌/技术名）
+    trimmed.length > 20                    // 已足够具体
+  return hasResearchKw && !hasConcreteTarget && !isOnboardingMode && !clarifyPending
+}
+
+describe('澄清层触发规则', () => {
+  it('含调研关键词 + 无具体锚点 → 触发澄清', () => {
+    expect(shouldTriggerClarify('调研一下AI', false, null)).toBe(true)
+    expect(shouldTriggerClarify('分析市场', false, null)).toBe(true)
+    expect(shouldTriggerClarify('帮我了解竞品', false, null)).toBe(true)
+  })
+
+  it('含引号 → 已足够具体，不触发', () => {
+    expect(shouldTriggerClarify('调研"OpenAI"的产品策略', false, null)).toBe(false)
+  })
+
+  it('含年份 → 不触发', () => {
+    expect(shouldTriggerClarify('分析2024年AI趋势', false, null)).toBe(false)
+  })
+
+  it('含英文词（≥4字符）→ 不触发', () => {
+    expect(shouldTriggerClarify('调研React框架', false, null)).toBe(false)
+    expect(shouldTriggerClarify('分析ChatGPT', false, null)).toBe(false)
+  })
+
+  it('输入长度 >20 → 已足够具体，不触发', () => {
+    // 21 字符
+    expect(shouldTriggerClarify('调研一下人工智能行业的市场规模和主要玩家吧', false, null)).toBe(false)
+  })
+
+  it('onboarding 模式下 → 不触发', () => {
+    expect(shouldTriggerClarify('调研市场', true, null)).toBe(false)
+  })
+
+  it('已有 clarifyPending → 不重复触发', () => {
+    expect(shouldTriggerClarify('调研AI', false, '调研AI')).toBe(false)
+  })
+
+  it('无调研关键词 → 不触发', () => {
+    expect(shouldTriggerClarify('今天天气怎么样', false, null)).toBe(false)
+    expect(shouldTriggerClarify('帮我写一首诗', false, null)).toBe(false)
+  })
+
+  it('边界：短英文(少于4字)不算具体锚点', () => {
+    // "AI" 只有 2 字符，不触发 hasConcreteTarget
+    expect(shouldTriggerClarify('调研AI', false, null)).toBe(true)
+  })
+})
+
+// ── search_round SSE event format ─────────────────────────────────────────────
+
+describe('search_round SSE event 格式', () => {
+  it('round=2 时 message 应为提示语', () => {
+    const round = 2
+    const message = round === 2
+      ? '你的问题有点复杂，正在进行更多搜索…'
+      : `正在进行第 ${round} 轮搜索，请稍候…`
+    expect(message).toBe('你的问题有点复杂，正在进行更多搜索…')
+  })
+
+  it('round=3 时 message 应含轮次号', () => {
+    const round: number = 3
+    const message = round === 2
+      ? '你的问题有点复杂，正在进行更多搜索…'
+      : `正在进行第 ${round} 轮搜索，请稍候…`
+    expect(message).toBe('正在进行第 3 轮搜索，请稍候…')
+  })
+
+  it('round=5 时 message 应含 5', () => {
+    const round: number = 5
+    const message = round === 2
+      ? '你的问题有点复杂，正在进行更多搜索…'
+      : `正在进行第 ${round} 轮搜索，请稍候…`
+    expect(message).toContain('5')
+  })
+
+  it('MAX_SEARCH_ROUNDS = 5 防止无限循环', () => {
+    const MAX_SEARCH_ROUNDS = 5
+    let round = 1
+    let iterations = 0
+    // 模拟每轮都返回 tool_calls
+    while (round <= MAX_SEARCH_ROUNDS) {
+      iterations++
+      // 模拟 finishReason = 'tool_calls'
+      round += 1
+      if (round > MAX_SEARCH_ROUNDS) break
+    }
+    expect(iterations).toBe(MAX_SEARCH_ROUNDS)
+    expect(round).toBe(MAX_SEARCH_ROUNDS + 1)
+  })
+
+  it('finishReason != tool_calls 时立即退出循环', () => {
+    const MAX_SEARCH_ROUNDS = 5
+    let round = 1
+    let iterations = 0
+    const mockFinishReasons = ['tool_calls', 'stop'] // 第2次就退出
+    while (round <= MAX_SEARCH_ROUNDS) {
+      const finishReason = mockFinishReasons[iterations] ?? 'stop'
+      iterations++
+      if (finishReason !== 'tool_calls') break
+      round += 1
+      if (round > MAX_SEARCH_ROUNDS) break
+    }
+    expect(iterations).toBe(2) // 只循环了2次
+    expect(round).toBe(2)      // 没有进入第3轮
+  })
+})

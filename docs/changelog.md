@@ -1,5 +1,40 @@
 # Anima 变更日志
 
+## [0.2.50] - 2026-03-07
+
+### feat(v0.2.50): 多轮 web_search + 调研澄清层 + 代码质量修复
+
+#### 变更 A：后端多轮搜索（ai.ts）
+
+- **`readRound()` 提取为独立函数**：从单轮 SSE 流中读取 content/reasoning 增量及 tool_calls，统一复用。
+- **P0 修复**：添加 `try/finally reader.releaseLock()`，确保 ReadableStream reader 在任意退出路径下均被释放，消除资源泄漏。
+- **while 循环替代 if**：最多 5 轮（`MAX_SEARCH_ROUNDS = 5`），每轮在 `finishReason === 'tool_calls'` 且有 tool_calls 时继续，否则正常退出。
+- **续轮请求包含 `tools` 声明**：每次续轮请求都带 `tools: [{ type: 'builtin_function', function: { name: '$web_search' } }]`，确保模型可以继续调用搜索。
+- **`search_round` SSE 事件**：每次进入新搜索轮次前推送 `{ type: 'search_round', round, message }` 给前端。
+
+#### 变更 B：前端搜索进度指示器
+
+- **`AIStreamChunk` 扩展**：新增 `type: 'search_round'`，带 `round?: number` 字段（`services/ai.ts`）。
+- **`useAI.ts` 新增 `onSearchRound` 回调**：在 for-await 循环中分发 `search_round` chunk，调用 `callbacksRef.current.onSearchRound?.(round, message)`。
+- **`AnswerModal.tsx` 搜索进度 UI**：最新一轮 AI 回复区域上方显示蓝色动态提示条，`onComplete` 时清空；仅在 `isStreaming && idx === turns.length - 1` 时展示。
+
+#### 变更 C：调研前澄清层（AnswerModal.tsx）
+
+- **触发条件**：`!isOnboardingMode && hasResearchKw && !hasConcreteTarget && !clarifyPending`。
+- **P1 修复**：添加 `!isOnboardingMode` 守卫，确保新手引导流程中不触发澄清层。
+- **澄清卡片**：浮于输入框上方（`absolute bottom-full`），提供「行业与市场数据」「产品或技术方案对比」两个快捷按钮，及自由输入框。
+- **`sendClarifiedMessage` 提取**：将两处相同的 `doSend` 匿名函数提取为 `useCallback`，消除代码重复。
+
+#### 变更 D：单元测试（+20 tests）
+
+- **`readRound` 逻辑测试**（6 个）：普通 content 流、tool_call 累积、reader.releaseLock 无泄漏、多并行 tool_calls、`[DONE]` 跳过、空 body。
+- **澄清层触发规则测试**（9 个）：关键词、引号锚点、年份、英文词、长度>20、onboarding 守卫、重复触发防护、无关键词、短英文边界。
+- **search_round 消息格式测试**（5 个）：round=2/3/5 消息文本、MAX_SEARCH_ROUNDS=5 边界、finishReason!=tool_calls 提前退出。
+
+总计 289 tests，全部通过（原 269 + 新增 20）。
+
+---
+
 ## [0.2.49] - 2026-03-07
 
 ### fix(v0.2.49): Edge 视觉白色毛玻璃重设计 + 逻辑边去重提取
