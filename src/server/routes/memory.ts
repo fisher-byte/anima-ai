@@ -560,7 +560,7 @@ ${assistantMessage ? `AI回复：${assistantMessage.slice(0, 200)}` : ''}
         }
         // B1: 触发心智模型更新，最多在前 5 个里程碑（20/40/60/80/100 facts）
         if (milestone <= 5) {
-          const pendingMM = db.prepare("SELECT id FROM agent_tasks WHERE type = 'extract_mental_model' AND status = 'pending' LIMIT 1").get()
+          const pendingMM = db.prepare("SELECT id FROM agent_tasks WHERE type = 'extract_mental_model' AND status IN ('pending', 'running') LIMIT 1").get()
           if (!pendingMM) {
             enqueueTask(db, 'extract_mental_model', {})
             console.log(`[memory/extract] auto-queued extract_mental_model at ${totalAfter} facts (milestone ${milestone}/5)`)

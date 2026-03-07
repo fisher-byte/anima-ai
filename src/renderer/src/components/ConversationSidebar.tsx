@@ -115,7 +115,7 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
       setTimeout(() => { void fetchMM(); setPendingMentalModelRefresh(false) }, 35_000),
     ]
     return () => timers.forEach(clearTimeout)
-  }, [pendingMentalModelRefresh])
+  }, [pendingMentalModelRefresh, setPendingMentalModelRefresh])
 
   // 加载对话历史
   useEffect(() => {
@@ -776,7 +776,10 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                             setConsolidateToast('心智模型重建任务已提交，约 30 秒后自动刷新')
                             setTimeout(() => setConsolidateToast(null), 4000)
                             setPendingMentalModelRefresh(true)
-                          } catch {}
+                          } catch {
+                            setConsolidateToast('刷新失败，请检查网络后重试')
+                            setTimeout(() => setConsolidateToast(null), 3000)
+                          }
                           setIsMentalModelRefreshing(false)
                         }}
                         className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-700 transition-colors"

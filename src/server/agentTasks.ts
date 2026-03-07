@@ -696,8 +696,13 @@ ${factsText}
     }
     if ('领域知识' in parsed && (typeof parsed['领域知识'] !== 'object' || Array.isArray(parsed['领域知识']) || parsed['领域知识'] === null)) return
 
+    // 只保留已知字段，防止 LLM 额外字段污染存储
+    const sanitized: Record<string, unknown> = {}
+    for (const k of expectedKeys) {
+      if (k in parsed) sanitized[k] = parsed[k]
+    }
     const now = new Date().toISOString()
-    const modelJson = JSON.stringify(parsed)
+    const modelJson = JSON.stringify(sanitized)
 
     const existing = db.prepare('SELECT id FROM user_mental_model WHERE id = 1').get()
     if (existing) {
