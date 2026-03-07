@@ -70,6 +70,9 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
     }
   }, [node.x, node.y])
 
+  // 节点碰撞检测最小间距（节点宽约 160px，此值使节点可挨近但不叠在一起）
+  const NODE_MIN_GAP = 155
+
   const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
     const dx = e.clientX - mouseDownPosRef.current.x
     const dy = e.clientY - mouseDownPosRef.current.y
@@ -82,9 +85,22 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
 
     if (isDraggingRef.current) {
       const currentScale = useCanvasStore.getState().scale
-      const newX = positionRef.current.x + (e.clientX - mouseDownPosRef.current.x) / currentScale
-      const newY = positionRef.current.y + (e.clientY - mouseDownPosRef.current.y) / currentScale
+      let newX = positionRef.current.x + (e.clientX - mouseDownPosRef.current.x) / currentScale
+      let newY = positionRef.current.y + (e.clientY - mouseDownPosRef.current.y) / currentScale
       mouseDownPosRef.current = { x: e.clientX, y: e.clientY }
+
+      // 碰撞检测：与其他节点保持最小间距，被拖节点遇到阻力时停在边界
+      const otherNodes = useCanvasStore.getState().nodes.filter(n => n.id !== node.id)
+      for (const other of otherNodes) {
+        const dist = Math.hypot(newX - other.x, newY - other.y)
+        if (dist < NODE_MIN_GAP && dist > 0) {
+          // 沿两节点连线方向推开，保持在碰撞边界
+          const factor = NODE_MIN_GAP / dist
+          newX = other.x + (newX - other.x) * factor
+          newY = other.y + (newY - other.y) * factor
+        }
+      }
+
       positionRef.current = { x: newX, y: newY }
 
       const el = document.getElementById(`node-${node.id}`)

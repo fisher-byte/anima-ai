@@ -16,7 +16,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCanvasStore } from '../stores/canvasStore'
-import { UI_CONFIG } from '@shared/constants'
 import { X, Paperclip, FileText, FileCode, File as FileIcon, Loader2, ArrowUp, Sparkles, Quote, ChevronDown, ChevronUp } from 'lucide-react'
 import { formatFilesForAI, FilePreview, getFileType, readImageAsBase64, formatFileSize } from '../../../services/fileParsing'
 import type { FileAttachment } from '@shared/types'
@@ -70,6 +69,7 @@ export function InputBox() {
   const [focused, setFocused] = useState(false)
   const [matchCount, setMatchCount] = useState(0)
   const [referenceBlocks, setReferenceBlocks] = useState<string[]>([])
+  const [ghostIndex, setGhostIndex] = useState(0)
 
   // API Key 内联输入状态
   const [isApiKeyMode, setIsApiKeyMode] = useState(false)
@@ -81,6 +81,24 @@ export function InputBox() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   // 防抖计时器：输入停止 600ms 后再检索记忆
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Ghost Text 轮换：输入框为空时循环展示不同提示语，每 4 秒切换
+  const GHOST_TEXTS = [
+    '问我任何事',
+    '有什么在脑子里转？',
+    '最近在思考什么？',
+    '把想法说给我听',
+    '今天遇到什么了？',
+  ]
+  // 每 4 秒轮换一条 ghost text（输入框聚焦时暂停）
+  useEffect(() => {
+    if (focused || message) return
+    const timer = setInterval(() => {
+      setGhostIndex(i => (i + 1) % GHOST_TEXTS.length)
+    }, 4000)
+    return () => clearInterval(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focused, message])
 
   const startConversation = useCanvasStore(state => state.startConversation)
   const isModalOpen = useCanvasStore(state => state.isModalOpen)
@@ -636,7 +654,7 @@ export function InputBox() {
             onBlur={() => setFocused(false)}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            placeholder={UI_CONFIG.INPUT_PLACEHOLDER}
+            placeholder={GHOST_TEXTS[ghostIndex]}
             className="flex-1 bg-transparent border-none outline-none resize-none px-2 py-3.5 text-gray-800 placeholder-gray-400 min-h-[52px] max-h-[220px] text-[15px] leading-relaxed overflow-y-auto scrollbar-none"
             style={{ scrollbarWidth: 'none' }}
             rows={1}
@@ -672,10 +690,9 @@ export function InputBox() {
             </button>
         </motion.div>
 
-        {/* 快捷键提示 */}
-        <div className="flex justify-center gap-4 mt-3 text-[10px] text-gray-300 font-bold uppercase tracking-widest pointer-events-none">
-            <span className="bg-gray-50 px-2 py-0.5 rounded border border-gray-100">Enter 发送</span>
-            <span className="bg-gray-50 px-2 py-0.5 rounded border border-gray-100">Shift+Enter 换行</span>
+        {/* 快捷键提示：简洁单行，减少视觉噪音 */}
+        <div className="flex justify-center mt-2 text-[10px] text-gray-300 pointer-events-none select-none tracking-wide">
+            Enter 发送 · Shift+Enter 换行
         </div>
       </motion.div>
       </div>

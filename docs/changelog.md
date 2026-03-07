@@ -1,5 +1,28 @@
 # Anima 变更日志
 
+## [0.2.52] - 2026-03-07
+
+### fix + feat(v0.2.52): 逻辑边修复 + 节点碰撞 + 输入框 Ghost Text + ThinkingSection 分阶段
+
+#### 修复
+
+| 问题 | 文件 | 说明 |
+|------|------|------|
+| 逻辑边只显示2种 | `canvasStore.ts` | `_triggerLogicalEdgeExtraction` 中 candidates 的 `userMessage: ''` 改为 `title+keywords` 拼接摘要，AI 现在能正确判断全部6种关系 |
+
+#### 新功能
+
+| 功能 | 文件 | 说明 |
+|------|------|------|
+| 节点拖拽碰撞检测 | `NodeCard.tsx` | `handleGlobalMouseMove` 中加入 `NODE_MIN_GAP=155` 碰撞检测：拖拽节点遇到其他节点时沿推开方向停在边界，节点可挨近但不重叠 |
+| Ghost Text 轮换 | `InputBox.tsx` | 输入框为空时每4秒轮换显示5条不同提示语（问我任何事 / 有什么在脑子里转？/ 最近在思考什么？等），聚焦后暂停 |
+| 快捷键提示简化 | `InputBox.tsx` | 两个带边框的 tag → 单行轻量文字"Enter 发送 · Shift+Enter 换行"，减少视觉噪音 |
+| ThinkingSection 分阶段 | `ThinkingSection.tsx` | 思考过程分4阶段：等待首token → 正在分析（<200字）→ 深度推理中（<800字）→ 全力思考中（≥800字）→ 思考完毕 · N字 |
+
+**289/289 测试通过，TS 编译零错误**
+
+---
+
 ## [0.2.51] - 2026-03-07
 
 ### chore(v0.2.51): 代码质量重构 — 大文件拆分 + AI 友好代码规范
