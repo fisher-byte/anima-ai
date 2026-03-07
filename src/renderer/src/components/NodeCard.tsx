@@ -24,6 +24,9 @@ import { useLodScale } from '../hooks/useLodScale'
 import { useConfirm } from './GlobalUI'
 import type { Node } from '@shared/types'
 
+/** 拖拽碰撞检测最小间距（节点宽约 160px，此值使节点可挨近但不叠在一起） */
+const NODE_MIN_GAP = 155
+
 interface NodeCardProps {
   node: Node
   depth: number
@@ -54,6 +57,14 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
   const positionRef = useRef({ x: node.x, y: node.y })
   const lastDragEndRef = useRef(0)
   const rafRef = useRef<number | null>(null)
+  // 缓存其他节点位置：用 store.subscribe 保持同步，避免每次 mousemove 调用 getState()
+  const otherNodesRef = useRef(useCanvasStore.getState().nodes.filter(n => n.id !== node.id))
+  useEffect(() => {
+    const unsub = useCanvasStore.subscribe(
+      state => { otherNodesRef.current = state.nodes.filter(n => n.id !== node.id) }
+    )
+    return unsub
+  }, [node.id])
 
   const lodOpacity = useMemo(() => {
     if (scale < 0.4) return 0
@@ -69,9 +80,6 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
       positionRef.current = { x: node.x, y: node.y }
     }
   }, [node.x, node.y])
-
-  // 节点碰撞检测最小间距（节点宽约 160px，此值使节点可挨近但不叠在一起）
-  const NODE_MIN_GAP = 155
 
   const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
     const dx = e.clientX - mouseDownPosRef.current.x
@@ -90,8 +98,7 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
       mouseDownPosRef.current = { x: e.clientX, y: e.clientY }
 
       // 碰撞检测：与其他节点保持最小间距，被拖节点遇到阻力时停在边界
-      const otherNodes = useCanvasStore.getState().nodes.filter(n => n.id !== node.id)
-      for (const other of otherNodes) {
+      for (const other of otherNodesRef.current) {
         const dist = Math.hypot(newX - other.x, newY - other.y)
         if (dist < NODE_MIN_GAP && dist > 0) {
           // 沿两节点连线方向推开，保持在碰撞边界
