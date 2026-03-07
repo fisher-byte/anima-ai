@@ -1,3 +1,20 @@
+/**
+ * canvasStore — Zustand 全局状态（单一 store）
+ *
+ * 所有方法共享同一个 create((set, get) => ({...})) 闭包，
+ * 因此无法拆分为独立文件（会丢失 set/get 引用）。
+ * 这是 Zustand 的标准单 store 模式，文件体积由此决定。
+ *
+ * 内部逻辑分区（按搜索关键词定位）：
+ *   [SECTION:LOAD]        loadNodes / loadProfile / checkApiKey
+ *   [SECTION:NODE]        addNode / updateNodePosition / removeNode
+ *   [SECTION:EDGE]        updateEdges / addSemanticEdges / addLogicalEdges
+ *   [SECTION:CONVERSATION] startConversation / endConversation / appendConversation
+ *   [SECTION:MEMORY]      getRelevantMemories / compressMemoriesForPrompt
+ *   [SECTION:PREFERENCE]  detectFeedback / addPreference / detectIntent
+ *   [SECTION:ONBOARDING]  openOnboarding / completeOnboarding
+ */
+
 import { create } from 'zustand'
 import type { Node, Edge, Conversation, Profile, PreferenceRule, NodePosition } from '@shared/types'
 import { STORAGE_FILES, FEEDBACK_TRIGGERS, CONFIDENCE_CONFIG, UI_CONFIG } from '@shared/constants'

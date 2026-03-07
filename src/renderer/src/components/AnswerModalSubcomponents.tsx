@@ -1,0 +1,255 @@
+/**
+ * AnswerModal 子组件
+ * 纯 UI 组件，无副作用，无 canvasStore 依赖。
+ * 由 AnswerModal.tsx 导入使用。
+ *
+ * 导出：
+ *   UserMessageContent  — 解析用户消息，引用块折叠展示
+ *   ReferenceBlockBubble — 单个引用块胶囊（折叠/展开）
+ *   ClosingAnimation    — 关闭时左上角"已记下来了"动画
+ *   InputArea           — 底部输入区（文件/引用块/发送按钮）
+ */
+
+import { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Sparkles, Square, Paperclip, X, ArrowUp,
+  File as FileIcon, Quote, ChevronDown, ChevronUp
+} from 'lucide-react'
+import type { FileAttachment } from '@shared/types'
+import { stripFileBlocksOnly } from '../utils/conversationUtils'
+
+// ── UserMessageContent ────────────────────────────────────────────────────────
+
+/** 解析并渲染用户消息，将 [REFERENCE_START]...[REFERENCE_END] 块展示为折叠胶囊，剥离文件内容标记 */
+export function UserMessageContent({ content }: { content: string }) {
+  // 先剥离文件内容块（用共享工具函数，逻辑集中便于测试）
+  const stripped = stripFileBlocksOnly(content)
+
+  const parts: Array<{ type: 'text' | 'reference'; value: string }> = []
+  const regex = /\[REFERENCE_START\]([\s\S]*?)\[REFERENCE_END\]/g
+  let last = 0
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(stripped)) !== null) {
+    if (match.index > last) parts.push({ type: 'text', value: stripped.slice(last, match.index) })
+    parts.push({ type: 'reference', value: match[1].trim() })
+    last = match.index + match[0].length
+  }
+  if (last < stripped.length) parts.push({ type: 'text', value: stripped.slice(last) })
+  if (parts.length === 0) return <div>{stripped}</div>
+  return (
+    <div className="flex flex-col gap-2">
+      {parts.map((p, i) =>
+        p.type === 'text' ? (
+          p.value.trim() ? <div key={i}>{p.value}</div> : null
+        ) : (
+          <ReferenceBlockBubble key={i} content={p.value} />
+        )
+      )}
+    </div>
+  )
+}
+
+// ── ReferenceBlockBubble ──────────────────────────────────────────────────────
+
+export function ReferenceBlockBubble({ content }: { content: string }) {
+  const [expanded, setExpanded] = useState(false)
+  const firstLine = content.split('\n')[0].trim()
+  const preview = firstLine.slice(0, 40) + (firstLine.length > 40 ? '…' : '')
+  const wordCount = content.length
+  return (
+    <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl px-3 py-2 text-amber-700 text-[13px]">
+      <div className="flex items-center gap-2">
+        <Quote className="w-3 h-3 text-amber-400 flex-shrink-0" />
+        <span className="flex-1 truncate">{preview}</span>
+        <span className="text-[11px] text-amber-400 flex-shrink-0">{wordCount} 字</span>
+        <button
+          onClick={() => setExpanded(v => !v)}
+          className="p-0.5 text-amber-400 hover:text-amber-600 transition-colors flex-shrink-0"
+        >
+          {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+      {expanded && (
+        <div className="mt-1.5 max-h-48 overflow-y-auto text-[12px] leading-relaxed text-amber-700/90 whitespace-pre-wrap border-t border-amber-200/60 pt-1.5">
+          {content}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── ClosingAnimation ──────────────────────────────────────────────────────────
+
+export function ClosingAnimation({ isOnboarding, appliedPreferences }: { isOnboarding: boolean; appliedPreferences: string[] }) {
+  const label = isOnboarding ? '记忆已生成 ✦' : '已记下来了'
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -8, y: -4 }}
+      animate={{ opacity: 1, x: 0, y: 0 }}
+      exit={{ opacity: 0, x: -8 }}
+      transition={{ duration: 0.22, ease: 'easeOut' }}
+      className="fixed top-4 left-4 z-[55] pointer-events-none flex flex-col gap-1.5"
+    >
+      <div className="flex items-center gap-2 px-3.5 py-2 bg-gray-900 text-white text-[12px] font-medium rounded-2xl shadow-lg">
+        <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        {label}
+      </div>
+      {appliedPreferences.length > 0 && (
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-[11px] font-medium rounded-2xl shadow-md">
+          <Sparkles className="w-3 h-3 text-yellow-300 flex-shrink-0" />
+          已应用 {appliedPreferences.length} 条偏好
+        </div>
+      )}
+    </motion.div>
+  )
+}
+
+// ── InputArea ─────────────────────────────────────────────────────────────────
+
+export interface InputAreaProps {
+  feedbackMessage: string
+  pendingImages: string[]
+  pendingFiles: FileAttachment[]
+  referenceBlocks: string[]
+  isStreaming: boolean
+  isOnboardingMode: boolean
+  evolutionToast: { label: string; detail: string } | null
+  fileInputRef: React.RefObject<HTMLInputElement>
+  textareaRef: React.RefObject<HTMLTextAreaElement>
+  onFeedbackChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
+  onFeedbackSubmit: () => void
+  onStopGeneration: () => void
+  onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onDrop: (e: React.DragEvent) => void
+  onRemoveFile: (id: string) => void
+  onAddReferenceBlock: (text: string) => void
+  onRemoveReferenceBlock: (index: number) => void
+}
+
+export function InputArea({
+  feedbackMessage, pendingImages, pendingFiles, referenceBlocks, isStreaming, isOnboardingMode,
+  evolutionToast, fileInputRef, textareaRef,
+  onFeedbackChange, onFeedbackSubmit, onStopGeneration, onFileSelect, onDrop, onRemoveFile,
+  onAddReferenceBlock, onRemoveReferenceBlock
+}: InputAreaProps) {
+  const handlePaste = (e: React.ClipboardEvent) => {
+    // A-3: 有文件时不处理文本（图片/文件粘贴由父组件 fileInputRef 处理）
+    if (e.clipboardData.files.length > 0) return
+    const pastedText = e.clipboardData.getData('text')
+    if (pastedText.length > 500) {
+      e.preventDefault()
+      onAddReferenceBlock(pastedText)
+    }
+  }
+
+  return (
+    <div className="p-4 bg-white border-t border-gray-100">
+      <div className="max-w-2xl mx-auto relative">
+        <AnimatePresence>
+          {evolutionToast && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+              className="absolute -top-14 left-0 right-0 flex justify-center"
+            >
+              <div className="flex flex-col items-center gap-0.5 px-4 py-2 bg-gray-900 text-white rounded-2xl shadow-lg max-w-xs text-center">
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold">
+                  <Sparkles className="w-3 h-3 text-yellow-400 flex-shrink-0" />
+                  {evolutionToast.label}
+                </div>
+                {evolutionToast.detail && (
+                  <div className="text-[10px] text-white/60 leading-snug truncate max-w-[220px]">{evolutionToast.detail}</div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="flex items-end gap-2 bg-white rounded-[24px] p-2 border border-gray-200 shadow-sm focus-within:border-gray-900 transition-all relative">
+          <AnimatePresence>
+            {(pendingFiles.length > 0 || pendingImages.length > 0) && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+                className="absolute bottom-full left-0 mb-2 flex flex-wrap gap-2 p-2 bg-white/90 backdrop-blur-md rounded-xl border border-gray-100 shadow-lg"
+              >
+                {pendingImages.map((img, i) => (
+                  <div key={`p-img-${i}`} className="relative group w-12 h-12">
+                    <img src={img} className="w-full h-full object-cover rounded-lg border border-gray-200" />
+                    <button onClick={() => onRemoveFile(pendingFiles.find(f => f.preview === img)?.id || '')} className="absolute -top-1 -right-1 bg-white rounded-full shadow border p-0.5 opacity-0 group-hover:opacity-100">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+                {pendingFiles.filter(f => !f.preview).map(f => (
+                  <div key={f.id} className="relative group flex items-center gap-1 px-2 py-1 bg-gray-50 rounded-lg border border-gray-200 text-xs">
+                    <FileIcon className="w-3 h-3 text-gray-400" />
+                    <span className="max-w-[80px] truncate">{f.name}</span>
+                    <button onClick={() => onRemoveFile(f.id)} className="ml-1 hover:text-red-500"><X className="w-3 h-3" /></button>
+                  </div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <button onClick={() => fileInputRef.current?.click()} className="p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors">
+            <Paperclip className="w-5 h-5" />
+          </button>
+          <input type="file" ref={fileInputRef} className="hidden" onChange={onFileSelect} multiple />
+
+          <div className="flex-1 relative" onDrop={onDrop} onDragOver={e => e.preventDefault()}>
+            {/* 引用块胶囊列表 */}
+            <AnimatePresence>
+              {referenceBlocks.map((ref, i) => (
+                <motion.div
+                  key={i}
+                  layout
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="flex items-center gap-1.5 mb-1 px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded-xl text-[12px] text-amber-800"
+                >
+                  <Quote className="w-3 h-3 flex-shrink-0 text-amber-500" />
+                  <span className="flex-1 truncate opacity-80">{ref.slice(0, 40)}{ref.length > 40 ? '…' : ''}</span>
+                  <button
+                    onClick={() => onRemoveReferenceBlock(i)}
+                    className="flex-shrink-0 text-amber-400 hover:text-amber-700 transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+            <textarea
+              ref={textareaRef}
+              value={feedbackMessage}
+              onChange={onFeedbackChange}
+              placeholder={isOnboardingMode ? '在这里介绍你自己…' : '回复…'}
+              className="w-full bg-transparent border-none outline-none resize-none py-3 text-[15px] max-h-[120px]"
+              rows={1}
+              onPaste={handlePaste}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onFeedbackSubmit() }
+              }}
+            />
+          </div>
+
+          {isStreaming ? (
+            <button onClick={onStopGeneration} className="p-2.5 bg-gray-900 text-white rounded-xl hover:bg-black transition-all shadow-md" title="停止生成">
+              <Square className="w-4 h-4 animate-pulse fill-white" />
+            </button>
+          ) : (
+            <button
+              onClick={onFeedbackSubmit}
+              disabled={!feedbackMessage.trim() && pendingFiles.length === 0 && referenceBlocks.length === 0}
+              className="p-2.5 bg-gray-900 text-white rounded-xl hover:bg-black disabled:opacity-40 disabled:bg-gray-200 transition-all shadow-sm"
+            >
+              <ArrowUp className="w-5 h-5 stroke-[3px]" />
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
