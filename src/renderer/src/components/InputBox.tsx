@@ -21,14 +21,7 @@ import { formatFilesForAI, FilePreview, getFileType, readImageAsBase64, formatFi
 import type { FileAttachment } from '@shared/types'
 import { getAuthToken, configService } from '../services/storageService'
 
-// Ghost Text 轮换候选列表（模块级常量，避免每次渲染重新创建）
-const GHOST_TEXTS = [
-  '问我任何事',
-  '有什么在脑子里转？',
-  '最近在思考什么？',
-  '把想法说给我听',
-  '今天遇到什么了？',
-] as const
+const GHOST_TEXT = '问我任何事'
 
 /** 引用块胶囊：折叠展示粘贴的长文本，保留在输入框上方 */
 function ReferenceBlockPreview({ content, onRemove }: { content: string; onRemove: () => void }) {
@@ -78,7 +71,6 @@ export function InputBox() {
   const [focused, setFocused] = useState(false)
   const [matchCount, setMatchCount] = useState(0)
   const [referenceBlocks, setReferenceBlocks] = useState<string[]>([])
-  const [ghostIndex, setGhostIndex] = useState(0)
 
   // API Key 内联输入状态
   const [isApiKeyMode, setIsApiKeyMode] = useState(false)
@@ -90,15 +82,6 @@ export function InputBox() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   // 防抖计时器：输入停止 600ms 后再检索记忆
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // 每 4 秒轮换一条 ghost text（输入框聚焦或有内容时暂停）
-  useEffect(() => {
-    if (focused || message) return
-    const timer = setInterval(() => {
-      setGhostIndex(i => (i + 1) % GHOST_TEXTS.length)
-    }, 4000)
-    return () => clearInterval(timer)
-  }, [focused, message])
 
   const startConversation = useCanvasStore(state => state.startConversation)
   const isModalOpen = useCanvasStore(state => state.isModalOpen)
@@ -397,7 +380,7 @@ export function InputBox() {
 
     startConversation(fullMessage, images, uploadedFiles)
 
-    // 清空状态
+    // 清空状态（isProcessing 在清空后才重置，防止文件上传期间重复提交）
     setMessage('')
     setImages([])
     setFiles([])
@@ -654,7 +637,7 @@ export function InputBox() {
             onBlur={() => setFocused(false)}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            placeholder={GHOST_TEXTS[ghostIndex]}
+            placeholder={GHOST_TEXT}
             className="flex-1 bg-transparent border-none outline-none resize-none px-2 py-3.5 text-gray-800 placeholder-gray-400 min-h-[52px] max-h-[220px] text-[15px] leading-relaxed overflow-y-auto scrollbar-none"
             style={{ scrollbarWidth: 'none' }}
             rows={1}
