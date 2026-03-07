@@ -1,3 +1,23 @@
+/**
+ * useAI — AI 流式调用 Hook
+ *
+ * 职责：封装 streamAI / callAI 调用，管理 AbortController 生命周期，
+ *        同步对话历史（conversationHistory）到服务端，分发 SSE 事件回调。
+ *
+ * 回调（UseAIOptions）：
+ *   onStream(chunk)          — 内容增量（显示 AI 输出）
+ *   onThinking(chunk)        — 思考内容增量（ThinkingSection 用）
+ *   onComplete(fullText)     — 全量内容（对话结束）
+ *   onError(error)           — 错误信息
+ *   onStopped()              — 用户手动停止
+ *   onSearchRound(n, msg)    — 多轮搜索第 n 轮开始通知
+ *
+ * 关键实现：
+ *   - callbacksRef 保持最新 options 引用，避免 stale closure 问题
+ *   - conversationHistoryRef 在 stream 期间同步 store 变化
+ *   - stop() 调用 abortController.abort()，SSE 流收到 AbortError 后结束
+ *   - persistHistory() fire-and-forget，不阻塞 UI
+ */
 import { useCallback, useEffect, useRef } from 'react'
 import { streamAI, callAI } from '../services/ai'
 import type { AIMessage } from '../../../shared/types'

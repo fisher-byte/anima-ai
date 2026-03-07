@@ -1,3 +1,19 @@
+/**
+ * Canvas — 画布主组件
+ *
+ * 职责：画布视口管理（平移/缩放/惯性滚动）+ 节点/连线渲染 + 全局控件（搜索/设置/侧栏）
+ *
+ * 关键设计：
+ *   - 所有变换通过 viewState { x, y, scale } 统一管理，存于 useRef 避免重渲染
+ *   - 节点拖拽和画布平移用 pointerId capture 区分，避免事件冲突
+ *   - LOD (Level of Detail)：scale < 0.3 时隐藏 Edge，< 0.5 时 NodeCard 降级渲染
+ *   - MemoryLines：高亮节点 → 输入框的 SVG 虚线，表达记忆引用关系
+ *   - getClusters：按分类聚合节点，供 ClusterLabel 宏观视图使用
+ *
+ * 子组件（均通过 props 或 canvasStore 解耦）：
+ *   NodeCard / Edge / MemoryLines / ClusterLabel / AmbientBackground
+ *   ConversationSidebar / SearchPanel / SettingsModal / ImportMemoryModal
+ */
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit, Sparkles } from 'lucide-react'

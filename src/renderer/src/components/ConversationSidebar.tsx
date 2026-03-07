@@ -1,3 +1,21 @@
+/**
+ * ConversationSidebar — 左侧对话历史侧栏
+ *
+ * 职责：展示所有历史对话节点的列表视图，支持进化基因（偏好规则）查看和编辑。
+ *
+ * 标签页：
+ *   「对话历史」— 按时间倒序列出所有对话，支持搜索、点击定位节点、删除
+ *   「进化基因」— 显示 profile.rules（偏好规则列表），支持单条删除
+ *
+ * 数据来源：
+ *   - 对话历史：GET /api/storage/conversations.jsonl（服务端持久化）
+ *   - 进化基因：GET /api/memory/profile
+ *
+ * 交互：
+ *   - 点击历史条目 → canvasStore.focusNode 画布跳转
+ *   - 删除对话 → 同步更新 canvasStore.nodes + 服务端存储
+ *   - 侧栏宽度可拖拽调整（[MIN_WIDTH, MAX_WIDTH] 约束）
+ */
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {

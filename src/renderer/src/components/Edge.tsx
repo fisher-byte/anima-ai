@@ -1,3 +1,23 @@
+/**
+ * Edge — 画布节点连线
+ *
+ * 职责：渲染两个节点间的语义/逻辑连线，支持 hover 标签和点击解释面板。
+ *
+ * 连线类型（edgeType）：
+ *   'branch'   — 对话分支线（灰色实线，不可交互）
+ *   'category' — 同类聚类线（极淡，hover 显示分类标签）
+ *   'semantic' — 语义相似线（紫色渐变，置信度 → 线宽映射）
+ *   'logical'  — 逻辑关系线（6 种颜色，见 RELATION_STYLES）
+ *
+ * 逻辑关系颜色系统（RELATION_STYLES）：
+ *   深化了→蓝实线  解决了→绿实线  矛盾于→红虚线
+ *   依赖于→灰实线  启发了→黄虚线  重新思考了→橙点划线
+ *
+ * 视觉规则：
+ *   - 置信度 [0.7, 1.0] → 线宽 [1.2, 3.0] px
+ *   - LOD：useLodScale 返回 scale < 0.3 时组件 return null
+ *   - hover 标签 & 点击面板均为白色毛玻璃风格（与 NodeCard 一致）
+ */
 import { memo, useMemo, useState, useCallback } from 'react'
 import { useLodScale } from '../hooks/useLodScale'
 import type { Node } from '@shared/types'

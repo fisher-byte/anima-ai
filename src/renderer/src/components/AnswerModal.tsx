@@ -1,3 +1,25 @@
+/**
+ * AnswerModal — 对话交互主窗口（全屏模态）
+ *
+ * 职责：管理单次对话的完整生命周期——从用户发送消息到 AI 流式回复，再到对话存储。
+ *
+ * 核心流程：
+ *   用户输入 → [澄清层检查] → doSend → useAI.streamAI (SSE)
+ *   → turns 累积 → endConversation → canvasStore 节点生成
+ *
+ * 关键状态：
+ *   turns[]            — 当前对话所有轮次（含 thinking/content/searchRound）
+ *   isStreaming         — SSE 流是否进行中
+ *   clarifyPending     — 澄清层触发时暂存原始输入
+ *   pendingFiles[]     — 待发送的文件附件
+ *   pendingReferenceBlocks[] — 粘贴的长文本引用块
+ *
+ * 子组件（来自 AnswerModalSubcomponents.tsx）：
+ *   UserMessageContent / ReferenceBlockBubble / ClosingAnimation / InputArea
+ *
+ * 特殊模式：
+ *   isOnboardingMode — 新手引导流程，使用固定脚本回复，不调用真实 AI
+ */
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
