@@ -5,7 +5,7 @@
 > *在这个时代，AI 就是自我。你的记忆构成了你，而你的记忆在交互中又留给了 AI。*
 > *AI 也是你，甚至 AI 大于你——但这部分自我，应该还是属于你的。*
 
-![版本](https://img.shields.io/badge/version-0.2.50-black)
+![版本](https://img.shields.io/badge/version-0.2.51-black)
 ![Node](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js)
 ![React](https://img.shields.io/badge/React-18.2.0-61DAFB?logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.4.2-3178C6?logo=typescript)
@@ -91,13 +91,14 @@ evocanvas/
 │   ├── server/         # Hono 后端（API 代理 + SQLite 存储）
 │   │   ├── index.ts    # 服务入口
 │   │   ├── db.ts       # 数据库初始化 & 多租户连接池
-│   │   ├── agentWorker.ts  # 后台任务 Worker
+│   │   ├── agentWorker.ts  # 后台任务 Worker（调度入口）
+│   │   ├── agentTasks.ts   # AI 后台任务实现（consolidateFacts 等）
 │   │   ├── routes/     # API 路由（storage / config / ai / memory）
 │   │   └── middleware/ # 鉴权中间件
 │   ├── renderer/       # React 前端
 │   │   └── src/
-│   │       ├── components/  # UI 组件（Canvas、NodeCard 等）
-│   │       ├── stores/      # Zustand 状态
+│   │       ├── components/  # UI 组件（Canvas、NodeCard、AnswerModal 等）
+│   │       ├── stores/      # Zustand 状态（canvasStore）
 │   │       ├── services/    # 前端服务层
 │   │       └── hooks/       # 自定义 Hooks
 │   ├── services/       # 纯函数业务逻辑（feedback / profile / prompt）

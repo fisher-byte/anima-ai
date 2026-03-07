@@ -1,5 +1,36 @@
 # Anima 变更日志
 
+## [0.2.51] - 2026-03-07
+
+### chore(v0.2.51): 代码质量重构 — 大文件拆分 + AI 友好代码规范
+
+#### 改动概览
+
+- **文件拆分（4 个目标）**：
+  - `server.test.ts` (1610行) → 3 文件：`server.test.ts` (629) + `server-integration.test.ts` (703) + `server-ai.test.ts` (272)
+  - `agentWorker.ts` (853行) → 2 文件：`agentWorker.ts` (234，调度入口) + `agentTasks.ts` (626，AI任务实现)
+  - `AnswerModal.tsx` (1339行) → 2 文件：`AnswerModal.tsx` (1112，主逻辑) + `AnswerModalSubcomponents.tsx` (255，纯UI子组件)
+  - `canvasStore.ts` (1551行) → 未拆分（Zustand 单store闭包设计，拆分需 slice 重构），新增架构注释 + `[SECTION:]` 导航标记
+
+#### 新增文件
+
+| 文件 | 说明 |
+|------|------|
+| `src/server/agentTasks.ts` | AI 后台任务实现（consolidateFacts / extractLogicalEdges / extractProfile 等） |
+| `src/server/__tests__/server-integration.test.ts` | memory/agent/file 集成测试（使用 memDb/fileDb 作用域） |
+| `src/server/__tests__/server-ai.test.ts` | readRound 逻辑 + 澄清层触发 + search_round 格式测试 |
+| `src/renderer/src/components/AnswerModalSubcomponents.tsx` | 纯UI子组件：UserMessageContent / ReferenceBlockBubble / ClosingAnimation / InputArea |
+
+#### 规范
+
+- 所有文件 < 1000 行理想，绝对上限 1500 行
+- AI 友好代码：`[SECTION:]` 标记分区，模块职责头注释
+- 测试按 DB 作用域分组（testDb / memDb / fileDb），按功能域分文件
+
+**289/289 测试通过，TS 编译零错误**
+
+---
+
 ## [0.2.50] - 2026-03-07
 
 ### feat(v0.2.50): 多轮 web_search + 调研澄清层 + 代码质量修复
