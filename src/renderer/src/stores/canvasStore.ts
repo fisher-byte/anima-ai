@@ -60,6 +60,8 @@ interface CanvasState {
 
   // L3 逻辑边（AI 提取的显式关系）
   logicalEdges: Edge[]
+  /** 刚刚新增的逻辑边 id 集合（用于触发入场动画，3s 后自动清除） */
+  newLogicalEdgeIds: Set<string>
   addLogicalEdges: (newEdges: Edge[]) => void
   clearLogicalEdgesForNode: (nodeId: string) => void
   loadLogicalEdges: () => Promise<void>
@@ -219,6 +221,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   edges: [],
   semanticEdges: [],
   logicalEdges: [],
+  newLogicalEdgeIds: new Set<string>(),
   currentConversation: null,
   profile: { rules: [] },
   isModalOpen: false,
@@ -995,9 +998,19 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     if (toAdd.length === 0) return
     const merged = [...logicalEdges, ...toAdd]
     const trimmed = merged.length > 300 ? merged.slice(-300) : merged
-    set({ logicalEdges: trimmed })
+    // 记录新增 id，用于触发入场动画
+    const newIds = new Set(toAdd.map(e => e.id))
+    set({ logicalEdges: trimmed, newLogicalEdgeIds: newIds })
     get().updateEdges()
     storageService.write(STORAGE_FILES.LOGICAL_EDGES, JSON.stringify(trimmed, null, 2)).catch(() => {})
+    // 3s 后清除新增标记（动画播完后无需保留）
+    setTimeout(() => {
+      set(state => {
+        const cleaned = new Set(state.newLogicalEdgeIds)
+        newIds.forEach(id => cleaned.delete(id))
+        return { newLogicalEdgeIds: cleaned }
+      })
+    }, 3000)
   },
 
   loadLogicalEdges: async () => {
