@@ -41,11 +41,11 @@ REMOTE
 
 echo "=== [5/5] 验证服务 ==="
 sleep 2
-STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://101.32.215.209:8080/ 2>/dev/null || echo "无法访问")
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://101.32.215.209:3001/api/health 2>/dev/null || echo "无法访问")
 echo "HTTP 状态: $STATUS"
 
 if [ "$STATUS" = "200" ]; then
-  echo "✓ 部署成功！访问: http://101.32.215.209:8080"
+  echo "✓ 部署成功！访问: http://101.32.215.209:3001"
 else
   echo "⚠ 服务可能需要几秒启动，请手动检查: pm2 logs evocanvas"
 fi
