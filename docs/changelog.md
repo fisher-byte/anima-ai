@@ -1,5 +1,27 @@
 # Anima 变更日志
 
+## [0.2.53] - 2026-03-07
+
+### feat(v0.2.53): MemoryLines 语义化颜色 + 逻辑边入场动画
+
+#### 新功能
+
+| 功能 | 文件 | 说明 |
+|------|------|------|
+| MemoryLines 语义化颜色 | `Canvas.tsx` | 记忆引用虚线（高亮节点 → 输入框）现在使用各节点自身的分类颜色（opacity 0.55）而非统一灰色，多条线同时存在时可以清晰区分来源 |
+| 逻辑边初见惊喜动画 | `Edge.tsx`, `canvasStore.ts` | 新逻辑边首次出现时播放路径绘制动画（1s pathLength 0→1）+ 同色外发光消退（1.4s），3秒后标记清除，后续重载不重复播放 |
+
+#### 性能/架构
+
+| 改动 | 文件 | 说明 |
+|------|------|------|
+| `newLogicalEdgeIds` 状态 | `canvasStore.ts` | 新增 `Set<string>` 状态追踪刚提取的边，`addLogicalEdges` 填入，3s 后 `setTimeout` 清除 |
+| MemoryLines marker 个性化 | `Canvas.tsx` | 每条线的箭头 marker 使用对应线的颜色（改为 `id="mem-arrow-{nodeId}"` 避免共用 marker） |
+
+**测试**：289/289 通过 · TS 零错误
+
+---
+
 ## [0.2.52] - 2026-03-07
 
 ### fix + feat(v0.2.52): 逻辑边修复 + 节点碰撞 + 输入框 Ghost Text + ThinkingSection 分阶段

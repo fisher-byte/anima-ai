@@ -18,7 +18,8 @@
  *   - LOD：useLodScale 返回 scale < 0.3 时组件 return null
  *   - hover 标签 & 点击面板均为白色毛玻璃风格（与 NodeCard 一致）
  */
-import { memo, useMemo, useState, useCallback } from 'react'
+import { memo, useMemo, useState, useCallback, useEffect, useRef } from 'react'
+import { motion } from 'framer-motion'
 import { useLodScale } from '../hooks/useLodScale'
 import type { Node } from '@shared/types'
 
@@ -31,6 +32,8 @@ interface EdgeProps {
   relation?: string
   reason?: string
   confidence?: number
+  /** 是否为刚提取的新逻辑边（触发入场动画） */
+  isNew?: boolean
 }
 
 /** 逻辑关系的视觉样式 */
@@ -46,12 +49,22 @@ const RELATION_STYLES: Record<string, { color: string; dash: string; label: stri
 const DEFAULT_RELATION_STYLE = { color: 'rgba(139, 92, 246, 0.9)', dash: '4 4', label: '关联' }
 
 export const Edge = memo(function Edge({
-  sourceNode, targetNode, label, edgeType, weight, relation, reason, confidence
+  sourceNode, targetNode, label, edgeType, weight, relation, reason, confidence, isNew
 }: EdgeProps) {
   const scale = useLodScale([0.3, 0.5])
   const lodOpacity = scale < 0.3 ? 0 : scale > 0.5 ? 1 : (scale - 0.3) / 0.2
   const [hovered, setHovered] = useState(false)
   const [clicked, setClicked] = useState(false)
+  // 新逻辑边入场动画：播放一次路径绘制 + 短暂高亮
+  const [isAnimating, setIsAnimating] = useState(isNew ?? false)
+  const animTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (isNew) {
+      setIsAnimating(true)
+      animTimerRef.current = setTimeout(() => setIsAnimating(false), 2200)
+    }
+    return () => { if (animTimerRef.current) clearTimeout(animTimerRef.current) }
+  }, [isNew])
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     // 只有语义边或逻辑边才有解释面板
@@ -134,17 +147,47 @@ export const Edge = memo(function Edge({
 
   return (
     <g style={{ pointerEvents: 'none' }}>
+      {/* 新逻辑边入场：先绘制路径，再消退发光层 */}
+      {isAnimating && edgeType === 'logical' && (
+        <motion.path
+          d={path}
+          fill="none"
+          stroke={color}
+          strokeWidth={strokeWidth + 3}
+          strokeOpacity={0}
+          strokeLinecap="round"
+          strokeDasharray={dashArray}
+          initial={{ pathLength: 0, strokeOpacity: 0.55 }}
+          animate={{ pathLength: 1, strokeOpacity: 0 }}
+          transition={{ duration: 1.4, ease: 'easeOut' }}
+          style={{ pointerEvents: 'none', filter: `drop-shadow(0 0 6px ${color})` }}
+        />
+      )}
       {/* 可见连线 */}
-      <path
-        d={path}
-        fill="none"
-        stroke={color}
-        strokeWidth={strokeWidth}
-        strokeOpacity={hovered || clicked ? Math.min(opacity * 2.5, 0.75) : opacity}
-        strokeLinecap="round"
-        strokeDasharray={dashArray}
-        style={{ pointerEvents: 'none' }}
-      />
+      {isAnimating && edgeType === 'logical' ? (
+        <motion.path
+          d={path}
+          fill="none"
+          stroke={color}
+          strokeLinecap="round"
+          strokeDasharray={dashArray}
+          initial={{ pathLength: 0, strokeOpacity: 0 }}
+          animate={{ pathLength: 1, strokeOpacity: hovered || clicked ? Math.min(opacity * 2.5, 0.75) : opacity }}
+          transition={{ duration: 1.0, ease: 'easeOut' }}
+          style={{ pointerEvents: 'none', strokeWidth: strokeWidth }}
+        />
+      ) : (
+        <path
+          d={path}
+          fill="none"
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeOpacity={hovered || clicked ? Math.min(opacity * 2.5, 0.75) : opacity}
+          strokeLinecap="round"
+          strokeDasharray={dashArray}
+          style={{ pointerEvents: 'none' }}
+        />
+      )}
       {/* 透明 hitbox（语义/逻辑边才需要交互） */}
       {isInteractive && (
         <path

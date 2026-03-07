@@ -69,7 +69,14 @@ function MemoryLines({
       const ny = node.y * scale + offset.y - vh
       const sx = nx + (NODE_W / 2) * scale
       const sy = ny + (NODE_H / 2) * scale
-      return { id: node.id, sx, sy }
+      // 用节点自身颜色（已编码分类信息），fallback 到浅蓝
+      const rawColor = node.color || 'rgba(147,197,253,0.9)'
+      // 将原始颜色的透明度调整为 0.55（清晰可辨但不过于强烈）
+      const lineColor = rawColor.replace(/rgba?\(([^)]+)\)/, (_, inner) => {
+        const parts = inner.split(',').map((s: string) => s.trim())
+        return `rgba(${parts[0]},${parts[1]},${parts[2]},0.55)`
+      })
+      return { id: node.id, sx, sy, lineColor }
     })
     // 节点中心必须在可视区内才画线，避免"悬空线"（留宽裕边距）
     .filter(({ sx, sy }) => sx >= -100 && sx <= vw + 100 && sy >= -100 && sy <= vh)
@@ -82,19 +89,21 @@ function MemoryLines({
       style={{ zIndex: 25 }}
     >
       <defs>
-        <marker id="mem-arrow" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
-          <circle cx="3" cy="3" r="2" fill="rgba(0,0,0,0.2)" />
-        </marker>
+        {lines.map(({ id, lineColor }) => (
+          <marker key={`marker-${id}`} id={`mem-arrow-${id}`} markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+            <circle cx="3" cy="3" r="2" fill={lineColor} />
+          </marker>
+        ))}
       </defs>
-      {lines.map(({ id, sx, sy }, i) => (
+      {lines.map(({ id, sx, sy, lineColor }, i) => (
         <motion.path
           key={id}
           d={`M ${sx} ${sy} L ${targetX} ${targetY}`}
-          stroke="rgba(0,0,0,0.13)"
+          stroke={lineColor}
           strokeWidth={1.5}
           strokeDasharray="6 5"
           fill="none"
-          markerEnd="url(#mem-arrow)"
+          markerEnd={`url(#mem-arrow-${id})`}
           initial={{ pathLength: 0, opacity: 0 }}
           animate={{ pathLength: 1, opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -132,6 +141,7 @@ export function Canvas() {
   // 細粒度订阅：只订阅会引起 UI 变化的数据，函数用 getState() 避免触发重渲染
   const nodes = useCanvasStore(state => state.nodes)
   const edges = useCanvasStore(state => state.edges)
+  const newLogicalEdgeIds = useCanvasStore(state => state.newLogicalEdgeIds)
   const isModalOpen = useCanvasStore(state => state.isModalOpen)
   const highlightedNodeIds = useCanvasStore(state => state.highlightedNodeIds)
   const nodesLoaded = useCanvasStore(state => state.nodesLoaded)
@@ -613,6 +623,7 @@ export function Canvas() {
                     relation={edge.relation}
                     reason={edge.reason}
                     confidence={edge.confidence}
+                    isNew={newLogicalEdgeIds.has(edge.id)}
                   />
                 )
               })}
