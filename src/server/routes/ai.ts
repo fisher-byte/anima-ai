@@ -260,30 +260,7 @@ aiRoutes.post('/stream', async (c) => {
       }
     } catch { /* 画像注入失败不影响主流程 */ }
 
-    // ── 层 2.5：心智模型（B1 — 结构化认知框架 / 长期目标 / 思维偏好）──
-    try {
-      const mmRow = db.prepare('SELECT model_json FROM user_mental_model WHERE id = 1').get() as { model_json: string } | undefined
-      if (mmRow?.model_json) {
-        const mm = JSON.parse(mmRow.model_json) as Record<string, unknown>
-        const parts: string[] = []
-        if (Array.isArray(mm['认知框架']) && (mm['认知框架'] as string[]).length > 0)
-          parts.push(`认知框架：${(mm['认知框架'] as string[]).join('、')}`)
-        if (Array.isArray(mm['长期目标']) && (mm['长期目标'] as string[]).length > 0)
-          parts.push(`长期目标：${(mm['长期目标'] as string[]).join('、')}`)
-        if (Array.isArray(mm['思维偏好']) && (mm['思维偏好'] as string[]).length > 0)
-          parts.push(`思维偏好：${(mm['思维偏好'] as string[]).join('、')}`)
-        if (parts.length > 0) {
-          const block = '\n\n【用户心智模型 - 请据此深度个性化】\n' + parts.join('\n')
-          const cost = approxTokens(block)
-          if (contextTokensUsed + cost <= CONTEXT_BUDGET) {
-            systemPrompt += block
-            contextTokensUsed += cost
-          }
-        }
-      }
-    } catch { /* 心智模型注入失败不影响主流程 */ }
-
-    // ── 层 3：记忆事实（语义检索 > BM25 > 最近 N 条降级）──
+    // ── 层 3：记忆事实（语义检索 > BM25 > 最近 N 条降级）── 动态内容优先于静态摘要
     try {
       let relevantFacts: string[] = []
       if (trimmedText.length > 5) {
@@ -309,6 +286,35 @@ aiRoutes.post('/stream', async (c) => {
         }
       }
     } catch { /* 事实注入失败不影响主流程 */ }
+
+    // ── 层 2.5：心智模型（B1 — 静态摘要，放在动态事实之后以降低优先级）──
+    try {
+      const mmRow = db.prepare('SELECT model_json FROM user_mental_model WHERE id = 1').get() as { model_json: string } | undefined
+      if (mmRow?.model_json) {
+        const mm = JSON.parse(mmRow.model_json) as Record<string, unknown>
+        const parts: string[] = []
+        if (Array.isArray(mm['认知框架']) && (mm['认知框架'] as string[]).length > 0)
+          parts.push(`认知框架：${(mm['认知框架'] as string[]).join('、')}`)
+        if (Array.isArray(mm['长期目标']) && (mm['长期目标'] as string[]).length > 0)
+          parts.push(`长期目标：${(mm['长期目标'] as string[]).join('、')}`)
+        if (Array.isArray(mm['思维偏好']) && (mm['思维偏好'] as string[]).length > 0)
+          parts.push(`思维偏好：${(mm['思维偏好'] as string[]).join('、')}`)
+        if (mm['领域知识'] && typeof mm['领域知识'] === 'object' && !Array.isArray(mm['领域知识'])) {
+          const entries = Object.entries(mm['领域知识'] as Record<string, string>)
+          if (entries.length > 0) parts.push(`领域知识：${entries.map(([d, l]) => `${d}(${l})`).join('、')}`)
+        }
+        if (Array.isArray(mm['情绪模式']) && (mm['情绪模式'] as string[]).length > 0)
+          parts.push(`情绪模式：${(mm['情绪模式'] as string[]).join('、')}`)
+        if (parts.length > 0) {
+          const block = '\n\n【用户心智模型 - 请据此深度个性化】\n' + parts.join('\n')
+          const cost = approxTokens(block)
+          if (contextTokensUsed + cost <= CONTEXT_BUDGET) {
+            systemPrompt += block
+            contextTokensUsed += cost
+          }
+        }
+      }
+    } catch { /* 心智模型注入失败不影响主流程 */ }
 
     // ── 层 4（最低优先级）：前端传入的压缩记忆片段 ──
     if (compressedMemory?.trim()) {

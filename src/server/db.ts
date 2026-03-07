@@ -174,7 +174,7 @@ function initSchema(database: InstanceType<typeof Database>) {
     `CREATE TABLE IF NOT EXISTS user_mental_model (
       id         INTEGER PRIMARY KEY CHECK (id = 1),
       model_json TEXT NOT NULL DEFAULT '{}',
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`
   ]
   for (const sql of migrations) {

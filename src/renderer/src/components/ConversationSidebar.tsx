@@ -99,6 +99,24 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
   const [mentalModel, setMentalModel] = useState<MentalModel | null>(null)
   const [isMentalModelRefreshing, setIsMentalModelRefreshing] = useState(false)
 
+  const [pendingMentalModelRefresh, setPendingMentalModelRefresh] = useState(false)
+
+  // 心智模型刷新后轮询（覆盖 agentWorker 最长 30s 处理窗口）
+  useEffect(() => {
+    if (!pendingMentalModelRefresh) return
+    const fetchMM = () =>
+      authFetch('/api/memory/mental-model')
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { setMentalModel(data?.model ?? null) })
+        .catch(() => {})
+    const timers = [
+      setTimeout(() => void fetchMM(), 5_000),
+      setTimeout(() => void fetchMM(), 15_000),
+      setTimeout(() => { void fetchMM(); setPendingMentalModelRefresh(false) }, 35_000),
+    ]
+    return () => timers.forEach(clearTimeout)
+  }, [pendingMentalModelRefresh])
+
   // 加载对话历史
   useEffect(() => {
     if (!isOpen) return
@@ -174,7 +192,7 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
     // 同时加载心智模型
     authFetch('/api/memory/mental-model')
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.model) setMentalModel(data.model as MentalModel) })
+      .then(data => { setMentalModel(data?.model ?? null) })
       .catch(() => {})
   }, [isOpen, activeTab, loadProfile])
 
@@ -755,8 +773,9 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                           setIsMentalModelRefreshing(true)
                           try {
                             await authFetch('/api/memory/mental-model/refresh', { method: 'POST' })
-                            setConsolidateToast('心智模型重建任务已提交，约 30 秒后完成，刷新可查看')
+                            setConsolidateToast('心智模型重建任务已提交，约 30 秒后自动刷新')
                             setTimeout(() => setConsolidateToast(null), 4000)
+                            setPendingMentalModelRefresh(true)
                           } catch {}
                           setIsMentalModelRefreshing(false)
                         }}
@@ -802,8 +821,8 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                         <div>
                           <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-1">领域知识</div>
                           <div className="flex flex-wrap gap-1">
-                            {Object.entries(mentalModel.领域知识).map(([domain, level], i) => (
-                              <span key={i} className="px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded-md text-[10px]">{domain} · {level}</span>
+                            {Object.entries(mentalModel.领域知识).map(([domain, level]) => (
+                              <span key={domain} className="px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded-md text-[10px]">{domain} · {level}</span>
                             ))}
                           </div>
                         </div>

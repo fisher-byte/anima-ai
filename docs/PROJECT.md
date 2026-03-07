@@ -1,7 +1,7 @@
 # Anima — 项目计划
 
 > 唯一入口：每次发版、每次决策都在这里留记录。
-> 最后更新：2026-03-07 | 当前版本：v0.2.59
+> 最后更新：2026-03-07 | 当前版本：v0.2.60
 
 ---
 
@@ -12,6 +12,7 @@
 | 1 | 节点物理感 + 分类重识别 | ✅ 完成 | hover 浮起 y:-2、拖拽 y:-4、增强阴影；AI 批量重分类接口；detectIntent 关键词扩充 |
 | 2 | P2：prompt.ts 僵尸文件清理 | ✅ 完成 | 已于 v0.2.59 删除，23 个测试同步移除 |
 | 3 | B1：结构化用户模型 | ✅ 完成 | user_mental_model 表 + extractMentalModel 任务 + 层 2.5 prompt 注入 + 前端展示 |
+| 4 | Code Review 修复 | ✅ 完成 | 5 项主要 Bug 修复（层级排序/刷新轮询/JSON校验/触发上限/DB DEFAULT）
 
 ---
 
@@ -81,6 +82,7 @@
 
 | 版本 | 日期 | 核心内容 |
 |------|------|----------|
+| v0.2.60 | 2026-03-07 | Code Review 修复：层级排序/刷新轮询/JSON校验/触发上限/DB DEFAULT |
 | v0.2.59 | 2026-03-07 | B1 结构化心智模型 + P2 prompt.ts 清理 |
 | v0.2.58 | 2026-03-07 | 分类系统升级：原型向量 embedding + detectIntent 全量计分 |
 | v0.2.57 | 2026-03-07 | code review 修复：viewport 公式、mouseup 泄露、detectIntent 全面迭代、error surface |
