@@ -187,12 +187,14 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
         opacity: isVisible ? (isDragging ? 1 : (0.6 + (depth - 0.75) * 1.6) * lodOpacity) : 0,
         rotate: isDragging ? 2 : 0,
         filter: isDragging ? 'blur(0px)' : `blur(${(1 - depth) * 1.5}px)`,
+        y: isDragging ? -4 : (isHovered && !isDragging ? -2 : 0),
       }}
       transition={{
         scale: { type: "spring", stiffness: 400, damping: 25 },
         opacity: { duration: 0.4 },
         rotate: { type: "spring", stiffness: 400, damping: 25 },
         filter: { duration: 0.4 },
+        y: { type: "spring", stiffness: 500, damping: 30 },
       }}
       className="absolute cursor-grab active:cursor-grabbing group z-10 pointer-events-auto"
       style={{
@@ -222,10 +224,12 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
         layout
         className={`rounded-2xl transition-all duration-300 w-52 border overflow-hidden ${
           isHighlighted
-            ? 'shadow-[0_0_20px_rgba(0,0,0,0.10)] border-gray-300/60'
+            ? 'shadow-[0_4px_24px_rgba(0,0,0,0.10)] border-gray-300/60'
             : isDragging
-              ? 'shadow-[0_20px_50px_rgba(0,0,0,0.10)] border-gray-200/60'
-              : 'shadow-[0_2px_12px_rgba(0,0,0,0.05)] border-gray-100/80 hover:shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:border-gray-200/60'
+              ? 'shadow-[0_24px_48px_rgba(0,0,0,0.16)] border-gray-200/60'
+              : isHovered
+                ? 'shadow-[0_8px_32px_rgba(0,0,0,0.12)] border-gray-200/50'
+                : 'shadow-[0_2px_16px_rgba(0,0,0,0.06)] border-gray-100/80'
         }`}
         style={{ backgroundColor: 'rgba(255,255,255,0.92)' }}
       >

@@ -141,6 +141,13 @@ interface CanvasState {
 
   // 节点初次加载是否完成（防止空画布提示闪烁）
   nodesLoaded: boolean
+
+  // 错误通知（供 Canvas.tsx 通过 useEffect 订阅并 toast 展示）
+  lastError: string | null
+  clearLastError: () => void
+
+  // 批量重新分类
+  reclassifyNodes: () => Promise<void>
 }
 
 // 防止 completeOnboarding 并发重复执行
@@ -253,6 +260,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   hasApiKey: false,
   apiKeyChecked: false,
   nodesLoaded: false,
+  lastError: null,
 
   setConversationHistory: (history) => set({ conversationHistory: history }),
   resetConversationHistory: () => set({ conversationHistory: [] }),
@@ -1275,6 +1283,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         await addNode(conv, undefined, group.category, isFirst ? appliedMemoryIds.length : 0)
       } catch (error) {
         console.error(`保存话题分组 ${i} 失败:`, error)
+        if (isFirst) set({ lastError: '保存对话失败，请检查网络连接' })
       }
     }
 
@@ -1420,8 +1429,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       { name: '日常事务', keywords: ['医疗', '健康', '法律', '政策', '出行', '路线', '家庭', '租房', '合同', '退税', '感冒', '生病', '签证', '手续', '怎么办', '攻略', '费用', '保险'] },
       { name: '学习成长', keywords: ['学习', '编程', '代码', '论文', '作文', '语言', '英语', '考试', '读书', '理解', '解释', '原理', '概念', 'python', 'javascript', '算法', '数学', '物理', '化学', '历史', '知识'] },
       { name: '工作事业', keywords: ['工作', '职场', '职业', '离职', '跳槽', '创业', '商业', '产品', '项目', '需求', '方案', '汇报', '简历', '面试', '薪资', '晋升', '老板', '同事', '客户', '业务', '运营', '营销', '行业', '市场', '融资', '开发', '技术', 'ai', '模型', '文档'] },
-      { name: '情感关系', keywords: ['恋爱', '感情', '喜欢', '分手', '婚姻', '家人', '父母', '朋友', '社交', '焦虑', '情绪', '心理', '压力', '难过', '孤独', '沟通', '关系', '心情'] },
-      { name: '思考世界', keywords: ['哲学', '人生', '意义', '社会', '未来', '科技', '价值观', '世界', '规律', '本质', '底层', '逻辑', 'ai会', '取代', '为什么', '思考', '认知', '观点', '判断', '趋势'] }
+      { name: '情感关系', keywords: ['恋爱', '感情', '喜欢', '分手', '婚姻', '家人', '父母', '朋友', '社交', '焦虑', '情绪', '心理', '压力', '难过', '孤独', '沟通', '关系', '心情', '幸福', '快乐', '开心', '高兴', '感受', '体验', '满足', '感动', '温暖', '陪伴', '珍惜', '感恩', '爱', '喜悦', '幸福感', '情感', '内心', '自我', '成长感'] },
+      { name: '思考世界', keywords: ['哲学', '人生', '意义', '社会', '未来', '科技', '价值观', '世界', '规律', '本质', '底层', '逻辑', 'ai会', '取代', '为什么', '思考', '认知', '观点', '判断', '趋势', '探讨', '讨论', '聊聊', '想法', '感悟', '体会', '反思', '审视', '理解', '觉得', '觉察', '生命', '存在', '意识'] }
     ]
 
     for (const cat of CATEGORIES) {
@@ -1579,5 +1588,30 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         conversation.assistantMessage
       ).catch(() => {})
     }, 3000)
-  }
+  },
+
+  clearLastError: () => set({ lastError: null }),
+
+  reclassifyNodes: async () => {
+    const { nodes } = get()
+    if (nodes.length === 0) return
+    const toReclassify = nodes.map(n => ({ id: n.id, title: n.title, keywords: n.keywords, category: n.category }))
+    try {
+      const resp = await authFetch('/api/memory/reclassify-nodes', {
+        method: 'POST',
+        body: JSON.stringify({ nodes: toReclassify })
+      })
+      if (!resp.ok) return
+      const data = (await resp.json()) as { updated: { id: string; category: string; color: string }[] }
+      if (!data.updated?.length) return
+      const updateMap = new Map(data.updated.map(u => [u.id, u]))
+      const newNodes = get().nodes.map(n => {
+        const upd = updateMap.get(n.id)
+        return upd ? { ...n, category: upd.category, color: upd.color } : n
+      })
+      set({ nodes: newNodes })
+      get().updateEdges()
+      storageService.write(STORAGE_FILES.NODES, JSON.stringify(newNodes, null, 2)).catch(() => {})
+    } catch { /* silent */ }
+  },
 }))
