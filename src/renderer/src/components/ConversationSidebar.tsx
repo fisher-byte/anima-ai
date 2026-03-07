@@ -56,6 +56,14 @@ interface MemoryFact {
   created_at: string
 }
 
+interface MentalModel {
+  认知框架?: string[]
+  长期目标?: string[]
+  思维偏好?: string[]
+  领域知识?: Record<string, string>
+  情绪模式?: string[]
+}
+
 interface ConversationSidebarProps {
   isOpen: boolean
   onClose: () => void
@@ -88,6 +96,8 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
   const [editProfileDraft, setEditProfileDraft] = useState<UserProfile>({})
   const [isConsolidating, setIsConsolidating] = useState(false)
   const [consolidateToast, setConsolidateToast] = useState<string | null>(null)
+  const [mentalModel, setMentalModel] = useState<MentalModel | null>(null)
+  const [isMentalModelRefreshing, setIsMentalModelRefreshing] = useState(false)
 
   // 加载对话历史
   useEffect(() => {
@@ -161,6 +171,11 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
   useEffect(() => {
     if (!isOpen || activeTab !== 'evolution') return
     void loadProfile()
+    // 同时加载心智模型
+    authFetch('/api/memory/mental-model')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.model) setMentalModel(data.model as MentalModel) })
+      .catch(() => {})
   }, [isOpen, activeTab, loadProfile])
 
   // 引导完成后定时轮询（覆盖 agentWorker 最长 30s 处理窗口）
@@ -720,6 +735,90 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                         )}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* 心智模型区块（B1） */}
+                {mentalModel && Object.keys(mentalModel).some(k => {
+                  const v = mentalModel[k as keyof MentalModel]
+                  return Array.isArray(v) ? v.length > 0 : v && Object.keys(v as object).length > 0
+                }) && (
+                  <div className="p-4 bg-gray-50/80 border border-gray-100 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <BrainCircuit className="w-3.5 h-3.5 text-gray-500" />
+                        <span className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">心智模型</span>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (isMentalModelRefreshing) return
+                          setIsMentalModelRefreshing(true)
+                          try {
+                            await authFetch('/api/memory/mental-model/refresh', { method: 'POST' })
+                            setConsolidateToast('心智模型重建任务已提交，约 30 秒后完成，刷新可查看')
+                            setTimeout(() => setConsolidateToast(null), 4000)
+                          } catch {}
+                          setIsMentalModelRefreshing(false)
+                        }}
+                        className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-700 transition-colors"
+                        title="重新提炼心智模型"
+                      >
+                        <RotateCcw className={`w-2.5 h-2.5 ${isMentalModelRefreshing ? 'animate-spin' : ''}`} />
+                        刷新
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {(mentalModel.认知框架?.length ?? 0) > 0 && (
+                        <div>
+                          <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-1">认知框架</div>
+                          <div className="flex flex-wrap gap-1">
+                            {mentalModel.认知框架!.map((item, i) => (
+                              <span key={i} className="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded-md text-[10px]">{item}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {(mentalModel.长期目标?.length ?? 0) > 0 && (
+                        <div>
+                          <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-1">长期目标</div>
+                          <div className="flex flex-wrap gap-1">
+                            {mentalModel.长期目标!.map((item, i) => (
+                              <span key={i} className="px-1.5 py-0.5 bg-green-50 text-green-600 rounded-md text-[10px]">{item}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {(mentalModel.思维偏好?.length ?? 0) > 0 && (
+                        <div>
+                          <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-1">思维偏好</div>
+                          <div className="flex flex-wrap gap-1">
+                            {mentalModel.思维偏好!.map((item, i) => (
+                              <span key={i} className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded-md text-[10px]">{item}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {mentalModel.领域知识 && Object.keys(mentalModel.领域知识).length > 0 && (
+                        <div>
+                          <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-1">领域知识</div>
+                          <div className="flex flex-wrap gap-1">
+                            {Object.entries(mentalModel.领域知识).map(([domain, level], i) => (
+                              <span key={i} className="px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded-md text-[10px]">{domain} · {level}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {(mentalModel.情绪模式?.length ?? 0) > 0 && (
+                        <div>
+                          <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-1">情绪模式</div>
+                          <div className="flex flex-wrap gap-1">
+                            {mentalModel.情绪模式!.map((item, i) => (
+                              <span key={i} className="px-1.5 py-0.5 bg-rose-50 text-rose-500 rounded-md text-[10px]">{item}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 

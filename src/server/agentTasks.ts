@@ -610,6 +610,102 @@ function maybeDecayPreferences(db: InstanceType<typeof Database>) {
   } catch { /* 静默 */ }
 }
 
+/**
+ * B1 — 从碎片化的 memory_facts 提炼结构化 User Mental Model
+ *
+ * model_json 格式：
+ * {
+ *   "认知框架": ["第一性原理思维", "结构化表达偏好"],
+ *   "长期目标": ["2026年做出SaaS产品"],
+ *   "思维偏好": ["不喜欢废话", "要先给结论"],
+ *   "领域知识": { "AI产品": "专家", "前端": "中级" },
+ *   "情绪模式": ["压力时倾向简短确认"]
+ * }
+ */
+export async function extractMentalModel(db: InstanceType<typeof Database>): Promise<void> {
+  const { apiKey, baseUrl, model } = getApiConfig(db)
+  if (!apiKey) return
+
+  // 收集素材：最新 60 条有效 facts + user_profile 字段
+  const factRows = db.prepare(
+    'SELECT fact FROM memory_facts WHERE invalid_at IS NULL ORDER BY created_at DESC LIMIT 60'
+  ).all() as { fact: string }[]
+  if (factRows.length < 3) return  // 太少无法推断
+
+  const profile = db.prepare('SELECT * FROM user_profile WHERE id = 1').get() as Record<string, string | null> | undefined
+
+  const factsText = factRows.map((r, i) => `${i + 1}. ${r.fact}`).join('\n')
+  const profileParts: string[] = []
+  if (profile?.occupation) profileParts.push(`职业：${profile.occupation}`)
+  if (profile?.goals) {
+    try { profileParts.push(`目标：${(JSON.parse(profile.goals) as string[]).join('、')}`) } catch {}
+  }
+  if (profile?.interests) {
+    try { profileParts.push(`兴趣：${(JSON.parse(profile.interests) as string[]).join('、')}`) } catch {}
+  }
+
+  const prompt = `你是用户认知模型提炼器。根据以下关于同一用户的记忆片段，提炼出结构化的用户心智模型。
+
+${profileParts.length > 0 ? `【用户基本信息】\n${profileParts.join('\n')}\n\n` : ''}【记忆片段】
+${factsText}
+
+提炼规则：
+1. 只从已有信息中归纳，不推测或捏造
+2. 每项最多 5 条，每条不超过 20 字
+3. "领域知识"只在有明确证据时才填写
+4. 没有证据的字段输出空数组
+
+严格按以下 JSON 格式输出，不要其他文字：
+{
+  "认知框架": ["思维方式或认知习惯"],
+  "长期目标": ["用户的长期目标或追求"],
+  "思维偏好": ["用户对信息呈现方式的偏好"],
+  "领域知识": {"领域名": "初级/中级/专家"},
+  "情绪模式": ["用户在特定情境下的情绪反应模式"]
+}`
+
+  try {
+    const resp = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 600,
+        temperature: 0.2
+      }),
+      signal: AbortSignal.timeout(20_000)
+    })
+    if (!resp.ok) return
+
+    const data = (await resp.json()) as { choices: { message: { content: string } }[] }
+    const raw = data?.choices?.[0]?.message?.content?.trim() ?? ''
+    const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+    const jsonMatch = jsonStr.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) return
+
+    const parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>
+
+    // 基本校验：顶层键应为预期字段
+    const expectedKeys = ['认知框架', '长期目标', '思维偏好', '领域知识', '情绪模式']
+    const hasExpectedKey = expectedKeys.some(k => k in parsed)
+    if (!hasExpectedKey) return
+
+    const now = new Date().toISOString()
+    const modelJson = JSON.stringify(parsed)
+
+    const existing = db.prepare('SELECT id FROM user_mental_model WHERE id = 1').get()
+    if (existing) {
+      db.prepare('UPDATE user_mental_model SET model_json = ?, updated_at = ? WHERE id = 1').run(modelJson, now)
+    } else {
+      db.prepare('INSERT INTO user_mental_model (id, model_json, updated_at) VALUES (1, ?, ?)').run(modelJson, now)
+    }
+    console.log(`[agent] extract_mental_model: model updated (${factRows.length} facts → structured model)`)
+  } catch (e) {
+    console.warn('[agent] extractMentalModel failed:', e)
+  }
+}
+
 export {
   consolidateFacts,
   extractLogicalEdges,
