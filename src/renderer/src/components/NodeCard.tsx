@@ -220,17 +220,26 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
       )}
       <motion.div
         layout
-        className={`rounded-2xl transition-all duration-300 p-5 w-52 border ${
+        className={`rounded-2xl transition-all duration-300 w-52 border overflow-hidden ${
           isHighlighted
-            ? 'shadow-[0_0_20px_rgba(0,0,0,0.12)] border-gray-400/50 bg-white'
+            ? 'shadow-[0_0_20px_rgba(0,0,0,0.10)] border-gray-300/60'
             : isDragging
-              ? 'shadow-[0_20px_50px_rgba(0,0,0,0.12)] border-gray-200/80'
-              : 'shadow-[0_4px_20px_rgba(0,0,0,0.04)] border-white/60 hover:shadow-[0_8px_32px_rgba(0,0,0,0.08)] hover:border-gray-200/60'
+              ? 'shadow-[0_20px_50px_rgba(0,0,0,0.10)] border-gray-200/60'
+              : 'shadow-[0_2px_12px_rgba(0,0,0,0.05)] border-gray-100/80 hover:shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:border-gray-200/60'
         }`}
-        style={{
-          backgroundColor: isHighlighted ? 'rgba(255,255,255,1)' : (node.color ? node.color.replace('0.9', '0.45') : 'rgba(255,255,255,0.65)'),
-        }}
+        style={{ backgroundColor: 'rgba(255,255,255,0.92)' }}
       >
+        {/* 左侧分类 accent 色条（3px，仅颜色提示，不抢戏） */}
+        {node.color && (
+          <div
+            className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full"
+            style={{ backgroundColor: node.color.replace('0.9', '0.7') }}
+          />
+        )}
+
+        {/* 内容区（左边距略增，为色条留空间） */}
+        <div className="p-5 pl-6">
+
         {/* 删除按钮 (仅悬停时展示) */}
         <AnimatePresence>
           {isHovered && !isDragging && (
@@ -239,10 +248,10 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
               onClick={handleDelete}
-              className="absolute -top-2.5 -right-2.5 w-8 h-8 rounded-full bg-white/80 backdrop-blur-md shadow-sm border border-gray-100 text-gray-400 hover:text-red-500 hover:border-red-100 flex items-center justify-center transition-colors"
+              className="absolute -top-2.5 -right-2.5 w-8 h-8 rounded-full bg-white shadow-sm border border-gray-100 text-gray-300 hover:text-red-400 hover:border-red-100 flex items-center justify-center transition-colors"
               title="删除节点"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
@@ -252,7 +261,7 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
 
         {/* 分类小标 */}
         {node.category && (
-          <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400/80 mb-2">
+          <div className="text-[10px] text-gray-400/70 mb-1.5 tracking-wide">
             {node.category}
           </div>
         )}
@@ -303,6 +312,7 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
             ))}
           </div>
         )}
+        </div>{/* end 内容区 pl-6 */}
       </motion.div>
       </div>
     </motion.div>
