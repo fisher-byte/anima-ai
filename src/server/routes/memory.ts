@@ -650,6 +650,61 @@ memoryRoutes.post('/classify', async (c) => {
   }
 })
 
+/** 批量重新分类节点（修正历史分类错误） */
+memoryRoutes.post('/reclassify-nodes', async (c) => {
+  const db = userDb(c)
+  const { apiKey, baseUrl } = getApiConfig(db)
+  if (!apiKey) return c.json({ error: 'no api key' }, 400)
+
+  // Use the storage service approach - read nodes from the request body instead
+  const { nodes } = await c.req.json<{ nodes: { id: string; title: string; keywords: string[]; category: string }[] }>()
+  if (!nodes?.length) return c.json({ updated: [] })
+
+  const CATEGORIES = ['日常生活', '日常事务', '学习成长', '工作事业', '情感关系', '思考世界', '其他']
+  const CATEGORY_COLORS: Record<string, string> = {
+    '日常生活': 'rgba(220, 252, 231, 0.9)',
+    '日常事务': 'rgba(254, 249, 195, 0.9)',
+    '学习成长': 'rgba(219, 234, 254, 0.9)',
+    '工作事业': 'rgba(224, 242, 254, 0.9)',
+    '情感关系': 'rgba(255, 228, 230, 0.9)',
+    '思考世界': 'rgba(243, 232, 255, 0.9)',
+    '其他': 'rgba(243, 244, 246, 0.9)',
+  }
+
+  const isMoonshot = baseUrl.includes('moonshot')
+  const model = isMoonshot ? 'moonshot-v1-8k' : 'gpt-4o-mini'
+
+  // Classify nodes in parallel (batch of 5 at a time)
+  const updated: { id: string; category: string; color: string }[] = []
+
+  const classifyOne = async (node: { id: string; title: string; keywords: string[]; category: string }) => {
+    const text = [node.title, ...node.keywords].join('，').slice(0, 100)
+    const prompt = `将以下内容归类到：日常生活、日常事务、学习成长、工作事业、情感关系、思考世界、其他。\n内容：${text}\n只输出类别名称。`
+    try {
+      const resp = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], temperature: 0, max_tokens: 20 }),
+        signal: AbortSignal.timeout(6000)
+      })
+      if (!resp.ok) return
+      const data = (await resp.json()) as { choices: { message: { content: string } }[] }
+      const raw = data.choices?.[0]?.message?.content?.trim() ?? ''
+      const matched = CATEGORIES.find(cat => raw.includes(cat)) ?? '其他'
+      if (matched !== node.category) {
+        updated.push({ id: node.id, category: matched, color: CATEGORY_COLORS[matched] })
+      }
+    } catch { /* skip */ }
+  }
+
+  // Process in batches of 5
+  for (let i = 0; i < nodes.length; i += 5) {
+    await Promise.all(nodes.slice(i, i + 5).map(classifyOne))
+  }
+
+  return c.json({ updated })
+})
+
 /** 读取指定对话的逻辑边 */
 memoryRoutes.get('/logical-edges/:conversationId', (c) => {
   const db = userDb(c)

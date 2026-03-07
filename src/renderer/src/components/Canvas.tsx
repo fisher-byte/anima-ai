@@ -27,6 +27,7 @@ import { SettingsModal } from './SettingsModal'
 
 import { AmbientBackground } from './AmbientBackground'
 import { ClusterLabel } from './ClusterLabel'
+import { useToast } from './GlobalUI'
 import type { Node as CanvasNode } from '@shared/types'
 
 /** 记忆引用连线：从高亮节点画虚线到输入框位置 */
@@ -158,11 +159,23 @@ export function Canvas() {
   const isModalOpen = useCanvasStore(state => state.isModalOpen)
   const highlightedNodeIds = useCanvasStore(state => state.highlightedNodeIds)
   const nodesLoaded = useCanvasStore(state => state.nodesLoaded)
+  const lastError = useCanvasStore(state => state.lastError)
+  const clearLastError = useCanvasStore(state => state.clearLastError)
   // actions 从 getState() 取，不订阅 store，不触发重渲染
   const setOffset = useCallback((o: {x:number;y:number}) => useCanvasStore.getState().setOffset(o), [])
   const setScale = useCallback((s: number) => useCanvasStore.getState().setScale(s), [])
   const resetView = useCallback(() => useCanvasStore.getState().resetView(), [])
   const updateNodePosition = useCallback((id: string, x: number, y: number) => useCanvasStore.getState().updateNodePosition(id, x, y), [])
+
+  const toast = useToast()
+
+  // 监听后台静默错误并 toast 给用户
+  useEffect(() => {
+    if (lastError) {
+      toast.error(lastError)
+      clearLastError()
+    }
+  }, [lastError, toast, clearLastError])
 
   // offset/scale 完全用 ref 管理，不走 React state，避免 zoom 触发任何重渲染
   const viewRef = useRef({ offset: useCanvasStore.getState().offset, scale: useCanvasStore.getState().scale })
@@ -239,6 +252,35 @@ export function Canvas() {
     nodes.forEach(n => map.set(n.id, n))
     return map
   }, [nodes])
+
+  // 视口裁剪（viewport culling）：仅在节点较多时启用，减少渲染数量
+  // 订阅 store offset/scale 作为响应式触发，读取 viewRef 获取实时值（避免 debounce 偏差）
+  const storeOffset = useCanvasStore(state => state.offset)
+  const storeScale = useCanvasStore(state => state.scale)
+  const [viewportNodes, viewportEdges] = useMemo(() => {
+    // 节点较少时直接返回全量，避免额外开销
+    if (nodes.length <= 60) return [nodes, edges]
+
+    const { offset, scale } = viewRef.current
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 1280
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 800
+    // 将屏幕视口转换为画布坐标（含 300px 缓冲，保证边缘节点可见）
+    const buffer = 300 / scale
+    const minX = (-offset.x - vw) / scale - buffer
+    const maxX = (-offset.x) / scale + vw / scale + buffer
+    const minY = (-offset.y - vh) / scale - buffer
+    const maxY = (-offset.y) / scale + vh / scale + buffer
+
+    const visible = nodes.filter(n =>
+      n.x + 208 >= minX && n.x <= maxX &&
+      n.y + 160 >= minY && n.y <= maxY
+    )
+    const visibleIds = new Set(visible.map(n => n.id))
+    const visibleEdges = edges.filter(e => visibleIds.has(e.source) || visibleIds.has(e.target))
+
+    return [visible, visibleEdges]
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes, edges, storeOffset, storeScale])
 
   // Cluster Interaction — applyTransform 直操 DOM，300ms debounce 后才写 store（同滚轮缩放路径）
   const handleClusterClick = useCallback((cx: number, cy: number) => {
@@ -621,7 +663,7 @@ export function Canvas() {
             <svg
               style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }}
             >
-              {edges.map((edge) => {
+              {viewportEdges.map((edge) => {
                 const sourceNode = nodeMap.get(edge.source)
                 const targetNode = nodeMap.get(edge.target)
                 if (!sourceNode || !targetNode) return null
@@ -642,7 +684,7 @@ export function Canvas() {
               })}
             </svg>
 
-            {nodes.map((node) => (
+            {viewportNodes.map((node) => (
               <NodeCard key={node.id} node={node} depth={nodeDepthMap.get(node.id) ?? 1} />
             ))}
 

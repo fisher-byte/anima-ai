@@ -1,5 +1,28 @@
 # Anima 变更日志
 
+## [0.2.56] - 2026-03-07
+
+### feat(v0.2.56): 节点物理感 + P1 技术债清偿 + 分类重识别
+
+#### 改动
+
+| 内容 | 文件 | 说明 |
+|------|------|------|
+| 节点物理感 / 深度感 | `NodeCard.tsx` | hover y:-2、拖拽 y:-4 浮起；阴影强度三档（normal/hover/drag）；`filter: blur` 远景虚化 |
+| 视口裁剪（P1 技术债） | `Canvas.tsx` | 节点 > 60 时只渲染可见视口内节点（+300px buffer）；storeOffset/storeScale 触发重算 |
+| 静默吞错改善（P1 技术债） | `canvasStore.ts`, `Canvas.tsx` | `endConversation` catch → `lastError` → Canvas.tsx useEffect → `toast.error()` |
+| detectIntent 关键词扩充 | `canvasStore.ts` | 情感关系 +19 词（幸福/快乐/爱等）；思考世界 +14 词（探讨/感悟/生命等） |
+| 分类重识别接口 | `memory.ts`, `canvasStore.ts` | `POST /api/memory/reclassify-nodes` 批量 AI 重分类；`reclassifyNodes()` 动作 |
+
+#### 解决的问题
+
+- 历史节点分类错误（"幸福的探讨"被标为"其他"）：关键词覆盖不足 → 已扩充
+- 节点缺乏立体感：统一平铺 → 增加 hover/drag lift 动画
+- 80+ 节点帧率下降（P1）：无裁剪全渲 → viewport culling
+- AI/存储失败无感知（P1）：静默吞错 → toast 提示
+
+---
+
 ## [0.2.55] - 2026-03-07
 
 ### refactor(v0.2.55): 极简视觉重设计 — 连线 + 节点卡片
