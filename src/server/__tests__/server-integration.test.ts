@@ -47,10 +47,15 @@ memDb.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_logical_edges_source ON logical_edges(source_conv);
   CREATE INDEX IF NOT EXISTS idx_logical_edges_target ON logical_edges(target_conv);
+  CREATE TABLE IF NOT EXISTS user_mental_model (
+    id         INTEGER PRIMARY KEY CHECK (id = 1),
+    model_json TEXT NOT NULL DEFAULT '{}',
+    updated_at TEXT NOT NULL
+  );
 `)
 
 function resetMemDb() {
-  memDb.exec('DELETE FROM config; DELETE FROM user_profile; DELETE FROM agent_tasks; DELETE FROM memory_facts; DELETE FROM logical_edges;')
+  memDb.exec('DELETE FROM config; DELETE FROM user_profile; DELETE FROM agent_tasks; DELETE FROM memory_facts; DELETE FROM logical_edges; DELETE FROM user_mental_model;')
 }
 
 function buildMemApp() {
@@ -154,6 +159,32 @@ function buildMemApp() {
   memApp.delete('/api/memory/logical-edges/:id', (c) => {
     const id = c.req.param('id')
     memDb.prepare('DELETE FROM logical_edges WHERE source_conv = ? OR target_conv = ?').run(id, id)
+    return c.json({ ok: true })
+  })
+
+  // ── Mental model routes ──
+  memApp.get('/api/memory/mental-model', (c) => {
+    const row = memDb.prepare('SELECT model_json, updated_at FROM user_mental_model WHERE id = 1').get() as
+      { model_json: string; updated_at: string } | undefined
+    if (!row) return c.json({ model: null })
+    try {
+      return c.json({ model: JSON.parse(row.model_json) as Record<string, unknown>, updatedAt: row.updated_at })
+    } catch {
+      return c.json({ model: null })
+    }
+  })
+
+  memApp.post('/api/memory/mental-model/refresh', (c) => {
+    const pending = memDb.prepare("SELECT id FROM agent_tasks WHERE type = 'extract_mental_model' AND status = 'pending' LIMIT 1").get()
+    if (pending) return c.json({ ok: true, queued: false, reason: 'already pending' })
+    memDb.prepare('INSERT INTO agent_tasks (type, payload, status, created_at) VALUES (?, ?, ?, ?)').run(
+      'extract_mental_model', '{}', 'pending', new Date().toISOString()
+    )
+    return c.json({ ok: true, queued: true })
+  })
+
+  memApp.delete('/api/memory/mental-model', (c) => {
+    memDb.prepare("UPDATE user_mental_model SET model_json = '{}', updated_at = ? WHERE id = 1").run(new Date().toISOString())
     return c.json({ ok: true })
   })
 
@@ -697,6 +728,58 @@ describe('Logical Edges API', () => {
     expect(res.status).toBe(200)
     const data = await res.json()
     expect(data.ok).toBe(true)
+  })
+})
+
+describe('Mental Model API (B1)', () => {
+  beforeEach(resetMemDb)
+
+  it('GET /api/memory/mental-model returns null when empty', async () => {
+    const res = await memReq('GET', '/api/memory/mental-model')
+    expect(res.status).toBe(200)
+    const data = await res.json() as { model: null }
+    expect(data.model).toBeNull()
+  })
+
+  it('GET returns parsed model when row exists', async () => {
+    const model = { 认知框架: ['第一性原理'], 长期目标: ['做出SaaS产品'] }
+    memDb.prepare('INSERT INTO user_mental_model (id, model_json, updated_at) VALUES (1, ?, ?)').run(
+      JSON.stringify(model), new Date().toISOString()
+    )
+    const res = await memReq('GET', '/api/memory/mental-model')
+    expect(res.status).toBe(200)
+    const data = await res.json() as { model: typeof model; updatedAt: string }
+    expect(data.model).toEqual(model)
+    expect(typeof data.updatedAt).toBe('string')
+  })
+
+  it('POST /refresh enqueues extract_mental_model task', async () => {
+    const res = await memReq('POST', '/api/memory/mental-model/refresh')
+    expect(res.status).toBe(200)
+    const data = await res.json() as { ok: boolean; queued: boolean }
+    expect(data.ok).toBe(true)
+    expect(data.queued).toBe(true)
+    const task = memDb.prepare("SELECT type FROM agent_tasks WHERE type = 'extract_mental_model' AND status = 'pending'").get() as { type: string } | undefined
+    expect(task?.type).toBe('extract_mental_model')
+  })
+
+  it('POST /refresh is idempotent (already pending)', async () => {
+    await memReq('POST', '/api/memory/mental-model/refresh')
+    const res2 = await memReq('POST', '/api/memory/mental-model/refresh')
+    const data = await res2.json() as { ok: boolean; queued: boolean }
+    expect(data.queued).toBe(false)
+    const count = (memDb.prepare("SELECT COUNT(*) as cnt FROM agent_tasks WHERE type = 'extract_mental_model'").get() as { cnt: number }).cnt
+    expect(count).toBe(1)
+  })
+
+  it('DELETE /api/memory/mental-model clears model_json', async () => {
+    memDb.prepare('INSERT INTO user_mental_model (id, model_json, updated_at) VALUES (1, ?, ?)').run(
+      JSON.stringify({ 认知框架: ['test'] }), new Date().toISOString()
+    )
+    const res = await memReq('DELETE', '/api/memory/mental-model')
+    expect(res.status).toBe(200)
+    const row = memDb.prepare("SELECT model_json FROM user_mental_model WHERE id = 1").get() as { model_json: string } | undefined
+    expect(row?.model_json).toBe('{}')
   })
 })
 

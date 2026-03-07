@@ -20,6 +20,7 @@ import {
   mergeProfile,
   embedFileContent,
   maybeDecayPreferences,
+  extractMentalModel,
 } from './agentTasks'
 import type {
   ExtractProfilePayload,
@@ -52,6 +53,8 @@ async function processTask(
     } else if (task.type === 'extract_logical_edges') {
       const payload = JSON.parse(task.payload) as ExtractLogicalEdgesPayload
       await extractLogicalEdges(db, payload)
+    } else if (task.type === 'extract_mental_model') {
+      await extractMentalModel(db)
     }
 
     db.prepare('UPDATE agent_tasks SET status = ?, finished_at = ? WHERE id = ?').run('done', new Date().toISOString(), task.id)

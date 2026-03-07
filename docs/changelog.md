@@ -1,5 +1,32 @@
 # Anima 变更日志
 
+## [0.2.59] - 2026-03-07
+
+### feat(v0.2.59): B1 — 结构化用户心智模型 (User Mental Model)
+
+#### 改动
+
+| 内容 | 文件 | 说明 |
+|------|------|------|
+| `user_mental_model` 表 | `db.ts:173–177` | migration 新增 singleton 表，存 `model_json: TEXT`（结构化 JSON）|
+| `extractMentalModel()` | `agentTasks.ts:588–650` | 从最新 60 条 memory_facts + user_profile 提炼结构化心智模型（认知框架/长期目标/思维偏好/领域知识/情绪模式）|
+| 任务注册 | `agentWorker.ts` | `extract_mental_model` 任务类型注册到 processTask dispatcher |
+| 路由 GET/POST/DELETE | `memory.ts` | `/api/memory/mental-model`（读取）+ `/api/memory/mental-model/refresh`（入队重建）+ DELETE（清空）|
+| 自动触发 | `memory.ts:548–556` | `/extract` 每 20 条 fact 里程碑同时触发 `extract_mental_model` 任务 |
+| 层 2.5 prompt 注入 | `ai.ts:263–283` | 在 user_profile 和 memory_facts 之间注入认知框架/长期目标/思维偏好（CONTEXT_BUDGET 守卫）|
+| 前端展示 | `ConversationSidebar.tsx` | 进化基因 tab 新增「心智模型」区块，分类色标签展示五维数据，刷新按钮触发重建 |
+| 集成测试 +5 | `server-integration.test.ts` | GET空/GET有值/POST刷新/POST幂等/DELETE 五个测试 |
+
+#### 解决的问题
+
+- **碎片化 memory_facts 难以利用**：数十条散点事实无法被 AI 有效使用；结构化心智模型将散点压缩为五个维度，注入 system prompt 更精准
+- **prompt 层次欠缺深度个性化**：原 3 层（偏好/画像/事实）缺乏对用户认知模式的显式描述；层 2.5 补充认知框架与思维偏好，直接指导 AI 回答方式
+- **P2 prompt.ts 僵尸文件**：已于 v0.2.59 删除（23 个测试同步移除，总测试数 277→282）
+
+**测试**：282/282 通过 · TS 零错误
+
+---
+
 ## [0.2.58] - 2026-03-07
 
 ### feat(v0.2.58): 分类系统升级 — Embedding 原型向量 + 关键词全量计分

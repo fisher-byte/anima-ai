@@ -19,6 +19,9 @@
  * GET    /api/memory/logical-edges           所有逻辑边列表（画布加载）
  * GET    /api/memory/logical-edges/:id       指定对话的逻辑边
  * DELETE /api/memory/logical-edges/:id       删除节点相关逻辑边
+ * GET    /api/memory/mental-model            读取结构化用户心智模型
+ * POST   /api/memory/mental-model/refresh    触发心智模型重新提炼（入队任务）
+ * DELETE /api/memory/mental-model            清空心智模型（重置用）
  */
 
 import { Hono } from 'hono'
@@ -555,6 +558,12 @@ ${assistantMessage ? `AI回复：${assistantMessage.slice(0, 200)}` : ''}
           enqueueTask(db, 'consolidate_facts', {})
           console.log(`[memory/extract] auto-queued consolidate_facts at ${totalAfter} facts`)
         }
+        // B1: 同时触发心智模型更新
+        const pendingMM = db.prepare("SELECT id FROM agent_tasks WHERE type = 'extract_mental_model' AND status = 'pending' LIMIT 1").get()
+        if (!pendingMM) {
+          enqueueTask(db, 'extract_mental_model', {})
+          console.log(`[memory/extract] auto-queued extract_mental_model at ${totalAfter} facts`)
+        }
       }
     }
 
@@ -752,9 +761,39 @@ memoryRoutes.post('/reclassify-nodes', async (c) => {
   return c.json({ updated })
 })
 
-/** 读取指定对话的逻辑边 */
-memoryRoutes.get('/logical-edges/:conversationId', (c) => {
+// ─── user mental model (B1) ──────────────────────────────────────────────────
+
+/** 读取结构化用户心智模型 */
+memoryRoutes.get('/mental-model', (c) => {
   const db = userDb(c)
+  const row = db.prepare('SELECT model_json, updated_at FROM user_mental_model WHERE id = 1').get() as
+    { model_json: string; updated_at: string } | undefined
+  if (!row) return c.json({ model: null })
+  try {
+    return c.json({ model: JSON.parse(row.model_json) as Record<string, unknown>, updatedAt: row.updated_at })
+  } catch {
+    return c.json({ model: null })
+  }
+})
+
+/** 手动触发 mental model 重新提炼（入队任务，30s 内完成） */
+memoryRoutes.post('/mental-model/refresh', (c) => {
+  const db = userDb(c)
+  const pending = db.prepare("SELECT id FROM agent_tasks WHERE type = 'extract_mental_model' AND status = 'pending' LIMIT 1").get()
+  if (pending) return c.json({ ok: true, queued: false, reason: 'already pending' })
+  enqueueTask(db, 'extract_mental_model', {})
+  return c.json({ ok: true, queued: true })
+})
+
+/** 清空心智模型（重置/新手教程用） */
+memoryRoutes.delete('/mental-model', (c) => {
+  const db = userDb(c)
+  db.prepare("UPDATE user_mental_model SET model_json = '{}', updated_at = ? WHERE id = 1").run(new Date().toISOString())
+  return c.json({ ok: true })
+})
+
+/** 读取指定对话的逻辑边 */
+memoryRoutes.get('/logical-edges/:conversationId', (c) => {  const db = userDb(c)
   const { conversationId } = c.req.param()
 
   const rows = db.prepare(`
