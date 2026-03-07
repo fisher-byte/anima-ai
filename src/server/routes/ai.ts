@@ -287,7 +287,7 @@ aiRoutes.post('/stream', async (c) => {
       }
     } catch { /* 事实注入失败不影响主流程 */ }
 
-    // ── 层 2.5：心智模型（B1 — 静态摘要，放在动态事实之后以降低优先级）──
+    // ── 层 2.5（心智模型，静态摘要）── 刻意置于层 3 动态事实之后，确保动态内容优先占用 CONTEXT_BUDGET
     try {
       const mmRow = db.prepare('SELECT model_json FROM user_mental_model WHERE id = 1').get() as { model_json: string } | undefined
       if (mmRow?.model_json) {
