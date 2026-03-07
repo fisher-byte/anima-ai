@@ -1,3 +1,18 @@
+/**
+ * InputBox — 主输入框（画布底部）
+ *
+ * 职责：用户发起新对话的入口，支持文字输入、文件附件、长文本引用块。
+ *
+ * 功能模块：
+ *   - 文字输入：自适应高度 textarea，Enter 发送，Shift+Enter 换行
+ *   - 文件附件：点击/拖拽上传，解析后以 FileBubble 展示
+ *   - 引用块：粘贴超过 500 字的文本自动转为折叠胶囊（ReferenceBlockPreview）
+ *   - API Key 检查：未配置 key 时显示"请先设置 API Key"提示条
+ *   - 意图预测：输入时 detectIntent 实时计算高亮节点（画布节点高亮联动）
+ *
+ * 对外：通过 canvasStore.startConversation() 触发对话，
+ *        通过 canvasStore.setHighlight() 控制画布高亮状态。
+ */
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCanvasStore } from '../stores/canvasStore'

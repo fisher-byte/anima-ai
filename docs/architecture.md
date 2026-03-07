@@ -1,6 +1,6 @@
 # Anima 架构文档
 
-*最后更新: 2026-03-07 | 版本: v0.2.50*
+*最后更新: 2026-03-07 | 版本: v0.2.51*
 
 ---
 
@@ -36,7 +36,8 @@ evocanvas/
 │   ├── server/                    # Hono 后端
 │   │   ├── index.ts               # 服务入口（多租户中间件、路由注册）
 │   │   ├── db.ts                  # SQLite 初始化、多租户连接池、getAllUserDbs()
-│   │   ├── agentWorker.ts         # 后台 AI 任务 Worker（每 30s tick）
+│   │   ├── agentWorker.ts         # 后台 AI 任务 Worker（调度入口，每 30s tick）
+│   │   ├── agentTasks.ts          # AI 后台任务实现（consolidateFacts / extractProfile 等）
 │   │   ├── routes/
 │   │   │   ├── storage.ts         # 文件存储 API + 文件上传
 │   │   │   ├── config.ts          # API Key / 模型设置
@@ -45,14 +46,15 @@ evocanvas/
 │   │   ├── middleware/
 │   │   │   └── auth.ts            # Bearer Token 多租户鉴权
 │   │   └── __tests__/
-│   │       ├── server.test.ts     # HTTP 集成测试（含多租户 enqueueTask）
-│   │       ├── ai-onboarding.test.ts  # onboarding 模式测试
-│   │       └── memory.test.ts     # 记忆路由集成测试（含 FTS5 trigger、引用块过滤、decayPreferences、语义边 by-id）
-│   │                              # 共 ~265 个测试用例
+│   │       ├── server.test.ts              # HTTP 路由测试（health/storage/config/auth，testDb 作用域）
+│   │       ├── server-integration.test.ts  # memory/agent/file 集成测试（memDb/fileDb 作用域）
+│   │       ├── server-ai.test.ts           # readRound/澄清层/search_round 纯逻辑测试
+│   │       ├── ai-onboarding.test.ts       # onboarding 模式测试
+│   │       └── memory.test.ts              # 记忆路由集成测试
 │   │
 │   ├── renderer/                  # React 前端
 │   │   └── src/
-│   │       ├── components/        # UI 组件（Canvas / NodeCard / AnswerModal 等）
+│   │       ├── components/        # UI 组件（Canvas / NodeCard / AnswerModal / AnswerModalSubcomponents 等）
 │   │       ├── stores/
 │   │       │   └── canvasStore.ts # 主 Zustand Store（节点 / 对话 / 偏好 / 画布状态 / 语义边）
 │   │       ├── services/

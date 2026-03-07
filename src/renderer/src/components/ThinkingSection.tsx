@@ -1,3 +1,16 @@
+/**
+ * ThinkingSection — AI 思考过程折叠展示
+ *
+ * 职责：在对话回复中渲染 AI 的 thinking/reasoning 内容，支持折叠/展开。
+ *
+ * 状态：
+ *   isWaiting=true  → 三点跳动动画 + "正在思考..."（等待首个 token）
+ *   isWaiting=false → 显示折叠按钮（"正在思考中 / 思考完毕"）+ 蓝色脉冲点
+ *                     点击展开 Markdown 渲染的思考内容
+ *
+ * 注意：thinking 内容完整持久化（endConversation 时随 turns 一起存储），
+ * 历史对话回放时可完整查看每轮思考过程。
+ */
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, ChevronRight } from 'lucide-react'

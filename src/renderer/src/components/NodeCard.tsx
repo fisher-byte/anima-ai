@@ -1,3 +1,21 @@
+/**
+ * NodeCard — 画布节点卡片
+ *
+ * 职责：渲染画布上的单个节点，支持拖拽移动、点击展开对话、hover 显示操作按钮。
+ *
+ * 架构：纯分发器（dispatcher）模式
+ *   NodeCard(dispatcher) → CapabilityNodeCard | RegularNodeCard
+ *   按 nodeType 分发，避免条件 hooks 违规（React Rules of Hooks）。
+ *
+ * 性能策略：
+ *   - memo 包装，selector 细粒度订阅（不订阅整个 store）
+ *   - useLodScale：缩放 < 0.4 时降级渲染（隐藏细节元素）
+ *   - 拖拽通过 canvasStore.updateNodePosition 更新，不触发全量重渲染
+ *
+ * 节点类型：
+ *   'capability' — 固定功能卡（导入记忆等），不可删除
+ *   'regular'    — 对话生成的知识节点，支持全部交互
+ */
 import { useState, useCallback, useRef, useEffect, useMemo, memo, type ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Import, BookOpen, Layers, Paperclip } from 'lucide-react'

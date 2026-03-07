@@ -1,6 +1,6 @@
 # Anima 测试手册
 
-*最后更新: 2026-03-06 | 版本: v0.2.43*
+*最后更新: 2026-03-07 | 版本: v0.2.51*
 
 ## 测试策略
 
@@ -32,84 +32,90 @@ npm run test:watch    # 监听模式（开发时用）
 
 **目标**: 所有 HTTP API 端点在真实 SQLite（内存模式）下行为正确
 
+**测试文件分组策略**（按 DB 作用域划分，v0.2.51）：
+
+| 文件 | DB 作用域 | 内容 |
+|------|---------|------|
+| `server.test.ts` (629行) | `testDb` + `resetDb` | health/storage/config/auth + 对话历史 + API key 守卫 |
+| `server-integration.test.ts` (703行) | `memDb` + `fileDb` | memory profile/facts/agent + 文件上传/向量化 + 逻辑边 |
+| `server-ai.test.ts` (272行) | 无 DB（纯逻辑） | readRound / 澄清层触发规则 / search_round 消息格式 |
+| `ai-onboarding.test.ts` | 独立 `aiDb` | onboarding 模式 + ONBOARDING_API_KEY 降级 |
+| `memory.test.ts` | 独立 `memoryDb` | 记忆路由完整 CRUD |
+
+**分组原则**：每个测试文件只使用一种 DB 作用域（testDb / memDb / fileDb），不跨文件引用 DB，防止状态污染。
+
 **已覆盖模块**:
-- ✅ `server.test.ts` — 核心路由集成测试（77 个用例）
-  - `GET /api/health`
-  - Storage API（GET / PUT / POST append）：文件名白名单、路径遍历防御、JSONL 多次追加
-  - Config API（apikey、settings）：GET / PUT / 覆盖写入
-  - Conversation History API（GET / PUT / DELETE）：保存/读取/删除、100 条截断、多对话隔离
-  - **AgentWorker 多租户隔离**（v0.2.43 新增，4 个用例）：
-    - 两个独立用户 db 之间任务不相互污染
-    - payload 正确序列化为 JSON 字符串
-    - 多次入队在同一 db 累积、顺序正确
-    - 初始任务状态为 `pending`，retries 字段为 0
+- ✅ `server.test.ts` — 核心路由集成测试（health/storage/config/auth/对话历史/多租户）
+- ✅ `server-integration.test.ts` — memory/agent/file 集成测试
+  - User Profile CRUD、Memory Facts CRUD、Queue API
+  - 文件上传 + Magic Byte 校验 + file_embeddings 隔离
+  - 逻辑边 API（GET / GET:id / DELETE:id）
+  - AgentWorker 多租户隔离（4 个用例）
+- ✅ `server-ai.test.ts` — AI 功能纯逻辑测试（20 个用例）
+  - `readRound`：content 流、tool_call 累积、reader.releaseLock、[DONE] 跳过
+  - 澄清层触发规则：关键词/引号/年份/长度/onboarding 守卫/重复触发
+  - `search_round` SSE：round 消息、MAX_SEARCH_ROUNDS 边界、finishReason 退出
 
 - ✅ `ai-onboarding.test.ts` — AI 引导模式测试（6 个用例）
   - onboarding 标志正确路由到轻量 system prompt
   - 无 API Key 时使用 ONBOARDING_API_KEY 降级
 
-- ✅ `memory.test.ts` — 记忆路由集成测试（21 个用例）
-  - **User Profile CRUD**：新建、GET、merge 更新（interests/tools 数组去重合并）、DELETE 清空
-  - **Memory Facts CRUD**：GET 过滤失效条目、单条软删除、批量软删除（DB 行仍保留）
-  - **全量清空附带清理**：`DELETE /api/memory/facts` 同时清空 config.preference_rules + 删除 pending tasks
-  - **Queue API**：任务写入、缺少 type 时 400
-  - **Classify / Extract 无 Key 降级**：无 API Key 时返回 fallback 响应
-  - **Embedding Index**：DELETE 单条 / 全量
+- ✅ `memory.test.ts` — 记忆路由集成测试（含 FTS5 trigger、引用块过滤、decayPreferences、语义边 by-id）
 
-**总测试数**: **236 个用例，9 个测试文件，全部通过**
+**总测试数**: **289 个用例，11 个测试文件，全部通过**
 
 ---
 
 ### 3. E2E 测试 (Playwright)
 
-Playwright 已安装（`@playwright/test ^1.58.2`），尚未启用自动化 E2E 套件。
-当前 E2E 以**手动核查清单**形式执行：
+**框架**：`@playwright/test ^1.58.2`，配置文件 `playwright.config.ts`
 
-#### 3.1 启动测试
-
+**运行命令**：
 ```bash
-npm run dev
+npm run dev          # 先启动开发服务器（前端 :5173 + 后端 :3000）
+npm run test:e2e     # 另开终端运行 E2E
+npm run test:e2e:ui  # 带可视化 UI 模式
 ```
 
-- [ ] 服务端 3000 端口正常启动
-- [ ] 浏览器打开后显示登录/画布界面
-- [ ] 底部输入框 placeholder 正常
+**测试文件**：
+| 文件 | 测试数 | 覆盖内容 |
+|------|--------|---------|
+| `e2e/canvas.spec.ts` | 10 | 应用加载/能力块/后端 API/侧栏/节点/confirm dialog/API Key 提示 |
+| `e2e/features.spec.ts` | 17 | 引用块/文件标记/FTS5/decayPreferences/碰撞检测/多租户鉴权/semantic search/logical-edges |
 
-#### 3.2 多租户鉴权测试
+**总 E2E 场景**：27 个（其中 1 个条件性 skip，视环境是否已配置 API Key）
 
+**环境要求**：需设置 `ACCESS_TOKEN` 环境变量（或在 `.env` 中配置）；无 token 时多租户鉴权相关测试自动跳过。
+
+#### 关键测试覆盖（v0.2.51 现状）
+
+| 场景 | 测试文件 | 测试编号 |
+|------|---------|---------|
+| 应用基础加载 | canvas.spec.ts | 1 |
+| 后端核心接口健康 | canvas.spec.ts | 3 |
+| POST /api/memory/queue 入队 | canvas.spec.ts | 7 |
+| GET /api/memory/logical-edges | features.spec.ts | 24-25 |
+| PUT /api/config/apikey 空值拒绝 | features.spec.ts | 26 |
+| 无 token → 401 | features.spec.ts | 21 |
+| 语义搜索 by-id | features.spec.ts | 23 |
+
+#### 手动测试清单（E2E 不覆盖的交互场景）
+
+**对话流程**：
 | 步骤 | 操作 | 预期结果 |
 |------|------|---------|
-| 1 | 不携带 token 访问 `/api/health` | `{"status":"ok"}` |
-| 2 | 不携带 token 访问 `/api/storage/nodes.json` | 401 Unauthorized |
-| 3 | 携带有效 Bearer token | 正常返回数据 |
-| 4 | 切换不同 token | 访问不同用户数据，完全隔离 |
+| 1 | 输入"你好"后 Enter | 进入全屏回答层 |
+| 2 | 等待 AI 回复 | 看到流式输出 |
+| 3 | 关闭回答层 | 画布出现节点卡片 |
+| 4 | 刷新页面 | 节点依然存在 |
 
-#### 3.3 对话流程测试
-
+**文件上传**：
 | 步骤 | 操作 | 预期结果 |
 |------|------|---------|
-| 1 | 点击底部输入框 | 输入框获得焦点 |
-| 2 | 输入"你好"后 Enter | 进入全屏回答层 |
-| 3 | 等待 AI 回复 | 看到流式输出 |
-| 4 | 关闭回答层 | 画布出现节点卡片 |
-| 5 | 刷新页面 | 节点依然存在 |
-
-#### 3.4 文件上传测试
-
-| 步骤 | 操作 | 预期结果 |
-|------|------|---------|
-| 1 | 点击回形针上传 10MB+ 文件 | 前端拦截，显示错误提示 |
+| 1 | 上传 10MB+ 文件 | 前端拦截，显示错误提示 |
 | 2 | 上传合法 PDF | FileBubble 显示文件名 |
-| 3 | 断网后上传文件 | FileBubble 显示 ⚠ 图标 + 错误原因 |
 
-#### 3.5 错误体验测试
-
-| 步骤 | 操作 | 预期结果 |
-|------|------|---------|
-| 1 | 配置错误 API Key 后发消息 | 错误提示"API Key 无效或已过期" |
-| 2 | 设置界面点保存（断网） | 红色"保存失败，请检查网络" |
-
-#### 3.6 负反馈学习测试
+**负反馈学习**：
 
 | 步骤 | 操作 | 预期结果 |
 |------|------|---------|

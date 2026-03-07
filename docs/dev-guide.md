@@ -1,6 +1,6 @@
 # Anima 开发指南
 
-*最后更新: 2026-03-06 | 版本: v0.2.43*
+*最后更新: 2026-03-07 | 版本: v0.2.51*
 
 ## 环境准备
 
@@ -36,7 +36,7 @@ cp .env.example .env
 | `npm run dev:server` | 仅启动后端（tsx watch 热重载） |
 | `npm run build` | 构建前端到 `dist/` |
 | `npm start` | 生产模式启动（同时服务 API + 静态文件，端口 3000） |
-| `npm test` | 运行所有测试（单元 + 集成，当前 236 个用例，9 个文件） |
+| `npm test` | 运行所有测试（单元 + 集成，当前 289 个用例，11 个文件） |
 | `npm run test:watch` | 监听模式（开发时用） |
 | `npm run typecheck` | TypeScript 类型检查 |
 | `npm run lint` | ESLint 检查 |
@@ -52,7 +52,8 @@ evocanvas/
 │   ├── server/                    # Hono 后端（主要模式）
 │   │   ├── index.ts               # 服务入口（多租户中间件、路由注册）
 │   │   ├── db.ts                  # SQLite 初始化、多租户连接池、getAllUserDbs()
-│   │   ├── agentWorker.ts         # 后台 AI 任务 Worker（每 30s tick 所有用户 db）
+│   │   ├── agentWorker.ts         # 后台 AI 任务 Worker（调度入口，每 30s tick 所有用户 db）
+│   │   ├── agentTasks.ts          # AI 后台任务实现（consolidateFacts / extractProfile 等）
 │   │   ├── routes/
 │   │   │   ├── storage.ts         # 文件存储 API + 文件上传
 │   │   │   ├── config.ts          # API Key / 模型设置
@@ -61,13 +62,15 @@ evocanvas/
 │   │   ├── middleware/
 │   │   │   └── auth.ts            # Bearer Token 多租户鉴权
 │   │   └── __tests__/
-│   │       ├── server.test.ts     # HTTP 集成测试（81 个用例：77 路由 + 4 多租户）
-│   │       ├── ai-onboarding.test.ts  # onboarding 模式测试（6 个用例）
-│   │       └── memory.test.ts     # 记忆路由集成测试（21 个用例）
+│   │       ├── server.test.ts              # HTTP 路由测试（testDb，629行）
+│   │       ├── server-integration.test.ts  # memory/agent/file 集成测试（memDb/fileDb）
+│   │       ├── server-ai.test.ts           # AI/搜索/澄清层纯逻辑测试
+│   │       ├── ai-onboarding.test.ts       # onboarding 模式测试（6 个用例）
+│   │       └── memory.test.ts              # 记忆路由集成测试
 │   │
 │   ├── renderer/                  # React 前端
 │   │   └── src/
-│   │       ├── components/        # UI 组件（Canvas / NodeCard / AnswerModal 等）
+│   │       ├── components/        # UI 组件（Canvas / NodeCard / AnswerModal / AnswerModalSubcomponents 等）
 │   │       ├── stores/
 │   │       │   └── canvasStore.ts # 主 Zustand Store
 │   │       ├── services/
@@ -205,6 +208,39 @@ pm2 logs evocanvas --lines 50 --follow
 - 组件：函数式组件 + Hooks
 - 服务层：纯函数，便于测试
 - 错误处理：try-catch，返回合理默认值；用户无感的错误（如 embedding 403）只 `console.info`，不抛出
+
+### 文件大小规范
+
+| 级别 | 行数 | 处理方式 |
+|------|------|---------|
+| 理想 | < 800 行 | 无需处理 |
+| 可接受 | 800-1000 行 | 评估拆分可行性 |
+| 需拆分 | 1000-1500 行 | 本迭代内拆分 |
+| 禁止 | > 1500 行 | 立即拆分，不得合入 |
+
+**例外**：Zustand 单 store 闭包（`canvasStore.ts`）因架构约束允许例外，需在文件头注明理由。
+
+### 模块头注释规范
+
+每个文件顶部必须有职责注释（参考格式）：
+```typescript
+/**
+ * ModuleName — 一句话职责描述
+ *
+ * 职责：具体做什么
+ * 公开接口 / 导出：列出主要导出
+ * 关键约束：性能要求、设计决策等
+ */
+```
+
+### [SECTION:] 分区标记
+
+超过 500 行的单文件用 `// [SECTION:NAME]` 注释分区，便于 AI 和开发者定位：
+```typescript
+// [SECTION:LOAD]    初始化/加载逻辑
+// [SECTION:NODE]    节点操作
+// [SECTION:EDGE]    连线操作
+```
 
 ### 提交规范
 
