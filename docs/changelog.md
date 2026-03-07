@@ -1,6 +1,28 @@
 # Anima 变更日志
 
-## [0.2.59] - 2026-03-07
+## [0.2.60] - 2026-03-07
+
+### fix(v0.2.60): 心智模型系统全面修复（Code Review 5 项主要问题）
+
+#### 修复内容
+
+| 问题 | 文件 | 修复 |
+|------|------|------|
+| 层级优先级排序错误 | `ai.ts` | 将层 2.5（心智模型静态摘要）移到层 3（动态 memory_facts）之后，动态内容不再被静态内容挤出 CONTEXT_BUDGET |
+| 层 2.5 缺少领域知识/情绪模式 | `ai.ts` | 补全五维注入：认知框架/长期目标/思维偏好/**领域知识**/情绪模式 |
+| 刷新按钮无后置轮询 | `ConversationSidebar.tsx` | 刷新后添加 5s/15s/35s 三次自动轮询（复用 pendingProfileRefresh 模式），UI 自动展示更新后模型 |
+| DELETE 后 null 状态未清除 | `ConversationSidebar.tsx` | `data?.model ?? null` 确保 DELETE 后前端 mentalModel 状态正确清空 |
+| 领域知识 React key 用 index | `ConversationSidebar.tsx` | 改为 `key={domain}` 字符串，避免重排时渲染错位 |
+| JSON 类型校验过于宽松 | `agentTasks.ts` | 增加数组字段类型验证（`Array.isArray`），对象字段验证（`typeof === 'object'`），防 LLM 返回错误类型破坏存储 |
+| max_tokens 600 可能截断 | `agentTasks.ts` | 提升至 1000（5 字段 × 5 条 ≈ 800 tokens） |
+| 自动触发无上限 | `memory.ts` | 限制在前 5 个里程碑（20/40/60/80/100 facts），power user 不再无限触发 LLM |
+| updated_at 缺少 DEFAULT | `db.ts` | 补充 `DEFAULT (datetime('now'))`，防止代码路径变化时 NOT NULL 约束报错 |
+
+**测试**：282/282 通过 · TS 零错误 · E2E 26/26 通过
+
+---
+
+
 
 ### feat(v0.2.59): B1 — 结构化用户心智模型 (User Mental Model)
 

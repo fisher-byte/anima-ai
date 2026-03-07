@@ -671,7 +671,7 @@ ${factsText}
       body: JSON.stringify({
         model,
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 600,
+        max_tokens: 1000,
         temperature: 0.2
       }),
       signal: AbortSignal.timeout(20_000)
@@ -686,10 +686,15 @@ ${factsText}
 
     const parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>
 
-    // 基本校验：顶层键应为预期字段
+    // 字段类型校验：关键数组字段必须为数组，领域知识必须为对象
     const expectedKeys = ['认知框架', '长期目标', '思维偏好', '领域知识', '情绪模式']
     const hasExpectedKey = expectedKeys.some(k => k in parsed)
     if (!hasExpectedKey) return
+    const arrayFields = ['认知框架', '长期目标', '思维偏好', '情绪模式']
+    for (const f of arrayFields) {
+      if (f in parsed && !Array.isArray(parsed[f])) return  // LLM 返回了错误类型
+    }
+    if ('领域知识' in parsed && (typeof parsed['领域知识'] !== 'object' || Array.isArray(parsed['领域知识']) || parsed['领域知识'] === null)) return
 
     const now = new Date().toISOString()
     const modelJson = JSON.stringify(parsed)
