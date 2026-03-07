@@ -61,6 +61,23 @@ function MemoryLines({
   //              screenY = node.y * scale + offset.y - vh
   const NODE_W = 208  // NodeCard w-52
   const NODE_H = 120  // 节点大致高度
+
+  /**
+   * 分类颜色映射：节点背景色极浅（用于卡片），线条需要更深更饱和的版本
+   * key = node.color（canvasStore 赋值），value = 对应的线条颜色
+   */
+  const CATEGORY_LINE_COLORS: Record<string, string> = {
+    'rgba(220, 252, 231, 0.9)': 'rgba(34,197,94,0.7)',    // 日常生活 → 绿
+    'rgba(254, 249, 195, 0.9)': 'rgba(202,138,4,0.7)',    // 日常事务 → 黄
+    'rgba(219, 234, 254, 0.9)': 'rgba(59,130,246,0.7)',   // 学习成长 → 蓝
+    'rgba(224, 242, 254, 0.9)': 'rgba(14,165,233,0.7)',   // 工作事业 → 天蓝
+    'rgba(255, 228, 230, 0.9)': 'rgba(244,63,94,0.7)',    // 情感关系 → 红
+    'rgba(243, 232, 255, 0.9)': 'rgba(168,85,247,0.7)',   // 思考世界 → 紫
+    'rgba(243, 244, 246, 0.9)': 'rgba(107,114,128,0.7)',  // 其他 → 灰
+    'rgba(237, 233, 254, 0.9)': 'rgba(139,92,246,0.7)',   // capability → 靛紫
+    'rgba(226, 232, 240, 0.9)': 'rgba(100,116,139,0.7)',  // onboarding → 蓝灰
+  }
+
   const lines = highlightedNodeIds
     .map(id => nodes.find(n => n.id === id))
     .filter((n): n is CanvasNode => !!n)
@@ -69,13 +86,9 @@ function MemoryLines({
       const ny = node.y * scale + offset.y - vh
       const sx = nx + (NODE_W / 2) * scale
       const sy = ny + (NODE_H / 2) * scale
-      // 用节点自身颜色（已编码分类信息），fallback 到浅蓝
-      const rawColor = node.color || 'rgba(147,197,253,0.9)'
-      // 将原始颜色的透明度调整为 0.55（清晰可辨但不过于强烈）
-      const lineColor = rawColor.replace(/rgba?\(([^)]+)\)/, (_, inner) => {
-        const parts = inner.split(',').map((s: string) => s.trim())
-        return `rgba(${parts[0]},${parts[1]},${parts[2]},0.55)`
-      })
+      // 查精确映射表，找不到则降级为灰色
+      const rawColor = node.color?.trim() ?? ''
+      const lineColor = CATEGORY_LINE_COLORS[rawColor] ?? 'rgba(107,114,128,0.55)'
       return { id: node.id, sx, sy, lineColor }
     })
     // 节点中心必须在可视区内才画线，避免"悬空线"（留宽裕边距）
