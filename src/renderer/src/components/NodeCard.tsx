@@ -384,7 +384,7 @@ function CapabilityNodeCard({ node }: { node: Node }) {
 
   const handleGlobalMouseUp = useCallback(() => {
     window.removeEventListener('mousemove', handleGlobalMouseMove)
-    window.removeEventListener('mouseup', handleGlobalMouseUpRef.current)
+    window.removeEventListener('mouseup', handleGlobalMouseUp)
     if (isDraggingRef.current) {
       isDraggingRef.current = false
       lastDragEndRef.current = Date.now()

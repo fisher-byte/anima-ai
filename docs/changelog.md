@@ -1,5 +1,23 @@
 # Anima 变更日志
 
+## [0.2.57] - 2026-03-07
+
+### fix(v0.2.57): code review 修复 — viewport 公式 + mouseup 泄露 + detectIntent 全面迭代
+
+#### 改动
+
+| 内容 | 文件 | 说明 |
+|------|------|------|
+| 视口裁剪坐标公式修正 | `Canvas.tsx:268–272` | 内容层起点为 (-vw,-vh)，正确公式：`minX = (0 - offset.x + vw) / scale - buffer`；之前公式偏差一整个视口宽度，导致边缘节点错误裁剪 |
+| CapabilityNodeCard mouseup 泄露修复 | `NodeCard.tsx:387` | `removeEventListener('mouseup', handleGlobalMouseUpRef.current)` → `removeEventListener('mouseup', handleGlobalMouseUp)`；之前每次拖拽积累一个孤立监听器 |
+| detectIntent 关键词全面迭代 | `canvasStore.ts` | 六类关键词从扁平列表重写为语义分组；日常生活 31 词、日常事务 27 词、学习成长 33 词、工作事业 35 词、情感关系 38 词、思考世界 34 词；消除 '攻略' 跨类重复 |
+| reclassifyNodes 错误上报 | `canvasStore.ts:1615` | `catch { /* silent */ }` → `catch { set({ lastError: '节点重分类失败...' }) }` |
+| memory.ts 请求体防护 | `memory.ts:660` | `nodes.slice(0, 200)` 防止超大请求；`CATEGORY_COLORS[matched] ?? CATEGORY_COLORS['其他']` 防 undefined |
+| 死代码清理 | `canvasStore.ts:545` | 删除从未被读取的 `conversationsFullMap` |
+| E2E 动画稳定性修复 | `e2e/canvas.spec.ts:202` | `waitForTimeout(300)` → `600`，`click()` → `click({ force: true })`；解决 nodeFloat 动画导致的元素不稳定 |
+
+---
+
 ## [0.2.56] - 2026-03-07
 
 ### feat(v0.2.56): 节点物理感 + P1 技术债清偿 + 分类重识别

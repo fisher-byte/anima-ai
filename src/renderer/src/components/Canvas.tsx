@@ -265,11 +265,12 @@ export function Canvas() {
     const vw = typeof window !== 'undefined' ? window.innerWidth : 1280
     const vh = typeof window !== 'undefined' ? window.innerHeight : 800
     // 将屏幕视口转换为画布坐标（含 300px 缓冲，保证边缘节点可见）
+    // 内容层起点在 (-vw, -vh)，故 canvasX = (screenX - offset.x + vw) / scale
     const buffer = 300 / scale
-    const minX = (-offset.x - vw) / scale - buffer
-    const maxX = (-offset.x) / scale + vw / scale + buffer
-    const minY = (-offset.y - vh) / scale - buffer
-    const maxY = (-offset.y) / scale + vh / scale + buffer
+    const minX = (0 - offset.x + vw) / scale - buffer
+    const maxX = (vw - offset.x + vw) / scale + buffer
+    const minY = (0 - offset.y + vh) / scale - buffer
+    const maxY = (vh - offset.y + vh) / scale + buffer
 
     const visible = nodes.filter(n =>
       n.x + 208 >= minX && n.x <= maxX &&

@@ -198,9 +198,9 @@ test('删除按钮触发 confirm dialog，取消后节点不消失', async ({ pa
     return
   }
 
-  // 等动画稳定后再点击
-  await page.waitForTimeout(300)
-  await deleteBtn.click()
+  // 等动画稳定后再点击；nodeFloat CSS 动画可能导致 Playwright 稳定性检测失败，使用 force:true 跳过
+  await page.waitForTimeout(600)
+  await deleteBtn.click({ force: true })
 
   // confirm dialog 出现
   await expect(page.getByText('删除这条对话？')).toBeVisible({ timeout: 3000 })
