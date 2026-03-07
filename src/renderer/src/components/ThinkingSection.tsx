@@ -3,10 +3,12 @@
  *
  * 职责：在对话回复中渲染 AI 的 thinking/reasoning 内容，支持折叠/展开。
  *
- * 状态：
- *   isWaiting=true  → 三点跳动动画 + "正在思考..."（等待首个 token）
- *   isWaiting=false → 显示折叠按钮（"正在思考中 / 思考完毕"）+ 蓝色脉冲点
- *                     点击展开 Markdown 渲染的思考内容
+ * 状态（分阶段）：
+ *   isWaiting=true + content=''  → 三点跳动 + "正在思考..."（等待首个 token）
+ *   isStreaming=true + content<200   → "正在分析..."  + 蓝色脉冲
+ *   isStreaming=true + content<800   → "深度推理中..."  + 蓝色脉冲
+ *   isStreaming=true + content>=800  → "全力思考中..."  + 蓝色脉冲
+ *   isStreaming=false              → "思考完毕" + 字数摘要
  *
  * 注意：thinking 内容完整持久化（endConversation 时随 turns 一起存储），
  * 历史对话回放时可完整查看每轮思考过程。
@@ -24,6 +26,14 @@ interface ThinkingSectionProps {
   isStreaming: boolean
   isWaiting?: boolean   // true = 已发送，等待第一个 token（无思考内容）
   forceCollapsed?: boolean
+}
+
+/** 根据 thinking 内容长度返回当前思考阶段标签 */
+function getThinkingLabel(content: string): string {
+  const len = content.length
+  if (len < 200) return '正在分析...'
+  if (len < 800) return '深度推理中...'
+  return '全力思考中...'
 }
 
 export function ThinkingSection({ content, isStreaming, isWaiting, forceCollapsed }: ThinkingSectionProps) {
@@ -75,6 +85,11 @@ export function ThinkingSection({ content, isStreaming, isWaiting, forceCollapse
   if (!content && !isStreaming) return null
   if (content && content.length < THINK_MIN_LEN && !isStreaming) return null
 
+  // 思考完毕时的摘要信息（字数）
+  const doneLabel = !isStreaming && content
+    ? `思考完毕 · ${content.length} 字`
+    : '思考完毕'
+
   return (
     <div className="mb-3">
       <button
@@ -92,9 +107,9 @@ export function ThinkingSection({ content, isStreaming, isWaiting, forceCollapse
                   transition={{ repeat: Infinity, duration: 1.2, ease: 'easeInOut' }}
                   className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400"
                 />
-                正在思考中
+                {getThinkingLabel(content)}
               </span>
-            : '思考完毕'}
+            : doneLabel}
         </span>
       </button>
       <AnimatePresence>
@@ -116,3 +131,4 @@ export function ThinkingSection({ content, isStreaming, isWaiting, forceCollapse
     </div>
   )
 }
+

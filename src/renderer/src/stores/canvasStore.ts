@@ -1067,7 +1067,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         .map(r => {
           const node = nodeByConv.get(r.conversationId)
           if (!node) return null
-          return { conversationId: r.conversationId, title: node.title, userMessage: '', score: r.score }
+          // 用 title + keywords 作为候选节点内容摘要，供 AI 判断逻辑关系
+          const summary = [node.title, ...(node.keywords ?? [])].filter(Boolean).join(', ')
+          return { conversationId: r.conversationId, title: node.title, userMessage: summary, score: r.score }
         })
         .filter((c): c is NonNullable<typeof c> => c !== null)
 
