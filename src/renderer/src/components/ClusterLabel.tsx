@@ -14,10 +14,11 @@ interface Cluster {
 interface ClusterLabelProps {
   cluster: Cluster
   onDrag: (dx: number, dy: number) => void
+  onDragEnd?: () => void
   onClick: () => void
 }
 
-export function ClusterLabel({ cluster, onDrag, onClick }: ClusterLabelProps) {
+export function ClusterLabel({ cluster, onDrag, onDragEnd, onClick }: ClusterLabelProps) {
   const scale = useLodScale([0.4, 0.6])
 
   // 在 0.4~0.6 之间淡出，< 0.4 完全可见，> 0.6 完全不可见
@@ -55,9 +56,12 @@ export function ClusterLabel({ cluster, onDrag, onClick }: ClusterLabelProps) {
     if (!isDraggingRef.current) return
     isDraggingRef.current = false
     e.currentTarget.releasePointerCapture(e.pointerId)
-    // 没拖动才算点击
-    if (!didDragRef.current) onClick()
-  }, [onClick])
+    if (didDragRef.current) {
+      onDragEnd?.()  // 拖拽结束，持久化节点位置
+    } else {
+      onClick()  // 没拖动才算点击
+    }
+  }, [onClick, onDragEnd])
 
   return (
     <div

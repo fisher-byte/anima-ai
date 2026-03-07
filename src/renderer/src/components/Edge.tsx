@@ -63,11 +63,10 @@ export const Edge = memo(function Edge({
       return { path: p, strokeWidth: 1, opacity: op }
     }
 
-    // branch / category
+    // branch / category：距离越远越淡（近处连线不应比远处更醒目）
     const ratio = Math.max(0, 1 - dist / maxDist)
-    const sw = 1 + ratio * 1.5
-    const op = (0.04 + ratio * 0.10) * lodOpacity
-    return { path: p, strokeWidth: sw, opacity: op }
+    const op = (0.03 + (1 - ratio) * 0.04) * lodOpacity  // 近处 0.03，远处 0.07
+    return { path: p, strokeWidth: 1, opacity: op }
   }, [sourceNode.x, sourceNode.y, targetNode.x, targetNode.y, lodOpacity, edgeType, weight, confidence])
 
   if (lodOpacity <= 0) return null

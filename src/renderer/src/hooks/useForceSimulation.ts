@@ -1,0 +1,342 @@
+/**
+ * useForceSimulation — 节点物理力模拟
+ *
+ * 两层力系统：
+ *   Layer 1 (节点级)：同类引力、异类斥力、连线弹簧、全局中心引力
+ *   Layer 2 (星云级)：星云间斥力、连线引导靠近
+ *   全局旋转：所有节点围绕全体几何重心缓慢公转
+ *
+ * 性能策略（核心原则）：
+ *   - force sim 只写 DOM（el.style.left/top），永远不写 Zustand store
+ *   - 写 store 会触发 React 重渲染，导致 motion.div 读取 store 坐标覆盖 DOM，产生闪回
+ *   - 持久化仅在：拖拽结束 / 星云拖拽结束 / 页面卸载 时触发（低频）
+ *   - 星云间 hasEdge 检查用 Set 预计算，避免 O(n²) 的 Array.some
+ */
+import { useRef, useEffect, useCallback } from 'react'
+import { useCanvasStore } from '../stores/canvasStore'
+import type { Node, Edge } from '@shared/types'
+
+// ── 力参数常量 ──────────────────────────────────────────────────────────────
+
+const NODE_REPEL          = 6000    // 节点间全局斥力强度
+const NODE_REPEL_MAX_DIST = 400     // 斥力生效最大距离
+const SAME_ATTRACT        = 0.0018  // 同类弹簧系数
+const SAME_IDEAL_DIST     = 220     // 同类理想间距
+const SAME_MAX_DIST       = 700     // 同类引力生效上限
+const DIFF_REPEL          = 120     // 异类斥力系数
+const DIFF_MAX_DIST       = 500     // 异类斥力生效上限
+const EDGE_SPRING         = 0.0025  // 连线弹簧系数
+const EDGE_IDEAL_LEN      = 280     // 连线理想长度
+const CENTER_GRAVITY      = 0.00008 // 全局中心引力（防止节点飘出）
+const DAMPING             = 0.82    // 速度阻尼
+const MAX_VELOCITY        = 2.5     // 速度上限
+
+const CLUSTER_REPEL          = 12000  // 星云间斥力
+const CLUSTER_REPEL_MAX_DIST = 1200   // 星云斥力生效上限
+const CLUSTER_EDGE_ATTRACT   = 0.0008 // 星云间连线引力
+
+/** 全局公转切向力系数 —— 所有节点围绕几何重心缓慢公转 */
+const GLOBAL_ROTATION_TORQUE = 0.00006
+
+const TEMPERATURE_INIT  = 1.0    // 初始温度
+const TEMPERATURE_KICK  = 0.6    // kick 后温度
+const TEMPERATURE_MIN   = 0.05   // 最低运行温度（保持微动）
+const COOLING_RATE      = 0.994  // 每帧冷却系数
+
+// ── 内部数据结构 ──────────────────────────────────────────────────────────────
+
+interface SimNode {
+  id: string
+  x: number
+  y: number
+  category: string
+  vx: number
+  vy: number
+  fx: number
+  fy: number
+  isCapability: boolean
+}
+
+interface SimCluster {
+  id: string
+  nodeIds: string[]
+  cx: number
+  cy: number
+}
+
+// ── Hook ──────────────────────────────────────────────────────────────────────
+
+export interface ForceSimulationAPI {
+  sync: (nodes: Node[], edges: Edge[]) => void
+  kick: () => void
+  setDragging: (nodeId: string | null) => void
+  moveCluster: (category: string, dx: number, dy: number) => void
+  persistCluster: (category: string) => void
+  /** 将 sim 内部坐标全量写回 store（不走 SQLite，仅内存） */
+  flushToStore: () => void
+}
+
+export function useForceSimulation(): ForceSimulationAPI {
+  // 只用 getState() 取函数引用，不订阅 store，不触发重渲染
+  const updateNodePositionInMemory = useCanvasStore.getState().updateNodePositionInMemory
+  const updateNodePosition = useCanvasStore.getState().updateNodePosition
+
+  const nodesRef    = useRef<SimNode[]>([])
+  const nodeMapRef  = useRef<Map<string, SimNode>>(new Map())
+  const edgesRef    = useRef<Edge[]>([])
+  const clustersRef = useRef<SimCluster[]>([])
+  const temperatureRef    = useRef(TEMPERATURE_INIT)
+  const rafRef            = useRef<number | null>(null)
+  const draggedNodeIdRef  = useRef<string | null>(null)
+  const frameCountRef     = useRef(0)
+
+  // ── 计算星云中心 ──────────────────────────────────────────────────────────
+  const recomputeClusters = () => {
+    const accum = new Map<string, { x: number; y: number; count: number; ids: string[] }>()
+    for (const n of nodesRef.current) {
+      if (n.isCapability) continue
+      let e = accum.get(n.category)
+      if (!e) { e = { x: 0, y: 0, count: 0, ids: [] }; accum.set(n.category, e) }
+      e.x += n.x; e.y += n.y; e.count++; e.ids.push(n.id)
+    }
+    clustersRef.current = Array.from(accum.entries()).map(([id, v]) => ({
+      id, nodeIds: v.ids, cx: v.x / v.count, cy: v.y / v.count,
+    }))
+  }
+
+  // ── 核心模拟 tick ─────────────────────────────────────────────────────────
+  const tickRef = useRef<() => void>()
+
+  tickRef.current = () => {
+    const nodes  = nodesRef.current
+    const edges  = edgesRef.current
+    const temp   = temperatureRef.current
+    const dragId = draggedNodeIdRef.current
+
+    if (nodes.length === 0) {
+      rafRef.current = requestAnimationFrame(tickRef.current!)
+      return
+    }
+
+    // 1. 重置力 & 更新星云中心
+    for (const n of nodes) { n.fx = 0; n.fy = 0 }
+    recomputeClusters()
+    const clusters   = clustersRef.current
+
+    // 全局几何重心（用于公转切向力）
+    let gcx = 0, gcy = 0, gcCount = 0
+    for (const n of nodes) {
+      if (n.isCapability) continue
+      gcx += n.x; gcy += n.y; gcCount++
+    }
+    if (gcCount > 0) { gcx /= gcCount; gcy /= gcCount }
+
+    // 预计算星云间连线关系（O(edges) 预处理，避免 tick 内 O(n²) 查找）
+    const clusterEdgeSet = new Set<string>()
+    for (const edge of edges) {
+      const a = nodeMapRef.current.get(edge.source)
+      const b = nodeMapRef.current.get(edge.target)
+      if (!a || !b || a.category === b.category) continue
+      const key = [a.category, b.category].sort().join('|||')
+      clusterEdgeSet.add(key)
+    }
+
+    // 2. 节点级力计算
+    for (let i = 0; i < nodes.length; i++) {
+      const a = nodes[i]
+      if (a.isCapability || a.id === dragId) continue
+
+      // 全局中心引力
+      a.fx -= a.x * CENTER_GRAVITY
+      a.fy -= a.y * CENTER_GRAVITY
+
+      // 全局公转切向力（节点绕几何重心逆时针漂移）
+      const rx = a.x - gcx
+      const ry = a.y - gcy
+      a.fx += -ry * GLOBAL_ROTATION_TORQUE
+      a.fy +=  rx * GLOBAL_ROTATION_TORQUE
+
+      for (let j = 0; j < nodes.length; j++) {
+        if (i === j) continue
+        const b = nodes[j]
+        if (b.isCapability) continue
+
+        const dx   = b.x - a.x
+        const dy   = b.y - a.y
+        const dist = Math.hypot(dx, dy) || 1
+
+        // 节点斥力
+        if (dist < NODE_REPEL_MAX_DIST) {
+          const repel = NODE_REPEL / (dist * dist)
+          a.fx -= (dx / dist) * repel
+          a.fy -= (dy / dist) * repel
+        }
+
+        if (a.category === b.category) {
+          // 同类引力弹簧
+          if (dist < SAME_MAX_DIST) {
+            const spring = (dist - SAME_IDEAL_DIST) * SAME_ATTRACT
+            a.fx += (dx / dist) * spring
+            a.fy += (dy / dist) * spring
+          }
+        } else {
+          // 异类斥力
+          if (dist < DIFF_MAX_DIST) {
+            const repel = DIFF_REPEL / dist
+            a.fx -= (dx / dist) * repel
+            a.fy -= (dy / dist) * repel
+          }
+        }
+      }
+    }
+
+    // 3. 连线弹簧力
+    for (const edge of edges) {
+      const a = nodeMapRef.current.get(edge.source)
+      const b = nodeMapRef.current.get(edge.target)
+      if (!a || !b || a.isCapability || b.isCapability) continue
+      const dx     = b.x - a.x
+      const dy     = b.y - a.y
+      const dist   = Math.hypot(dx, dy) || 1
+      const spring = (dist - EDGE_IDEAL_LEN) * EDGE_SPRING
+      const nx = dx / dist; const ny = dy / dist
+      if (a.id !== dragId) { a.fx += nx * spring; a.fy += ny * spring }
+      if (b.id !== dragId) { b.fx -= nx * spring; b.fy -= ny * spring }
+    }
+
+    // 4. 星云间斥力 & 连线引力
+    for (let i = 0; i < clusters.length; i++) {
+      for (let j = i + 1; j < clusters.length; j++) {
+        const c1   = clusters[i]; const c2 = clusters[j]
+        const dx   = c2.cx - c1.cx; const dy = c2.cy - c1.cy
+        const dist = Math.hypot(dx, dy) || 1
+
+        if (dist < CLUSTER_REPEL_MAX_DIST) {
+          const repel = CLUSTER_REPEL / (dist * dist)
+          const nx = dx / dist; const ny = dy / dist
+          const s1 = 0.5 / Math.max(1, c1.nodeIds.length)
+          const s2 = 0.5 / Math.max(1, c2.nodeIds.length)
+          for (const id of c1.nodeIds) {
+            const n = nodeMapRef.current.get(id)
+            if (n && n.id !== dragId) { n.fx -= nx * repel * s1; n.fy -= ny * repel * s1 }
+          }
+          for (const id of c2.nodeIds) {
+            const n = nodeMapRef.current.get(id)
+            if (n && n.id !== dragId) { n.fx += nx * repel * s2; n.fy += ny * repel * s2 }
+          }
+        }
+
+        const edgeKey = [c1.id, c2.id].sort().join('|||')
+        if (clusterEdgeSet.has(edgeKey) && dist > 800) {
+          const attract = (dist - 800) * CLUSTER_EDGE_ATTRACT
+          const nx = dx / dist; const ny = dy / dist
+          const s1 = 1 / Math.max(1, c1.nodeIds.length)
+          const s2 = 1 / Math.max(1, c2.nodeIds.length)
+          for (const id of c1.nodeIds) {
+            const n = nodeMapRef.current.get(id)
+            if (n && n.id !== dragId) { n.fx += nx * attract * s1; n.fy += ny * attract * s1 }
+          }
+          for (const id of c2.nodeIds) {
+            const n = nodeMapRef.current.get(id)
+            if (n && n.id !== dragId) { n.fx -= nx * attract * s2; n.fy -= ny * attract * s2 }
+          }
+        }
+      }
+    }
+
+    // 5. 速度积分
+    for (const n of nodes) {
+      if (n.isCapability || n.id === dragId) continue
+      n.vx = (n.vx + n.fx) * DAMPING
+      n.vy = (n.vy + n.fy) * DAMPING
+      const speed = Math.hypot(n.vx, n.vy)
+      if (speed > MAX_VELOCITY) { n.vx = (n.vx / speed) * MAX_VELOCITY; n.vy = (n.vy / speed) * MAX_VELOCITY }
+      n.x += n.vx * temp
+      n.y += n.vy * temp
+    }
+
+    // 6. DOM 直写（只写 DOM，绝不写 store）
+    for (const n of nodes) {
+      if (n.id === dragId) continue
+      const el = document.getElementById(`node-${n.id}`)
+      if (el) { el.style.left = `${n.x}px`; el.style.top = `${n.y}px` }
+    }
+
+    // 7. 低频 store 同步（仅当系统趋于稳定时，让 Edge SVG 和 ClusterLabel 跟上）
+    //    温度低于 0.15 时每 60 帧（约 1fps）同步一次，避免 React 重渲染干扰动画
+    frameCountRef.current++
+    if (temp < 0.15 && frameCountRef.current % 60 === 0 && !dragId) {
+      const updateFn = useCanvasStore.getState().updateNodePositionInMemory
+      for (const n of nodes) {
+        if (!n.isCapability) updateFn(n.id, n.x, n.y)
+      }
+    }
+
+    // 8. 温度冷却
+    temperatureRef.current = Math.max(TEMPERATURE_MIN, temperatureRef.current * COOLING_RATE)
+
+    rafRef.current = requestAnimationFrame(tickRef.current!)
+  }
+
+  // ── 启动模拟 ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const loop = () => tickRef.current!()
+    rafRef.current = requestAnimationFrame(loop)
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }
+  }, [])
+
+  // ── 对外 API ──────────────────────────────────────────────────────────────
+
+  const sync = useCallback((storeNodes: Node[], edges: Edge[]) => {
+    const prevMap = nodeMapRef.current
+    const newNodes: SimNode[] = storeNodes.map(n => {
+      const prev = prevMap.get(n.id)
+      return {
+        id: n.id,
+        x: prev ? prev.x : n.x,
+        y: prev ? prev.y : n.y,
+        category: n.category || '其他',
+        vx: prev?.vx ?? 0,
+        vy: prev?.vy ?? 0,
+        fx: 0, fy: 0,
+        isCapability: n.nodeType === 'capability',
+      }
+    })
+    nodesRef.current  = newNodes
+    nodeMapRef.current = new Map(newNodes.map(n => [n.id, n]))
+    edgesRef.current  = edges
+  }, [])
+
+  const kick = useCallback(() => {
+    temperatureRef.current = Math.max(temperatureRef.current, TEMPERATURE_KICK)
+  }, [])
+
+  const setDragging = useCallback((nodeId: string | null) => {
+    draggedNodeIdRef.current = nodeId
+  }, [])
+
+  const moveCluster = useCallback((category: string, dx: number, dy: number) => {
+    for (const n of nodesRef.current) {
+      if (n.category !== category) continue
+      n.x += dx; n.y += dy
+      const el = document.getElementById(`node-${n.id}`)
+      if (el) { el.style.left = `${n.x}px`; el.style.top = `${n.y}px` }
+    }
+  }, [])
+
+  const persistCluster = useCallback((category: string) => {
+    for (const n of nodesRef.current) {
+      if (n.category !== category) continue
+      updateNodePosition(n.id, n.x, n.y)
+    }
+    kick()
+  }, [updateNodePosition, kick])
+
+  const flushToStore = useCallback(() => {
+    for (const n of nodesRef.current) {
+      updateNodePositionInMemory(n.id, n.x, n.y)
+    }
+  }, [updateNodePositionInMemory])
+
+  return { sync, kick, setDragging, moveCluster, persistCluster, flushToStore }
+}

@@ -18,6 +18,7 @@ import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit, Sparkles } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
+import { useForceSimulation } from '../hooks/useForceSimulation'
 import { NodeCard } from './NodeCard'
 import { ImportMemoryModal } from './ImportMemoryModal'
 import { Edge } from './Edge'
@@ -165,7 +166,9 @@ export function Canvas() {
   const setOffset = useCallback((o: {x:number;y:number}) => useCanvasStore.getState().setOffset(o), [])
   const setScale = useCallback((s: number) => useCanvasStore.getState().setScale(s), [])
   const resetView = useCallback(() => useCanvasStore.getState().resetView(), [])
-  const updateNodePosition = useCallback((id: string, x: number, y: number) => useCanvasStore.getState().updateNodePosition(id, x, y), [])
+
+  // 力模拟引擎
+  const forceSim = useForceSimulation()
 
   const toast = useToast()
 
@@ -184,10 +187,10 @@ export function Canvas() {
   const [scaleDisplay, setScaleDisplay] = useState(useCanvasStore.getState().scale)
 
   // 订阅 store 的 offset/scale 外部变更（如 focusNode、loadNodes 触发），同步 viewRef 和 DOM
-  // isDraggingRef 有值时跳过，避免与用户拖拽冲突
+  // isDraggingRef / isTouchingRef 有值时跳过，避免与用户拖拽/缩放冲突
   useEffect(() => {
     const unsubscribe = useCanvasStore.subscribe((state) => {
-      if (isDraggingRef.current) return
+      if (isDraggingRef.current || isTouchingRef.current) return
       const { offset, scale } = state
       if (
         viewRef.current.offset.x !== offset.x ||
@@ -300,10 +303,13 @@ export function Canvas() {
   }, [applyTransform])
 
   const handleClusterDrag = useCallback((cat: string, dx: number, dy: number) => {
-    nodes.forEach(n => {
-      if ((n.category || '其他') === cat) updateNodePosition(n.id, n.x + dx, n.y + dy)
-    })
-  }, [nodes, updateNodePosition])
+    // 直接操作 sim 内部坐标 + DOM，不写 SQLite（拖拽结束后才持久化）
+    forceSim.moveCluster(cat, dx, dy)
+  }, [forceSim])
+
+  const handleClusterDragEnd = useCallback((cat: string) => {
+    forceSim.persistCluster(cat)
+  }, [forceSim])
 
   const canvasRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -313,6 +319,7 @@ export function Canvas() {
   const animationFrameId = useRef<number | null>(null)
   const pendingOffsetRef = useRef({ x: 0, y: 0 })
   const isDraggingRef = useRef(false)
+  const isTouchingRef = useRef(false)  // 双指缩放中，阻止 store 订阅回写
   const dragRafId = useRef<number | null>(null)
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
@@ -327,9 +334,15 @@ export function Canvas() {
   useEffect(() => {
     if (nodes.length > prevNodeCountRef.current && prevNodeCountRef.current > 0) {
       setHasNewEvolution(true)
+      forceSim.kick()  // 新节点加入后重新激活力模拟
     }
     prevNodeCountRef.current = nodes.length
-  }, [nodes.length])
+  }, [nodes.length, forceSim])
+
+  // 节点/边变化时同步到力模拟引擎
+  useEffect(() => {
+    forceSim.sync(nodes, edges)
+  }, [nodes, edges, forceSim])
 
   // 惯性动画 — 直接操作 DOM，不 setState
   const startInertia = useCallback(() => {
@@ -467,12 +480,19 @@ export function Canvas() {
 
   // 处理手势缩放 (Touch)
   const touchStartDistRef = useRef<number | null>(null)
+  const touchCenterRef = useRef({ x: 0, y: 0 })
+
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (e.touches.length === 2) {
+      isTouchingRef.current = true
       touchStartDistRef.current = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY
       )
+      touchCenterRef.current = {
+        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+      }
     }
   }, [])
 
@@ -483,13 +503,29 @@ export function Canvas() {
         e.touches[0].clientY - e.touches[1].clientY
       )
       const factor = dist / touchStartDistRef.current
-      const newScale = Math.max(0.2, Math.min(3, viewRef.current.scale * factor))
-      applyTransform(viewRef.current.offset, newScale)
+      const prevScale = viewRef.current.scale
+      const newScale = Math.max(0.2, Math.min(3, prevScale * factor))
       touchStartDistRef.current = dist
+
+      // 以双指中心点为缩放原点（与滚轮缩放保持一致）
+      const vw = typeof window !== 'undefined' ? window.innerWidth : 1280
+      const vh = typeof window !== 'undefined' ? window.innerHeight : 800
+      const centerX = touchCenterRef.current.x
+      const centerY = touchCenterRef.current.y
+      const centerInContentX = centerX + vw
+      const centerInContentY = centerY + vh
+      const scaleDiff = newScale / prevScale
+      const { offset } = viewRef.current
+      const newOffset = {
+        x: centerInContentX - scaleDiff * (centerInContentX - offset.x),
+        y: centerInContentY - scaleDiff * (centerInContentY - offset.y),
+      }
+      applyTransform(newOffset, newScale)
     }
   }, [applyTransform])
 
   const handleTouchEnd = useCallback(() => {
+    isTouchingRef.current = false
     touchStartDistRef.current = null
     setOffset(viewRef.current.offset)
     setScale(viewRef.current.scale)
@@ -695,6 +731,7 @@ export function Canvas() {
                 key={c.id}
                 cluster={c}
                 onDrag={(dx, dy) => handleClusterDrag(c.category, dx, dy)}
+                onDragEnd={() => handleClusterDragEnd(c.category)}
                 onClick={() => handleClusterClick(c.x, c.y)}
               />
             ))}
