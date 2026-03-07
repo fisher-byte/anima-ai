@@ -318,7 +318,6 @@ aiRoutes.post('/stream', async (c) => {
   return streamSSE(c, async (stream) => {
     let fullContent = ''
     let reasoningContent = ''
-    const toolCalls: Record<number, { id: string; type: string; function: { name: string; arguments: string } }> = {}
 
     const sendEvent = async (data: Record<string, unknown>) => {
       await stream.writeSSE({ data: JSON.stringify(data) })
@@ -336,13 +335,82 @@ aiRoutes.post('/stream', async (c) => {
       })
     }
 
+    /**
+     * 读取单轮流式响应，返回本轮累积的 tool_calls（如果有）和 finish_reason。
+     * content / reasoning 增量会直接通过 sendEvent 推送给前端。
+     */
+    const readRound = async (res: Response): Promise<{
+      toolCalls: Array<{ id: string; type: string; function: { name: string; arguments: string } }>
+      finishReason: string | null
+    }> => {
+      const toolCallMap: Record<number, { id: string; type: string; function: { name: string; arguments: string } }> = {}
+      let finishReason: string | null = null
+      const decoder = new TextDecoder()
+      let sseBuffer = ''
+      const reader = res.body?.getReader()
+      if (!reader) return { toolCalls: [], finishReason: null }
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          sseBuffer += decoder.decode(value, { stream: true })
+          const parts = sseBuffer.split(/\r?\n\r?\n/)
+          sseBuffer = parts.pop() ?? ''
+
+          for (const part of parts) {
+            for (const line of part.split(/\r?\n/)) {
+              if (!line.startsWith('data: ')) continue
+              const data = line.slice(6)
+              if (data === '[DONE]') continue
+              try {
+                const parsed = JSON.parse(data)
+                const delta = parsed.choices?.[0]?.delta
+                const fr = parsed.choices?.[0]?.finish_reason
+                if (fr) finishReason = fr
+
+                if (delta?.reasoning_content) {
+                  reasoningContent += delta.reasoning_content
+                  await sendEvent({ type: 'reasoning', content: delta.reasoning_content })
+                }
+                if (delta?.content) {
+                  fullContent += delta.content
+                  await sendEvent({ type: 'content', content: delta.content })
+                }
+                if (delta?.tool_calls) {
+                  for (const tc of delta.tool_calls) {
+                    const idx: number = tc.index
+                    if (!toolCallMap[idx]) {
+                      toolCallMap[idx] = {
+                        id: tc.id ?? '',
+                        type: tc.type ?? 'function',
+                        function: { name: tc.function?.name ?? '', arguments: tc.function?.arguments ?? '' }
+                      }
+                    } else {
+                      if (tc.function?.name) toolCallMap[idx].function.name += tc.function.name
+                      if (tc.function?.arguments) toolCallMap[idx].function.arguments += tc.function.arguments
+                    }
+                  }
+                }
+              } catch {
+                // ignore JSON parse errors in stream
+              }
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock()
+      }
+      return { toolCalls: Object.values(toolCallMap), finishReason }
+    }
+
     try {
+      // 首轮：带 tools 声明，失败时降级去掉 tools 重试
       let response: Response
       try {
         response = await fetchCompletionStream(requestBody)
       } catch (error) {
-        const shouldRetryWithoutTools = Boolean(requestBody.tools)
-        if (!shouldRetryWithoutTools) throw error
+        if (!requestBody.tools) throw error
         const fallbackBody = { ...requestBody }
         delete fallbackBody.tools
         response = await fetchCompletionStream(fallbackBody)
@@ -354,140 +422,61 @@ aiRoutes.post('/stream', async (c) => {
         return
       }
 
-      const reader = response.body?.getReader()
-      if (!reader) {
-        await sendEvent({ type: 'error', message: 'No response body from upstream' })
-        return
-      }
+      // 多轮 while 循环：最多 5 轮，防止无限搜索
+      const MAX_SEARCH_ROUNDS = 5
+      let currentMessages = [...fullMessages]
+      let currentResponse = response
+      let round = 1
 
-      const decoder = new TextDecoder()
-      let sseBuffer = ''
+      while (round <= MAX_SEARCH_ROUNDS) {
+        const { toolCalls, finishReason } = await readRound(currentResponse)
 
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
+        // 非 tool_calls 结束，或没有任何 tool call → 正常退出
+        if (finishReason !== 'tool_calls' || toolCalls.length === 0) break
 
-        const decodedChunk = decoder.decode(value, { stream: true })
-        sseBuffer += decodedChunk
-        const parts = sseBuffer.split(/\r?\n\r?\n/)
-        sseBuffer = parts.pop() ?? ''
-
-        for (const part of parts) {
-          for (const line of part.split(/\r?\n/)) {
-          if (!line.startsWith('data: ')) continue
-          const data = line.slice(6)
-          if (data === '[DONE]') continue
-
-          try {
-            const parsed = JSON.parse(data)
-            const delta = parsed.choices?.[0]?.delta
-            const finishReason = parsed.choices?.[0]?.finish_reason
-
-            if (delta?.reasoning_content) {
-              reasoningContent += delta.reasoning_content
-              await sendEvent({ type: 'reasoning', content: delta.reasoning_content })
-            }
-
-            if (delta?.content) {
-              fullContent += delta.content
-              await sendEvent({ type: 'content', content: delta.content })
-            }
-
-            // Accumulate tool calls
-            if (delta?.tool_calls) {
-              for (const tc of delta.tool_calls) {
-                const idx: number = tc.index
-                if (!toolCalls[idx]) {
-                  toolCalls[idx] = {
-                    id: tc.id,
-                    type: tc.type,
-                    function: { name: tc.function?.name ?? '', arguments: tc.function?.arguments ?? '' }
-                  }
-                } else {
-                  if (tc.function?.name) toolCalls[idx].function.name += tc.function.name
-                  if (tc.function?.arguments) {
-                    toolCalls[idx].function.arguments += tc.function.arguments
-                  }
-                }
-              }
-            }
-
-            // Handle tool call completion - trigger second round
-            if (finishReason === 'tool_calls' && Object.keys(toolCalls).length > 0) {
-              const toolCallsArray = Object.values(toolCalls)
-
-              const assistantMsg: AIMessage = {
-                role: 'assistant',
-                content: fullContent || '',
-                tool_calls: toolCallsArray,
-                reasoning_content: reasoningContent || 'web_search'
-              }
-
-              const toolMessages: AIMessage[] = toolCallsArray.map((tc) => ({
-                role: 'tool' as const,
-                tool_call_id: tc.id,
-                content: tc.function.arguments
-              }))
-
-              // Second round request
-              const round2Body: Record<string, unknown> = {
-                model,
-                messages: [...fullMessages, assistantMsg, ...toolMessages],
-                max_tokens: AI_CONFIG.MAX_TOKENS,
-                temperature: AI_CONFIG.TEMPERATURE,
-                stream: true
-              }
-
-              const round2Res = await fetch(`${baseUrl}/chat/completions`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Authorization: `Bearer ${effectiveApiKey}`
-                },
-                body: JSON.stringify(round2Body),
-                signal: c.req.raw.signal
-              })
-
-              if (round2Res.ok) {
-                const reader2 = round2Res.body?.getReader()
-                if (reader2) {
-                  let sseBuffer2 = ''
-                  while (true) {
-                    const { done, value } = await reader2.read()
-                    if (done) break
-                    sseBuffer2 += decoder.decode(value, { stream: true })
-                    const parts2 = sseBuffer2.split(/\r?\n\r?\n/)
-                    sseBuffer2 = parts2.pop() ?? ''
-                    for (const part2 of parts2) {
-                      for (const line2 of part2.split(/\r?\n/)) {
-                      if (!line2.startsWith('data: ')) continue
-                      const data2 = line2.slice(6)
-                      if (data2 === '[DONE]') continue
-                      try {
-                        const p2 = JSON.parse(data2)
-                        const d2 = p2.choices?.[0]?.delta
-                        if (d2?.reasoning_content) {
-                          reasoningContent += d2.reasoning_content
-                          await sendEvent({ type: 'reasoning', content: d2.reasoning_content })
-                        }
-                        if (d2?.content) {
-                          fullContent += d2.content
-                          await sendEvent({ type: 'content', content: d2.content })
-                        }
-                      } catch {
-                        // ignore parse errors
-                      }
-                    }
-                    }
-                  }
-                }
-              }
-            }
-          } catch {
-            // ignore JSON parse errors in stream
-          }
-          }
+        // 构造本轮的 assistant 消息和 tool result 消息
+        const assistantMsg: AIMessage = {
+          role: 'assistant',
+          content: fullContent || '',
+          tool_calls: toolCalls,
+          reasoning_content: reasoningContent || undefined
         }
+        const toolMessages: AIMessage[] = toolCalls.map((tc) => ({
+          role: 'tool' as const,
+          tool_call_id: tc.id,
+          content: tc.function.arguments  // $web_search 内置搜索：回传 arguments，由 Moonshot 服务端执行
+        }))
+
+        currentMessages = [...currentMessages, assistantMsg, ...toolMessages]
+        round += 1
+
+        if (round > MAX_SEARCH_ROUNDS) break
+
+        // 通知前端：即将进行第 N 轮搜索
+        await sendEvent({
+          type: 'search_round',
+          round,
+          message: round === 2
+            ? '你的问题有点复杂，正在进行更多搜索…'
+            : `正在进行第 ${round} 轮搜索，请稍候…`
+        })
+
+        // 续轮请求：必须带上 tools 声明，否则模型无法继续调用搜索
+        const nextBody: Record<string, unknown> = {
+          model,
+          messages: currentMessages,
+          max_tokens: AI_CONFIG.MAX_TOKENS,
+          temperature: AI_CONFIG.TEMPERATURE,
+          stream: true,
+          tools: [{ type: 'builtin_function', function: { name: '$web_search' } }]
+        }
+
+        const nextRes = await fetchCompletionStream(nextBody)
+        if (!nextRes.ok) {
+          // 续轮失败：直接结束，已有内容仍然返回给用户
+          break
+        }
+        currentResponse = nextRes
       }
 
       await sendEvent({ type: 'done', fullText: fullContent })

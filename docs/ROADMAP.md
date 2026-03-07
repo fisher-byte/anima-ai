@@ -181,6 +181,20 @@
 
 ---
 
+#### v0.2.50 - 多轮搜索 + 澄清层 + 代码质量（已完成）
+
+**新功能**:
+- [x] **多轮 web_search 支持**：后端 while 循环最多 5 轮，tool_calls → `search_round` SSE 事件 → 续轮请求，支持 Moonshot `$web_search` 内置搜索
+- [x] **调研前澄清层**：用户输入含调研/分析关键词且无具体锚点时，弹出澄清卡片（行业数据 / 产品对比 / 自定义），不在 onboarding 模式触发
+- [x] **搜索进度指示器**：流式回复区域显示"正在进行第 N 轮搜索"动态提示
+
+**代码质量**:
+- [x] **P0 修复**：`readRound` 添加 `try/finally reader.releaseLock()`，消除 ReadableStream 资源泄漏
+- [x] **P1 修复**：澄清层 onboarding 守卫（`!isOnboardingMode`），`sendClarifiedMessage` 提取复用消除两处重复 `doSend`
+- [x] **+20 单元测试**：覆盖 readRound 逻辑、澄清层触发规则、search_round 消息格式、MAX_SEARCH_ROUNDS 边界
+
+---
+
 ### 设计参考（SOP）
 
 产品与前端设计、交互方案在迭代时，应**参考顶级开源项目与优秀设计**（如 ChatGPT/Claude 网页端、知名开源 AI 产品、设计系统等），并在需求/方案文档中简要注明参考来源与取舍。新功能评审时检查是否已做参考并文档化。
@@ -293,8 +307,10 @@
 | v0.2.38 | 2026-03-06 | 新用户 onboarding 误判修复 |
 | v0.2.42 | 2026-03-06 | 主输入框卡死修复、embedding 超时彻底消除 |
 | v0.2.43 | 2026-03-06 | **agentWorker 多租户 bug 修复**（P0）：后台任务现在操作正确的用户数据库 |
+| v0.2.49 | 2026-03-07 | Edge 视觉白色毛玻璃重设计 + 逻辑边去重提取 |
+| v0.2.50 | 2026-03-07 | 多轮 web_search + 澄清层 + readRound 资源泄漏修复 + 20 新单元测试 |
 
 ---
 
-*最后更新: 2026-03-06*
+*最后更新: 2026-03-07*
 *维护者: Anima Team*
