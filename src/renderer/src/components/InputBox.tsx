@@ -21,6 +21,15 @@ import { formatFilesForAI, FilePreview, getFileType, readImageAsBase64, formatFi
 import type { FileAttachment } from '@shared/types'
 import { getAuthToken, configService } from '../services/storageService'
 
+// Ghost Text 轮换候选列表（模块级常量，避免每次渲染重新创建）
+const GHOST_TEXTS = [
+  '问我任何事',
+  '有什么在脑子里转？',
+  '最近在思考什么？',
+  '把想法说给我听',
+  '今天遇到什么了？',
+] as const
+
 /** 引用块胶囊：折叠展示粘贴的长文本，保留在输入框上方 */
 function ReferenceBlockPreview({ content, onRemove }: { content: string; onRemove: () => void }) {
   const [expanded, setExpanded] = useState(false)
@@ -82,22 +91,13 @@ export function InputBox() {
   // 防抖计时器：输入停止 600ms 后再检索记忆
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Ghost Text 轮换：输入框为空时循环展示不同提示语，每 4 秒切换
-  const GHOST_TEXTS = [
-    '问我任何事',
-    '有什么在脑子里转？',
-    '最近在思考什么？',
-    '把想法说给我听',
-    '今天遇到什么了？',
-  ]
-  // 每 4 秒轮换一条 ghost text（输入框聚焦时暂停）
+  // 每 4 秒轮换一条 ghost text（输入框聚焦或有内容时暂停）
   useEffect(() => {
     if (focused || message) return
     const timer = setInterval(() => {
       setGhostIndex(i => (i + 1) % GHOST_TEXTS.length)
     }, 4000)
     return () => clearInterval(timer)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focused, message])
 
   const startConversation = useCanvasStore(state => state.startConversation)
