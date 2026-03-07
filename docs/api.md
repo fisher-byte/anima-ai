@@ -344,6 +344,27 @@ curl -X POST http://localhost:3000/api/memory/consolidate \
   -H "Authorization: Bearer <token>"
 ```
 
+#### POST /api/memory/classify
+
+将用户消息语义分类到六大类之一。**三层降级策略**（v0.2.58）：
+
+1. **层1 — 原型向量**（默认，内置 DashScope key，无需用户配置 API Key）：将文本 embedding 与六类预计算原型向量做余弦相似度，取最高分分类
+2. **层2 — LLM 分类**（层1 失败时）：调用用户配置的 chat/completions 端点做语义分类
+3. **层3 — null**（无 API Key 且层1失败时）：返回 null，由前端降级到关键词全量计分
+
+服务器启动时调用 `initCategoryPrototypes()` 预热原型向量，正常情况层1始终可用。
+
+- **请求 Body**：`application/json { text: string }`
+- **响应**：`200 { category: string | null }` — 六类之一（日常生活/日常事务/学习成长/工作事业/情感关系/思考世界）或 null
+
+```bash
+curl -X POST http://localhost:3000/api/memory/classify \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "ai会取代人类吗"}'
+# → {"category": "思考世界"}
+```
+
 #### PUT /api/memory/facts/:id
 
 更新单条记忆事实内容。

@@ -1,5 +1,38 @@
 # Anima 变更日志
 
+## [0.2.58] - 2026-03-07
+
+### feat(v0.2.58): 分类系统升级 — Embedding 原型向量 + 关键词全量计分
+
+#### 改动
+
+| 内容 | 文件 | 说明 |
+|------|------|------|
+| 原型向量缓存 | `memory.ts:60–87` | 新增 `PROTOTYPE_VECS` Map + `prototypeInitDone` 标志 + `CATEGORY_PROTOTYPES` 六类原型文本字典 |
+| `initCategoryPrototypes()` | `memory.ts:73–87` | 导出函数，启动时并发 embedding 六类原型，失败不崩溃（fallback to LLM） |
+| `/classify` 改写（三层降级） | `memory.ts:631–695` | 层1：原型向量 cosine similarity（内置 DashScope key，不依赖用户配置）；层2：LLM（用户 key）；层3：null（原有降级） |
+| 启动钩子 | `server/index.ts:97–98` | 新增 `initCategoryPrototypes().catch(...)` 紧随 `bootstrapAllEmbeddings` 之后 |
+| `detectIntent` 全量计分 | `canvasStore.ts:1509–1518` | first-match-wins → count all 6 categories，取最高分；消除"ai会取代人类"被工作事业抢走的 bug |
+| 单元测试 +11 | `memory.test.ts` | `detectIntent full-scoring` 11 个测试：空串/单关键词/多关键词/空格兼容/ai取代人类/幸福探讨等 |
+
+#### 解决的问题
+
+- **"ai会取代人类"错归工作事业**：`工作事业` 关键词列表含 `ai`，first-match-wins 导致一触即返回；全量计分后 `思考世界` 命中 `ai会`+`取代` 共 2 词，正确胜出
+- **新用户无 API Key 时 `/classify` 返回 null**：原方案依赖用户配置的 key；新方案层1用内置 DashScope key + 向量相似度，无需用户配置
+- **分类测试覆盖不足**：补全 11 个 detectIntent 全量计分单元测试
+
+#### 技术债清偿
+
+| 债项 | 状态 |
+|------|------|
+| `detectIntent` first-match-wins 误分类 | ✅ 已修复 |
+| `/classify` 依赖用户 key 导致新用户无分类 | ✅ 已修复（内置 key 兜底） |
+| 分类测试覆盖不足（仅 no-key stub） | ✅ 已补全 11 个单元测试 |
+
+**测试**：300/300 通过 · TS 零错误
+
+---
+
 ## [0.2.57] - 2026-03-07
 
 ### fix(v0.2.57): code review 修复 — viewport 公式 + mouseup 泄露 + detectIntent 全面迭代

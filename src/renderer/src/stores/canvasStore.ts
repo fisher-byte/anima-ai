@@ -1506,12 +1506,16 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       }
     ]
 
+    let bestName = '其他'
+    let bestScore = 0
     for (const cat of CATEGORIES) {
-      if (cat.keywords.some(k => text.includes(k))) {
-        return cat.name
+      const score = cat.keywords.filter(k => text.includes(k)).length
+      if (score > bestScore) {
+        bestScore = score
+        bestName = cat.name
       }
     }
-    return '其他'
+    return bestName
   },
 
   // 获取相关的历史记忆（后端向量检索，降级到关键词搜索）

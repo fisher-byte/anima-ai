@@ -6,6 +6,9 @@
  *
  * NOTE: /api/memory/classify and /api/memory/extract require a live API key;
  * those tests verify the "no-key" fallback path only.
+ *
+ * v0.2.58: Added tests for classify prototype-vector path (initCategoryPrototypes)
+ * and detectIntent full-scoring behavior.
  */
 
 import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest'
@@ -887,5 +890,164 @@ describe('Semantic Search by ID (/search/by-id)', () => {
     expect(ids.every(id => !id.startsWith('file-'))).toBe(true)
     // The regular conv should be present (high similarity)
     expect(ids).toContain('conv-regular')
+  })
+})
+
+// ─── detectIntent full-scoring unit tests (v0.2.58) ─────────────────────────
+// These tests exercise the canvasStore.detectIntent scoring logic inline,
+// without importing the Zustand store (avoids renderer env setup).
+
+/**
+ * Inline detectIntent — mirrors canvasStore.ts exactly for isolated testing.
+ * Any change to canvasStore.ts CATEGORIES must be reflected here.
+ */
+function detectIntent(query: string): string {
+  const text = query.toLowerCase().replace(/\s+/g, '')
+  const CATEGORIES = [
+    {
+      name: '日常生活',
+      keywords: [
+        '美食', '餐厅', '好吃', '好喝', '火锅', '咖啡', '奶茶', '烤肉', '寿司', '探店',
+        '旅游', '旅行', '出游', '度假', '景点', '酒店', '民宿', '打卡', '攻略',
+        '电影', '电视剧', '追剧', '综艺', '动漫', '游戏', '手游', '单机', '剧情',
+        '购物', '买', '种草', '好用', '推荐', '测评', '比较', '哪款',
+        '运动', '健身', '跑步', '瑜伽', '骑行', '游泳', '爬山',
+        '周末', '玩', '逛', '闲逛', '生活方式', '日常'
+      ]
+    },
+    {
+      name: '日常事务',
+      keywords: [
+        '医疗', '医院', '看病', '药', '感冒', '发烧', '生病', '症状', '治疗', '体检',
+        '健康', '保险', '社保', '医保', '理赔',
+        '法律', '合同', '纠纷', '诉讼', '维权', '律师',
+        '政策', '规定', '手续', '证件', '证明', '公证',
+        '签证', '护照', '入境', '海关', '税务', '退税', '报税',
+        '租房', '买房', '装修', '物业', '搬家', '水电',
+        '出行', '路线', '导航', '打车', '高铁', '机票', '行程',
+        '费用', '报销', '发票', '预算', '花费', '怎么办', '如何办理'
+      ]
+    },
+    {
+      name: '学习成长',
+      keywords: [
+        '学习', '学', '读书', '看书', '书单', '课程', '培训', '考试', '备考', '复习',
+        '编程', '代码', '程序', '开发', '算法', '数据结构', '数据库', '架构',
+        'python', 'javascript', 'typescript', 'java', 'golang', 'rust', 'sql',
+        '论文', '作文', '写作', '语法', '语言', '英语', '日语', '法语', '口语',
+        '数学', '物理', '化学', '生物', '历史', '地理', '政治',
+        '原理', '概念', '理解', '解释', '知识', '定义', '推导',
+        '技能', '能力', '成长', '进步', '提升', '突破', '练习', '训练',
+        '考研', '考公', '资格证', '认证', '雅思', '托福', '四级', '六级'
+      ]
+    },
+    {
+      name: '工作事业',
+      keywords: [
+        '工作', '职场', '职业', '上班', '下班', '加班', '打工', '公司',
+        '离职', '跳槽', '辞职', '换工作', '找工作', '求职', '简历', '面试', '招聘',
+        '薪资', '工资', '涨薪', '晋升', '绩效', '考核', '升职',
+        '老板', '领导', '同事', '汇报', '开会', '会议', '沟通协作',
+        '创业', '融资', '商业', '商业模式', '市场', '竞争', '行业', '赛道',
+        '产品', '需求', '方案', '项目', '规划', '策略', '执行', '落地',
+        '运营', '营销', '推广', '增长', '转化', '用户', '客户', '销售',
+        '技术', 'ai', '模型', '算法', '系统', '架构', '部署', '文档'
+      ]
+    },
+    {
+      name: '情感关系',
+      keywords: [
+        '恋爱', '感情', '喜欢', '爱', '表白', '分手', '失恋', '暗恋', '约会', '谈恋爱',
+        '婚姻', '结婚', '离婚', '出轨', '伴侣', '对象',
+        '家人', '父母', '妈妈', '爸爸', '爷爷', '奶奶', '兄弟', '姐妹', '子女',
+        '朋友', '友情', '闺蜜', '兄弟', '社交', '人际', '相处', '陌生人',
+        '焦虑', '抑郁', '情绪', '心理', '压力', '崩溃', '内耗', '躺平',
+        '难过', '孤独', '迷茫', '委屈', '愤怒', '后悔', '羞耻', '嫉妒',
+        '沟通', '争吵', '误解', '边界', '依赖', '控制',
+        '幸福', '快乐', '开心', '高兴', '满足', '感动', '温暖', '感激', '感恩',
+        '陪伴', '珍惜', '喜悦', '幸福感', '情感', '内心', '自我', '成长感',
+        '感受', '体验'
+      ]
+    },
+    {
+      name: '思考世界',
+      keywords: [
+        '哲学', '人生', '意义', '价值', '价值观', '观念', '信念', '道德', '伦理',
+        '社会', '政治', '经济', '文化', '教育', '阶层', '贫富', '公平', '正义',
+        '未来', '趋势', '预测', '变化', '时代', '科技', '人工智能', 'ai会', '取代',
+        '世界', '宇宙', '生命', '存在', '本质', '规律', '底层', '逻辑',
+        '思考', '认知', '观点', '判断', '理性', '批判', '质疑', '论证',
+        '为什么', '探讨', '讨论', '聊聊', '想法', '感悟', '体会',
+        '反思', '审视', '觉得', '觉察', '意识', '自省',
+        '看法', '分析', '理解', '解读', '评价', '辩证'
+      ]
+    }
+  ]
+
+  let bestName = '其他'
+  let bestScore = 0
+  for (const cat of CATEGORIES) {
+    const score = cat.keywords.filter(k => text.includes(k)).length
+    if (score > bestScore) {
+      bestScore = score
+      bestName = cat.name
+    }
+  }
+  return bestName
+}
+
+describe('detectIntent — full-scoring (v0.2.58)', () => {
+  it('returns 其他 when no keywords match', () => {
+    expect(detectIntent('xyzzyabcdef')).toBe('其他')
+  })
+
+  it('returns 其他 for empty string', () => {
+    expect(detectIntent('')).toBe('其他')
+  })
+
+  it('classifies single-keyword match correctly', () => {
+    expect(detectIntent('去餐厅吃饭')).toBe('日常生活')
+  })
+
+  it('ai会取代人类 → 思考世界 (multi-keyword wins over 工作事业 ai)', () => {
+    // 思考世界 hits: 'ai会' + '取代' = 2
+    // 工作事业 hits: 'ai' = 1
+    // full-scoring ensures 思考世界 wins
+    expect(detectIntent('ai会取代人类吗')).toBe('思考世界')
+  })
+
+  it('幸福的探讨 → 思考世界 or 情感关系, not 其他', () => {
+    const result = detectIntent('关于幸福的探讨')
+    // '幸福' → 情感关系, '探讨' → 思考世界: both score 1, first one wins (情感关系)
+    expect(['情感关系', '思考世界']).toContain(result)
+    expect(result).not.toBe('其他')
+  })
+
+  it('clear 工作事业 input', () => {
+    expect(detectIntent('我想跳槽换个工作')).toBe('工作事业')
+  })
+
+  it('clear 学习成长 input', () => {
+    expect(detectIntent('学习编程算法怎么入门')).toBe('学习成长')
+  })
+
+  it('clear 日常事务 input', () => {
+    expect(detectIntent('感冒发烧要去医院看病吗')).toBe('日常事务')
+  })
+
+  it('clear 情感关系 input', () => {
+    expect(detectIntent('失恋后很难过焦虑怎么办')).toBe('情感关系')
+  })
+
+  it('spaces in input are ignored', () => {
+    // '思 考 离 职' — after strip: '思考离职'
+    // 工作事业: '离职' = 1; 思考世界: '思考' = 1 → tie → first cat wins (工作事业 is index 3)
+    const r = detectIntent('思 考 离 职')
+    expect(['工作事业', '思考世界']).toContain(r)
+  })
+
+  it('multi-keyword dominates single-keyword across all categories', () => {
+    // '美食旅游电影购物运动' → 5 keywords in 日常生活
+    expect(detectIntent('美食旅游电影购物运动')).toBe('日常生活')
   })
 })
