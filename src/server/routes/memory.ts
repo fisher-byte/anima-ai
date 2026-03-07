@@ -82,9 +82,11 @@ export async function initCategoryPrototypes(): Promise<void> {
         if (vec) PROTOTYPE_VECS.set(cat, new Float32Array(vec))
       })
     )
-    prototypeInitDone = PROTOTYPE_VECS.size === Object.keys(CATEGORY_PROTOTYPES).length
-    console.log(`[classify] prototype vectors ready (${PROTOTYPE_VECS.size} categories)`)
+    // 只要有至少 4 个分类初始化成功就启用向量分类（部分覆盖好于完全不用）
+    prototypeInitDone = PROTOTYPE_VECS.size >= 4
+    console.log(`[classify] prototype vectors ready (${PROTOTYPE_VECS.size}/${Object.keys(CATEGORY_PROTOTYPES).length} categories)`)
   } catch (e) {
+    // Promise.all 中个别失败不会走这里（各自独立），整体异常才到此
     console.warn('[classify] prototype init failed, will fallback to LLM:', e)
   }
 }
@@ -526,7 +528,13 @@ ${assistantMessage ? `AI回复：${assistantMessage.slice(0, 200)}` : ''}
               const { keep } = JSON.parse(jsonMatch[0]) as { keep: string[] }
               if (Array.isArray(keep)) {
                 const candidateSet = new Set(candidates)
-                toInsert = keep.map((f: string) => f?.trim()).filter(f => f && candidateSet.has(f))
+                // LLM 可能对字符串做了轻微修改，先精确匹配，再对 trim 后内容做宽松匹配
+                const trimmedCandidateMap = new Map(candidates.map(c => [c.trim(), c]))
+                toInsert = keep
+                  .map((f: string) => f?.trim())
+                  .filter(Boolean)
+                  .map(f => candidateSet.has(f) ? f : (trimmedCandidateMap.get(f) ?? null))
+                  .filter((f): f is string => f !== null)
               }
             } catch {
               const exactSet = new Set(existingFacts)

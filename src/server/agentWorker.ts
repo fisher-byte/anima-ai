@@ -37,25 +37,34 @@ async function processTask(
   const now = new Date().toISOString()
   db.prepare('UPDATE agent_tasks SET status = ?, started_at = ? WHERE id = ?').run('running', now, task.id)
 
+  // 每个任务最多 30 秒，防止单个 LLM 挂起阻塞整个 tick
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('task timeout (30s)')), 30_000)
+  )
+
   try {
-    if (task.type === 'extract_profile') {
-      const payload = JSON.parse(task.payload) as ExtractProfilePayload
-      const extracted = await extractProfileFromConversation(db, payload.userMessage, payload.assistantMessage)
-      if (extracted && Object.keys(extracted).length > 0) mergeProfile(db, extracted)
-    } else if (task.type === 'extract_preference') {
-      const payload = JSON.parse(task.payload) as ExtractPreferencePayload
-      await extractPreferenceFromFeedback(db, payload.userMessage, payload.assistantMessage)
-    } else if (task.type === 'embed_file') {
-      const payload = JSON.parse(task.payload) as EmbedFilePayload
-      await embedFileContent(db, payload.fileId, payload.textContent, payload.filename)
-    } else if (task.type === 'consolidate_facts') {
-      await consolidateFacts(db)
-    } else if (task.type === 'extract_logical_edges') {
-      const payload = JSON.parse(task.payload) as ExtractLogicalEdgesPayload
-      await extractLogicalEdges(db, payload)
-    } else if (task.type === 'extract_mental_model') {
-      await extractMentalModel(db)
-    }
+    const work = (async () => {
+      if (task.type === 'extract_profile') {
+        const payload = JSON.parse(task.payload) as ExtractProfilePayload
+        const extracted = await extractProfileFromConversation(db, payload.userMessage, payload.assistantMessage)
+        if (extracted && Object.keys(extracted).length > 0) mergeProfile(db, extracted)
+      } else if (task.type === 'extract_preference') {
+        const payload = JSON.parse(task.payload) as ExtractPreferencePayload
+        await extractPreferenceFromFeedback(db, payload.userMessage, payload.assistantMessage)
+      } else if (task.type === 'embed_file') {
+        const payload = JSON.parse(task.payload) as EmbedFilePayload
+        await embedFileContent(db, payload.fileId, payload.textContent, payload.filename)
+      } else if (task.type === 'consolidate_facts') {
+        await consolidateFacts(db)
+      } else if (task.type === 'extract_logical_edges') {
+        const payload = JSON.parse(task.payload) as ExtractLogicalEdgesPayload
+        await extractLogicalEdges(db, payload)
+      } else if (task.type === 'extract_mental_model') {
+        await extractMentalModel(db)
+      }
+    })()
+
+    await Promise.race([work, timeout])
 
     db.prepare('UPDATE agent_tasks SET status = ?, finished_at = ? WHERE id = ?').run('done', new Date().toISOString(), task.id)
   } catch (e) {
@@ -134,10 +143,12 @@ export function startAgentWorker() {
         const rules = parsed.rules ?? []
         if (rules.length > 1) {
           const deduped = rules.filter((r, i) => {
-            const pref = r.preference.trim()
+            const pref = r.preference?.trim()
+            if (!pref) return false  // preference 为空时丢弃该条脏数据
             return !rules.some((other, j) => {
               if (i === j) return false
-              const otherPref = other.preference.trim()
+              const otherPref = other.preference?.trim()
+              if (!otherPref) return false
               return otherPref.includes(pref) && otherPref.length > pref.length
             })
           })

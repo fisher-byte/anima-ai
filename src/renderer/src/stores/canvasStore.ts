@@ -506,7 +506,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         const minY = centerY - BOUND
         const maxY = centerY + BOUND
 
-        const needsRelayout = nodes.some(n => n.x < minX + 50 || n.x > maxX - 50 || n.y < minY + 50 || n.y > maxY - 50)
+        const needsRelayout = nodes.some(n => n.x <= minX || n.x >= maxX || n.y <= minY || n.y >= maxY)
 
         if (needsRelayout) {
           const centerX = 1.5 * viewW
