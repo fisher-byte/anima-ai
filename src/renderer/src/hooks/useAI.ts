@@ -97,7 +97,7 @@ export function useAI(options: UseAIOptions = {}) {
     let fullReasoning = ''
 
     try {
-      for await (const chunk of streamAI(messages, preferences, signal, compressedMemory, isOnboarding)) {
+      for await (const chunk of streamAI(messages, preferences, signal, compressedMemory, isOnboarding, conversationId)) {
         if (chunk.type === 'content') {
           fullText += chunk.content
           callbacksRef.current.onStream?.(chunk.content)
