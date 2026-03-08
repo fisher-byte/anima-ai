@@ -28,19 +28,24 @@ export function ClusterLabel({ cluster, onDrag, onDragEnd, onClick }: ClusterLab
   // 反向缩放：保持标签在缩小时可读
   const inverseScale = Math.max(1, (1 / Math.max(scale, 0.1)) * 0.6)
 
-  // 自持位置：拖拽时直接写 DOM，不依赖 prop 更新（避免需要 re-render 才能移动）
   const divRef = useRef<HTMLDivElement>(null)
   const posRef = useRef({ x: cluster.x, y: cluster.y })
   const isDraggingRef = useRef(false)
 
-  // 非拖拽时跟随 prop（force sim / store 更新）
+  // 初始挂载时设置 DOM 位置（仅一次），后续由 force sim 每帧直接写 DOM
   useLayoutEffect(() => {
-    if (isDraggingRef.current) return
-    posRef.current = { x: cluster.x, y: cluster.y }
     if (divRef.current) {
       divRef.current.style.left = `${cluster.x}px`
       divRef.current.style.top  = `${cluster.y}px`
     }
+    posRef.current = { x: cluster.x, y: cluster.y }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 非拖拽时跟随 prop（store 更新时）
+  useLayoutEffect(() => {
+    if (isDraggingRef.current) return
+    posRef.current = { x: cluster.x, y: cluster.y }
+    // 不写 DOM：force sim 的 tick 每帧会写 cluster-label-{id} 的 left/top
   }, [cluster.x, cluster.y])
 
   const lastPosRef = useRef({ x: 0, y: 0 })
@@ -53,7 +58,14 @@ export function ClusterLabel({ cluster, onDrag, onDragEnd, onClick }: ClusterLab
     isDraggingRef.current = true
     didDragRef.current = false
     lastPosRef.current = { x: e.clientX, y: e.clientY }
-  }, [isVisible])
+    // 从 DOM 读取当前实际位置
+    if (divRef.current) {
+      posRef.current = {
+        x: parseFloat(divRef.current.style.left) || cluster.x,
+        y: parseFloat(divRef.current.style.top) || cluster.y,
+      }
+    }
+  }, [isVisible, cluster.x, cluster.y])
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!isDraggingRef.current) return
@@ -88,10 +100,10 @@ export function ClusterLabel({ cluster, onDrag, onDragEnd, onClick }: ClusterLab
   return (
     <div
       ref={divRef}
+      id={`cluster-label-${cluster.category}`}
       className="absolute flex items-center justify-center w-[400px] h-[200px] select-none"
       style={{
-        left: cluster.x,
-        top: cluster.y,
+        // left/top 不在 React style 里——由 force sim 每帧直接写 DOM
         opacity,
         transform: `translate(-50%, -50%) scale(${opacity === 0 ? 0.5 : inverseScale})`,
         transition: 'opacity 0.2s ease, transform 0.2s ease',

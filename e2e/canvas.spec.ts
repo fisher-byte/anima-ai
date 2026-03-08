@@ -187,7 +187,7 @@ test('删除按钮触发 confirm dialog，取消后节点不消失', async ({ pa
     return
   }
 
-  await nodeCard.hover()
+  await nodeCard.hover({ force: true })
 
   // 等待删除按钮出现（hover 触发，有 framer-motion 动画）
   const deleteBtn = page.locator('[id^="node-"]').first().locator('button[title="删除节点"]')
