@@ -345,14 +345,31 @@ export function Canvas() {
   const [hasNewEvolution, setHasNewEvolution] = useState(false)
   const prevNodeCountRef = useRef(0)
 
-  // 节点数量增加时亮起进化红点
+  // 节点数量增加时亮起进化红点；初始加载检测重叠后自动 kick
   useEffect(() => {
-    if (nodes.length > prevNodeCountRef.current && prevNodeCountRef.current > 0) {
-      setHasNewEvolution(true)
-      forceSim.kick()  // 新节点加入后重新激活力模拟
+    if (nodes.length > prevNodeCountRef.current) {
+      if (prevNodeCountRef.current > 0) {
+        // 运行中新增节点：亮红点 + kick
+        setHasNewEvolution(true)
+        forceSim.kick()
+      } else if (nodes.length > 0) {
+        // 初始加载：检测是否有重叠节点，有则 kick 做初始布局
+        const NODE_W = 208, NODE_H = 160
+        let hasOverlap = false
+        outer: for (let i = 0; i < nodes.length; i++) {
+          for (let j = i + 1; j < nodes.length; j++) {
+            const a = nodes[i], b = nodes[j]
+            if (
+              Math.abs(a.x - b.x) < NODE_W &&
+              Math.abs(a.y - b.y) < NODE_H
+            ) { hasOverlap = true; break outer }
+          }
+        }
+        if (hasOverlap) forceSim.kick()
+      }
     }
     prevNodeCountRef.current = nodes.length
-  }, [nodes.length, forceSim])
+  }, [nodes.length, forceSim, nodes])
 
   // 节点/边变化时同步到力模拟引擎
   useEffect(() => {
