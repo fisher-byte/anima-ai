@@ -506,18 +506,30 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         const minY = centerY - BOUND
         const maxY = centerY + BOUND
 
-        const needsRelayout = nodes.some(n => n.x <= minX || n.x >= maxX || n.y <= minY || n.y >= maxY)
+        const NODE_W = 208, NODE_H = 160
+        const hasOutOfBounds = nodes.some(n => n.x <= minX || n.x >= maxX || n.y <= minY || n.y >= maxY)
+        const hasOverlap = !hasOutOfBounds && (() => {
+          for (let i = 0; i < nodes.length; i++)
+            for (let j = i + 1; j < nodes.length; j++)
+              if (Math.abs(nodes[i].x - nodes[j].x) < NODE_W && Math.abs(nodes[i].y - nodes[j].y) < NODE_H) return true
+          return false
+        })()
+        const needsRelayout = hasOutOfBounds || hasOverlap
 
         if (needsRelayout) {
-          const centerX = 1.5 * viewW
-          const centerY = 1.5 * viewH
           const minDist = 230
           const placed: { x: number; y: number }[] = []
-          const isFarEnough = (x1: number, y1: number) => placed.every(p => Math.hypot(p.x - x1, p.y - y1) >= minDist)
+          // 用矩形碰撞判断（与 hasOverlap 标准一致），而非欧氏距离
+          const isFarEnough = (x1: number, y1: number) =>
+            placed.every(p => Math.abs(p.x - x1) >= NODE_W || Math.abs(p.y - y1) >= NODE_H)
 
           nodes = nodes.map((n, idx) => {
-            // 旧坐标有效且在可视附近就保留
-            if (Number.isFinite(n.x) && Number.isFinite(n.y) && n.x >= minX && n.x <= maxX && n.y >= minY && n.y <= maxY) {
+            // 旧坐标有效、在可视范围内、且与已放置节点不重叠 → 直接保留
+            if (
+              Number.isFinite(n.x) && Number.isFinite(n.y) &&
+              n.x >= minX && n.x <= maxX && n.y >= minY && n.y <= maxY &&
+              isFarEnough(n.x, n.y)
+            ) {
               placed.push({ x: n.x, y: n.y })
               return n
             }
@@ -537,7 +549,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
             return { ...n, x: centerX, y: centerY }
           })
 
-          // 持久化整理后的坐标，避免下次依旧“看不见”
+          // 持久化整理后的坐标，避免下次依旧重叠
           await storageService.write(STORAGE_FILES.NODES, JSON.stringify(nodes, null, 2))
         }
 
@@ -609,9 +621,23 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           }, 2000)
         }
 
-        // 初始加载后，如果有节点，聚焦到第一个
+        // 初始加载后，恢复上次视口；没有记录时聚焦到第一个节点
         if (nodes.length > 0) {
-          get().focusNode(nodes[0].id)
+          const savedView = typeof localStorage !== 'undefined' && localStorage.getItem('evo_view')
+          if (savedView) {
+            try {
+              const { offset, scale } = JSON.parse(savedView)
+              if (offset && typeof offset.x === 'number' && typeof scale === 'number') {
+                set({ offset, scale: Math.max(0.2, Math.min(3, scale)) })
+              } else {
+                get().focusNode(nodes[0].id)
+              }
+            } catch {
+              get().focusNode(nodes[0].id)
+            }
+          } else {
+            get().focusNode(nodes[0].id)
+          }
         }
       }
 

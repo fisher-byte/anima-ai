@@ -69,6 +69,8 @@ interface SimCluster {
 export interface ForceSimulationAPI {
   sync: (nodes: Node[], edges: Edge[]) => void
   kick: () => void
+  /** 仅启动公转动画，不提升布局力温度（用于刷新恢复场景，保持节点原位） */
+  startRotation: () => void
   setDragging: (nodeId: string | null) => void
   /** 将指定节点的坐标同步到 sim 内部（拖拽/推挤结束时调用，防止 sim tick 把节点推回旧位置） */
   updateSimNode: (nodeId: string, x: number, y: number) => void
@@ -256,14 +258,19 @@ export function useForceSimulation(): ForceSimulationAPI {
         // 温度为 0 时不积累速度（防止 kick 后爆发）
         n.vx = 0; n.vy = 0
       }
-      // 公转切向力恒定，不受温度影响
-      const rx = n.x - gcx
-      const ry = n.y - gcy
-      // 顺时针公转：(+ry, -rx) 方向
-      const rotDx =  ry * GLOBAL_ROTATION_TORQUE
-      const rotDy = -rx * GLOBAL_ROTATION_TORQUE
-      n.x += n.vx * temp + rotDx
-      n.y += n.vy * temp + rotDy
+      // 公转切向力仅在 kick 后（hasKickedRef.current）才生效，冷启动阶段完全冻结
+      if (hasKickedRef.current) {
+        const rx = n.x - gcx
+        const ry = n.y - gcy
+        // 顺时针公转：(+ry, -rx) 方向
+        const rotDx =  ry * GLOBAL_ROTATION_TORQUE
+        const rotDy = -rx * GLOBAL_ROTATION_TORQUE
+        n.x += n.vx * temp + rotDx
+        n.y += n.vy * temp + rotDy
+      } else {
+        n.x += n.vx * temp
+        n.y += n.vy * temp
+      }
     }
 
     // 6. DOM 直写（只写 DOM，绝不写 store）
@@ -331,6 +338,11 @@ export function useForceSimulation(): ForceSimulationAPI {
     temperatureRef.current = Math.max(temperatureRef.current, TEMPERATURE_KICK)
   }, [])
 
+  const startRotation = useCallback(() => {
+    // 仅激活公转，不提升温度——节点保持原位，只启动缓慢公转动画
+    hasKickedRef.current = true
+  }, [])
+
   const setDragging = useCallback((nodeId: string | null) => {
     draggedNodeIdRef.current = nodeId
   }, [])
@@ -370,5 +382,5 @@ export function useForceSimulation(): ForceSimulationAPI {
     }
   }, [updateNodePositionInMemory])
 
-  return { sync, kick, setDragging, updateSimNode, moveCluster, persistCluster, flushToStore }
+  return { sync, kick, startRotation, setDragging, updateSimNode, moveCluster, persistCluster, flushToStore }
 }
