@@ -16,7 +16,7 @@
  */
 import { useState, useRef, useCallback, useMemo, useEffect, createContext } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit, Sparkles } from 'lucide-react'
+import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit, Sparkles, Clock } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useForceSimulation, type ForceSimulationAPI } from '../hooks/useForceSimulation'
 import { NodeCard } from './NodeCard'
@@ -29,6 +29,7 @@ import { SettingsModal } from './SettingsModal'
 import { AmbientBackground } from './AmbientBackground'
 import { ClusterLabel } from './ClusterLabel'
 import { useToast } from './GlobalUI'
+import { TimelineView } from './TimelineView'
 import type { Node as CanvasNode } from '@shared/types'
 
 /** 让 NodeCard 能访问 force sim API（setDragging / kick） */
@@ -349,6 +350,7 @@ export function Canvas() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [hasNewEvolution, setHasNewEvolution] = useState(false)
+  const [viewMode, setViewMode] = useState<'free' | 'timeline'>('free')
   const prevNodeCountRef = useRef(0)
 
   // 节点数量增加时亮起进化红点；初始加载检测重叠后自动 kick
@@ -373,6 +375,54 @@ export function Canvas() {
   useEffect(() => {
     forceSim.sync(nodes, edges)
   }, [nodes, edges, forceSim])
+
+  // C3：主动对话 — 距上次对话超过 24h 时弹出 Toast 提醒
+  useEffect(() => {
+    if (sessionStorage.getItem('anima_proactive_shown')) return
+    ;(async () => {
+      try {
+        const token = (() => {
+          try { return (window as any).__animaToken ?? localStorage.getItem('anima_auth_token') ?? '' } catch { return '' }
+        })()
+        const headers: Record<string, string> = {}
+        if (token) headers['Authorization'] = `Bearer ${token}`
+
+        // 读取最近对话时间
+        const storageRes = await fetch('/api/storage/read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...headers },
+          body: JSON.stringify({ filename: 'conversations.jsonl' })
+        })
+        if (!storageRes.ok) return
+
+        const { content } = await storageRes.json() as { content: string | null }
+        if (!content?.trim()) return
+
+        const lines = content.trim().split('\n').filter(Boolean)
+        const lastConv = JSON.parse(lines[lines.length - 1]) as { createdAt?: string }
+        if (!lastConv.createdAt) return
+
+        const elapsed = Date.now() - new Date(lastConv.createdAt).getTime()
+        if (elapsed < 24 * 60 * 60 * 1000) return
+
+        // 获取心智模型长期目标，生成提示文本
+        let triggerText = '最近有什么新想法？'
+        try {
+          const mmRes = await fetch('/api/memory/mental-model', { headers })
+          if (mmRes.ok) {
+            const mmData = await mmRes.json() as { model?: Record<string, unknown> }
+            const goals = mmData.model?.['长期目标'] as string[] | undefined
+            if (goals?.[0]) {
+              triggerText = `你好，上次聊到"${goals[0].slice(0, 20)}"，有新的进展吗？`
+            }
+          }
+        } catch { /* 静默 */ }
+
+        sessionStorage.setItem('anima_proactive_shown', '1')
+        toast.info(triggerText)
+      } catch { /* 静默失败，不阻塞主流程 */ }
+    })()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 惯性动画 — 直接操作 DOM，不 setState
   const startInertia = useCallback(() => {
@@ -607,6 +657,15 @@ export function Canvas() {
           </button>
         </div>
 
+        {/* 时间轴切换按钮 */}
+        <button
+          onClick={() => setViewMode(m => m === 'timeline' ? 'free' : 'timeline')}
+          className={`p-3 backdrop-blur-md rounded-2xl shadow-sm hover:shadow-md transition-all border ${viewMode === 'timeline' ? 'bg-blue-50/90 border-blue-200 text-blue-600' : 'bg-white/90 border-gray-100 text-gray-500 hover:text-gray-900'}`}
+          title="时间轴视图"
+        >
+          <Clock className="w-5 h-5" />
+        </button>
+
         {/* 对话历史按钮（独立） */}
         <button
           onClick={() => { setSidebarTab('history'); setIsSidebarOpen(true) }}
@@ -703,7 +762,7 @@ export function Canvas() {
         <div
           ref={canvasRef}
           className="absolute inset-0 dot-grid cursor-grab active:cursor-grabbing"
-          style={{ pointerEvents: isModalOpen ? 'none' : 'auto', overflow: 'hidden' }}
+          style={{ pointerEvents: isModalOpen || viewMode === 'timeline' ? 'none' : 'auto', overflow: 'hidden' }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -712,7 +771,7 @@ export function Canvas() {
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
-          {/* 内容层：平移+缩放变换，transform 由 applyTransform 直接操作 DOM，不走 React state */}
+          {/* 内容层：viewMode=timeline 时隐藏（不销毁，保留 force sim 状态） */}
           <div
             ref={contentLayerRef}
             style={{
@@ -725,6 +784,7 @@ export function Canvas() {
               transformOrigin: '0 0',
               willChange: 'transform',
               pointerEvents: 'none',
+              display: viewMode === 'timeline' ? 'none' : undefined,
             }}
           >
           {/* 连线渲染 (SVG层) */}
@@ -779,6 +839,14 @@ export function Canvas() {
           </div>
         </div>
       </div>
+
+      {/* 时间轴视图 overlay */}
+      {viewMode === 'timeline' && (
+        <TimelineView
+          nodes={nodes}
+          openModalById={useCanvasStore.getState().openModalById}
+        />
+      )}
 
       {/* 侧边栏和搜索面板 */}
       <ConversationSidebar
