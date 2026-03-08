@@ -18,15 +18,15 @@ import type { Node, Edge } from '@shared/types'
 
 // ── 力参数常量 ──────────────────────────────────────────────────────────────
 
-const NODE_REPEL          = 6000    // 节点间全局斥力强度
-const NODE_REPEL_MAX_DIST = 400     // 斥力生效最大距离
+const NODE_REPEL          = 8000    // 节点间全局斥力强度
+const NODE_REPEL_MAX_DIST = 500     // 斥力生效最大距离（节点卡片 ~208x160，需要更大间距避免重叠）
 const SAME_ATTRACT        = 0.0018  // 同类弹簧系数
-const SAME_IDEAL_DIST     = 220     // 同类理想间距
+const SAME_IDEAL_DIST     = 280     // 同类理想间距（大于卡片对角线，避免重叠）
 const SAME_MAX_DIST       = 700     // 同类引力生效上限
 const DIFF_REPEL          = 120     // 异类斥力系数
 const DIFF_MAX_DIST       = 500     // 异类斥力生效上限
 const EDGE_SPRING         = 0.0025  // 连线弹簧系数
-const EDGE_IDEAL_LEN      = 280     // 连线理想长度
+const EDGE_IDEAL_LEN      = 300     // 连线理想长度
 const CENTER_GRAVITY      = 0.00008 // 全局中心引力（防止节点飘出）
 const DAMPING             = 0.82    // 速度阻尼
 const MAX_VELOCITY        = 2.5     // 速度上限
@@ -36,12 +36,12 @@ const CLUSTER_REPEL_MAX_DIST = 1200   // 星云斥力生效上限
 const CLUSTER_EDGE_ATTRACT   = 0.0008 // 星云间连线引力
 
 /** 全局公转切向力系数 —— 所有节点围绕几何重心缓慢公转 */
-const GLOBAL_ROTATION_TORQUE = 0.00006
+const GLOBAL_ROTATION_TORQUE = 0.00012
 
-const TEMPERATURE_INIT  = 1.0    // 初始温度
+const TEMPERATURE_INIT  = 0      // 初始温度为 0：冷启动完全冻结布局力，仅保留公转
 const TEMPERATURE_KICK  = 0.6    // kick 后温度
-const TEMPERATURE_MIN   = 0.05   // 最低运行温度（保持微动）
-const COOLING_RATE      = 0.994  // 每帧冷却系数
+const TEMPERATURE_MIN   = 0.15   // kick 后最低运行温度（保持微动但布局力仍有效）
+const COOLING_RATE      = 0.997  // 每帧冷却系数
 
 // ── 内部数据结构 ──────────────────────────────────────────────────────────────
 
@@ -70,6 +70,8 @@ export interface ForceSimulationAPI {
   sync: (nodes: Node[], edges: Edge[]) => void
   kick: () => void
   setDragging: (nodeId: string | null) => void
+  /** 将指定节点的坐标同步到 sim 内部（拖拽/推挤结束时调用，防止 sim tick 把节点推回旧位置） */
+  updateSimNode: (nodeId: string, x: number, y: number) => void
   moveCluster: (category: string, dx: number, dy: number) => void
   persistCluster: (category: string) => void
   /** 将 sim 内部坐标全量写回 store（不走 SQLite，仅内存） */
@@ -86,6 +88,7 @@ export function useForceSimulation(): ForceSimulationAPI {
   const edgesRef    = useRef<Edge[]>([])
   const clustersRef = useRef<SimCluster[]>([])
   const temperatureRef    = useRef(TEMPERATURE_INIT)
+  const hasKickedRef      = useRef(false)  // 是否曾被 kick 过；冷启动前温度保持 0
   const rafRef            = useRef<number | null>(null)
   const draggedNodeIdRef  = useRef<string | null>(null)
   const frameCountRef     = useRef(0)
@@ -150,11 +153,7 @@ export function useForceSimulation(): ForceSimulationAPI {
       a.fx -= a.x * CENTER_GRAVITY
       a.fy -= a.y * CENTER_GRAVITY
 
-      // 全局公转切向力（节点绕几何重心逆时针漂移）
-      const rx = a.x - gcx
-      const ry = a.y - gcy
-      a.fx += -ry * GLOBAL_ROTATION_TORQUE
-      a.fy +=  rx * GLOBAL_ROTATION_TORQUE
+      // 公转切向力现在在速度积分阶段直接加到位移上（不受温度衰减），此处不再重复
 
       for (let j = 0; j < nodes.length; j++) {
         if (i === j) continue
@@ -247,12 +246,24 @@ export function useForceSimulation(): ForceSimulationAPI {
     // 5. 速度积分
     for (const n of nodes) {
       if (n.isCapability || n.id === dragId) continue
-      n.vx = (n.vx + n.fx) * DAMPING
-      n.vy = (n.vy + n.fy) * DAMPING
-      const speed = Math.hypot(n.vx, n.vy)
-      if (speed > MAX_VELOCITY) { n.vx = (n.vx / speed) * MAX_VELOCITY; n.vy = (n.vy / speed) * MAX_VELOCITY }
-      n.x += n.vx * temp
-      n.y += n.vy * temp
+      if (temp > 0) {
+        // 布局力受温度衰减
+        n.vx = (n.vx + n.fx) * DAMPING
+        n.vy = (n.vy + n.fy) * DAMPING
+        const speed = Math.hypot(n.vx, n.vy)
+        if (speed > MAX_VELOCITY) { n.vx = (n.vx / speed) * MAX_VELOCITY; n.vy = (n.vy / speed) * MAX_VELOCITY }
+      } else {
+        // 温度为 0 时不积累速度（防止 kick 后爆发）
+        n.vx = 0; n.vy = 0
+      }
+      // 公转切向力恒定，不受温度影响
+      const rx = n.x - gcx
+      const ry = n.y - gcy
+      // 顺时针公转：(+ry, -rx) 方向
+      const rotDx =  ry * GLOBAL_ROTATION_TORQUE
+      const rotDy = -rx * GLOBAL_ROTATION_TORQUE
+      n.x += n.vx * temp + rotDx
+      n.y += n.vy * temp + rotDy
     }
 
     // 6. DOM 直写（只写 DOM，绝不写 store）
@@ -262,18 +273,26 @@ export function useForceSimulation(): ForceSimulationAPI {
       if (el) { el.style.left = `${n.x}px`; el.style.top = `${n.y}px` }
     }
 
-    // 7. 低频 store 同步（仅当系统趋于稳定时，让 Edge SVG 和 ClusterLabel 跟上）
-    //    温度低于 0.15 时每 60 帧（约 1fps）同步一次，避免 React 重渲染干扰动画
+    // 6b. 星云标签也直接写 DOM（避免等待 store sync 导致标签卡顿）
+    for (const c of clusters) {
+      const labelEl = document.getElementById(`cluster-label-${c.id}`)
+      if (labelEl) { labelEl.style.left = `${c.cx}px`; labelEl.style.top = `${c.cy}px` }
+    }
+
+    // 7. 低频 store 同步（让 Edge SVG 和 ClusterLabel 跟上 DOM 坐标）
+    //    每 90 帧（约 1.5fps）同步一次，避免 React 重渲染干扰动画
     frameCountRef.current++
-    if (temp < 0.15 && frameCountRef.current % 60 === 0 && !dragId) {
+    if (frameCountRef.current % 90 === 0 && !dragId) {
       const updateFn = useCanvasStore.getState().updateNodePositionInMemory
       for (const n of nodes) {
         if (!n.isCapability) updateFn(n.id, n.x, n.y)
       }
     }
 
-    // 8. 温度冷却
-    temperatureRef.current = Math.max(TEMPERATURE_MIN, temperatureRef.current * COOLING_RATE)
+    // 8. 温度冷却（未 kick 过时保持 0，kick 后降至 TEMPERATURE_MIN 后维持微动）
+    if (hasKickedRef.current) {
+      temperatureRef.current = Math.max(TEMPERATURE_MIN, temperatureRef.current * COOLING_RATE)
+    }
 
     rafRef.current = requestAnimationFrame(tickRef.current!)
   }
@@ -308,11 +327,17 @@ export function useForceSimulation(): ForceSimulationAPI {
   }, [])
 
   const kick = useCallback(() => {
+    hasKickedRef.current = true
     temperatureRef.current = Math.max(temperatureRef.current, TEMPERATURE_KICK)
   }, [])
 
   const setDragging = useCallback((nodeId: string | null) => {
     draggedNodeIdRef.current = nodeId
+  }, [])
+
+  const updateSimNode = useCallback((nodeId: string, x: number, y: number) => {
+    const n = nodeMapRef.current.get(nodeId)
+    if (n) { n.x = x; n.y = y; n.vx = 0; n.vy = 0 }
   }, [])
 
   const moveCluster = useCallback((category: string, dx: number, dy: number) => {
@@ -325,9 +350,16 @@ export function useForceSimulation(): ForceSimulationAPI {
   }, [])
 
   const persistCluster = useCallback((category: string) => {
+    // 批量收集需要更新的坐标
+    const updates: { id: string; x: number; y: number }[] = []
     for (const n of nodesRef.current) {
       if (n.category !== category) continue
-      updateNodePosition(n.id, n.x, n.y)
+      updates.push({ id: n.id, x: n.x, y: n.y })
+    }
+    if (updates.length === 0) return
+    // 逐个写 store + SQLite（updateNodePosition 是现有的批量安全方法）
+    for (const u of updates) {
+      updateNodePosition(u.id, u.x, u.y)
     }
     kick()
   }, [updateNodePosition, kick])
@@ -338,5 +370,5 @@ export function useForceSimulation(): ForceSimulationAPI {
     }
   }, [updateNodePositionInMemory])
 
-  return { sync, kick, setDragging, moveCluster, persistCluster, flushToStore }
+  return { sync, kick, setDragging, updateSimNode, moveCluster, persistCluster, flushToStore }
 }
