@@ -23,6 +23,7 @@ import {
   FAST_MODEL, FAST_MODEL_MAX_TOKENS, SIMPLE_QUERY_GREETINGS
 } from '../../shared/constants'
 import type { AIMessage } from '../../shared/types'
+import { enqueueTask } from '../agentWorker'
 
 export const aiRoutes = new Hono()
 
@@ -142,12 +143,13 @@ interface AIRequestBody {
   preferences?: string[]
   compressedMemory?: string
   isOnboarding?: boolean
+  conversationId?: string
 }
 
 aiRoutes.post('/stream', async (c) => {
   const db = userDb(c)
   const body = await c.req.json<AIRequestBody>()
-  const { messages, preferences = [], compressedMemory, isOnboarding = false } = body
+  const { messages, preferences = [], compressedMemory, isOnboarding = false, conversationId } = body
 
   // Retrieve API key from DB
   const row = db.prepare('SELECT value FROM config WHERE key = ?').get('apiKey') as
@@ -315,6 +317,28 @@ aiRoutes.post('/stream', async (c) => {
         }
       }
     } catch { /* 心智模型注入失败不影响主流程 */ }
+
+    // ── 层 2.7（跨节点逻辑推理）──
+    try {
+      if (conversationId) {
+        const relatedEdges = db.prepare(`
+          SELECT relation, reason
+          FROM logical_edges
+          WHERE (source_conv = ? OR target_conv = ?) AND confidence >= 0.6
+          ORDER BY confidence DESC LIMIT 5
+        `).all(conversationId, conversationId) as Array<{ relation: string; reason: string }>
+
+        if (relatedEdges.length > 0) {
+          const block = '\n\n【与本话题相关的逻辑脉络（请在回答中主动关联）】\n'
+            + relatedEdges.map((e, i) => `${i + 1}. ${e.relation}：${e.reason.slice(0, 60)}`).join('\n')
+          const cost = approxTokens(block)
+          if (contextTokensUsed + cost <= CONTEXT_BUDGET) {
+            systemPrompt += block
+            contextTokensUsed += cost
+          }
+        }
+      }
+    } catch { /* 静默失败 */ }
 
     // ── 层 4（最低优先级）：前端传入的压缩记忆片段 ──
     if (compressedMemory?.trim()) {
@@ -509,6 +533,25 @@ aiRoutes.post('/stream', async (c) => {
       }
 
       await sendEvent({ type: 'done', fullText: fullContent })
+
+      // B2: 每次实质性对话结束后尝试触发心智模型更新
+      if (!isOnboarding && fullContent.length > 80) {
+        try {
+          const pendingMM = db.prepare(
+            "SELECT id FROM agent_tasks WHERE type='extract_mental_model' AND status IN ('pending','running') LIMIT 1"
+          ).get()
+          if (!pendingMM) {
+            const mmRow = db.prepare(
+              'SELECT updated_at FROM user_mental_model WHERE id=1'
+            ).get() as { updated_at: string } | undefined
+            const lastUpdate = mmRow ? new Date(mmRow.updated_at).getTime() : 0
+            if (Date.now() - lastUpdate > 10 * 60 * 1000) { // 10 分钟冷却
+              enqueueTask(db, 'extract_mental_model', {})
+              console.log('[ai/stream] enqueued extract_mental_model')
+            }
+          }
+        } catch { /* 静默失败 */ }
+      }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         await sendEvent({ type: 'done', fullText: fullContent })
