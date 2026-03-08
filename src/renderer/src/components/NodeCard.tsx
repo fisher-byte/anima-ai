@@ -94,6 +94,15 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
     if (!isDraggingRef.current && Math.hypot(dx, dy) > 8) {
       isDraggingRef.current = true
       setIsDragging(true)
+      // 从 DOM 读取节点当前实际位置，同步 positionRef（force sim 可能已移动节点）
+      const el = document.getElementById(`node-${node.id}`)
+      if (el) {
+        const curX = parseFloat(el.style.left)
+        const curY = parseFloat(el.style.top)
+        if (!isNaN(curX) && !isNaN(curY)) {
+          positionRef.current = { x: curX, y: curY }
+        }
+      }
       // 重置起点，避免首帧跳跃
       mouseDownPosRef.current = { x: e.clientX, y: e.clientY }
       return
