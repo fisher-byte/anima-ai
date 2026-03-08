@@ -224,11 +224,17 @@ export function Canvas() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 直接操作 content layer 的 transform，完全绕过 React 渲染
+  const saveViewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const applyTransform = useCallback((offset: { x: number; y: number }, scale: number) => {
     if (contentLayerRef.current) {
       contentLayerRef.current.style.transform = `translate(${offset.x}px, ${offset.y}px) scale(${scale})`
     }
     viewRef.current = { offset, scale }
+    // debounce 保存视口到 localStorage，供下次刷新恢复
+    if (saveViewTimerRef.current) clearTimeout(saveViewTimerRef.current)
+    saveViewTimerRef.current = setTimeout(() => {
+      localStorage.setItem('evo_view', JSON.stringify({ offset, scale }))
+    }, 500)
   }, [])
 
   // 窗口 resize 时保持内容视觉中心不变
@@ -346,30 +352,22 @@ export function Canvas() {
   const prevNodeCountRef = useRef(0)
 
   // 节点数量增加时亮起进化红点；初始加载检测重叠后自动 kick
+  // 只统计非 capability 节点：capability 节点（新手引导/导入记忆）在 loadNodes 后
+  // 由 addCapabilityNode 添加，不应触发 kick 打乱已持久化的布局
   useEffect(() => {
-    if (nodes.length > prevNodeCountRef.current) {
+    const memoryNodeCount = nodes.filter(n => n.nodeType !== 'capability').length
+    if (memoryNodeCount > prevNodeCountRef.current) {
       if (prevNodeCountRef.current > 0) {
         // 运行中新增节点：亮红点 + kick
         setHasNewEvolution(true)
         forceSim.kick()
-      } else if (nodes.length > 0) {
-        // 初始加载：检测是否有重叠节点，有则 kick 做初始布局
-        const NODE_W = 208, NODE_H = 160
-        let hasOverlap = false
-        outer: for (let i = 0; i < nodes.length; i++) {
-          for (let j = i + 1; j < nodes.length; j++) {
-            const a = nodes[i], b = nodes[j]
-            if (
-              Math.abs(a.x - b.x) < NODE_W &&
-              Math.abs(a.y - b.y) < NODE_H
-            ) { hasOverlap = true; break outer }
-          }
-        }
-        if (hasOverlap) forceSim.kick()
+      } else if (memoryNodeCount > 0) {
+        // 初始加载：只启动公转动画，不触发布局力（节点保持持久化位置）
+        forceSim.startRotation()
       }
     }
-    prevNodeCountRef.current = nodes.length
-  }, [nodes.length, forceSim, nodes])
+    prevNodeCountRef.current = memoryNodeCount
+  }, [nodes, forceSim])
 
   // 节点/边变化时同步到力模拟引擎
   useEffect(() => {
