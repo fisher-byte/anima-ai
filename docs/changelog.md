@@ -1,5 +1,76 @@
 # Anima 变更日志
 
+## [0.2.70] - 2026-03-08
+
+### feat(C3): 主动对话 — Anima 在 24h 未使用后主动问候
+
+- `Canvas.tsx`：新增启动时 `useEffect`，检测 `conversations.jsonl` 最近一条 `createdAt`
+- 距当前超过 24h 时，读取心智模型长期目标生成个性化提示语，调用 `toast.info()`
+- 使用 `sessionStorage` 标记已显示，刷新页面不重复弹出（session 级别，重开应用会重置）
+
+**测试**：299/299 通过 · TS 零错误 · build 成功
+
+---
+
+## [0.2.69] - 2026-03-08
+
+### feat(C2): 话题聚焦模式 — 点击分类标签聚焦，其余节点淡出
+
+- `canvasStore.ts`：新增 `focusedCategory: string | null` 状态 + `setFocusedCategory` action
+  - 聚焦时调用 `setHighlight(cat, matchingNodeIds)`，复用已有淡出机制
+  - 再次点击同一分类退出聚焦（传入 `null`）
+- `ClusterLabel.tsx`：读取 `focusedCategory`，点击切换聚焦；聚焦时标签加深样式（`ring-1 ring-gray-300`）
+
+**测试**：299/299 通过 · TS 零错误 · build 成功
+
+---
+
+## [0.2.68] - 2026-03-08
+
+### feat(C1): 时间轴视图 — 工具栏新增 Clock 按钮切换节点时间轴排列
+
+- `TimelineView.tsx`（新建）：X 轴=时间（按 `node.date` 升序），Y 轴=分类（按分类独立行，行高 200px）
+  - 每节点渲染简化卡片（标题 + 分类色条），点击打开对话详情
+  - 横向可滚动容器 `overflow-auto`
+- `Canvas.tsx`：
+  - 引入 `{ Clock }` from lucide-react + `TimelineView`
+  - 新增 `viewMode` state（`'free' | 'timeline'`）
+  - 工具栏新增 Clock 按钮（激活时蓝色高亮）
+  - `contentLayerRef` 在 timeline 模式下 `display:none`（保留 force sim 状态）
+  - timeline 模式叠加渲染 `<TimelineView />`
+
+**测试**：299/299 通过 · TS 零错误 · build 成功
+
+---
+
+## [0.2.67] - 2026-03-08
+
+### feat(B3): 跨节点推理 — System Prompt Layer 2.7 注入 logical_edges
+
+- `src/server/routes/ai.ts`：
+  - `AIRequestBody` 新增 `conversationId?: string` 字段
+  - Layer 2.7：查询 `logical_edges` 表（`confidence >= 0.6`，最多 5 条），注入"逻辑脉络"块到 System Prompt
+  - token 预算守护（`CONTEXT_BUDGET` 检查）
+- `src/renderer/src/services/ai.ts`：`streamAI` 增加 `conversationId` 参数，透传到请求体
+- `src/renderer/src/hooks/useAI.ts`：`sendMessage` 透传 `conversationId`
+
+**测试**：299/299 通过 · TS 零错误 · build 成功
+
+---
+
+## [0.2.66] - 2026-03-08
+
+### feat(B2): 主动记忆触发 — 对话结束后自动触发心智模型更新
+
+- `src/server/routes/ai.ts`：
+  - 新增 `import { enqueueTask } from '../agentWorker'`
+  - `sendEvent({ type:'done' })` 后追加：若非引导模式且回复 >80 字符，检查 10min 冷却后自动 `enqueueTask(db, 'extract_mental_model', {})`
+  - 有任务 pending/running 时跳过，防止重复入队
+
+**测试**：299/299 通过 · TS 零错误 · build 成功
+
+---
+
 ## [0.2.65] - 2026-03-08
 
 ### fix(v0.2.65): 初始加载重叠检测后自动 kick，坐标已分散不重排
