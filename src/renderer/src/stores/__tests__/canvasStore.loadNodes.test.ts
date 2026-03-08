@@ -7,12 +7,7 @@
  * 3. 视口恢复（localStorage evo_view）
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-
-// ── 辅助：构造 Node ────────────────────────────────────────────────────────────
-function makeNode(id: string, x: number, y: number, nodeType = 'memory') {
-  return { id, conversationId: id, x, y, nodeType, category: '其他', color: '', title: '' }
-}
+import { describe, it, expect } from 'vitest'
 
 // ── 重叠检测逻辑（从 canvasStore.ts 提取为纯函数，便于测试） ────────────────────
 const NODE_W = 208
