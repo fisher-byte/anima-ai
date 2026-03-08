@@ -1,6 +1,6 @@
 # Anima 开发笔记
 
-*最后更新: 2026-03-07 | 版本: v0.2.50*
+*最后更新: 2026-03-08 | 版本: v0.2.65*
 
 这里记录架构决策、踩坑经历和性能优化心得，供后续维护参考。
 
@@ -124,6 +124,57 @@ for await (const chunk of reader) {
 **问题**: 首轮请求带 `tools`，Moonshot 返回 `finish_reason: 'tool_calls'`，续轮请求如果不带 `tools`，模型无法继续调用 `$web_search`，表现为第二轮直接返回 stop 但结果不完整。
 
 **解决**: 每次续轮请求（`nextBody`）都显式声明 `tools: [{ type: 'builtin_function', function: { name: '$web_search' } }]`。
+
+### 10. 大文件测试拆分导致 DB 作用域污染（v0.2.51）
+
+**问题**: `server.test.ts` 超过 1600 行，多个 DB 实例（testDb / memDb / fileDb）在同一文件内混用，偶发状态污染，测试顺序敏感。
+
+**解决**: 按 DB 作用域拆分为 3 个文件——`server.test.ts`（testDb）/ `server-integration.test.ts`（memDb + fileDb）/ `server-ai.test.ts`（无 DB）。每文件只持有一种 DB，beforeAll / afterAll 不跨文件引用。
+
+### 11. 心智模型五维注入优先级（v0.2.60）
+
+**背景**: User Mental Model 包含「职业身份 / 长期目标 / 认知框架 / 成长历程 / 行为偏好」五个维度，都需注入 System Prompt，但 Token 预算有限。
+
+**决策**: 优先级顺序为：行为偏好（最高频影响回答） > 认知框架 > 职业身份 > 长期目标 > 成长历程（最低频）。每维度截断到 200 字符，总量控制在 800 tokens 以内。
+
+**修复的 Code Review 问题（5 项）**:
+1. `extract_mental_model` 任务未在 `processTask` switch 中注册 → 添加 case 分支
+2. `mental_model` 表缺少 `user_id` 字段 → 补全 schema 与查询
+3. 前端 MentalModelPanel 无鉴权头 → 补加 Bearer Token
+4. `POST /refresh` 非幂等 → 检查 pending 任务存在则跳过入队
+5. 心智模型 JSON 解析未 try-catch → 包裹后降级为 null
+
+### 12. 力模拟引擎渲染分层架构（v0.2.62）
+
+**背景**: 之前力模拟在 React 状态层做，每帧触发组件重渲染，60fps 下严重卡顿。
+
+**解决**: 渲染分三层：
+1. **Canvas Layer**（纯 DOM transform）— offset/scale 存 ref，直接写 `transform` 属性，不走 React
+2. **Force Engine**（requestAnimationFrame 循环）— 在 ref 上更新节点坐标，直接写 NodeCard DOM 的 `left/top`，绕过 React
+3. **State Sync**（debounce 500ms）— 力稳定后才写 Zustand store，触发 React 重渲染以同步持久化
+
+**关键约束**: Force Engine 中不得调用 `setState`，否则每帧重渲染导致画布闪烁。
+
+### 13. 冷启动布局冻结设计（v0.2.64）
+
+**问题**: 加载时力模拟从随机位置开始收敛，节点在屏幕上"乱飞"2-3 秒，用户体验极差。
+
+**解决**: 引入冷启动冻结（cold start freeze）：
+- 加载完成后立即触发一轮无动画的快速布局收敛（500 步，dt=0.5）
+- 收敛完成前不显示节点（`opacity: 0`）
+- 收敛后解除冻结，开启常规力模拟（公转旋转模式，低强度）
+- 公转旋转增强：每个节点绕自己的聚类中心做椭圆公转，频率随节点数减少（>30 节点时降为 0.3x）
+
+### 14. 初始重叠检测与自动 kick（v0.2.65）
+
+**问题**: 力模拟冷启动后，历史遗留数据中某些节点坐标完全相同（x, y 一致），力引擎的排斥力无法将重合节点推开（两点距离为 0，方向向量 NaN）。
+
+**解决**: 在 `loadNodes` 完成后、力模拟启动前，新增重叠检测阶段：
+1. `hasOverlapInNodes(nodes)` — O(n²) 矩形碰撞检测（与渲染时判定标准一致：`|Δx| < 208 && |Δy| < 160`）
+2. 若检测到重叠，执行 `spiralRelayout`：保留有效坐标节点，重叠/越界节点按螺旋模式重新放置
+3. 重排完成后自动 kick（施加随机小扰动），唤醒力引擎继续收敛
+
+**单元测试**: 新增 `canvasStore.loadNodes.test.ts`，覆盖 `hasOverlapInNodes` / `spiralRelayout` / `resolveViewFromStorage` 三个纯函数（17 个用例）。
 
 ---
 

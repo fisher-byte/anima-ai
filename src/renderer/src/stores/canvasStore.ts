@@ -517,7 +517,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         const needsRelayout = hasOutOfBounds || hasOverlap
 
         if (needsRelayout) {
-          const minDist = 230
           const placed: { x: number; y: number }[] = []
           // 用矩形碰撞判断（与 hasOverlap 标准一致），而非欧氏距离
           const isFarEnough = (x1: number, y1: number) =>
