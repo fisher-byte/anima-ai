@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useLayoutEffect } from 'react'
 import { Layers } from 'lucide-react'
 import { useLodScale } from '../hooks/useLodScale'
 
@@ -28,8 +28,21 @@ export function ClusterLabel({ cluster, onDrag, onDragEnd, onClick }: ClusterLab
   // 反向缩放：保持标签在缩小时可读
   const inverseScale = Math.max(1, (1 / Math.max(scale, 0.1)) * 0.6)
 
-  // 拖拽：全手动 pointer 事件，不依赖 Framer Motion drag（避免 spring 主线程动画）
+  // 自持位置：拖拽时直接写 DOM，不依赖 prop 更新（避免需要 re-render 才能移动）
+  const divRef = useRef<HTMLDivElement>(null)
+  const posRef = useRef({ x: cluster.x, y: cluster.y })
   const isDraggingRef = useRef(false)
+
+  // 非拖拽时跟随 prop（force sim / store 更新）
+  useLayoutEffect(() => {
+    if (isDraggingRef.current) return
+    posRef.current = { x: cluster.x, y: cluster.y }
+    if (divRef.current) {
+      divRef.current.style.left = `${cluster.x}px`
+      divRef.current.style.top  = `${cluster.y}px`
+    }
+  }, [cluster.x, cluster.y])
+
   const lastPosRef = useRef({ x: 0, y: 0 })
   const didDragRef = useRef(false)
 
@@ -49,7 +62,16 @@ export function ClusterLabel({ cluster, onDrag, onDragEnd, onClick }: ClusterLab
     if (Math.abs(dx) > 2 || Math.abs(dy) > 2) didDragRef.current = true
     lastPosRef.current = { x: e.clientX, y: e.clientY }
     // delta 需要除以 inverseScale，因为标签本身被放大了
-    onDrag(dx / inverseScale, dy / inverseScale)
+    const contentDx = dx / inverseScale
+    const contentDy = dy / inverseScale
+    // 直接移动自身 DOM（流畅跟手）
+    posRef.current = { x: posRef.current.x + contentDx, y: posRef.current.y + contentDy }
+    if (divRef.current) {
+      divRef.current.style.left = `${posRef.current.x}px`
+      divRef.current.style.top  = `${posRef.current.y}px`
+    }
+    // 同步通知父组件移动节点
+    onDrag(contentDx, contentDy)
   }, [onDrag, inverseScale])
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
@@ -65,7 +87,8 @@ export function ClusterLabel({ cluster, onDrag, onDragEnd, onClick }: ClusterLab
 
   return (
     <div
-      className="absolute flex items-center justify-center w-[400px] h-[200px] -translate-x-1/2 -translate-y-1/2 select-none"
+      ref={divRef}
+      className="absolute flex items-center justify-center w-[400px] h-[200px] select-none"
       style={{
         left: cluster.x,
         top: cluster.y,

@@ -129,18 +129,22 @@ function MemoryLines({
   )
 }
 
-// Helper for cluster calculation
+// Helper for cluster calculation — 读取 DOM 实时坐标（force sim 直接写 DOM，store 坐标滞后）
 function getClusters(nodes: any[]) {
   const map = new Map<string, { x: number; y: number; count: number; color: string }>()
   nodes.forEach(n => {
     const cat = n.category || '其他'
+    // 优先读 DOM 当前坐标（force sim 可能已移动但未写 store）
+    const el = document.getElementById(`node-${n.id}`)
+    const nx = el ? (parseFloat(el.style.left) || n.x) : n.x
+    const ny = el ? (parseFloat(el.style.top) || n.y) : n.y
     const curr = map.get(cat) || { x: 0, y: 0, count: 0, color: n.color || '#E2E8F0' }
-    curr.x += n.x
-    curr.y += n.y
+    curr.x += nx
+    curr.y += ny
     curr.count += 1
     map.set(cat, curr)
   })
-  
+
   return Array.from(map.entries()).map(([cat, data]) => ({
     id: `cluster-${cat}`,
     category: cat,
@@ -187,10 +191,12 @@ export function Canvas() {
   const [scaleDisplay, setScaleDisplay] = useState(useCanvasStore.getState().scale)
 
   // 订阅 store 的 offset/scale 外部变更（如 focusNode、loadNodes 触发），同步 viewRef 和 DOM
-  // isDraggingRef / isTouchingRef 有值时跳过，避免与用户拖拽/缩放冲突
+  // isDraggingRef / isTouchingRef / isWheelActiveRef 有值时跳过，避免与用户操作冲突
+  // isLocalWriteRef：本组件自己写 store 时置 true，防止 subscription 回读自己写的值
+  const isLocalWriteRef = useRef(false)
   useEffect(() => {
     const unsubscribe = useCanvasStore.subscribe((state) => {
-      if (isDraggingRef.current || isTouchingRef.current) return
+      if (isDraggingRef.current || isTouchingRef.current || isLocalWriteRef.current) return
       const { offset, scale } = state
       if (
         viewRef.current.offset.x !== offset.x ||
@@ -312,7 +318,7 @@ export function Canvas() {
   }, [forceSim])
 
   const canvasRef = useRef<HTMLDivElement>(null)
-  const [isDragging, setIsDragging] = useState(false)
+  // isDragging 不用 state（避免 re-render），改用 ref + DOM class 控制 cursor
   const dragStart = useRef({ x: 0, y: 0 })
   const velocity = useRef({ x: 0, y: 0 })
   const lastPos = useRef({ x: 0, y: 0 })
@@ -358,7 +364,9 @@ export function Canvas() {
       } else {
         animationFrameId.current = null
         // 惯性结束后同步到 store（持久化）
+        isLocalWriteRef.current = true
         setOffset(viewRef.current.offset)
+        Promise.resolve().then(() => { isLocalWriteRef.current = false })
       }
     }
     animationFrameId.current = requestAnimationFrame(step)
@@ -414,7 +422,10 @@ export function Canvas() {
       if (scaleDisplayRafRef.current) clearTimeout(scaleDisplayRafRef.current)
       scaleDisplayRafRef.current = window.setTimeout(() => {
         const { offset, scale } = viewRef.current
+        isLocalWriteRef.current = true
         useCanvasStore.setState({ offset, scale: Math.max(0.2, Math.min(3, scale)) })
+        // 微任务后清除标志，让正常外部更新（focusNode 等）可以生效
+        Promise.resolve().then(() => { isLocalWriteRef.current = false })
         setScaleDisplay(scale)
         scaleDisplayRafRef.current = null
       }, 120)
@@ -435,12 +446,20 @@ export function Canvas() {
       const { offset } = viewRef.current
       pendingOffsetRef.current = { ...offset }
       isDraggingRef.current = true
-      setIsDragging(true)
+      // cursor 用 DOM class，不用 state（避免 re-render → flash）
+      canvasRef.current?.classList.add('!cursor-grabbing')
       dragStart.current = { x: e.clientX - offset.x, y: e.clientY - offset.y }
       lastPos.current = { x: e.clientX, y: e.clientY }
       velocity.current = { x: 0, y: 0 }
+      // 启动 RAF loop
+      const loop = () => {
+        applyTransform(pendingOffsetRef.current, viewRef.current.scale)
+        if (isDraggingRef.current) dragRafId.current = requestAnimationFrame(loop)
+        else dragRafId.current = null
+      }
+      dragRafId.current = requestAnimationFrame(loop)
     }
-  }, [])
+  }, [applyTransform])
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDraggingRef.current) return
@@ -454,29 +473,16 @@ export function Canvas() {
   const handleMouseUp = useCallback(() => {
     if (isDraggingRef.current) {
       isDraggingRef.current = false
-      setIsDragging(false)
+      canvasRef.current?.classList.remove('!cursor-grabbing')
       if (Math.abs(velocity.current.x) > 2 || Math.abs(velocity.current.y) > 2) {
         startInertia()
       } else {
+        isLocalWriteRef.current = true
         setOffset(viewRef.current.offset)
+        Promise.resolve().then(() => { isLocalWriteRef.current = false })
       }
     }
   }, [startInertia, setOffset])
-
-  // 拖拽 RAF loop — 直接操作 DOM，不 setState
-  useEffect(() => {
-    if (!isDragging) {
-      if (dragRafId.current) cancelAnimationFrame(dragRafId.current)
-      dragRafId.current = null
-      return
-    }
-    const loop = () => {
-      applyTransform(pendingOffsetRef.current, viewRef.current.scale)
-      if (isDraggingRef.current) dragRafId.current = requestAnimationFrame(loop)
-    }
-    dragRafId.current = requestAnimationFrame(loop)
-    return () => { if (dragRafId.current) cancelAnimationFrame(dragRafId.current) }
-  }, [isDragging, applyTransform])
 
   // 处理手势缩放 (Touch)
   const touchStartDistRef = useRef<number | null>(null)
@@ -527,9 +533,11 @@ export function Canvas() {
   const handleTouchEnd = useCallback(() => {
     isTouchingRef.current = false
     touchStartDistRef.current = null
+    isLocalWriteRef.current = true
     setOffset(viewRef.current.offset)
     setScale(viewRef.current.scale)
     setScaleDisplay(viewRef.current.scale)
+    Promise.resolve().then(() => { isLocalWriteRef.current = false })
   }, [setOffset, setScale])
 
   return (
