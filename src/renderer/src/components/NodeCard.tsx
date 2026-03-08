@@ -14,12 +14,13 @@
  *   - 推挤逻辑只写 DOM，不写 store（避免重渲染覆盖 DOM 位置）
  *   - useLodScale：缩放 < 0.4 时降级渲染（隐藏细节元素）
  */
-import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo, memo, type ReactNode } from 'react'
+import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo, memo, useContext, type ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Import, BookOpen, Layers, Paperclip } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useLodScale } from '../hooks/useLodScale'
 import { useConfirm } from './GlobalUI'
+import { ForceSimContext } from './Canvas'
 import type { Node } from '@shared/types'
 
 /** 拖拽推挤半径：在此范围内的节点会被推开 */
@@ -44,6 +45,7 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
   const openModalById = useCanvasStore(state => state.openModalById)
   const isHighlighted = useCanvasStore(state => state.highlightedNodeIds.includes(node.id))
   const confirm = useConfirm()
+  const forceSim = useContext(ForceSimContext)
 
   const scale = useLodScale([0.4, 0.6])
   const [isDragging, setIsDragging] = useState(false)
@@ -94,6 +96,8 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
     if (!isDraggingRef.current && Math.hypot(dx, dy) > 8) {
       isDraggingRef.current = true
       setIsDragging(true)
+      // 通知 force sim 暂停操控此节点（否则 sim tick 会覆盖拖拽位置）
+      forceSim?.setDragging(node.id)
       // 从 DOM 读取节点当前实际位置，同步 positionRef（force sim 可能已移动节点）
       const el = document.getElementById(`node-${node.id}`)
       if (el) {
@@ -151,19 +155,27 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
       lastDragEndRef.current = Date.now()
       justDraggedRef.current = true
 
-      // 持久化拖拽节点
-      updateNodePosition(node.id, positionRef.current.x, positionRef.current.y)
+      // ① 先把拖拽最终坐标同步到 sim 内部（防止 sim tick 推回旧位置）
+      forceSim?.updateSimNode(node.id, positionRef.current.x, positionRef.current.y)
 
-      // 持久化被推挤节点（读 DOM 最终位置）
+      // ② 同步被推挤节点的 DOM 坐标到 sim 内部
       for (const otherId of otherNodeIdsRef.current) {
         const otherEl = document.getElementById(`node-${otherId}`)
         if (!otherEl) continue
         const ox = parseFloat(otherEl.style.left) || 0
         const oy = parseFloat(otherEl.style.top) || 0
         if (Math.hypot(ox - positionRef.current.x, oy - positionRef.current.y) < PUSH_RADIUS * 1.5) {
+          forceSim?.updateSimNode(otherId, ox, oy)
           updateNodePosition(otherId, ox, oy)
         }
       }
+
+      // ③ 释放 force sim 并 kick
+      forceSim?.setDragging(null)
+      forceSim?.kick()
+
+      // ④ 持久化拖拽节点到 store + SQLite
+      updateNodePosition(node.id, positionRef.current.x, positionRef.current.y)
 
       setTimeout(() => { justDraggedRef.current = false }, 300)
     }

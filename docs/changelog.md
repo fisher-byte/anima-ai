@@ -1,5 +1,71 @@
 # Anima 变更日志
 
+## [0.2.64] - 2026-03-08
+
+### fix(v0.2.64): 冷启动冻结布局力 + 增强公转旋转
+
+#### 修复内容
+
+| 问题 | 文件 | 修复 |
+|------|------|------|
+| 页面刷新后节点四散重排 | `useForceSimulation.ts` | `TEMPERATURE_INIT` 从 0.15 改为 0，冷启动时布局力完全冻结；新增 `hasKickedRef` 标志，仅在首次 `kick()` 后激活温度冷却循环 |
+| temp=0 时速度累积导致 kick 后爆发 | `useForceSimulation.ts` | `temp === 0` 时直接清零 `vx/vy`，防止力计算结果在 kick 瞬间释放 |
+| 公转旋转效果过弱 | `useForceSimulation.ts` | `GLOBAL_ROTATION_TORQUE` 从 0.00004 增至 0.00012（3 倍），公转不受温度影响，冷启动时即可缓慢顺时针旋转 |
+
+**测试**：282/282 通过 · TS 零错误
+
+---
+
+## [0.2.63] - 2026-03-08
+
+### fix(v0.2.63): 彻底修复画布拖拽/缩放闪回 + 节点拖不动 + 星云卡顿
+
+#### 修复内容
+
+| 问题 | 文件 | 修复 |
+|------|------|------|
+| 节点拖拽后闪回原位 | `NodeCard.tsx` | 拖拽起始时从 DOM 读取实际位置（`parseFloat(el.style.left)`）；拖拽结束前调用 `forceSim.updateSimNode()` 同步 sim 内部坐标 |
+| 画布平移/缩放闪回 | `Canvas.tsx` | 移除 `isDragging` state（改用 ref + DOM classList）；新增 `isLocalWriteRef` 防止 store subscription 回读自身写入；惯性/wheel/缩放所有 RAF ref 统一纳入 subscription guard |
+| 星云标签拖拽卡顿 | `ClusterLabel.tsx` | 重写为内部 `posRef` + `divRef` 自管理 DOM 位置；force sim 每帧直写 `cluster-label-{category}` DOM |
+| 公转旋转停止 | `useForceSimulation.ts` | 将公转切向力从力系统中分离，直接在速度积分阶段加入位移，不受温度衰减影响 |
+| 刷新时节点快速散开 | `useForceSimulation.ts` | `TEMPERATURE_INIT` 从 1.0 降至 0.15（= TEMPERATURE_MIN），冷启动不做剧烈重排 |
+| 节点重叠 | `useForceSimulation.ts` | `NODE_REPEL` 6000→8000, `NODE_REPEL_MAX_DIST` 400→500, `SAME_IDEAL_DIST` 220→280 |
+
+**测试**：282/282 通过 · TS 零错误
+
+---
+
+## [0.2.62] - 2026-03-08
+
+### feat(v0.2.62): 力模拟布局 + 拖拽推挤 + 渲染架构重构
+
+#### 新增功能
+
+| 内容 | 文件 | 说明 |
+|------|------|------|
+| 力模拟引擎 | `useForceSimulation.ts`（新增） | 纯 TS 实现的两层力系统：节点级斥力/同类引力/连线弹簧 + 星云级斥力/连线引力 + 全局顺时针公转 |
+| `ForceSimContext` | `Canvas.tsx` | React Context 传递 sim API，NodeCard 可调用 `setDragging`/`updateSimNode`/`kick` |
+| 拖拽推挤 | `NodeCard.tsx` | 拖拽节点时对半径内节点施加推力（PUSH_RADIUS=280, PUSH_STRENGTH=0.35），DOM 直写 + rAF 节流同步 store |
+| 星云拖拽 | `ClusterLabel.tsx` | 拖拽星云标签整体移动该分类所有节点，通过 `forceSim.moveCluster()` |
+
+#### 架构变更
+
+- 渲染分层：force sim 只写 DOM（`el.style.left/top`），React `style` prop 不含 `left/top`，避免重渲染覆盖 DOM
+- 低频 store 同步：每 90 帧（约 1.5fps）才写一次 Zustand store，仅供 Edge SVG 和 viewport culling 使用
+- 温度系统：`TEMPERATURE_INIT → TEMPERATURE_MIN` 冷却衰减，`kick()` 升温重新激活
+
+**测试**：282/282 通过 · TS 零错误
+
+---
+
+## [0.2.61] - 2026-03-07
+
+### fix(v0.2.61): 全量 bug review 第三轮修复
+
+**测试**：282/282 通过 · TS 零错误
+
+---
+
 ## [0.2.60] - 2026-03-07
 
 ### fix(v0.2.60): 心智模型系统全面修复（Code Review 5 项主要问题）

@@ -14,11 +14,11 @@
  *   NodeCard / Edge / MemoryLines / ClusterLabel / AmbientBackground
  *   ConversationSidebar / SearchPanel / SettingsModal / ImportMemoryModal
  */
-import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
+import { useState, useRef, useCallback, useMemo, useEffect, createContext } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit, Sparkles } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
-import { useForceSimulation } from '../hooks/useForceSimulation'
+import { useForceSimulation, type ForceSimulationAPI } from '../hooks/useForceSimulation'
 import { NodeCard } from './NodeCard'
 import { ImportMemoryModal } from './ImportMemoryModal'
 import { Edge } from './Edge'
@@ -30,6 +30,9 @@ import { AmbientBackground } from './AmbientBackground'
 import { ClusterLabel } from './ClusterLabel'
 import { useToast } from './GlobalUI'
 import type { Node as CanvasNode } from '@shared/types'
+
+/** 让 NodeCard 能访问 force sim API（setDragging / kick） */
+export const ForceSimContext = createContext<ForceSimulationAPI | null>(null)
 
 /** 记忆引用连线：从高亮节点画虚线到输入框位置 */
 function MemoryLines({
@@ -190,13 +193,21 @@ export function Canvas() {
   // 仅用于工具栏百分比显示（低频更新）
   const [scaleDisplay, setScaleDisplay] = useState(useCanvasStore.getState().scale)
 
+  // 提前声明所有 "操作中" ref，供 subscription guard 使用
+  const animationFrameId = useRef<number | null>(null)  // 惯性动画
+  const dragRafId = useRef<number | null>(null)          // 画布拖拽 RAF loop
+  const wheelRafRef = useRef<number | null>(null)        // 滚轮缩放 RAF
+  const scaleDisplayRafRef = useRef<number | null>(null)  // 缩放 debounced store 写入
+
   // 订阅 store 的 offset/scale 外部变更（如 focusNode、loadNodes 触发），同步 viewRef 和 DOM
   // isDraggingRef / isTouchingRef / isWheelActiveRef 有值时跳过，避免与用户操作冲突
   // isLocalWriteRef：本组件自己写 store 时置 true，防止 subscription 回读自己写的值
   const isLocalWriteRef = useRef(false)
   useEffect(() => {
     const unsubscribe = useCanvasStore.subscribe((state) => {
+      // 任何本地操作（拖拽/缩放/惯性/wheel）进行中时跳过，防止闪回
       if (isDraggingRef.current || isTouchingRef.current || isLocalWriteRef.current) return
+      if (animationFrameId.current || dragRafId.current || wheelRafRef.current || scaleDisplayRafRef.current) return
       const { offset, scale } = state
       if (
         viewRef.current.offset.x !== offset.x ||
@@ -322,11 +333,9 @@ export function Canvas() {
   const dragStart = useRef({ x: 0, y: 0 })
   const velocity = useRef({ x: 0, y: 0 })
   const lastPos = useRef({ x: 0, y: 0 })
-  const animationFrameId = useRef<number | null>(null)
   const pendingOffsetRef = useRef({ x: 0, y: 0 })
   const isDraggingRef = useRef(false)
   const isTouchingRef = useRef(false)  // 双指缩放中，阻止 store 订阅回写
-  const dragRafId = useRef<number | null>(null)
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [sidebarTab, setSidebarTab] = useState<'history' | 'memory' | 'evolution'>('history')
@@ -376,8 +385,6 @@ export function Canvas() {
   // wheel 事件按帧合并，避免事件洪泛
   const pendingWheelDeltaRef = useRef(0)
   const lastWheelClientRef = useRef<{ clientX: number; clientY: number } | null>(null)
-  const wheelRafRef = useRef<number | null>(null)
-  const scaleDisplayRafRef = useRef<number | null>(null)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -541,6 +548,7 @@ export function Canvas() {
   }, [setOffset, setScale])
 
   return (
+    <ForceSimContext.Provider value={forceSim}>
     <>
       {/* 工具栏 */}
       <div className="fixed top-6 right-6 z-30 flex items-center gap-3">
@@ -784,5 +792,6 @@ export function Canvas() {
       </AnimatePresence>
       <ImportMemoryModal />
     </>
+    </ForceSimContext.Provider>
   )
 }
