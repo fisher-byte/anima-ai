@@ -1,6 +1,6 @@
 # Anima 架构文档
 
-*最后更新: 2026-03-07 | 版本: v0.2.55*
+*最后更新: 2026-03-08 | 版本: v0.2.65*
 
 ---
 
@@ -242,8 +242,6 @@ POST /api/ai/stream (SSE)
     └── /api/memory/queue (extract_profile / extract_preference) → 入队后台任务
 ```
 
----
-
 ## 画布渲染性能架构
 
 **关键设计，请勿随意改动：**
@@ -255,6 +253,68 @@ POST /api/ai/stream (SSE)
 - `useLodScale` 用 `store.subscribe()`（非 React hook）订阅 scale；只在跨越 LOD 阈值时 `setState`
 - `NodeCard` 用细粒度 selector 订阅（各字段独立订阅），避免全量 re-render
 - 节点漂浮动画用纯 CSS `@keyframes`（compositor thread），不用 Framer Motion `repeat: Infinity`
+
+---
+
+## 力模拟布局引擎（v0.2.62+）
+
+**文件**: `src/renderer/src/hooks/useForceSimulation.ts`
+
+### 设计原则
+
+**force sim 只写 DOM，绝不写 Zustand store。** 写 store 触发 React 重渲染，`motion.div` 读 store 坐标会覆盖 DOM，产生闪回。
+
+### 两层力系统
+
+```
+Layer 1 — 节点级
+  ├── 全局斥力：NODE_REPEL=8000，距离 <500px 生效
+  ├── 同类引力弹簧：SAME_ATTRACT=0.0018，理想间距 280px
+  ├── 异类斥力：DIFF_REPEL=120，距离 <500px 生效
+  ├── 连线弹簧：EDGE_SPRING=0.0025，理想长度 300px
+  └── 全局中心引力：CENTER_GRAVITY=0.00008（防飘出）
+
+Layer 2 — 星云（分类）级
+  ├── 星云间斥力：CLUSTER_REPEL=12000，距离 <1200px 生效
+  └── 连线引导靠近：CLUSTER_EDGE_ATTRACT=0.0008，理想距离 800px
+```
+
+### 温度系统（控制布局力强度）
+
+| 状态 | 温度值 | 触发条件 |
+|------|--------|---------|
+| 冷启动 | 0 | 初始加载（不重排已有布局） |
+| 热启动 | 0.6 | `kick()` 调用后 |
+| 稳定运行 | 0.15 | 每帧冷却 `×0.997` 直到 MIN |
+
+- `temp=0` 时速度归零，防止 kick 后速度爆发
+- 初始加载检测到节点重叠时自动 `kick()`（v0.2.65）
+
+### 公转旋转
+
+所有节点围绕全局几何重心缓慢顺时针公转，**不受温度影响**：
+
+```typescript
+const rotDx =  ry * GLOBAL_ROTATION_TORQUE  // 顺时针（屏幕坐标系）
+const rotDy = -rx * GLOBAL_ROTATION_TORQUE
+n.x += n.vx * temp + rotDx  // 布局位移受温度缩放，公转恒定
+n.y += n.vy * temp + rotDy
+```
+
+`GLOBAL_ROTATION_TORQUE = 0.00012`，距重心 1000px 的节点每秒移动约 7px。
+
+### 拖拽 & 推挤
+
+- 拖拽节点时设 `draggedNodeIdRef`，该节点跳过力计算和 DOM 写入
+- 拖拽结束前必须调用 `updateSimNode(id, x, y)` 同步 sim 内部坐标，再调用 `setDragging(null)`
+- 拖拽推挤：`PUSH_RADIUS=280`，邻近节点被推开，DOM 直写 + rAF 节流同步 store
+
+### 性能策略
+
+- **每帧 DOM 直写**：`el.style.left/top`，零 React 重渲染
+- **低频 store 同步**：每 90 帧（约 1.5fps）写一次 `updateNodePositionInMemory`，供 Edge SVG 更新
+- **星云标签**：force sim 每帧直写 `cluster-label-{category}` DOM，不等 store 同步
+- **ForceSimContext**：Canvas Provider → NodeCard Consumer，NodeCard 直接调用 sim API
 
 ---
 
