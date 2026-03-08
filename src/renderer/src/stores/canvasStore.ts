@@ -364,6 +364,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       selectedNodeId: null,
       highlightedCategory: null,
       highlightedNodeIds: [],
+      focusedCategory: null,
       offset: { x: 0, y: 0 },
       scale: 1
     })
@@ -1329,7 +1330,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     if (currentConversation?.id && conversationHistory.length > 0) {
       historyService.saveHistory(currentConversation.id, conversationHistory)
     }
-    set({ isModalOpen: false, currentConversation: null, isLoading: false, highlightedCategory: null, highlightedNodeIds: [] })
+    set({ isModalOpen: false, currentConversation: null, isLoading: false, highlightedCategory: null, highlightedNodeIds: [], focusedCategory: null })
   },
 
   // 打开模态框（用于回放）

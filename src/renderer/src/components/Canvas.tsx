@@ -30,6 +30,7 @@ import { AmbientBackground } from './AmbientBackground'
 import { ClusterLabel } from './ClusterLabel'
 import { useToast } from './GlobalUI'
 import { TimelineView } from './TimelineView'
+import { getAuthToken } from '../services/storageService'
 import type { Node as CanvasNode } from '@shared/types'
 
 /** 让 NodeCard 能访问 force sim API（setDragging / kick） */
@@ -381,9 +382,7 @@ export function Canvas() {
     if (sessionStorage.getItem('anima_proactive_shown')) return
     ;(async () => {
       try {
-        const token = (() => {
-          try { return (window as any).__animaToken ?? localStorage.getItem('anima_auth_token') ?? '' } catch { return '' }
-        })()
+        const token = getAuthToken()
         const headers: Record<string, string> = {}
         if (token) headers['Authorization'] = `Bearer ${token}`
 

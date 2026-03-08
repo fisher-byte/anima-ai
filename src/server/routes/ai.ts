@@ -544,7 +544,8 @@ aiRoutes.post('/stream', async (c) => {
             const mmRow = db.prepare(
               'SELECT updated_at FROM user_mental_model WHERE id=1'
             ).get() as { updated_at: string } | undefined
-            const lastUpdate = mmRow ? new Date(mmRow.updated_at).getTime() : 0
+            const lastUpdateMs = mmRow ? new Date(mmRow.updated_at).getTime() : 0
+            const lastUpdate = isNaN(lastUpdateMs) ? 0 : lastUpdateMs
             if (Date.now() - lastUpdate > 10 * 60 * 1000) { // 10 分钟冷却
               enqueueTask(db, 'extract_mental_model', {})
               console.log('[ai/stream] enqueued extract_mental_model')

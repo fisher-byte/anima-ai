@@ -1,5 +1,32 @@
 # Anima 变更日志
 
+## [0.2.71] - 2026-03-08
+
+### fix(code-review): B2/B3/C1/C2/C3 全量 code review 修复 + 测试补全
+
+#### 修复内容
+
+| 问题 | 文件 | 修复 |
+|------|------|------|
+| C3 token 用 `window.__animaToken ?? localStorage` 硬猜（脆弱）| `Canvas.tsx` | 改用 `getAuthToken()` from storageService，统一鉴权路径 |
+| TimelineView 同日期同分类多节点绝对定位叠加 | `TimelineView.tsx` | 动态行高（maxInCol * CARD_H + padding）+ 节点按 nodeIdx 垂直堆叠 |
+| `closeModal` 未清空 `focusedCategory` | `canvasStore.ts` | `closeModal` + `clearAllForOnboarding` 同步 `focusedCategory: null` |
+| B2 `updated_at` 可能为无效日期字符串（`NaN`）| `ai.ts` | `isNaN(lastUpdateMs) ? 0 : lastUpdateMs` 防卫 |
+
+#### 新增测试
+
+新建 `src/server/__tests__/b2-b3-c1-c2-c3.test.ts`，共 **46 个**新测试用例：
+
+- **B2**（9 例）：首次触发、引导模式、内容长度边界、pending/running 防重、冷却窗口、Invalid Date 防卫、completed 不阻塞
+- **B3**（10 例 + DB 集成 3 例）：conversationId 缺失、confidence 过滤（0.6 边界）、source/target 双向匹配、top 5 上限、token 预算、reason 截断、降序排列
+- **C1**（9 例）：空节点、capability 过滤、日期升序/去重、分类去重/默认'其他'、同日期多节点行高扩展
+- **C2**（6 例）：聚焦、退出、切换分类、无匹配节点、'其他'归类、toggle 退出
+- **C3**（8 例）：24h 精确边界、23h 不触发、未来时间戳、Invalid Date、刚刚/3天前
+
+**测试总计：345/345 通过 · TS 零错误 · build 成功**
+
+---
+
 ## [0.2.70] - 2026-03-08
 
 ### feat(C3): 主动对话 — Anima 在 24h 未使用后主动问候
