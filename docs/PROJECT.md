@@ -1,7 +1,7 @@
 # Anima — 项目计划
 
 > 唯一入口：每次发版、每次决策都在这里留记录。
-> 最后更新：2026-03-08 | 当前版本：v0.2.70
+> 最后更新：2026-03-08 | 当前版本：v0.2.71
 
 ---
 
@@ -13,6 +13,11 @@
 | 2 | 拖拽推挤 | ✅ 完成 | 拖拽节点时推开邻近节点（PUSH_RADIUS=280），DOM 直写流畅 |
 | 3 | 渲染架构重构 | ✅ 完成 | force sim 只写 DOM，React style 不含 left/top，彻底消除闪回 |
 | 4 | 冷启动冻结 + 重叠检测 | ✅ 完成 | 初始 temp=0 不重排；检测到重叠时自动 kick 散开 |
+| 5 | B2 主动记忆触发 | ✅ 完成 | 每次实质对话结束后（>80字）10min 冷却自动入队 extract_mental_model，避免重复入队 |
+| 6 | B3 跨节点逻辑推理 | ✅ 完成 | System Prompt Layer 2.7：注入 logical_edges（confidence≥0.6，top 5），AI 主动关联话题脉络 |
+| 7 | C1 时间轴视图 | ✅ 完成 | 工具栏 Clock 按钮切换；X轴=日期升序，Y轴=分类；contentLayer display:none 保留 force sim |
+| 8 | C2 话题聚焦模式 | ✅ 完成 | 点击 ClusterLabel 聚焦分类，其余节点淡出；再次点击退出；复用 highlightedNodeIds 机制 |
+| 9 | C3 主动对话 | ✅ 完成 | 距上次对话 >24h 时弹出个性化 Toast；基于心智模型长期目标生成提示语；sessionStorage 防重 |
 
 ---
 
@@ -82,6 +87,7 @@
 
 | 版本 | 日期 | 核心内容 |
 |------|------|----------|
+| v0.2.71 | 2026-03-08 | Code Review 修复：C3 token/TimelineView碰撞/focusedCategory重置/B2防卫；新增 46 测试（共 345） |
 | v0.2.70 | 2026-03-08 | C3 主动对话 — 距上次对话 >24h 时主动弹出 Toast 提醒 |
 | v0.2.69 | 2026-03-08 | C2 话题聚焦模式 — 点击 ClusterLabel 聚焦分类，其余节点淡出 |
 | v0.2.68 | 2026-03-08 | C1 时间轴视图 — 工具栏 Clock 按钮切换节点时间轴排列 |
@@ -131,6 +137,10 @@
 | 画布平移/缩放闪回（isDragging state 触发重渲染）| P0 | ✅ v0.2.63 改用 ref + isLocalWriteRef |
 | 星云标签拖拽卡顿（90帧 store 延迟）| P1 | ✅ v0.2.63 force sim 每帧直写 DOM |
 | 初始加载节点重叠（冷启动不触发布局力）| P1 | ✅ v0.2.65 重叠检测后自动 kick |
+| C3 token 获取用 window hack（脆弱）| P1 | ✅ v0.2.71 改用 getAuthToken() |
+| TimelineView 同日期多节点叠在一起 | P1 | ✅ v0.2.71 动态行高 + 垂直堆叠 |
+| closeModal 未清空 focusedCategory | P2 | ✅ v0.2.71 closeModal + clearAllForOnboarding 同步清空 |
+| B2 updated_at Invalid Date 未防卫 | P2 | ✅ v0.2.71 isNaN 防卫 |
 | persistCluster 逐个写文件（N 次 JSON 序列化）| P1 | ⏳ 待优化 |
 | flushToStore 未注册 beforeunload（关页面丢失偏移）| P2 | ⏳ 待修复 |
 | 力计算 O(N²) 未利用牛顿第三定律减半 | P2 | ⏳ 待优化（<60 节点暂无影响）|
@@ -149,3 +159,7 @@
 | 2026-03-07 | 建立 PROJECT.md 作为唯一项目入口 | ROADMAP.md 偏路线图，changelog.md 偏历史，需要一个当前状态 + 优先队列的聚焦视图 |
 | 2026-03-07 | 心智模型层 2.5 放在层 3 之后 | 动态 memory_facts 与当前对话相关性更高，应优先占用 CONTEXT_BUDGET；静态心智模型摘要是补充信息，不应挤占动态内容 |
 | 2026-03-07 | 自动触发上限设为 5 次（100 facts）| 100 条事实后心智模型已趋于稳定，继续触发 ROI 低；用户可手动刷新触发重提炼 |
+| 2026-03-08 | B2 冷却 10min 而非立即触发 | 避免连续多轮对话每条都触发 extract_mental_model，10min 冷却确保话题收尾后再提炼 |
+| 2026-03-08 | Layer 2.7 只取当前 conversationId 的直接边（top 5，confidence≥0.6）| 全量边注入 token 开销过大；直接边相关性最高，且受 CONTEXT_BUDGET 保护 |
+| 2026-03-08 | TimelineView contentLayer display:none 而非 unmount | 保留 force sim 状态，切换回画布视图时无需重初始化，消除回切闪烁 |
+| 2026-03-08 | C3 使用 sessionStorage 而非 localStorage | sessionStorage 让每次重新打开 App 都有机会看到主动提醒；localStorage 会永久屏蔽（违背产品设计意图） |
