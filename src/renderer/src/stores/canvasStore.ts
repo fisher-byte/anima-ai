@@ -101,8 +101,10 @@ interface CanvasState {
   selectedNodeId: string | null
   highlightedCategory: string | null
   highlightedNodeIds: string[]
+  focusedCategory: string | null
   selectNode: (id: string | null) => void
   setHighlight: (category: string | null, nodeIds: string[]) => void
+  setFocusedCategory: (cat: string | null) => void
 
   // 新增：新手引导状态
   isOnboardingMode: boolean
@@ -241,6 +243,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   selectedNodeId: null,
   highlightedCategory: null,
   highlightedNodeIds: [],
+  focusedCategory: null,
 
   // 新手引导初始化
   isOnboardingMode: false,
@@ -267,6 +270,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   selectNode: (id) => set({ selectedNodeId: id }),
   setHighlight: (category, nodeIds) => set({ highlightedCategory: category, highlightedNodeIds: nodeIds }),
+  setFocusedCategory: (cat) => {
+    const { nodes, setHighlight } = get()
+    if (cat !== null) {
+      setHighlight(cat, nodes.filter(n => (n.category ?? '其他') === cat).map(n => n.id))
+    } else {
+      setHighlight(null, [])
+    }
+    set({ focusedCategory: cat })
+  },
 
   openOnboarding: () => {
     const conv: import('@shared/types').Conversation = {

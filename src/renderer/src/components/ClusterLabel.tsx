@@ -1,6 +1,7 @@
 import { useRef, useCallback, useLayoutEffect } from 'react'
 import { Layers } from 'lucide-react'
 import { useLodScale } from '../hooks/useLodScale'
+import { useCanvasStore } from '../stores/canvasStore'
 
 interface Cluster {
   id: string
@@ -20,6 +21,9 @@ interface ClusterLabelProps {
 
 export function ClusterLabel({ cluster, onDrag, onDragEnd, onClick }: ClusterLabelProps) {
   const scale = useLodScale([0.4, 0.6])
+  const focusedCategory = useCanvasStore(state => state.focusedCategory)
+  const setFocusedCategory = useCanvasStore(state => state.setFocusedCategory)
+  const isFocused = focusedCategory === cluster.category
 
   // 在 0.4~0.6 之间淡出，< 0.4 完全可见，> 0.6 完全不可见
   const opacity = scale > 0.6 ? 0 : scale < 0.4 ? 1 : 1 - (scale - 0.4) / 0.2
@@ -93,9 +97,11 @@ export function ClusterLabel({ cluster, onDrag, onDragEnd, onClick }: ClusterLab
     if (didDragRef.current) {
       onDragEnd?.()  // 拖拽结束，持久化节点位置
     } else {
-      onClick()  // 没拖动才算点击
+      // 没拖动：切换聚焦分类 + 原有 onClick（画布定位）
+      setFocusedCategory(focusedCategory === cluster.category ? null : cluster.category)
+      onClick()
     }
-  }, [onClick, onDragEnd])
+  }, [onClick, onDragEnd, setFocusedCategory, focusedCategory, cluster.category])
 
   return (
     <div
@@ -108,7 +114,7 @@ export function ClusterLabel({ cluster, onDrag, onDragEnd, onClick }: ClusterLab
         transform: `translate(-50%, -50%) scale(${opacity === 0 ? 0.5 : inverseScale})`,
         transition: 'opacity 0.2s ease, transform 0.2s ease',
         pointerEvents: isVisible ? 'auto' : 'none',
-        cursor: 'grab',
+        cursor: 'pointer',
         zIndex: 20,
       }}
       onPointerDown={handlePointerDown}
@@ -117,12 +123,12 @@ export function ClusterLabel({ cluster, onDrag, onDragEnd, onClick }: ClusterLab
     >
       <div className="relative flex flex-col items-center group">
         <h1
-          className="relative text-5xl font-black tracking-tighter text-gray-800 mb-2 drop-shadow-sm group-hover:scale-105 transition-transform select-none"
+          className={`relative text-5xl font-black tracking-tighter mb-2 drop-shadow-sm group-hover:scale-105 transition-transform select-none ${isFocused ? 'text-gray-900' : 'text-gray-800'}`}
           style={{ textShadow: '0 2px 10px rgba(255,255,255,0.9)' }}
         >
           {cluster.category === '__capability__' ? '能力' : cluster.category}
         </h1>
-        <div className="relative flex items-center gap-2 text-sm font-medium text-gray-600 uppercase tracking-widest bg-white/60 px-3 py-1 rounded-full backdrop-blur-sm border border-gray-200/60 select-none">
+        <div className={`relative flex items-center gap-2 text-sm font-medium uppercase tracking-widest px-3 py-1 rounded-full backdrop-blur-sm border select-none transition-all ${isFocused ? 'text-gray-700 bg-white/80 border-gray-300 ring-1 ring-gray-300' : 'text-gray-600 bg-white/60 border-gray-200/60'}`}>
           <Layers className="w-3 h-3" />
           <span>{cluster.count} 条记忆</span>
         </div>
