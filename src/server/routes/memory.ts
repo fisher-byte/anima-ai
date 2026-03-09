@@ -22,6 +22,7 @@
  * GET    /api/memory/mental-model            读取结构化用户心智模型
  * POST   /api/memory/mental-model/refresh    触发心智模型重新提炼（入队任务）
  * DELETE /api/memory/mental-model            清空心智模型（重置用）
+ * POST   /api/memory/rebuild-node-graph      历史节点语义聚类计划 { nodes: [...] } → { clusters: [...] }（只计划不修改）
  */
 
 import { Hono } from 'hono'
@@ -870,6 +871,119 @@ memoryRoutes.get('/logical-edges', (c) => {
   }>
 
   return c.json({ edges: rows })
+})
+
+/** 历史节点语义聚类计划（只返回计划，不修改数据） */
+memoryRoutes.post('/rebuild-node-graph', async (c) => {
+  const db = userDb(c)
+  const { nodes } = await c.req.json<{
+    nodes: Array<{ id: string; conversationIds: string[]; firstDate: string }>
+  }>()
+
+  if (!nodes || nodes.length < 2) {
+    return c.json({ clusters: [], reason: 'not-enough-nodes' })
+  }
+
+  const ADJACENCY_THRESHOLD = 0.75
+  const SANITY_THRESHOLD    = 0.60
+  const TEMPORAL_STRICT     = 0.82
+
+  // 为每个节点计算代表 embedding（多 convId 取平均）
+  const nodeVecs: Map<string, Float32Array> = new Map()
+  for (const node of nodes) {
+    const vecs: Float32Array[] = []
+    for (const cid of node.conversationIds) {
+      const row = db.prepare('SELECT vector FROM embeddings WHERE conversation_id = ? LIMIT 1').get(cid) as { vector: Buffer } | undefined
+      if (row?.vector) {
+        const v = bufferToVec(row.vector)
+        if (v) vecs.push(v)
+      }
+    }
+    if (vecs.length === 0) continue
+    const dim = vecs[0].length
+    const avg = new Float32Array(dim)
+    for (const v of vecs) for (let i = 0; i < dim; i++) avg[i] += v[i]
+    for (let i = 0; i < dim; i++) avg[i] /= vecs.length
+    nodeVecs.set(node.id, avg)
+  }
+
+  const nodeIds = [...nodeVecs.keys()]
+  if (nodeIds.length < 2) return c.json({ clusters: [], reason: 'no-embeddings' })
+
+  // Union-Find（路径压缩）
+  const parent = new Map(nodeIds.map(id => [id, id]))
+  function find(x: string): string {
+    if (parent.get(x) !== x) parent.set(x, find(parent.get(x)!))
+    return parent.get(x)!
+  }
+  function union(x: string, y: string) {
+    parent.set(find(x), find(y))
+  }
+
+  // 建边 + 时间跨度守卫
+  for (let i = 0; i < nodeIds.length; i++) {
+    for (let j = i + 1; j < nodeIds.length; j++) {
+      const nA = nodes.find(n => n.id === nodeIds[i])!
+      const nB = nodes.find(n => n.id === nodeIds[j])!
+      const daysDiff = Math.abs(
+        new Date(nA.firstDate).getTime() - new Date(nB.firstDate).getTime()
+      ) / 86400000
+
+      const score = cosineSim(nodeVecs.get(nodeIds[i])!, nodeVecs.get(nodeIds[j])!)
+      const threshold = daysDiff > 60 ? TEMPORAL_STRICT : ADJACENCY_THRESHOLD
+
+      if (score >= threshold) union(nodeIds[i], nodeIds[j])
+    }
+  }
+
+  // 聚合 clusters
+  const clusterMap = new Map<string, string[]>()
+  for (const id of nodeIds) {
+    const root = find(id)
+    if (!clusterMap.has(root)) clusterMap.set(root, [])
+    clusterMap.get(root)!.push(id)
+  }
+
+  // 过滤单节点 cluster，做 sanity check，生成计划
+  const clusters: Array<{ keepNodeId: string; mergeNodeIds: string[]; mergedConversationIds: string[] }> = []
+
+  for (const [, members] of clusterMap) {
+    if (members.length < 2) continue
+
+    // Sanity check：cluster 内两两最低 cosineSim ≥ SANITY_THRESHOLD
+    let sane = true
+    outer: for (let i = 0; i < members.length; i++) {
+      for (let j = i + 1; j < members.length; j++) {
+        const vA = nodeVecs.get(members[i])!
+        const vB = nodeVecs.get(members[j])!
+        if (cosineSim(vA, vB) < SANITY_THRESHOLD) { sane = false; break outer }
+      }
+    }
+    if (!sane) continue
+
+    // 选 keepNode：最多 conversationIds，平则最老 firstDate
+    const memberNodes = members.map(id => nodes.find(n => n.id === id)!)
+    memberNodes.sort((a, b) => {
+      const diff = b.conversationIds.length - a.conversationIds.length
+      if (diff !== 0) return diff
+      return a.firstDate.localeCompare(b.firstDate)
+    })
+    const keepNode = memberNodes[0]
+    const mergeNodes = memberNodes.slice(1)
+    const mergedConvIds = mergeNodes.flatMap(n => n.conversationIds)
+
+    clusters.push({
+      keepNodeId: keepNode.id,
+      mergeNodeIds: mergeNodes.map(n => n.id),
+      mergedConversationIds: mergedConvIds
+    })
+  }
+
+  return c.json({
+    clusters,
+    totalNodes: nodeIds.length,
+    totalMerges: clusters.reduce((sum, cl) => sum + cl.mergeNodeIds.length, 0)
+  })
 })
 
 /** 删除某节点相关的所有逻辑边 */

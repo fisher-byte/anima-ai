@@ -1,5 +1,42 @@
 # Anima 变更日志
 
+## [0.2.74] - 2026-03-09
+
+### feat: 历史节点回溯合并 (Retroactive Node Consolidation)
+
+#### 背景
+
+v0.2.73 已实现"新对话语义合并"，但历史数据仍是碎片状态（100 次对话 = 100 个节点）。本版本提供一键整理功能，将已有碎片节点按语义聚合为话题簇，把旧数据纳入新架构。
+
+#### 核心算法：Union-Find + 双阈值守卫
+
+- `ADJACENCY_THRESHOLD = 0.75`：建边标准（高精度）
+- `SANITY_THRESHOLD = 0.60`：Union 前二次验证
+- `TEMPORAL_STRICT = 0.82`：时间跨度 >60 天时的更严格阈值
+
+#### 改动清单
+
+| 模块 | 改动 |
+|------|------|
+| `src/server/routes/memory.ts` | 新增 `POST /api/memory/rebuild-node-graph`：纯 SQLite in-process，计算节点两两余弦相似度，Union-Find 传递闭包聚类，返回 ClusterPlan[]（只计划不修改） |
+| `src/renderer/src/stores/canvasStore.ts` | 新增 `nodeGraphRebuild` 状态（5 阶段：idle/analyzing/merging/done/error）+ `rebuildNodeGraph()` action |
+| `src/renderer/src/components/Canvas.tsx` | 汉堡菜单新增"整理相似节点"按钮（含进度角标）；节点 >8 且均为单对话时底部弹出一次性智能提示横幅（localStorage 门控） |
+| `src/server/__tests__/rebuild-node-graph.test.ts` | 新建单元测试（7 例）：Union-Find、时间跨度守卫、sanity check、keepNode 选择逻辑 |
+| `e2e/features.spec.ts` | 追加 E2E 测试 31-33：接口返回格式、菜单可见性、rebuild 流程 |
+
+#### keepNode 选择策略
+
+1. conversationIds 数量更多的节点优先（Hub 优先）
+2. 数量相同时，firstDate 更早的节点优先（根节点优先）
+
+### fix: 上线后 bug 修复 (patch1)
+
+| 文件 | 修复 |
+|------|------|
+| `src/server/routes/memory.ts` | rebuild-node-graph SQL 查错表名/字段：`memories.embedding` → `embeddings.vector` |
+| `src/renderer/src/components/Canvas.tsx` | C3/FR-004 中 3 处 `POST /api/storage/read`（不存在）→ `GET /api/storage/:filename` |
+| `src/renderer/src/stores/canvasStore.ts` | `conversationIds` 构造加 undefined guard，过滤空数组节点 |
+
 ## [0.2.73] - 2026-03-09
 
 ### feat: 节点聚合重设计 — 语义合并 + 动态话题标签 + 时间线视图
