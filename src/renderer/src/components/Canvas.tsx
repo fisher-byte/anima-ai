@@ -16,7 +16,7 @@
  */
 import { useState, useRef, useCallback, useMemo, useEffect, createContext } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit, Sparkles, Clock } from 'lucide-react'
+import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit, Sparkles, Clock, GitMerge } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useForceSimulation, type ForceSimulationAPI } from '../hooks/useForceSimulation'
 import { NodeCard } from './NodeCard'
@@ -158,6 +158,8 @@ export function Canvas() {
   const lastError = useCanvasStore(state => state.lastError)
   const clearLastError = useCanvasStore(state => state.clearLastError)
   const isTimelineOpen = useCanvasStore(state => state.isTimelineOpen)
+  const nodeGraphRebuild = useCanvasStore(state => state.nodeGraphRebuild)
+  const rebuildNodeGraph = useCanvasStore(state => state.rebuildNodeGraph)
 
   // 空画布欢迎语（个性化，当天缓存）
   const [welcomeText, setWelcomeText] = useState<string | null>(null)
@@ -342,6 +344,7 @@ export function Canvas() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [hasNewEvolution, setHasNewEvolution] = useState(false)
   const [viewMode, setViewMode] = useState<'free' | 'timeline'>('free')
+  const [showMergeBanner, setShowMergeBanner] = useState(false)
   const prevNodeCountRef = useRef(0)
 
   // 节点数量增加时亮起进化红点；初始加载检测重叠后自动 kick
@@ -367,6 +370,16 @@ export function Canvas() {
     forceSim.sync(nodes, edges)
   }, [nodes, edges, forceSim])
 
+  // 智能合并横幅：节点 >8 且均为单对话节点，且未曾被关闭
+  useEffect(() => {
+    const dismissed = localStorage.getItem('evo_merge_banner_dismissed')
+    if (dismissed) return
+    const memoryNodes = nodes.filter(n => n.nodeType !== 'capability')
+    const noMergesYet = memoryNodes.every(n => (n.conversationIds?.length ?? 1) === 1)
+    if (memoryNodes.length > 8 && noMergesYet) setShowMergeBanner(true)
+    else setShowMergeBanner(false)
+  }, [nodes])
+
   // C3：主动对话 — 距上次对话超过 24h 时弹出 Toast 提醒
   useEffect(() => {
     if (sessionStorage.getItem('anima_proactive_shown')) return
@@ -377,14 +390,12 @@ export function Canvas() {
         if (token) headers['Authorization'] = `Bearer ${token}`
 
         // 读取最近对话时间
-        const storageRes = await fetch('/api/storage/read', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...headers },
-          body: JSON.stringify({ filename: 'conversations.jsonl' })
+        const storageRes = await fetch('/api/storage/conversations.jsonl', {
+          headers: { Authorization: `Bearer ${token}` }
         })
         if (!storageRes.ok) return
 
-        const { content } = await storageRes.json() as { content: string | null }
+        const content = await storageRes.text()
         if (!content?.trim()) return
 
         const lines = content.trim().split('\n').filter(Boolean)
@@ -474,13 +485,12 @@ export function Canvas() {
         if (token) headers['Authorization'] = `Bearer ${token}`
 
         // 读取对话历史，分析模式
-        const storageRes = await fetch('/api/storage/read', {
-          method: 'POST', headers,
-          body: JSON.stringify({ filename: 'conversations.jsonl' })
+        const storageRes = await fetch('/api/storage/conversations.jsonl', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
         })
         if (!storageRes.ok) return
 
-        const { content } = await storageRes.json() as { content: string | null }
+        const content = await storageRes.text()
         if (!content?.trim()) return
 
         const lines = content.trim().split('\n').filter(Boolean)
@@ -523,12 +533,11 @@ export function Canvas() {
         const prefKey = 'anima_notice_pref'
         const lastPref = parseInt(localStorage.getItem(prefKey) || '0')
         if (now - lastPref > NOTICE_COOLDOWN) {
-          const agentPrefsRes = await fetch('/api/storage/read', {
-            method: 'POST', headers,
-            body: JSON.stringify({ filename: 'profile.json' })
+          const agentPrefsRes = await fetch('/api/storage/profile.json', {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
           })
           if (agentPrefsRes.ok) {
-            const { content: profContent } = await agentPrefsRes.json() as { content: string | null }
+            const profContent = await agentPrefsRes.text()
             if (profContent) {
               const prof = JSON.parse(profContent) as { rules?: { preference: string; updatedAt: string }[] }
               const recentRule = (prof.rules || [])
@@ -857,6 +866,22 @@ export function Canvas() {
                   <Settings className="w-4 h-4" />
                   <span className="font-medium">偏好设置</span>
                 </button>
+                <div className="my-1 border-t border-gray-100/50" />
+                <button
+                  onClick={() => { setIsMenuOpen(false); rebuildNodeGraph() }}
+                  disabled={nodeGraphRebuild.phase !== 'idle' && nodeGraphRebuild.phase !== 'done' && nodeGraphRebuild.phase !== 'error'}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all disabled:opacity-40"
+                >
+                  <GitMerge className="w-4 h-4" />
+                  <span className="font-medium">整理相似节点</span>
+                  {nodeGraphRebuild.phase === 'analyzing' && <span className="ml-auto text-xs text-gray-400">分析中…</span>}
+                  {nodeGraphRebuild.phase === 'merging' && (
+                    <span className="ml-auto text-xs text-gray-400">{nodeGraphRebuild.processedClusters}/{nodeGraphRebuild.totalClusters}</span>
+                  )}
+                  {nodeGraphRebuild.phase === 'done' && nodeGraphRebuild.totalClusters > 0 && (
+                    <span className="ml-auto text-xs text-green-500">已合并 {nodeGraphRebuild.totalClusters} 组</span>
+                  )}
+                </button>
               </motion.div>
             )}
           </AnimatePresence>
@@ -1006,6 +1031,32 @@ export function Canvas() {
       {/* 节点时间线面板 */}
       <AnimatePresence>
         {isTimelineOpen && <NodeTimelinePanel />}
+      </AnimatePresence>
+
+      {/* 智能合并横幅：历史节点 >8 且未合并过，一次性提示 */}
+      <AnimatePresence>
+        {showMergeBanner && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-40 left-1/2 -translate-x-1/2 z-20 bg-gray-800/90 backdrop-blur-sm text-white text-sm px-4 py-3 rounded-xl shadow-xl flex items-center gap-3"
+          >
+            <Sparkles className="w-4 h-4 text-yellow-400 shrink-0" />
+            <span>发现 {nodes.filter(n => n.nodeType !== 'capability').length} 个历史节点，要整理合并相似话题吗？</span>
+            <button
+              onClick={() => { setShowMergeBanner(false); rebuildNodeGraph() }}
+              className="ml-2 px-3 py-1 bg-indigo-500 hover:bg-indigo-600 rounded-lg text-xs font-medium"
+            >整理</button>
+            <button
+              onClick={() => {
+                setShowMergeBanner(false)
+                localStorage.setItem('evo_merge_banner_dismissed', '1')
+              }}
+              className="text-gray-400 hover:text-white text-base leading-none"
+            >×</button>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       <ImportMemoryModal />

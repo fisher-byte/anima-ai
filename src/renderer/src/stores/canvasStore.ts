@@ -158,6 +158,15 @@ interface CanvasState {
   isTimelineOpen: boolean
   openNodeTimeline: (nodeId: string) => void
   closeNodeTimeline: () => void
+
+  // 历史节点语义聚类重建
+  nodeGraphRebuild: {
+    phase: 'idle' | 'analyzing' | 'merging' | 'done' | 'error'
+    totalClusters: number
+    processedClusters: number
+    errorMessage?: string
+  }
+  rebuildNodeGraph: () => Promise<void>
 }
 
 // 防止 completeOnboarding 并发重复执行
@@ -274,6 +283,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   lastError: null,
   timelineNodeId: null,
   isTimelineOpen: false,
+  nodeGraphRebuild: { phase: 'idle', totalClusters: 0, processedClusters: 0 },
 
   setConversationHistory: (history) => set({ conversationHistory: history }),
   resetConversationHistory: () => set({ conversationHistory: [] }),
@@ -1837,4 +1847,53 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   openNodeTimeline: (nodeId: string) => set({ timelineNodeId: nodeId, isTimelineOpen: true }),
   closeNodeTimeline: () => set({ timelineNodeId: null, isTimelineOpen: false }),
+
+  rebuildNodeGraph: async () => {
+    const { nodes, mergeIntoNode, removeNode } = get()
+    set({ nodeGraphRebuild: { phase: 'analyzing', totalClusters: 0, processedClusters: 0 } })
+
+    try {
+      const nodePayload = nodes.map(n => ({
+        id: n.id,
+        conversationIds: n.conversationIds ?? (n.conversationId ? [n.conversationId] : []),
+        firstDate: n.firstDate ?? n.date ?? new Date().toISOString().split('T')[0]
+      })).filter(n => n.conversationIds.length > 0)
+
+      const resp = await authFetch('/api/memory/rebuild-node-graph', {
+        method: 'POST',
+        body: JSON.stringify({ nodes: nodePayload })
+      })
+      if (!resp.ok) throw new Error('rebuild-node-graph API error')
+
+      const data = await resp.json() as {
+        clusters: Array<{ keepNodeId: string; mergeNodeIds: string[]; mergedConversationIds: string[] }>
+        totalNodes?: number
+        totalMerges?: number
+        reason?: string
+      }
+
+      if (!data.clusters.length) {
+        set({ nodeGraphRebuild: { phase: 'done', totalClusters: 0, processedClusters: 0 } })
+        return
+      }
+
+      set({ nodeGraphRebuild: { phase: 'merging', totalClusters: data.clusters.length, processedClusters: 0 } })
+
+      for (let i = 0; i < data.clusters.length; i++) {
+        const cluster = data.clusters[i]
+        for (const convId of cluster.mergedConversationIds) {
+          const convDate = get().nodes.find(n => (n.conversationIds ?? [n.conversationId]).includes(convId))?.date ?? new Date().toISOString().split('T')[0]
+          await mergeIntoNode(cluster.keepNodeId, convId, convDate)
+        }
+        for (const nodeId of cluster.mergeNodeIds) {
+          await removeNode(nodeId)
+        }
+        set(s => ({ nodeGraphRebuild: { ...s.nodeGraphRebuild, processedClusters: i + 1 } }))
+      }
+
+      set({ nodeGraphRebuild: { phase: 'done', totalClusters: data.clusters.length, processedClusters: data.clusters.length } })
+    } catch (err) {
+      set({ nodeGraphRebuild: { phase: 'error', totalClusters: 0, processedClusters: 0, errorMessage: String(err) } })
+    }
+  },
 }))
