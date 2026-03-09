@@ -16,7 +16,7 @@
  */
 import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo, memo, useContext, type ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Import, BookOpen, Layers, Paperclip } from 'lucide-react'
+import { Import, BookOpen, Layers, Paperclip, MessageSquare } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useLodScale } from '../hooks/useLodScale'
 import { useConfirm } from './GlobalUI'
@@ -43,6 +43,7 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
   const removeNode = useCanvasStore(state => state.removeNode)
   const updateNodePosition = useCanvasStore(state => state.updateNodePosition)
   const openModalById = useCanvasStore(state => state.openModalById)
+  const openNodeTimeline = useCanvasStore(state => state.openNodeTimeline)
   const isHighlighted = useCanvasStore(state => state.highlightedNodeIds.includes(node.id))
   const confirm = useConfirm()
   const forceSim = useContext(ForceSimContext)
@@ -190,8 +191,13 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
 
   const handleClick = useCallback(() => {
     if (isDragging || Date.now() - lastDragEndRef.current < 200) return
-    openModalById(node.conversationId)
-  }, [node.conversationId, openModalById, isDragging])
+    const ids = node.conversationIds ?? [node.conversationId]
+    if (ids.length > 1) {
+      openNodeTimeline(node.id)
+    } else {
+      openModalById(node.conversationId)
+    }
+  }, [node, openModalById, openNodeTimeline, isDragging])
 
   const handleDelete = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -337,6 +343,13 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
                       <span className="truncate">{file.name}</span>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {(node.conversationIds?.length ?? 1) > 1 && (
+                <div className="flex items-center gap-1 mt-2 text-[10px] text-gray-400">
+                  <MessageSquare className="w-3 h-3" />
+                  <span>{node.conversationIds!.length} 条对话</span>
                 </div>
               )}
             </div>

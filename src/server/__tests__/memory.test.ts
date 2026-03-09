@@ -257,6 +257,16 @@ function buildMemoryApp() {
     return c.json({ category: '其他' })  // stub: real route calls AI
   })
 
+  // ── extract-topic (no-key stub) ────────────────────────────────────────
+
+  app.post('/api/memory/extract-topic', async (c) => {
+    const { userMessage } = await c.req.json<{ userMessage: string; assistantMessage: string }>()
+    if (!userMessage?.trim()) return c.json({ topic: null })
+    const { apiKey } = getApiConfig()
+    if (!apiKey) return c.json({ topic: null })
+    return c.json({ topic: '话题标签' })  // stub: real route calls AI
+  })
+
   // ── extract (no-key stub) ──────────────────────────────────────────────
 
   app.post('/api/memory/extract', async (c) => {
@@ -1049,5 +1059,76 @@ describe('detectIntent — full-scoring (v0.2.58)', () => {
   it('multi-keyword dominates single-keyword across all categories', () => {
     // '美食旅游电影购物运动' → 5 keywords in 日常生活
     expect(detectIntent('美食旅游电影购物运动')).toBe('日常生活')
+  })
+})
+
+// ── v0.2.73: /extract-topic 话题标签提炼 ─────────────────────────────────────
+
+describe('Extract-Topic API (v0.2.73)', () => {
+  beforeEach(resetDb)
+
+  it('POST /api/memory/extract-topic 无 API key 时返回 { topic: null }', async () => {
+    // testDb 中没有设置 apiKey → 应短路返回 null
+    const res = await req('POST', '/api/memory/extract-topic', {
+      json: { userMessage: '我在学习 Python', assistantMessage: '好的，让我来帮你' }
+    })
+    expect(res.status).toBe(200)
+    const data = await res.json() as any
+    expect(data.topic).toBeNull()
+  })
+
+  it('POST /api/memory/extract-topic 空 userMessage 时返回 { topic: null }', async () => {
+    const res = await req('POST', '/api/memory/extract-topic', {
+      json: { userMessage: '', assistantMessage: '好的' }
+    })
+    expect(res.status).toBe(200)
+    const data = await res.json() as any
+    expect(data.topic).toBeNull()
+  })
+
+  it('POST /api/memory/extract-topic 纯空格 userMessage 时返回 { topic: null }', async () => {
+    const res = await req('POST', '/api/memory/extract-topic', {
+      json: { userMessage: '   ', assistantMessage: '好的' }
+    })
+    expect(res.status).toBe(200)
+    const data = await res.json() as any
+    expect(data.topic).toBeNull()
+  })
+
+  it('POST /api/memory/extract-topic 有 API key 时调用 AI 并返回非空 topic', async () => {
+    // 设置 mock apiKey
+    testDb.prepare("INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('apiKey', 'test-key', ?)")
+      .run(new Date().toISOString())
+
+    const res = await req('POST', '/api/memory/extract-topic', {
+      json: { userMessage: '我在学习 Python', assistantMessage: '好的，让我来帮你' }
+    })
+    expect(res.status).toBe(200)
+    const data = await res.json() as any
+    // stub 返回非 null 的 topic
+    expect(data.topic).not.toBeNull()
+    expect(typeof data.topic).toBe('string')
+    expect(data.topic.length).toBeGreaterThan(0)
+  })
+
+  it('返回的 topic 长度不超过 8 字', async () => {
+    testDb.prepare("INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('apiKey', 'test-key', ?)")
+      .run(new Date().toISOString())
+
+    const res = await req('POST', '/api/memory/extract-topic', {
+      json: { userMessage: '我在学习 Python', assistantMessage: '好的' }
+    })
+    const data = await res.json() as any
+    if (data.topic !== null) {
+      expect(data.topic.length).toBeLessThanOrEqual(8)
+    }
+  })
+
+  it('响应格式始终包含 topic 字段（成功或失败）', async () => {
+    const res = await req('POST', '/api/memory/extract-topic', {
+      json: { userMessage: '测试', assistantMessage: '好的' }
+    })
+    const data = await res.json() as any
+    expect(Object.prototype.hasOwnProperty.call(data, 'topic')).toBe(true)
   })
 })

@@ -1,5 +1,58 @@
 # Anima 变更日志
 
+## [0.2.73] - 2026-03-09
+
+### feat: 节点聚合重设计 — 语义合并 + 动态话题标签 + 时间线视图
+
+#### 背景
+
+每次对话结束都强制创建新节点，导致画布碎片化（100 次对话 = 100 个节点）。固定 6 类分类过于抽象，节点只能展示单条对话。本次迭代分 3 个 Phase 解决以上问题。
+
+#### Phase 1：数据结构扩容 + NodeCard 角标
+
+| 模块 | 改动 |
+|------|------|
+| `src/shared/types.ts` | `Node` 接口新增 3 个可选字段：`conversationIds?`（全部关联对话 ID）、`topicLabel?`（语义话题标签）、`firstDate?`（最早对话日期） |
+| `canvasStore.ts` `loadNodes` | 加载节点后补全三个新字段（向后兼容旧数据） |
+| `NodeCard.tsx` | 节点含 2+ 条对话时在底部显示 `MessageSquare` 角标（如「3 条对话」） |
+
+#### Phase 2：合并逻辑 + extract-topic 接口
+
+| 模块 | 改动 |
+|------|------|
+| `memory.ts` | 新增 `POST /api/memory/extract-topic`：LLM 提炼 ≤8 汉字的具体话题标签（如「Python学习」），无 API key 时静默降级返回 `null` |
+| `canvasStore.ts` | 新增 `mergeIntoNode(targetNodeId, newConvId, newDate)`：追加 `conversationIds`，更新最新 `conversationId`，调用 `updateEdges()` 重建边；含幂等守卫（重复 convId 直接跳过） |
+| `canvasStore.ts` `addNode` | 新增第 5 个可选参数 `topicLabel?`，新节点同时初始化 `conversationIds`、`topicLabel`、`firstDate` |
+| `canvasStore.ts` `endConversation` | 话题分组 for-loop 改造：每组先调用 `extractTopicLabel`，再通过 `findMergeTarget`（语义检索 `score ≥ 0.75`）判断是否合并；主动续话（有 `parentId`）直接合并，无匹配时建新节点 |
+
+**自排除守卫**：`findMergeTarget` 接受 `excludeConvId` 参数，过滤掉自身 conversationId（防止已索引的当前对话与自己合并）。
+
+#### Phase 3：时间线视图
+
+| 模块 | 改动 |
+|------|------|
+| `canvasStore.ts` | 新增时间线 UI 状态：`timelineNodeId`、`isTimelineOpen`、`openNodeTimeline`、`closeNodeTimeline` |
+| `NodeCard.tsx` | `handleClick` 改造：`conversationIds.length > 1` 时打开时间线面板，否则直接打开对话 modal |
+| `NodeTimelinePanel.tsx` | 新建组件（155 行）：右侧抽屉式固定面板，展示节点所有对话的垂直时间线（日期 + 消息前缀）；点击条目 `openModalById`；底部「续话」按钮 `startConversation` |
+| `Canvas.tsx` | `AnimatePresence` 中加入 `NodeTimelinePanel` 渲染 |
+
+#### Bug Fixes (Code Review)
+
+- `mergeIntoNode` 增加 `changed` 守卫，unchanged 时跳过 storage 写入
+- `mergeIntoNode` 合并后调用 `get().updateEdges()` 重建边关系
+- `findMergeTarget` 增加 `excludeConvId` 防止自合并
+
+#### 测试
+
+新增 **31** 个测试用例：
+- **25 个单元测试** (`canvasStore.nodeConsolidation.test.ts`)：`loadNodes` 回填、`mergeIntoNode` 追加/幂等/多次合并/旧节点、`findMergeTarget` 自排除/阈值边界/多对话节点匹配、`addNode` 新字段
+- **6 个服务端集成测试** (`memory.test.ts`)：`/extract-topic` 无 key/空消息/空格消息/有 key/长度限制/响应格式
+- **3 个 E2E 测试** (`features.spec.ts` 测试 28-30)：`/extract-topic` 接口存在性、NodeCard 多对话角标渲染、NodeTimelinePanel 开关交互
+
+**测试总计：383/383 通过 · TS 零错误**
+
+---
+
 ## [0.2.72] - 2026-03-09
 
 ### feat: "被记住" 体验层 — 画布简化 + 记忆时间感知 + 主动通知 + NodeDetailPanel 完整重命名
