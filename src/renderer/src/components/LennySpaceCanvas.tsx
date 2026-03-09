@@ -13,7 +13,6 @@ import {
 } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Send, Square, X } from 'lucide-react'
-import { AmbientBackground } from './AmbientBackground'
 import { Edge } from './Edge'
 import { storageService, getAuthToken } from '../services/storageService'
 import { LENNY_SYSTEM_PROMPT } from '@shared/constants'
@@ -155,16 +154,16 @@ function LennyNodeCard({ node, onContextSelect, onPositionChange, onDragEnd, sca
     onContextSelect(node.title)
   }, [node.title, onContextSelect])
 
-  // Category color map (dark theme)
+  // Category color (same mapping as NodeCard)
   const categoryColor: Record<string, string> = {
-    '工作事业': '#60A5FA',
-    '思考世界': '#A78BFA',
-    '关系情感': '#F472B6',
-    '健康身体': '#34D399',
-    '创意表达': '#FBBF24',
+    '工作事业': '#3B82F6',
+    '思考世界': '#8B5CF6',
+    '关系情感': '#EC4899',
+    '健康身体': '#10B981',
+    '创意表达': '#F59E0B',
     '生活日常': '#94A3B8',
   }
-  const dotColor = categoryColor[node.category ?? ''] ?? '#94A3B8'
+  const accentColor = categoryColor[node.category ?? ''] ?? '#94A3B8'
 
   return (
     <div
@@ -178,50 +177,51 @@ function LennyNodeCard({ node, onContextSelect, onPositionChange, onDragEnd, sca
     >
       <motion.div
         initial={{ scale: 0.7, opacity: 0, filter: 'blur(8px)' }}
-        animate={{ scale: 1, opacity: 1, filter: 'blur(0px)', y: isHovered ? -3 : 0 }}
+        animate={{ scale: 1, opacity: 1, filter: 'blur(0px)', y: isHovered ? -2 : 0 }}
         transition={{ type: 'spring', stiffness: 350, damping: 28 }}
         className={`w-52 rounded-2xl border overflow-hidden transition-all duration-200 ${
           isHovered
-            ? 'shadow-[0_8px_32px_rgba(255,255,255,0.08)] border-white/20'
-            : 'shadow-[0_2px_16px_rgba(0,0,0,0.3)] border-white/8'
+            ? 'shadow-[0_8px_32px_rgba(0,0,0,0.12)] border-gray-200/50'
+            : 'shadow-[0_2px_16px_rgba(0,0,0,0.06)] border-gray-100/80'
         }`}
-        style={{ backgroundColor: 'rgba(20,20,32,0.88)', backdropFilter: 'blur(12px)' }}
+        style={{ backgroundColor: 'rgba(255,255,255,0.92)' }}
       >
-        <div className="p-4 pl-5">
+        <div className="p-5 pl-6">
           {node.category && (
-            <div className="flex items-center gap-1.5 mb-2">
-              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: dotColor }} />
-              <span className="text-[10px] tracking-wide" style={{ color: dotColor, opacity: 0.85 }}>
-                {node.category}
-              </span>
+            <div className="text-[10px] text-gray-400/70 mb-1.5 tracking-wide">
+              {node.category}
             </div>
           )}
-          <h3 className="font-medium text-white/90 mb-2.5 text-[14px] leading-snug line-clamp-3">
+          <h3 className="font-medium text-gray-800 mb-2.5 text-[15px] leading-snug line-clamp-3">
             {node.title}
           </h3>
-          <div className="flex flex-wrap gap-1.5 mb-3">
+          <div className="flex flex-wrap gap-1.5 mb-4">
             {node.keywords.slice(0, 3).map((kw, i) => (
               <span
                 key={i}
-                className="text-[10px] px-2 py-0.5 rounded-lg border"
-                style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)' }}
+                className="text-[10px] px-2 py-0.5 bg-white/50 text-gray-500 rounded-lg border border-gray-100/50"
               >
                 {kw}
               </span>
             ))}
           </div>
-          <div className="flex items-center justify-between text-[10px] text-white/30">
+          <div className="flex items-center justify-between text-[10px] text-gray-400 font-medium">
             <span>{node.date}</span>
             {isHovered && (
               <motion.span
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="text-amber-400/70"
+                className="text-amber-500/70"
               >
                 点击提问 →
               </motion.span>
             )}
           </div>
+          {/* Left accent bar */}
+          <div
+            className="absolute left-0 top-3 bottom-3 w-[2px] rounded-full"
+            style={{ backgroundColor: accentColor, opacity: 0.25 }}
+          />
         </div>
       </motion.div>
     </div>
@@ -628,20 +628,16 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col" style={{ backgroundColor: '#08080f' }}>
-      <AmbientBackground />
+    <div className="fixed inset-0 z-[100] flex flex-col" style={{ backgroundColor: '#f8f8fa' }}>
 
       {/* ── Top bar ── */}
       <div
-        className="relative z-20 flex items-center gap-4 px-5 border-b"
-        style={{ height: 56, borderColor: 'rgba(255,255,255,0.06)', backgroundColor: 'rgba(8,8,15,0.8)', backdropFilter: 'blur(12px)' }}
+        className="relative z-20 flex items-center gap-4 px-5 border-b border-gray-100"
+        style={{ height: 56, backgroundColor: 'rgba(248,248,250,0.95)', backdropFilter: 'blur(12px)' }}
       >
         <button
           onClick={onClose}
-          className="flex items-center gap-2 text-sm transition-colors"
-          style={{ color: 'rgba(255,255,255,0.45)' }}
-          onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.85)')}
-          onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.45)')}
+          className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-800 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>返回我的空间</span>
@@ -652,23 +648,20 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
             L
           </div>
           <div>
-            <div className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.9)' }}>Lenny's Space</div>
-            <div className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>Product · Growth · Career</div>
+            <div className="text-sm font-semibold text-gray-800">Lenny's Space</div>
+            <div className="text-xs text-gray-400">Product · Growth · Career</div>
           </div>
         </div>
 
         {/* Scale indicator */}
-        <div
-          className="text-[11px] font-bold"
-          style={{ color: 'rgba(255,255,255,0.25)', minWidth: 40, textAlign: 'right' }}
-        >
+        <div className="text-[11px] font-bold text-gray-300" style={{ minWidth: 40, textAlign: 'right' }}>
           {Math.round(scaleDisplay * 100)}%
         </div>
       </div>
 
       {/* ── Canvas area ── */}
       <div
-        className="absolute inset-0 overflow-hidden lenny-dot-grid"
+        className="absolute inset-0 overflow-hidden lenny-dot-grid cursor-grab"
         style={{ top: 56, bottom: chatPanelHeight + inputAreaHeight }}
         ref={canvasRef}
         onMouseDown={handleCanvasMouseDown}
@@ -739,13 +732,13 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="fixed left-0 right-0 z-20 overflow-y-auto px-4 py-2 space-y-2"
+            className="fixed left-0 right-0 z-[70] overflow-y-auto px-4 py-2 space-y-2"
             style={{
               bottom: inputAreaHeight,
               maxHeight: chatPanelHeight,
-              backgroundColor: 'rgba(8,8,15,0.75)',
+              backgroundColor: 'rgba(255,255,255,0.92)',
               backdropFilter: 'blur(8px)',
-              borderTop: '1px solid rgba(255,255,255,0.06)',
+              borderTop: '1px solid rgba(0,0,0,0.06)',
             }}
           >
             {messages.slice(-4).map(msg => (
@@ -757,18 +750,16 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
                 )}
                 <div
                   className={`max-w-[80%] rounded-xl px-3 py-2 text-xs leading-relaxed ${
-                    msg.role === 'user'
-                      ? 'text-white/80'
-                      : 'text-white/70'
+                    msg.role === 'user' ? 'text-gray-700' : 'text-gray-600'
                   }`}
                   style={{
-                    backgroundColor: msg.role === 'user' ? 'rgba(255,255,255,0.08)' : 'rgba(251,191,36,0.08)',
+                    backgroundColor: msg.role === 'user' ? 'rgba(0,0,0,0.06)' : 'rgba(251,191,36,0.1)',
                     borderRadius: msg.role === 'user' ? '12px 4px 12px 12px' : '4px 12px 12px 12px',
                   }}
                 >
                   {msg.content || (msg.isStreaming ? '▋' : '')}
                   {msg.isStreaming && msg.content && (
-                    <span className="inline-block w-0.5 h-3 bg-amber-400 animate-pulse ml-0.5 align-middle" />
+                    <span className="inline-block w-0.5 h-3 bg-amber-500 animate-pulse ml-0.5 align-middle" />
                   )}
                 </div>
               </div>
@@ -780,13 +771,13 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
 
       {/* ── Input area ── */}
       <div
-        className="fixed left-0 right-0 z-20 px-4 py-3"
+        className="fixed left-0 right-0 z-[70] px-4 py-3"
         style={{
           bottom: 0,
           height: inputAreaHeight,
-          backgroundColor: 'rgba(8,8,15,0.9)',
+          backgroundColor: 'rgba(255,255,255,0.95)',
           backdropFilter: 'blur(12px)',
-          borderTop: '1px solid rgba(255,255,255,0.06)',
+          borderTop: '1px solid rgba(0,0,0,0.06)',
         }}
       >
         <div className="max-w-2xl mx-auto">
@@ -799,7 +790,7 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
                 exit={{ opacity: 0, y: 6 }}
                 className="flex items-center gap-1.5 mb-1.5"
               >
-                <span className="text-[11px] px-2.5 py-0.5 rounded-full flex items-center gap-1" style={{ backgroundColor: 'rgba(251,191,36,0.15)', color: 'rgba(251,191,36,0.8)', border: '1px solid rgba(251,191,36,0.2)' }}>
+                <span className="text-[11px] px-2.5 py-0.5 rounded-full flex items-center gap-1 bg-amber-50 text-amber-600 border border-amber-200">
                   {contextNode.slice(0, 40)}{contextNode.length > 40 ? '…' : ''}
                   <button onClick={() => setContextNode(null)}>
                     <X className="w-3 h-3" />
@@ -809,10 +800,7 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
             )}
           </AnimatePresence>
 
-          <div
-            className="flex items-center gap-2 rounded-2xl px-3 py-2"
-            style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
-          >
+          <div className="flex items-center gap-2 rounded-2xl px-4 py-2.5 bg-white border border-gray-100 shadow-sm focus-within:border-gray-200 transition-colors">
             <textarea
               ref={inputRef}
               value={input}
@@ -821,40 +809,37 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
               placeholder="Ask Lenny anything about product, growth, or career…"
               rows={1}
               disabled={isStreaming}
-              className="flex-1 bg-transparent text-sm resize-none outline-none leading-relaxed"
-              style={{ color: 'rgba(255,255,255,0.85)', caretColor: '#FBBF24', maxHeight: 80, overflow: 'auto', fieldSizing: 'content' } as React.CSSProperties}
+              className="flex-1 bg-transparent text-sm resize-none outline-none leading-relaxed text-gray-800 placeholder-gray-400"
+              style={{ maxHeight: 80, overflow: 'auto', fieldSizing: 'content' } as React.CSSProperties}
             />
             {isStreaming ? (
               <button
                 onClick={stopStreaming}
-                className="w-7 h-7 rounded-xl flex items-center justify-center transition-colors shrink-0"
-                style={{ backgroundColor: 'rgba(251,191,36,0.15)', color: '#FBBF24' }}
+                className="w-8 h-8 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-500 flex items-center justify-center transition-colors shrink-0"
+                title="停止生成"
               >
-                <Square className="w-3 h-3 fill-current" />
+                <Square className="w-3.5 h-3.5 fill-current" />
               </button>
             ) : (
               <button
                 onClick={() => sendMessage(input)}
                 disabled={!input.trim()}
-                className="w-7 h-7 rounded-xl flex items-center justify-center transition-colors shrink-0"
-                style={{
-                  backgroundColor: input.trim() ? '#F59E0B' : 'rgba(255,255,255,0.08)',
-                  color: input.trim() ? 'white' : 'rgba(255,255,255,0.25)',
-                }}
+                className="w-8 h-8 rounded-xl flex items-center justify-center transition-colors shrink-0 bg-amber-500 hover:bg-amber-400 disabled:bg-gray-100 disabled:text-gray-300 text-white"
+                title="发送"
               >
-                <Send className="w-3 h-3" />
+                <Send className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
         </div>
       </div>
 
-      {/* Dot grid style */}
+      {/* Dot grid style - light theme matching personal canvas */}
       <style>{`
         .lenny-dot-grid {
-          background-image: radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px);
+          background-color: #f8f8fa;
+          background-image: radial-gradient(circle, rgba(0,0,0,0.12) 1px, transparent 1px);
           background-size: 28px 28px;
-          cursor: grab;
         }
         .lenny-dot-grid.\\!cursor-grabbing { cursor: grabbing !important; }
       `}</style>
