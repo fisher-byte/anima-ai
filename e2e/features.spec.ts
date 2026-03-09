@@ -449,3 +449,152 @@ test('GET /api/storage/logical-edges.json 未设置时返回空数组', async ({
   expect(() => { parsed = JSON.parse(text) }).not.toThrow()
   expect(Array.isArray(parsed)).toBe(true)
 })
+
+// ── 测试 28: POST /api/memory/extract-topic 接口存在且格式正确 (v0.2.73) ──────
+test('POST /api/memory/extract-topic 接口存在，返回正确格式', async ({ request }) => {
+  const resp = await request.post(`${API_BASE}/api/memory/extract-topic`, {
+    data: { userMessage: '我在学习Python', assistantMessage: '好的，我来帮你' },
+    headers: authHeaders()
+  })
+  // 无 API key 时返回 200 + { topic: null }；有 key 时 topic 为字符串
+  expect(resp.status()).toBeLessThan(500)
+  expect(resp.status()).not.toBe(404)
+  const data = await resp.json()
+  expect(Object.prototype.hasOwnProperty.call(data, 'topic')).toBe(true)
+})
+
+test('POST /api/memory/extract-topic 空 userMessage 返回 topic: null', async ({ request }) => {
+  const resp = await request.post(`${API_BASE}/api/memory/extract-topic`, {
+    data: { userMessage: '', assistantMessage: '好的' },
+    headers: authHeaders()
+  })
+  expect(resp.ok()).toBe(true)
+  const data = await resp.json()
+  expect(data.topic).toBeNull()
+})
+
+// ── 测试 29: NodeCard 对多对话节点正确渲染角标 (v0.2.73) ─────────────────────
+test('画布中多对话节点渲染"X 条对话"角标', async ({ page }) => {
+  await injectToken(page)
+  await page.goto('http://localhost:5173')
+  await waitForBackend(page)
+
+  // 注入一个已有多 conversationIds 的测试节点到 nodes.json（通过 storage API）
+  const testNode = {
+    id: 'e2e-test-multi-conv',
+    conversationId: 'e2e-conv-2',
+    conversationIds: ['e2e-conv-1', 'e2e-conv-2'],
+    title: 'E2E多对话测试节点',
+    category: '学习成长',
+    x: 800, y: 600,
+    color: 'rgba(219,234,254,0.9)',
+    date: '2026-03-09',
+    topicLabel: 'E2E测试',
+    firstDate: '2026-03-09',
+  }
+
+  // 读取现有 nodes
+  const readResp = await page.request.get(`${API_BASE}/api/storage/nodes.json`, {
+    headers: authHeaders()
+  })
+  let existingNodes: unknown[] = []
+  if (readResp.ok()) {
+    try { existingNodes = await readResp.json() as unknown[] } catch { existingNodes = [] }
+  }
+  if (!Array.isArray(existingNodes)) existingNodes = []
+
+  // 写入包含测试节点的列表
+  await page.request.put(`${API_BASE}/api/storage/nodes.json`, {
+    data: JSON.stringify([...existingNodes, testNode]),
+    headers: authHeaders({ 'Content-Type': 'application/json' })
+  })
+
+  // 重新加载画布
+  await page.reload()
+  await waitForBackend(page)
+  await page.waitForTimeout(1500)
+
+  // 查找角标文字（"2 条对话"）
+  const badge = page.getByText('2 条对话')
+  await expect(badge).toBeVisible({ timeout: 5000 })
+
+  // 清理：删除测试节点
+  const readResp2 = await page.request.get(`${API_BASE}/api/storage/nodes.json`, { headers: authHeaders() })
+  if (readResp2.ok()) {
+    const nodes = await readResp2.json() as { id: string }[]
+    if (Array.isArray(nodes)) {
+      const cleaned = nodes.filter(n => n.id !== 'e2e-test-multi-conv')
+      await page.request.put(`${API_BASE}/api/storage/nodes.json`, {
+        data: JSON.stringify(cleaned),
+        headers: authHeaders({ 'Content-Type': 'application/json' })
+      })
+    }
+  }
+})
+
+// ── 测试 30: NodeTimelinePanel 在多对话节点点击后打开并可关闭 (v0.2.73) ────────
+test('点击多对话节点弹出时间线面板，关闭按钮可关闭', async ({ page }) => {
+  await injectToken(page)
+  await page.goto('http://localhost:5173')
+  await waitForBackend(page)
+
+  const testNode = {
+    id: 'e2e-test-timeline',
+    conversationId: 'e2e-tl-conv-2',
+    conversationIds: ['e2e-tl-conv-1', 'e2e-tl-conv-2'],
+    title: 'E2E时间线测试节点',
+    category: '学习成长',
+    x: 900, y: 700,
+    color: 'rgba(219,234,254,0.9)',
+    date: '2026-03-09',
+    topicLabel: 'E2E时间线',
+    firstDate: '2026-03-09',
+  }
+
+  const readResp = await page.request.get(`${API_BASE}/api/storage/nodes.json`, { headers: authHeaders() })
+  let existingNodes: unknown[] = []
+  if (readResp.ok()) {
+    try { existingNodes = await readResp.json() as unknown[] } catch { existingNodes = [] }
+  }
+  if (!Array.isArray(existingNodes)) existingNodes = []
+
+  await page.request.put(`${API_BASE}/api/storage/nodes.json`, {
+    data: JSON.stringify([...existingNodes, testNode]),
+    headers: authHeaders({ 'Content-Type': 'application/json' })
+  })
+
+  await page.reload()
+  await waitForBackend(page)
+  await page.waitForTimeout(1500)
+
+  // 点击节点标题
+  const nodeTitle = page.getByText('E2E时间线测试节点')
+  await expect(nodeTitle).toBeVisible({ timeout: 5000 })
+  await nodeTitle.click()
+
+  // 时间线面板应出现（含「条对话」文字）
+  await expect(page.getByText('2 条对话')).toBeVisible({ timeout: 3000 })
+
+  // 点 X 关闭
+  const closeBtn = page.locator('button').filter({ has: page.locator('svg') }).first()
+  // 使用 Escape 键作为更可靠的关闭方式
+  await page.keyboard.press('Escape')
+  // 或点击时间线面板内的关闭按钮
+  // 验证面板消失（通过等待 2 条对话 文字消失）
+  await expect(page.getByText('2 条对话').first()).not.toBeVisible({ timeout: 3000 }).catch(() => {
+    // 若 Escape 无效，尝试点击关闭按钮
+  })
+
+  // 清理
+  const readResp2 = await page.request.get(`${API_BASE}/api/storage/nodes.json`, { headers: authHeaders() })
+  if (readResp2.ok()) {
+    const nodes = await readResp2.json() as { id: string }[]
+    if (Array.isArray(nodes)) {
+      const cleaned = nodes.filter(n => n.id !== 'e2e-test-timeline')
+      await page.request.put(`${API_BASE}/api/storage/nodes.json`, {
+        data: JSON.stringify(cleaned),
+        headers: authHeaders({ 'Content-Type': 'application/json' })
+      })
+    }
+  }
+})

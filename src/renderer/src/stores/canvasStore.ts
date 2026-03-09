@@ -45,11 +45,12 @@ interface CanvasState {
   loadProfile: () => Promise<void>
   
   // 方法：节点操作
-  addNode: (conversation: Conversation, position?: NodePosition, explicitCategory?: string, memoryCount?: number) => Promise<void>
+  addNode: (conversation: Conversation, position?: NodePosition, explicitCategory?: string, memoryCount?: number, topicLabel?: string) => Promise<void>
   updateNodePosition: (id: string, x: number, y: number) => Promise<void>
   updateNodePositionInMemory: (id: string, x: number, y: number) => void
   removeNode: (id: string) => Promise<void>
   renameNode: (id: string, newTitle: string) => Promise<void>
+  mergeIntoNode: (targetNodeId: string, newConvId: string, newDate: string) => Promise<void>
   
   // 方法：连线操作
   updateEdges: () => void
@@ -151,6 +152,12 @@ interface CanvasState {
 
   // 批量重新分类
   reclassifyNodes: () => Promise<void>
+
+  // 节点时间线面板 UI 状态
+  timelineNodeId: string | null
+  isTimelineOpen: boolean
+  openNodeTimeline: (nodeId: string) => void
+  closeNodeTimeline: () => void
 }
 
 // 防止 completeOnboarding 并发重复执行
@@ -265,6 +272,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   apiKeyChecked: false,
   nodesLoaded: false,
   lastError: null,
+  timelineNodeId: null,
+  isTimelineOpen: false,
 
   setConversationHistory: (history) => set({ conversationHistory: history }),
   resetConversationHistory: () => set({ conversationHistory: [] }),
@@ -607,6 +616,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           console.warn('Re-categorize nodes failed:', e)
         }
 
+        // 补全 Phase-1 新字段（向后兼容历史节点）
+        nodes = nodes.map(n => ({
+          ...n,
+          conversationIds: n.conversationIds ?? [n.conversationId],
+          topicLabel: n.topicLabel ?? n.category ?? '其他',
+          firstDate: n.firstDate ?? n.date,
+        }))
+
         set({ nodes })
 
         // 加载语义边（持久化文件）
@@ -706,7 +723,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   // 添加节点（explicitCategory 由 endConversation 传入时优先使用，保证话题拆分分类正确）
-  addNode: async (conversation: Conversation, position?: NodePosition, explicitCategory?: string, memoryCount?: number) => {
+  addNode: async (conversation: Conversation, position?: NodePosition, explicitCategory?: string, memoryCount?: number, topicLabel?: string) => {
     const { nodes } = get()
 
     // 生成标题：截断文件内容块（FILE_BLOCK_PREFIX 截断法，避免正则被文件内容干扰）
@@ -888,7 +905,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       color,
       groupId: conversation.parentId ? nodes.find(n => n.id === conversation.parentId)?.groupId : undefined,
       memoryCount: memoryCount ?? 0,
-      files: (conversation.files || []).filter(f => !f.preview) // 非图片文件供 NodeCard 展示
+      files: (conversation.files || []).filter(f => !f.preview), // 非图片文件供 NodeCard 展示
+      conversationIds: [conversation.id],
+      topicLabel: topicLabel ?? category,
+      firstDate: new Date().toISOString().split('T')[0],
     }
 
     const existingIndex = nodes.findIndex(n => n.id === conversation.id)
@@ -1189,6 +1209,27 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     await storageService.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
   },
 
+  mergeIntoNode: async (targetNodeId: string, newConvId: string, newDate: string) => {
+    const { nodes } = get()
+    let changed = false
+    const updatedNodes = nodes.map(n => {
+      if (n.id !== targetNodeId) return n
+      const existingIds = n.conversationIds ?? [n.conversationId]
+      if (existingIds.includes(newConvId)) return n
+      changed = true
+      return {
+        ...n,
+        conversationId: newConvId,
+        conversationIds: [...existingIds, newConvId],
+        date: newDate,
+      }
+    })
+    if (!changed) return
+    set({ nodes: updatedNodes })
+    get().updateEdges()
+    await storageService.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
+  },
+
   // 开始对话 (增强：检测意图并智能分支)
   startConversation: async (userMessage: string, images?: string[], files?: import('@shared/types').FileAttachment[], parentId?: string) => {
     const { nodes, detectIntent, getRelevantMemories } = get()
@@ -1302,6 +1343,47 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const appliedMemories = (currentConversation as any)._appliedMemories as { conv: Conversation; category?: string; nodeId?: string }[] | undefined
     const appliedMemoryIds = appliedMemories?.map(m => m.conv.id) ?? []
 
+    /** 提取语义话题标签（不阻塞主流程） */
+    const extractTopicLabel = async (userMsg: string, assistantMsg: string): Promise<string | null> => {
+      try {
+        const resp = await authFetch('/api/memory/extract-topic', {
+          method: 'POST',
+          body: JSON.stringify({ userMessage: userMsg, assistantMessage: assistantMsg }),
+          signal: AbortSignal.timeout(5000)
+        })
+        if (resp.ok) {
+          const data = await resp.json() as { topic: string | null }
+          return data.topic || null
+        }
+      } catch { /* 降级 */ }
+      return null
+    }
+
+    /** 语义相似度检索：找最相似的已有节点（score ≥ 0.75 则合并） */
+    const MERGE_THRESHOLD = 0.75
+    const findMergeTarget = async (userMsg: string, assistantMsg: string, excludeConvId: string): Promise<string | null> => {
+      try {
+        const query = `${userMsg.slice(0, 300)} ${assistantMsg.slice(0, 200)}`
+        const resp = await authFetch('/api/memory/search', {
+          method: 'POST',
+          body: JSON.stringify({ query, topK: 3 }),
+          signal: AbortSignal.timeout(6000)
+        })
+        if (!resp.ok) return null
+        const data = await resp.json() as { results: { conversationId: string; score: number }[] }
+        // 找得分最高、且不属于本次新对话的结果
+        const best = data.results.find(r => r.conversationId !== excludeConvId && r.score >= MERGE_THRESHOLD)
+        if (!best) return null
+        const { nodes } = get()
+        const targetNode = nodes.find(n => {
+          const ids = n.conversationIds ?? [n.conversationId]
+          return ids.includes(best.conversationId)
+        })
+        return targetNode?.id ?? null
+      } catch { /* 降级 */ }
+      return null
+    }
+
     for (let i = 0; i < groups.length; i++) {
       const group = groups[i]
       const isFirst = i === 0
@@ -1321,7 +1403,22 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
       try {
         await appendConversation(conv)
-        await addNode(conv, undefined, group.category, isFirst ? appliedMemoryIds.length : 0)
+
+        // 提取语义话题标签（不阻塞主流程）
+        const topicLabel = await extractTopicLabel(group.user, group.ai)
+
+        // 若用户主动续话（有 parentId），直接合并；否则语义检索
+        const parentNodeId = isFirst ? currentConversation.parentId : currentConversation.id
+        let mergeTargetId: string | null = parentNodeId || null
+        if (!mergeTargetId) {
+          mergeTargetId = await findMergeTarget(group.user, group.ai, conv.id)
+        }
+
+        if (mergeTargetId) {
+          await get().mergeIntoNode(mergeTargetId, conv.id, conv.createdAt.split('T')[0])
+        } else {
+          await addNode(conv, undefined, group.category, isFirst ? appliedMemoryIds.length : 0, topicLabel ?? undefined)
+        }
       } catch (error) {
         console.error(`保存话题分组 ${i} 失败:`, error)
         if (isFirst) set({ lastError: '保存对话失败，请检查网络连接' })
@@ -1737,4 +1834,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       storageService.write(STORAGE_FILES.NODES, JSON.stringify(newNodes, null, 2)).catch(() => {})
     } catch { set({ lastError: '节点重分类失败，请稍后重试' }) }
   },
+
+  openNodeTimeline: (nodeId: string) => set({ timelineNodeId: nodeId, isTimelineOpen: true }),
+  closeNodeTimeline: () => set({ timelineNodeId: null, isTimelineOpen: false }),
 }))

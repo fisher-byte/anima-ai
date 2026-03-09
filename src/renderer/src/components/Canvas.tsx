@@ -21,6 +21,7 @@ import { useCanvasStore } from '../stores/canvasStore'
 import { useForceSimulation, type ForceSimulationAPI } from '../hooks/useForceSimulation'
 import { NodeCard } from './NodeCard'
 import { ImportMemoryModal } from './ImportMemoryModal'
+import { NodeTimelinePanel } from './NodeTimelinePanel'
 import { Edge } from './Edge'
 import { ConversationSidebar } from './ConversationSidebar'
 import { SearchPanel } from './SearchPanel'
@@ -156,6 +157,7 @@ export function Canvas() {
   const nodesLoaded = useCanvasStore(state => state.nodesLoaded)
   const lastError = useCanvasStore(state => state.lastError)
   const clearLastError = useCanvasStore(state => state.clearLastError)
+  const isTimelineOpen = useCanvasStore(state => state.isTimelineOpen)
 
   // 空画布欢迎语（个性化，当天缓存）
   const [welcomeText, setWelcomeText] = useState<string | null>(null)
@@ -1000,6 +1002,12 @@ export function Canvas() {
           />
         )}
       </AnimatePresence>
+
+      {/* 节点时间线面板 */}
+      <AnimatePresence>
+        {isTimelineOpen && <NodeTimelinePanel />}
+      </AnimatePresence>
+
       <ImportMemoryModal />
     </>
     </ForceSimContext.Provider>

@@ -32,6 +32,9 @@ export interface Node {
   capabilityData?: CapabilityData
   memoryCount?: number // 引用记忆数量（冗余自 Conversation，方便 NodeCard 直接读取）
   files?: FileAttachment[] // 附件列表（非图片文件，供 NodeCard 展示文件胶囊）
+  conversationIds?: string[]   // 所有关联对话 ID 列表（含 conversationId）
+  topicLabel?: string          // 语义话题标签，如「Python 学习」
+  firstDate?: string           // 最早一条对话的日期（时间线用）
 }
 
 /**

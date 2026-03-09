@@ -714,6 +714,42 @@ memoryRoutes.post('/classify', async (c) => {
   }
 })
 
+/** 语义话题标签提炼 */
+memoryRoutes.post('/extract-topic', async (c) => {
+  const db = userDb(c)
+  const { userMessage, assistantMessage } = await c.req.json<{
+    userMessage: string; assistantMessage: string
+  }>()
+  if (!userMessage?.trim()) return c.json({ topic: null })
+
+  const { apiKey, baseUrl } = getApiConfig(db)
+  if (!apiKey) return c.json({ topic: null })
+
+  const isMoonshot = baseUrl.includes('moonshot')
+  const model = isMoonshot ? 'moonshot-v1-8k' : 'gpt-4o-mini'
+  const text = `${userMessage.slice(0, 200)}\n${assistantMessage.slice(0, 200)}`
+  const prompt = `请用1-2个词（最多8个汉字）总结这段对话的核心话题。
+要求：具体个人化（如「Python学习」「和父母的关系」），不要用「学习成长」「工作事业」这类抽象分类词。
+只输出话题词，不要解释。
+
+对话内容：${text}`
+
+  try {
+    const resp = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], temperature: 0, max_tokens: 20 }),
+      signal: AbortSignal.timeout(5000)
+    })
+    if (!resp.ok) return c.json({ topic: null })
+    const data = await resp.json() as any
+    const raw = data.choices?.[0]?.message?.content?.trim() ?? null
+    return c.json({ topic: raw?.slice(0, 8) ?? null })
+  } catch {
+    return c.json({ topic: null })
+  }
+})
+
 /** 批量重新分类节点（修正历史分类错误） */
 memoryRoutes.post('/reclassify-nodes', async (c) => {
   const db = userDb(c)
