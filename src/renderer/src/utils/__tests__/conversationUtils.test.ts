@@ -31,6 +31,22 @@ function makeConv(user: string, assistant: string, id = 'c1'): Conversation {
   }
 }
 
+// ── helpers for time-tagged memories ────────────────────────────────────────
+
+function makeConvWithDate(user: string, assistant: string, createdAt: string, id = 'c1'): Conversation {
+  return {
+    id,
+    createdAt,
+    userMessage: user,
+    assistantMessage: assistant
+  }
+}
+
+function daysAgoISO(days: number): string {
+  const d = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+  return d.toISOString()
+}
+
 // ── compressMemoriesForPrompt ──────────────────────────────────────────────
 
 describe('compressMemoriesForPrompt', () => {
@@ -78,6 +94,53 @@ describe('compressMemoriesForPrompt', () => {
     expect(result).toContain('用户：q2')
     // double newline separator
     expect(result.split('\n\n').length).toBeGreaterThanOrEqual(2)
+  })
+
+  // ── relativeTime integration (via compressMemoriesForPrompt) ───────────────
+
+  it('prefixes memory from today with [今天]', () => {
+    const conv = makeConvWithDate('today question', 'answer', daysAgoISO(0))
+    const result = compressMemoriesForPrompt([{ conv }])
+    expect(result).toMatch(/^\[今天\]/)
+  })
+
+  it('prefixes memory from yesterday with [昨天]', () => {
+    const conv = makeConvWithDate('q', 'a', daysAgoISO(1))
+    const result = compressMemoriesForPrompt([{ conv }])
+    expect(result).toMatch(/^\[昨天\]/)
+  })
+
+  it('prefixes memory from 3 days ago with [3天前]', () => {
+    const conv = makeConvWithDate('q', 'a', daysAgoISO(3))
+    const result = compressMemoriesForPrompt([{ conv }])
+    expect(result).toMatch(/^\[3天前\]/)
+  })
+
+  it('prefixes memory from 7 days ago with [1周前]', () => {
+    const conv = makeConvWithDate('q', 'a', daysAgoISO(7))
+    const result = compressMemoriesForPrompt([{ conv }])
+    expect(result).toMatch(/^\[1周前\]/)
+  })
+
+  it('prefixes memory from 30 days ago with [1个月前]', () => {
+    const conv = makeConvWithDate('q', 'a', daysAgoISO(30))
+    const result = compressMemoriesForPrompt([{ conv }])
+    expect(result).toMatch(/^\[1个月前\]/)
+  })
+
+  it('prefixes memory from 365 days ago with [1年前]', () => {
+    const conv = makeConvWithDate('q', 'a', daysAgoISO(365))
+    const result = compressMemoriesForPrompt([{ conv }])
+    expect(result).toMatch(/^\[1年前\]/)
+  })
+
+  it('omits time prefix when createdAt is missing', () => {
+    // makeConv uses fixed createdAt '2026-01-01T00:00:00.000Z', which is far in the past
+    // but we explicitly test a conv without createdAt
+    const conv = { id: 'c1', userMessage: 'q', assistantMessage: 'a' } as Conversation
+    const result = compressMemoriesForPrompt([{ conv }])
+    // no [xxx] prefix at all
+    expect(result).not.toMatch(/^\[/)
   })
 })
 

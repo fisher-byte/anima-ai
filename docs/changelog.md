@@ -1,5 +1,33 @@
 # Anima 变更日志
 
+## [0.2.72] - 2026-03-09
+
+### feat: "被记住" 体验层 — 画布简化 + 记忆时间感知 + 主动通知 + NodeDetailPanel 完整重命名
+
+#### 核心改动
+
+| 模块 | 改动 | 对应需求 |
+|------|------|----------|
+| `Canvas.tsx` | 连线统一为 `rgba(255,255,255,0.15)` 单色，最多 3 条；strokeWidth 1 | FR-007 |
+| `NodeCard.tsx` | 左侧 accent 竖条从分类色改为 `rgba(0,0,0,0.08)`，去蓝色状态点 | FR-008/009 |
+| `AmbientBackground.tsx` | 移除分类驱动极光，仅保留 0.02 噪声纹理 | FR-009 |
+| `Canvas.tsx` | 点击画布背景自动退出话题聚焦状态 | Bug Fix |
+| `Canvas.tsx` | 空画布显示个性化欢迎文案（读心智模型，sessionStorage 缓存） | FR-003 |
+| `Canvas.tsx` | "我注意到了" 主动通知：深夜陪伴 / 周一早晨 / 偏好更新，7天冷却 | FR-004 |
+| `constants.ts` | `DEFAULT_SYSTEM_PROMPT` 追加记忆关联原则（时间感、自然引用、宁缺毋滥） | FR-001 |
+| `conversationUtils.ts` | `compressMemoriesForPrompt` 每条记忆加 `[今天]`/`[3天前]` 等时间前缀 | FR-001 |
+| `AnswerModal.tsx` | 对话框顶部显示 `已记住：{top preference}`；检测反馈触发词即时 Toast | FR-005/006 |
+| `canvasStore.ts` | 新增 `renameNode(id, newTitle)` action，乐观更新 + 持久化 | FR (NDP) |
+| `NodeDetailPanel.tsx` | 重命名功能补全（inline 输入框 + Enter/Esc/onBlur）；摘要用 keywords 展示 | FR (NDP) |
+
+#### 测试
+
+新增 7 个 `conversationUtils` 测试用例，覆盖 `relativeTime` 各边界（今天/昨天/3天/7天/30天/365天/无日期）。
+
+**测试总计：352/352 通过 · TS 零错误 · build 成功**
+
+---
+
 ## [0.2.71] - 2026-03-08
 
 ### fix(code-review): B2/B3/C1/C2/C3 全量 code review 修复 + 测试补全

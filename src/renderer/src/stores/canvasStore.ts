@@ -49,6 +49,7 @@ interface CanvasState {
   updateNodePosition: (id: string, x: number, y: number) => Promise<void>
   updateNodePositionInMemory: (id: string, x: number, y: number) => void
   removeNode: (id: string) => Promise<void>
+  renameNode: (id: string, newTitle: string) => Promise<void>
   
   // 方法：连线操作
   updateEdges: () => void
@@ -1179,6 +1180,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         .catch(() => {})
       historyService.deleteHistory(nodeToRemove.conversationId)
     }
+  },
+
+  renameNode: async (id: string, newTitle: string) => {
+    const { nodes } = get()
+    const updatedNodes = nodes.map(n => n.id === id ? { ...n, title: newTitle } : n)
+    set({ nodes: updatedNodes })
+    await storageService.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
   },
 
   // 开始对话 (增强：检测意图并智能分支)

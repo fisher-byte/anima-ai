@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
-import { X, MessageSquare, Edit, Trash2, Calendar, Tag } from 'lucide-react'
+import { X, MessageSquare, Edit, Trash2, Calendar, Tag, Check } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
-import { useMemo } from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 
 export function NodeDetailPanel() {
   const nodes = useCanvasStore(state => state.nodes)
@@ -9,10 +9,22 @@ export function NodeDetailPanel() {
   const selectNode = useCanvasStore(state => state.selectNode)
   const openModalById = useCanvasStore(state => state.openModalById)
   const removeNode = useCanvasStore(state => state.removeNode)
-  
-  const node = useMemo(() => 
-    nodes.find(n => n.id === selectedNodeId), 
+  const renameNode = useCanvasStore(state => state.renameNode)
+
+  const node = useMemo(() =>
+    nodes.find(n => n.id === selectedNodeId),
   [nodes, selectedNodeId])
+
+  const [isRenaming, setIsRenaming] = useState(false)
+  const [renameValue, setRenameValue] = useState('')
+  const renameInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (isRenaming && renameInputRef.current) {
+      renameInputRef.current.focus()
+      renameInputRef.current.select()
+    }
+  }, [isRenaming])
 
   if (!selectedNodeId || !node) return null
 
@@ -27,6 +39,32 @@ export function NodeDetailPanel() {
       selectNode(null)
     }
   }
+
+  const handleRenameStart = () => {
+    setRenameValue(node.title)
+    setIsRenaming(true)
+  }
+
+  const handleRenameConfirm = async () => {
+    const trimmed = renameValue.trim()
+    if (trimmed && trimmed !== node.title) {
+      await renameNode(node.id, trimmed)
+    }
+    setIsRenaming(false)
+  }
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleRenameConfirm()
+    if (e.key === 'Escape') setIsRenaming(false)
+  }
+
+  // 用关键词组成摘要提示（节点无独立 summary 字段，keywords 已是精华）
+  const summary = useMemo(() => {
+    if (node.keywords && node.keywords.length > 0) {
+      return node.keywords.join(' · ')
+    }
+    return null
+  }, [node.keywords])
 
   return (
     <motion.div
@@ -57,9 +95,29 @@ export function NodeDetailPanel() {
             {node.category || '未分类'}
           </span>
         </div>
-        <h2 className="text-xl font-bold text-gray-900 leading-tight line-clamp-2">
-          {node.title}
-        </h2>
+
+        {isRenaming ? (
+          <div className="flex items-center gap-2">
+            <input
+              ref={renameInputRef}
+              value={renameValue}
+              onChange={e => setRenameValue(e.target.value)}
+              onKeyDown={handleRenameKeyDown}
+              onBlur={handleRenameConfirm}
+              className="flex-1 text-lg font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 outline-none focus:border-gray-400"
+            />
+            <button
+              onClick={handleRenameConfirm}
+              className="p-1.5 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors"
+            >
+              <Check className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ) : (
+          <h2 className="text-xl font-bold text-gray-900 leading-tight line-clamp-2">
+            {node.title}
+          </h2>
+        )}
       </div>
 
       {/* Content */}
@@ -78,14 +136,12 @@ export function NodeDetailPanel() {
           ))}
         </div>
 
-        {/* Abstract / Summary (Placeholder for now, could be real content) */}
-        <div className="prose prose-sm prose-gray">
-          <p className="text-gray-600 leading-relaxed text-sm">
-            这是关于 <strong>{node.title}</strong> 的思维节点。
-            <br/>
-            包含 {node.keywords.length} 个关键词关联。
-          </p>
-        </div>
+        {/* 节点摘要 */}
+        {summary && (
+          <div className="text-sm text-gray-600 leading-relaxed">
+            {summary}
+          </div>
+        )}
 
         {/* Actions */}
         <div className="grid grid-cols-2 gap-3 pt-4 border-t border-gray-100">
@@ -96,13 +152,16 @@ export function NodeDetailPanel() {
             <MessageSquare className="w-4 h-4" />
             继续这个话题
           </button>
-          
-          <button className="flex items-center justify-center gap-2 py-2.5 bg-gray-50 text-gray-600 rounded-xl font-medium text-xs hover:bg-gray-100 border border-gray-100 transition-all">
+
+          <button
+            onClick={handleRenameStart}
+            className="flex items-center justify-center gap-2 py-2.5 bg-gray-50 text-gray-600 rounded-xl font-medium text-xs hover:bg-gray-100 border border-gray-100 transition-all"
+          >
             <Edit className="w-3.5 h-3.5" />
             重命名
           </button>
-          
-          <button 
+
+          <button
             onClick={handleDelete}
             className="flex items-center justify-center gap-2 py-2.5 bg-red-50 text-red-600 rounded-xl font-medium text-xs hover:bg-red-100 border border-red-100 transition-all"
           >

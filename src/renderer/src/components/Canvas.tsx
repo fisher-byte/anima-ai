@@ -69,21 +69,8 @@ function MemoryLines({
   const NODE_W = 208  // NodeCard w-52
   const NODE_H = 120  // 节点大致高度
 
-  /**
-   * 分类颜色映射：节点背景色极浅（用于卡片），线条需要更深更饱和的版本
-   * key = node.color（canvasStore 赋值），value = 对应的线条颜色
-   */
-  const CATEGORY_LINE_COLORS: Record<string, string> = {
-    'rgba(220, 252, 231, 0.9)': 'rgba(34,197,94,0.7)',    // 日常生活 → 绿
-    'rgba(254, 249, 195, 0.9)': 'rgba(202,138,4,0.7)',    // 日常事务 → 黄
-    'rgba(219, 234, 254, 0.9)': 'rgba(59,130,246,0.7)',   // 学习成长 → 蓝
-    'rgba(224, 242, 254, 0.9)': 'rgba(14,165,233,0.7)',   // 工作事业 → 天蓝
-    'rgba(255, 228, 230, 0.9)': 'rgba(244,63,94,0.7)',    // 情感关系 → 红
-    'rgba(243, 232, 255, 0.9)': 'rgba(168,85,247,0.7)',   // 思考世界 → 紫
-    'rgba(243, 244, 246, 0.9)': 'rgba(107,114,128,0.7)',  // 其他 → 灰
-    'rgba(237, 233, 254, 0.9)': 'rgba(139,92,246,0.7)',   // capability → 靛紫
-    'rgba(226, 232, 240, 0.9)': 'rgba(100,116,139,0.7)',  // onboarding → 蓝灰
-  }
+  // 极简：所有记忆引用线统一为单一极淡白色，不用颜色区分分类
+  const LINE_COLOR = 'rgba(255,255,255,0.15)'
 
   const lines = highlightedNodeIds
     .map(id => nodes.find(n => n.id === id))
@@ -93,13 +80,11 @@ function MemoryLines({
       const ny = node.y * scale + offset.y - vh
       const sx = nx + (NODE_W / 2) * scale
       const sy = ny + (NODE_H / 2) * scale
-      // 查精确映射表，找不到则降级为灰色
-      const rawColor = node.color?.trim() ?? ''
-      const lineColor = CATEGORY_LINE_COLORS[rawColor] ?? 'rgba(107,114,128,0.55)'
-      return { id: node.id, sx, sy, lineColor }
+      return { id: node.id, sx, sy }
     })
     // 节点中心必须在可视区内才画线，避免"悬空线"（留宽裕边距）
     .filter(({ sx, sy }) => sx >= -100 && sx <= vw + 100 && sy >= -100 && sy <= vh)
+    .slice(0, 3) // 最多显示 3 条，避免连线过多造成噪音
 
   if (lines.length === 0) return null
 
@@ -109,25 +94,25 @@ function MemoryLines({
       style={{ zIndex: 25 }}
     >
       <defs>
-        {lines.map(({ id, lineColor }) => (
+        {lines.map(({ id }) => (
           <marker key={`marker-${id}`} id={`mem-arrow-${id}`} markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
-            <circle cx="3" cy="3" r="2" fill={lineColor} />
+            <circle cx="3" cy="3" r="2" fill={LINE_COLOR} />
           </marker>
         ))}
       </defs>
-      {lines.map(({ id, sx, sy, lineColor }, i) => (
+      {lines.map(({ id, sx, sy }, i) => (
         <motion.path
           key={id}
           d={`M ${sx} ${sy} L ${targetX} ${targetY}`}
-          stroke={lineColor}
-          strokeWidth={1.5}
-          strokeDasharray="6 5"
+          stroke={LINE_COLOR}
+          strokeWidth={1}
+          strokeDasharray="4 6"
           fill="none"
           markerEnd={`url(#mem-arrow-${id})`}
           initial={{ pathLength: 0, opacity: 0 }}
           animate={{ pathLength: 1, opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.5, delay: i * 0.08, ease: 'easeOut' }}
+          transition={{ duration: 0.6, delay: i * 0.1, ease: 'easeOut' }}
         />
       ))}
     </svg>
@@ -171,6 +156,9 @@ export function Canvas() {
   const nodesLoaded = useCanvasStore(state => state.nodesLoaded)
   const lastError = useCanvasStore(state => state.lastError)
   const clearLastError = useCanvasStore(state => state.clearLastError)
+
+  // 空画布欢迎语（个性化，当天缓存）
+  const [welcomeText, setWelcomeText] = useState<string | null>(null)
   // actions 从 getState() 取，不订阅 store，不触发重渲染
   const setOffset = useCallback((o: {x:number;y:number}) => useCanvasStore.getState().setOffset(o), [])
   const setScale = useCallback((s: number) => useCanvasStore.getState().setScale(s), [])
@@ -423,6 +411,140 @@ export function Canvas() {
     })()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 空画布欢迎语：当天首次加载时，从心智模型生成个性化文案并缓存
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0]
+    const cacheKey = 'anima_welcome_text'
+    const cacheDateKey = 'anima_welcome_date'
+    const cachedDate = sessionStorage.getItem(cacheDateKey)
+    const cachedText = sessionStorage.getItem(cacheKey)
+
+    if (cachedDate === today && cachedText) {
+      setWelcomeText(cachedText)
+      return
+    }
+
+    ;(async () => {
+      try {
+        const token = getAuthToken()
+        const headers: Record<string, string> = {}
+        if (token) headers['Authorization'] = `Bearer ${token}`
+
+        // 尝试从心智模型取长期目标
+        const mmRes = await fetch('/api/memory/mental-model', { headers })
+        let text = '说点什么吧，我会记住的。'
+
+        if (mmRes.ok) {
+          const mmData = await mmRes.json() as { model?: Record<string, unknown> }
+          const goals = mmData.model?.['长期目标'] as string[] | undefined
+          const recent = mmData.model?.['近期关注'] as string[] | undefined
+
+          if (recent?.[0]) {
+            text = `最近你在关注「${recent[0].slice(0, 18)}」，今天有什么新想法？`
+          } else if (goals?.[0]) {
+            text = `你在努力实现「${goals[0].slice(0, 18)}」，今天走到哪一步了？`
+          }
+        }
+
+        sessionStorage.setItem(cacheKey, text)
+        sessionStorage.setItem(cacheDateKey, today)
+        setWelcomeText(text)
+      } catch {
+        setWelcomeText('说点什么吧，我会记住的。')
+      }
+    })()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // FR-004："我注意到了"通知 — 深夜/新偏好/周一三个触发场景，每类 7 天触发一次
+  useEffect(() => {
+    const NOTICE_COOLDOWN = 7 * 24 * 60 * 60 * 1000 // 7 天
+    const now = Date.now()
+    const hour = new Date().getHours()
+    const dayOfWeek = new Date().getDay() // 0=周日, 1=周一
+
+    const lastNoticeStr = sessionStorage.getItem('anima_notice_shown')
+    if (lastNoticeStr && now - parseInt(lastNoticeStr) < 60 * 1000) return // 60秒内不重复
+
+    ;(async () => {
+      try {
+        const token = getAuthToken()
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (token) headers['Authorization'] = `Bearer ${token}`
+
+        // 读取对话历史，分析模式
+        const storageRes = await fetch('/api/storage/read', {
+          method: 'POST', headers,
+          body: JSON.stringify({ filename: 'conversations.jsonl' })
+        })
+        if (!storageRes.ok) return
+
+        const { content } = await storageRes.json() as { content: string | null }
+        if (!content?.trim()) return
+
+        const lines = content.trim().split('\n').filter(Boolean)
+        const convs = lines.map(l => { try { return JSON.parse(l) as { createdAt?: string } } catch { return null } }).filter(Boolean) as { createdAt?: string }[]
+
+        // 场景1：深夜检测（当前 22:00+ 且最近 3 次对话都在 22:00 后）
+        const lateKey = 'anima_notice_late'
+        const lastLate = parseInt(localStorage.getItem(lateKey) || '0')
+        if (hour >= 22 && now - lastLate > NOTICE_COOLDOWN) {
+          const recentLate = convs.slice(-5).filter(c => {
+            const h = c.createdAt ? new Date(c.createdAt).getHours() : 0
+            return h >= 22 || h < 3
+          })
+          if (recentLate.length >= 3) {
+            localStorage.setItem(lateKey, String(now))
+            sessionStorage.setItem('anima_notice_shown', String(now))
+            toast.info('我注意到你最近经常在深夜聊天，还好吗？')
+            return
+          }
+        }
+
+        // 场景2：周一早上提醒（周一 6-11 点，且有上周的对话）
+        const mondayKey = 'anima_notice_monday'
+        const lastMonday = parseInt(localStorage.getItem(mondayKey) || '0')
+        if (dayOfWeek === 1 && hour >= 6 && hour <= 11 && now - lastMonday > NOTICE_COOLDOWN) {
+          const mmRes = await fetch('/api/memory/mental-model', { headers })
+          if (mmRes.ok) {
+            const mmData = await mmRes.json() as { model?: Record<string, unknown> }
+            const recent = mmData.model?.['近期关注'] as string[] | undefined
+            if (recent?.[0]) {
+              localStorage.setItem(mondayKey, String(now))
+              sessionStorage.setItem('anima_notice_shown', String(now))
+              toast.info(`新的一周，上周你在关注「${recent[0].slice(0, 20)}」，这周想继续吗？`)
+              return
+            }
+          }
+        }
+
+        // 场景3：偏好更新后首次对话提醒
+        const prefKey = 'anima_notice_pref'
+        const lastPref = parseInt(localStorage.getItem(prefKey) || '0')
+        if (now - lastPref > NOTICE_COOLDOWN) {
+          const agentPrefsRes = await fetch('/api/storage/read', {
+            method: 'POST', headers,
+            body: JSON.stringify({ filename: 'profile.json' })
+          })
+          if (agentPrefsRes.ok) {
+            const { content: profContent } = await agentPrefsRes.json() as { content: string | null }
+            if (profContent) {
+              const prof = JSON.parse(profContent) as { rules?: { preference: string; updatedAt: string }[] }
+              const recentRule = (prof.rules || [])
+                .filter(r => r.updatedAt && now - new Date(r.updatedAt).getTime() < 3 * 24 * 60 * 60 * 1000)
+                .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0]
+              if (recentRule) {
+                localStorage.setItem(prefKey, String(now))
+                sessionStorage.setItem('anima_notice_shown', String(now))
+                toast.info(`我记住了：${recentRule.preference}，今天会注意的。`)
+                return
+              }
+            }
+          }
+        }
+      } catch { /* 静默失败 */ }
+    })()
+  }, [toast]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // 惯性动画 — 直接操作 DOM，不 setState
   const startInertia = useCallback(() => {
     const damping = 0.95
@@ -513,6 +635,9 @@ export function Canvas() {
   // 拖拽 — 直接操作 DOM
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.target === canvasRef.current || (e.target as HTMLElement).classList.contains('dot-grid')) {
+      // 点击画布背景：清除话题聚焦状态
+      const { focusedCategory, setFocusedCategory } = useCanvasStore.getState()
+      if (focusedCategory !== null) setFocusedCategory(null)
       if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current)
       const { offset } = viewRef.current
       pendingOffsetRef.current = { ...offset }
@@ -827,13 +952,16 @@ export function Canvas() {
             ))}
 
             {/* empty state */}
-            {nodes.length === 0 && nodesLoaded && (
-              <div
+            {nodes.length === 0 && nodesLoaded && welcomeText && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 1.2, ease: 'easeOut' }}
                 style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
-                className="text-gray-300 text-sm select-none pointer-events-none whitespace-nowrap"
+                className="text-gray-300 text-sm select-none pointer-events-none whitespace-nowrap italic"
               >
-                画布空空如也，开始你的第一次对话吧
-              </div>
+                {welcomeText}
+              </motion.div>
             )}
           </div>
         </div>
