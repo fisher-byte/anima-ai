@@ -1,7 +1,7 @@
 # Anima — 项目计划
 
 > 唯一入口：每次发版、每次决策都在这里留记录。
-> 最后更新：2026-03-08 | 当前版本：v0.2.71
+> 最后更新：2026-03-09 | 当前版本：v0.2.74
 
 ---
 
@@ -87,6 +87,7 @@
 
 | 版本 | 日期 | 核心内容 |
 |------|------|----------|
+| v0.2.74 | 2026-03-09 | 多 token 登录 403 修复：鉴权对 token 做 trim；部署脚本支持 SYNC_ENV=1 同步 .env；服务器多 token 须配置 ACCESS_TOKENS |
 | v0.2.71 | 2026-03-08 | Code Review 修复：C3 token/TimelineView碰撞/focusedCategory重置/B2防卫；新增 46 测试（共 345） |
 | v0.2.70 | 2026-03-08 | C3 主动对话 — 距上次对话 >24h 时主动弹出 Toast 提醒 |
 | v0.2.69 | 2026-03-08 | C2 话题聚焦模式 — 点击 ClusterLabel 聚焦分类，其余节点淡出 |
@@ -141,6 +142,7 @@
 | TimelineView 同日期多节点叠在一起 | P1 | ✅ v0.2.71 动态行高 + 垂直堆叠 |
 | closeModal 未清空 focusedCategory | P2 | ✅ v0.2.71 closeModal + clearAllForOnboarding 同步清空 |
 | B2 updated_at Invalid Date 未防卫 | P2 | ✅ v0.2.71 isNaN 防卫 |
+| 多 token 服务器登录 403（.env 未同步 / token 首尾空格）| P1 | ✅ v0.2.74 鉴权 trim + 部署 SYNC_ENV 同步 .env |
 | persistCluster 逐个写文件（N 次 JSON 序列化）| P1 | ⏳ 待优化 |
 | flushToStore 未注册 beforeunload（关页面丢失偏移）| P2 | ⏳ 待修复 |
 | 力计算 O(N²) 未利用牛顿第三定律减半 | P2 | ⏳ 待优化（<60 节点暂无影响）|
@@ -163,3 +165,5 @@
 | 2026-03-08 | Layer 2.7 只取当前 conversationId 的直接边（top 5，confidence≥0.6）| 全量边注入 token 开销过大；直接边相关性最高，且受 CONTEXT_BUDGET 保护 |
 | 2026-03-08 | TimelineView contentLayer display:none 而非 unmount | 保留 force sim 状态，切换回画布视图时无需重初始化，消除回切闪烁 |
 | 2026-03-08 | C3 使用 sessionStorage 而非 localStorage | sessionStorage 让每次重新打开 App 都有机会看到主动提醒；localStorage 会永久屏蔽（违背产品设计意图） |
+| 2026-03-09 | 鉴权用请求 token 的 trim 结果比较 | 复制粘贴或 .env 换行导致首尾空格时不再 403；userId 以 trim 后 token 派生 |
+| 2026-03-09 | 部署脚本不打包 .env，可选 SYNC_ENV=1 同步 | 安全考虑默认不传 .env；多 token 时执行 SYNC_ENV=1 bash docs/scripts/deploy.sh 将本地 .env 上传并重启 |

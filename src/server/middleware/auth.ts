@@ -42,12 +42,12 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
-  const token = authHeader.slice(7)
+  const tokenRaw = authHeader.slice(7)
+  const token = tokenRaw.trim()
 
-  // Check against all allowed tokens using timing-safe comparison
+  // Check against all allowed tokens using timing-safe comparison (compare trimmed values so env/paste whitespace does not cause 403)
   let matched = false
   const tokenBuf = Buffer.from(token)
-
   for (const allowed of allowedTokens) {
     const allowedBuf = Buffer.from(allowed)
     const sameLength = tokenBuf.length === allowedBuf.length

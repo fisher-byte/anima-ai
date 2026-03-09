@@ -48,7 +48,7 @@ import {
   buildAIHistory,
 } from '../utils/conversationUtils'
 import { getAuthToken } from '../services/storageService'
-import { FEEDBACK_TRIGGERS } from '@shared/constants'
+import { FEEDBACK_TRIGGERS, LENNY_SYSTEM_PROMPT } from '@shared/constants'
 import {
   UserMessageContent,
   ClosingAnimation,
@@ -95,6 +95,7 @@ export function AnswerModal() {
   const canvasNodes = useCanvasStore(state => state.nodes)
   const onboardingResumeTurns = useCanvasStore(state => state.onboardingResumeTurns)
   const saveOnboardingTurns = useCanvasStore(state => state.saveOnboardingTurns)
+  const isLennyMode = useCanvasStore(state => state.isLennyMode)
 
   const [turns, setTurns] = useState<Turn[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
@@ -502,7 +503,7 @@ export function AnswerModal() {
     if ((!trimmed && !hasImages && !hasFiles && !hasRefs) || isStreaming) return
 
     // ── 调研前澄清：规则触发 ──────────────────────────────────────────────
-    // 满足：含调研关键词 + 无明确对象（无专有名词/引号/数字/英文词）+ 非引导模式
+    // 满足：含调研关键词 + 无明确对象（无专有名词/引号/数字/英文词）+ 非引导模式 + 非 lenny 模式
     const RESEARCH_KEYWORDS = ['调研', '研究', '深度分析', '深入分析', '帮我查', '帮我搜', '查一下', '搜一下', '了解一下', '分析一下']
     const hasResearchKw = RESEARCH_KEYWORDS.some(kw => trimmed.includes(kw))
     // 有明确对象的特征：含引号、数字年份、英文单词、或比较长且有具体名词
@@ -510,7 +511,7 @@ export function AnswerModal() {
       /\d{4}/.test(trimmed) ||                                        // 年份数字
       /[a-zA-Z]{3,}/.test(trimmed) ||                                 // 英文词（产品名等）
       trimmed.length > 20                                             // 超过 20 字视为已足够具体
-    if (!isOnboardingMode && hasResearchKw && !hasConcreteTarget && !clarifyPending) {
+    if (!isOnboardingMode && !isLennyMode && hasResearchKw && !hasConcreteTarget && !clarifyPending) {
       setClarifyPending(trimmed)
       return
     }
@@ -526,8 +527,9 @@ export function AnswerModal() {
 
     // 偏好检测改走后端 Agent（fire-and-forget），不再前端关键词判断
     // 注意：新手引导 phase2 在下方有专用的 extract_preference 调用（使用更准确的 assistant 上下文），此处跳过避免重复
+    // Lenny 模式：不提取用户偏好（Lenny 对话不影响用户画像）
     const isOnboardingPhase2 = isOnboardingMode && onboardingPhaseRef.current === 2
-    if (trimmed.length >= 5 && !isOnboardingPhase2) {
+    if (trimmed.length >= 5 && !isOnboardingPhase2 && !isLennyMode) {
       const lastAssistant = turns.length > 0 ? (turns[turns.length - 1].assistant || '') : ''
       authFetch('/api/memory/queue', {
         method: 'POST',
@@ -651,14 +653,19 @@ export function AnswerModal() {
 
     setIsStreaming(true)
 
-    const memories = await getRelevantMemories(trimmed)
-    const category = memories[0]?.category ?? null
-    const highlightedNodeIds = memories
-      .map(m => m.nodeId ?? m.conv.id)
-      .filter((id): id is string => id != null)
-    setHighlight(category, highlightedNodeIds)
-    if (highlightedNodeIds.length > 0) focusNode(highlightedNodeIds[0])
-    const compressed = compressMemoriesForPrompt(memories)
+    // Lenny 模式：跳过用户记忆检索，不高亮节点，直接用 Lenny 记忆（存在 lenny-conversations.jsonl）
+    let memories: Awaited<ReturnType<typeof getRelevantMemories>> = []
+    let compressed: string | undefined
+    if (!isLennyMode) {
+      memories = await getRelevantMemories(trimmed)
+      const category = memories[0]?.category ?? null
+      const highlightedNodeIds = memories
+        .map(m => m.nodeId ?? m.conv.id)
+        .filter((id): id is string => id != null)
+      setHighlight(category, highlightedNodeIds)
+      if (highlightedNodeIds.length > 0) focusNode(highlightedNodeIds[0])
+      compressed = compressMemoriesForPrompt(memories)
+    }
 
     let fullMessage = fullTrimmed
     if (hasFiles) {
@@ -679,10 +686,15 @@ export function AnswerModal() {
     }
     setTurns(prev => [...prev, currentTurn])
 
-    const preferences = getPreferencesForPrompt()
+    const preferences = isLennyMode ? [] : getPreferencesForPrompt()
     didMutateRef.current = true
-    sendMessage(fullMessage, preferences, history, pendingImages, compressed, isOnboardingMode, isOnboardingMode ? undefined : currentConversation?.id)
-  }, [feedbackMessage, pendingImages, pendingFiles, pendingReferenceBlocks, isStreaming, isOnboardingMode,
+    // Lenny 模式：传 systemPromptOverride，不传 isOnboarding，不传 conversationId（避免写用户历史）
+    if (isLennyMode) {
+      sendMessage(fullMessage, preferences, history, pendingImages, undefined, false, undefined, LENNY_SYSTEM_PROMPT)
+    } else {
+      sendMessage(fullMessage, preferences, history, pendingImages, compressed, isOnboardingMode, isOnboardingMode ? undefined : currentConversation?.id)
+    }
+  }, [feedbackMessage, pendingImages, pendingFiles, pendingReferenceBlocks, isStreaming, isOnboardingMode, isLennyMode,
       getPreferencesForPrompt, sendMessage, turns, getRelevantMemories, setHighlight, focusNode])
 
   // ── 关闭并保存 ────────────────────────────────────────────────────────────
@@ -720,13 +732,16 @@ export function AnswerModal() {
     const onboardingInProgress = isOnboardingMode && onboardingPhaseRef.current >= 2 && !onboardingCompleted
     // 在 setTimeout 之前拍一个快照，避免被后续 setTurns([]) 影响
     const savedTurns = [...turns]
+    // P2-4: 提前捕获 isLennyMode，防止 closeLennyMode 先于 endConversation 把 isLennyMode 改为 false
+    const wasLennyMode = isLennyMode
 
     setIsClosing(true)
     // A-5: 关闭时主动清理 onboarding 流式定时器，防止资源泄漏
     if (onboardingStreamTimerRef.current) clearTimeout(onboardingStreamTimerRef.current)
     if (onboardingStreamTimerRef2.current) clearTimeout(onboardingStreamTimerRef2.current)
     if (onboardingStreamTimerRef3.current) clearTimeout(onboardingStreamTimerRef3.current)
-    setTimeout(() => {
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises
+    setTimeout(async () => {
       setIsClosing(false)
       setTurns([])
       setErrorMessage(null)
@@ -734,10 +749,10 @@ export function AnswerModal() {
       setAppliedPreferences([])
       setShowXPulse(false)
       setOnboardingDone(false)
-      closeModal()
 
       if (onboardingCompleted) {
         // 引导全量完成：将每段真实对话独立保存为节点
+        closeModal()
         const realTurns = savedTurns.filter(t =>
           t.user?.trim() && !t.assistant?.includes('✦ 进化基因已记录')
         )
@@ -760,6 +775,7 @@ export function AnswerModal() {
         setTimeout(() => setShowOnboardingComplete(true), 600)
       } else if (onboardingInProgress) {
         // 引导未完成：保存已有对话到 localStorage，不创建节点
+        closeModal()
         const realTurns = savedTurns.filter(t => t.user?.trim())
         if (realTurns.length > 0) {
           saveOnboardingTurns(savedTurns)
@@ -770,7 +786,18 @@ export function AnswerModal() {
         if (!hasOnboarding) void addCapabilityNode('onboarding')
         const hasImportMemory = useCanvasStore.getState().nodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
         if (!hasImportMemory) void addCapabilityNode('import-memory')
+      } else if (wasLennyMode) {
+        // P0-1: Lenny 模式：先 await endConversation 写入 lenny-nodes.json，再 closeModal
+        // 这样 LennySpaceCanvas 的节点重载 effect 触发时文件已经写完，新节点可以出现
+        // P0-2: 用最后一轮的干净 assistant 内容，不用多轮拼接格式
+        if (shouldSave && conversationSnapshot && conversationSnapshot.userMessage) {
+          const lastAssistant = savedTurns.length > 0 ? (savedTurns[savedTurns.length - 1].assistant || '') : ''
+          await endConversation(lastAssistant, [], lastReasoning, conversationSnapshot)
+            .catch(err => console.error('Lenny 保存失败:', err))
+        }
+        closeModal()
       } else {
+        closeModal()
         if (shouldSave && conversationSnapshot && conversationSnapshot.userMessage) {
           endConversation(finalResponse, savedAppliedPreferences, lastReasoning, conversationSnapshot)
             .catch(err => console.error('后台保存对话失败:', err))
@@ -784,7 +811,7 @@ export function AnswerModal() {
         }
       }
     }, 500)
-  }, [isClosing, turns, errorMessage, isStreaming, currentConversation, isOnboardingMode,
+  }, [isClosing, turns, errorMessage, isStreaming, currentConversation, isOnboardingMode, isLennyMode,
       endConversation, closeModal, appliedPreferences, completeOnboarding, addCapabilityNode, canvasNodes, saveOnboardingTurns])
 
   // ESC 关闭

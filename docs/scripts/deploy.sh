@@ -1,6 +1,7 @@
 #!/bin/bash
-# deploy.sh — Evocanvas 一键部署到生产服务器
+# deploy.sh — Anima/Evocanvas 一键部署到生产服务器
 # 用法：bash docs/scripts/deploy.sh
+# 多 token 时同步 .env：SYNC_ENV=1 bash docs/scripts/deploy.sh
 # 需要 sshpass（brew install sshpass）或手动输入密码
 
 set -e
@@ -48,6 +49,22 @@ if [ "$STATUS" = "200" ]; then
   echo "✓ 部署成功！访问: http://101.32.215.209:3001"
 else
   echo "⚠ 服务可能需要几秒启动，请手动检查: pm2 logs evocanvas"
+fi
+
+# 可选：同步本地 .env 到服务器（多 token 登录 403 时必须同步 ACCESS_TOKENS）
+if [ -n "${SYNC_ENV}" ] && [ "${SYNC_ENV}" != "0" ]; then
+  echo "=== [可选] 同步 .env 到服务器 ==="
+  if [ ! -f .env ]; then
+    echo "⚠ 本地无 .env，跳过"
+  else
+    scp -o StrictHostKeyChecking=no .env "${SERVER}:${REMOTE_DIR}/.env"
+    ssh -o StrictHostKeyChecking=no "$SERVER" "cd ${REMOTE_DIR} && pm2 restart evocanvas"
+    echo "✓ .env 已同步并已重启 evocanvas"
+  fi
+else
+  echo ""
+  echo "提示：若多 token 登录仍 403，请同步 .env 后重启："
+  echo "  SYNC_ENV=1 bash docs/scripts/deploy.sh   # 或手动: scp .env ${SERVER}:${REMOTE_DIR}/.env && ssh ${SERVER} 'pm2 restart evocanvas'"
 fi
 
 rm -f "$TMP_TAR"
