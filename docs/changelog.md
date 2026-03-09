@@ -1,5 +1,35 @@
 # Anima 变更日志
 
+## [0.2.75] - 2026-03-09
+
+### feat: Lenny Space 升级为沉浸式记忆画布
+
+#### 背景
+
+Lenny Space 原为简单聊天弹窗（LennySpaceModal）。本版本将其重构为与个人空间体验完全一致的沉浸式画布：节点来自真实 Lenny Podcast episode，有星云布局，画布可交互，对话后生成新节点并持久化，每个用户独立存储。
+
+#### 核心改动
+
+| 模块 | 改动 |
+|------|------|
+| `src/shared/constants.ts` | `STORAGE_FILES` 和 `ALLOWED_FILENAMES` 新增 `lenny-nodes.json` / `lenny-conversations.jsonl` / `lenny-edges.json` |
+| `src/shared/lennyData.ts` | **新建**：15 个来自真实 Lenny Podcast 的 episode 种子节点 + 10 条逻辑边（Brian Chesky、Shreyas Doshi、Julie Zhuo、Sean Ellis 等） |
+| `src/renderer/src/components/LennySpaceCanvas.tsx` | **新建（529 行）**：完整沉浸式深色画布，复用 Canvas.tsx 的全套交互逻辑（平移/惯性/滚轮缩放/节点拖拽），底部对话区 SSE 流式输出，对话后自动生成节点并持久化 |
+| `src/renderer/src/components/Canvas.tsx` | 2 行改动：将 `LennySpaceModal` import/JSX 替换为 `LennySpaceCanvas` |
+| `e2e/features.spec.ts` | 追加 E2E 测试 34（Lenny Space 按钮可见性）、35（lenny-nodes.json 白名单校验） |
+
+#### 多用户隔离
+
+- Lenny Space 数据（节点/对话/边）存储在各自账户的独立 `lenny-nodes.json` 中
+- 服务端按 token hash 路由到各用户 SQLite 目录，天然隔离
+- 不污染用户个人的 `nodes.json` / `conversations.jsonl`
+
+#### 种子节点策略
+
+- 首次进入时（`lenny-nodes.json` 为空），自动初始化 15 个真实 episode 节点
+- 每次对话结束后自动生成新节点（标题来自用户输入，关键词从 AI 回复词频提取）
+- 节点坐标用 `findOpenPosition` 算法在现有节点旁找空位（最小间距 280px）
+
 ## [0.2.74] - 2026-03-09
 
 ### feat: 历史节点回溯合并 (Retroactive Node Consolidation)
@@ -36,6 +66,14 @@ v0.2.73 已实现"新对话语义合并"，但历史数据仍是碎片状态（1
 | `src/server/routes/memory.ts` | rebuild-node-graph SQL 查错表名/字段：`memories.embedding` → `embeddings.vector` |
 | `src/renderer/src/components/Canvas.tsx` | C3/FR-004 中 3 处 `POST /api/storage/read`（不存在）→ `GET /api/storage/:filename` |
 | `src/renderer/src/stores/canvasStore.ts` | `conversationIds` 构造加 undefined guard，过滤空数组节点 |
+
+### fix: 多 token 登录 403 + 部署 .env 同步 (patch2)
+
+| 模块 | 改动 |
+|------|------|
+| `src/server/middleware/auth.ts` | 鉴权时用请求头中 token 的 **trim 结果**与 `ACCESS_TOKENS` 比较并派生 userId，避免复制粘贴或 .env 换行导致首尾空格引发 403 |
+| `docs/scripts/deploy.sh` | 新增可选步骤：环境变量 `SYNC_ENV=1` 时在部署结束后将本地 `.env` 上传到服务器并执行 `pm2 restart evocanvas`；脚本默认不打包 `.env`，多 token 时需同步 |
+| `docs/deployment-server.md` | 补充「多用户/多 token」说明（ACCESS_TOKENS、trim）；新增「部署与 .env 同步」小节（SYNC_ENV 用法、手动 scp 方式） |
 
 ## [0.2.73] - 2026-03-09
 

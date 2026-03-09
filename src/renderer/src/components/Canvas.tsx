@@ -16,7 +16,7 @@
  */
 import { useState, useRef, useCallback, useMemo, useEffect, createContext } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit, Sparkles, Clock, GitMerge } from 'lucide-react'
+import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit, Sparkles, Clock, GitMerge, Mic } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useForceSimulation, type ForceSimulationAPI } from '../hooks/useForceSimulation'
 import { NodeCard } from './NodeCard'
@@ -26,6 +26,7 @@ import { Edge } from './Edge'
 import { ConversationSidebar } from './ConversationSidebar'
 import { SearchPanel } from './SearchPanel'
 import { SettingsModal } from './SettingsModal'
+import { LennySpaceCanvas } from './LennySpaceCanvas'
 
 import { AmbientBackground } from './AmbientBackground'
 import { ClusterLabel } from './ClusterLabel'
@@ -345,6 +346,7 @@ export function Canvas() {
   const [hasNewEvolution, setHasNewEvolution] = useState(false)
   const [viewMode, setViewMode] = useState<'free' | 'timeline'>('free')
   const [showMergeBanner, setShowMergeBanner] = useState(false)
+  const [isLennySpaceOpen, setIsLennySpaceOpen] = useState(false)
   const prevNodeCountRef = useRef(0)
 
   // 节点数量增加时亮起进化红点；初始加载检测重叠后自动 kick
@@ -895,6 +897,16 @@ export function Canvas() {
         </div>
       )}
 
+      {/* Lenny Space 入口按钮 */}
+      <button
+        onClick={() => setIsLennySpaceOpen(true)}
+        className="fixed left-4 bottom-40 z-30 flex items-center gap-2 px-3 py-2.5 bg-gradient-to-r from-amber-500/90 to-orange-500/90 backdrop-blur-md rounded-2xl shadow-lg hover:shadow-xl hover:from-amber-400/90 hover:to-orange-400/90 transition-all border border-amber-400/30 text-white group"
+        title="Lenny Space — 体验公开记忆空间"
+      >
+        <Mic className="w-4 h-4 shrink-0" />
+        <span className="text-xs font-medium whitespace-nowrap">Lenny Space</span>
+      </button>
+
       <AmbientBackground />
 
       {/* 画布：外层做模糊/缩放效果，纯 CSS transition，不用 Framer Motion 避免持续动画上下文 */}
@@ -1015,6 +1027,10 @@ export function Canvas() {
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+      />
+      <LennySpaceCanvas
+        isOpen={isLennySpaceOpen}
+        onClose={() => setIsLennySpaceOpen(false)}
       />
 
       {/* 记忆引用连线 overlay：高亮节点 → 输入框 */}

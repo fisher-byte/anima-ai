@@ -36,6 +36,10 @@
  *   31. POST /api/memory/rebuild-node-graph 无数据时返回 reason 字段
  *   32. Canvas 汉堡菜单展开后可见"整理相似节点"按钮
  *   33. 注入 2 个相似节点 + embeddings 后，触发 rebuild，节点数减少 1
+ *
+ * Lenny Space 沉浸式画布 (v0.2.75)
+ *   34. "Lenny Space" 入口按钮在 Canvas 左侧可见
+ *   35. GET /api/storage/lenny-nodes.json 接口通过白名单校验（不返回 400）
  */
 
 import { test, expect } from '@playwright/test'
@@ -717,4 +721,31 @@ test('注入 2 个相似节点 + embeddings，rebuild 后节点数减少 1', asy
       expect(finalNodes.length).toBeLessThanOrEqual(initialCount + 1)
     }
   }
+})
+
+// ── 测试 34：Lenny Space 入口按钮在 Canvas 可见 (v0.2.75) ────────────────────
+
+test('Canvas 左侧"Lenny Space"按钮可见', async ({ page }) => {
+  await injectToken(page)
+  await page.goto(`${API_BASE}/`)
+  await waitForBackend(page)
+  await page.waitForTimeout(1500)
+
+  // Lenny Space 按钮通过 title 定位
+  const lennyBtn = page.locator('button[title*="Lenny Space"]').or(page.getByText('Lenny Space')).first()
+  await expect(lennyBtn).toBeVisible({ timeout: 6000 })
+})
+
+// ── 测试 35：lenny-nodes.json 存储接口通过白名单（不返回 400）(v0.2.75) ──────
+
+test('GET /api/storage/lenny-nodes.json 通过文件名白名单，不返回 400', async ({ request }) => {
+  const resp = await request.get(`${API_BASE}/api/storage/lenny-nodes.json`, {
+    headers: authHeaders()
+  })
+  // 白名单合法文件名，不应返回 400（Invalid filename）
+  expect(resp.status()).not.toBe(400)
+  // 不应 500
+  expect(resp.status()).toBeLessThan(500)
+  // 合法响应：200（有数据）或 404（用户首次，文件尚未创建）均可接受
+  expect([200, 404]).toContain(resp.status())
 })
