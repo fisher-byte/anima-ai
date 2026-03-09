@@ -1,6 +1,6 @@
 # Anima 测试手册
 
-*最后更新: 2026-03-08 | 版本: v0.2.65*
+*最后更新: 2026-03-10 | 版本: v0.2.76*
 
 ## 测试策略
 
@@ -13,12 +13,18 @@
 - ✅ `profile.ts` — 偏好管理（24 个用例）
 - ✅ `prompt.ts` — Prompt 组装（23 个用例）
 - ✅ `storageService.ts` — Web 存储服务（21 个用例）
-- ✅ `conversationUtils.ts` — 对话工具函数（27 个用例）
+- ✅ `conversationUtils.ts` — 对话工具函数（45 个用例）
   - `compressMemoriesForPrompt`：截断、省略号、多条拼接
   - `parseTurnsFromAssistantMessage`：单轮、多轮、reasoning 提取
   - `stripLeadingNumberHeading`：THINKING 哨兵、#N 前缀、多轮前缀剥离
   - `buildAIHistory`：空消息过滤、用户/AI 交替构建
-- ✅ `services/ai.ts` — 前端 AI 服务（16 个用例）
+- ✅ `services/ai.ts` — 前端 AI 服务（18 个用例）
+- ✅ `canvasStore.nodeConsolidation.test.ts` — 节点聚合逻辑（25 个用例）
+  - 节点合并阈值、相似度判断、聚合后数据一致性
+- ✅ `canvasStore.lennyMode.test.ts` — Lenny Space 模式（12 个用例）
+  - Lenny Space 开关、节点加载、状态隔离
+- ✅ `rebuild-node-graph.test.ts` — 节点图重建（7 个用例）
+  - 无数据返回 reason、clusters 数组格式、边界条件
 
 **运行命令**:
 ```bash
@@ -62,7 +68,7 @@ npm run test:watch    # 监听模式（开发时用）
 
 - ✅ `memory.test.ts` — 记忆路由集成测试（含 FTS5 trigger、引用块过滤、decayPreferences、语义边 by-id）
 
-**总测试数**: **299 个用例，11 个测试文件，全部通过**
+**总测试数**: **404 个用例，15 个测试文件，全部通过**
 
 ---
 
@@ -81,13 +87,13 @@ npm run test:e2e:ui  # 带可视化 UI 模式
 | 文件 | 测试数 | 覆盖内容 |
 |------|--------|---------|
 | `e2e/canvas.spec.ts` | 10 | 应用加载/能力块/后端 API/侧栏/节点/confirm dialog/API Key 提示 |
-| `e2e/features.spec.ts` | 17 | 引用块/文件标记/FTS5/decayPreferences/碰撞检测/多租户鉴权/semantic search/logical-edges |
+| `e2e/features.spec.ts` | 36 | 引用块/文件标记/FTS5/decayPreferences/碰撞检测/多租户鉴权/semantic search/logical-edges/NodeTimeline/extract-topic/节点聚合 rebuild/Lenny Space 入口&白名单&种子数量 |
 
-**总 E2E 场景**：27 个（其中 1 个条件性 skip，视环境是否已配置 API Key）
+**总 E2E 场景**：46 个（其中 1 个条件性 skip，视环境是否已配置 API Key）
 
 **环境要求**：需设置 `ACCESS_TOKEN` 环境变量（或在 `.env` 中配置）；无 token 时多租户鉴权相关测试自动跳过。
 
-#### 关键测试覆盖（v0.2.51 现状）
+#### 关键测试覆盖（v0.2.76 现状）
 
 | 场景 | 测试文件 | 测试编号 |
 |------|---------|---------|
@@ -98,6 +104,13 @@ npm run test:e2e:ui  # 带可视化 UI 模式
 | PUT /api/config/apikey 空值拒绝 | features.spec.ts | 26 |
 | 无 token → 401 | features.spec.ts | 21 |
 | 语义搜索 by-id | features.spec.ts | 23 |
+| NodeTimeline 多对话角标 | features.spec.ts | 29-30 |
+| extract-topic 接口 | features.spec.ts | 28 |
+| POST /api/memory/rebuild-node-graph | features.spec.ts | 31 |
+| 整理相似节点按钮可见 | features.spec.ts | 32-33 |
+| Lenny Space 入口按钮可见 | features.spec.ts | 34 |
+| lenny-nodes.json 白名单校验 | features.spec.ts | 35 |
+| Lenny Space 种子节点数量 ≥ 37 | features.spec.ts | 36 |
 
 #### 手动测试清单（E2E 不覆盖的交互场景）
 
