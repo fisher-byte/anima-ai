@@ -205,7 +205,7 @@ export const LENNY_SEED_EDGES: Edge[] = [
     target: 'lenny-seed-chesky-playbook',
     edgeType: 'logical',
     relation: '启发了',
-    createdAt: new Date().toISOString(),
+    createdAt: '2024-01-01T00:00:00.000Z',
     confidence: 0.8,
   },
   {
@@ -214,7 +214,7 @@ export const LENNY_SEED_EDGES: Edge[] = [
     target: 'lenny-seed-casey-winters-growth',
     edgeType: 'logical',
     relation: '深化了',
-    createdAt: new Date().toISOString(),
+    createdAt: '2024-01-01T00:00:00.000Z',
     confidence: 0.85,
   },
   {
@@ -223,7 +223,7 @@ export const LENNY_SEED_EDGES: Edge[] = [
     target: 'lenny-seed-elena-verna-plg',
     edgeType: 'logical',
     relation: '依赖于',
-    createdAt: new Date().toISOString(),
+    createdAt: '2024-01-01T00:00:00.000Z',
     confidence: 0.82,
   },
   {
@@ -232,7 +232,7 @@ export const LENNY_SEED_EDGES: Edge[] = [
     target: 'lenny-seed-shreyas-influence',
     edgeType: 'logical',
     relation: '深化了',
-    createdAt: new Date().toISOString(),
+    createdAt: '2024-01-01T00:00:00.000Z',
     confidence: 0.9,
   },
   {
@@ -241,7 +241,7 @@ export const LENNY_SEED_EDGES: Edge[] = [
     target: 'lenny-seed-marty-cagan-empowered',
     edgeType: 'logical',
     relation: '启发了',
-    createdAt: new Date().toISOString(),
+    createdAt: '2024-01-01T00:00:00.000Z',
     confidence: 0.78,
   },
   {
@@ -250,7 +250,7 @@ export const LENNY_SEED_EDGES: Edge[] = [
     target: 'lenny-seed-madhavan-pricing',
     edgeType: 'logical',
     relation: '深化了',
-    createdAt: new Date().toISOString(),
+    createdAt: '2024-01-01T00:00:00.000Z',
     confidence: 0.83,
   },
   {
@@ -259,7 +259,7 @@ export const LENNY_SEED_EDGES: Edge[] = [
     target: 'lenny-seed-nikita-bier-virality',
     edgeType: 'logical',
     relation: '启发了',
-    createdAt: new Date().toISOString(),
+    createdAt: '2024-01-01T00:00:00.000Z',
     confidence: 0.77,
   },
   {
@@ -268,7 +268,7 @@ export const LENNY_SEED_EDGES: Edge[] = [
     target: 'lenny-seed-kim-scott-radical',
     edgeType: 'logical',
     relation: '启发了',
-    createdAt: new Date().toISOString(),
+    createdAt: '2024-01-01T00:00:00.000Z',
     confidence: 0.75,
   },
   {
@@ -277,7 +277,7 @@ export const LENNY_SEED_EDGES: Edge[] = [
     target: 'lenny-seed-gokul-metrics',
     edgeType: 'logical',
     relation: '依赖于',
-    createdAt: new Date().toISOString(),
+    createdAt: '2024-01-01T00:00:00.000Z',
     confidence: 0.8,
   },
   {
@@ -286,7 +286,7 @@ export const LENNY_SEED_EDGES: Edge[] = [
     target: 'lenny-seed-pmf-sean-ellis',
     edgeType: 'logical',
     relation: '启发了',
-    createdAt: new Date().toISOString(),
+    createdAt: '2024-01-01T00:00:00.000Z',
     confidence: 0.76,
   },
 ]

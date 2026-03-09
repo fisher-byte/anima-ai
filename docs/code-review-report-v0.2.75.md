@@ -154,6 +154,16 @@ const { x, y } = findOpenPosition(nodes, centerX, centerY)
 
 ---
 
+## 已修复（post-review）
+
+| 问题 | 修复方式 |
+|------|----------|
+| `LENNY_SEED_EDGES` 中 `createdAt: new Date().toISOString()` 每次模块加载时产生动态时间戳，导致种子数据不一致 | 全部 10 条边改为固定值 `'2024-01-01T00:00:00.000Z'` |
+
+修复后 `npx vitest run` 全绿（15 files, 404 tests）。
+
+---
+
 ## 结论
 
 代码质量良好。两个轻微问题（scale 滞后、findOpenPosition fallback）均在当前使用场景可接受，标记为后续优化项。全部测试通过，可以上线。

@@ -234,3 +234,52 @@ describe('callAI', () => {
     expect(result.error).toBe('网络连接中断，请检查网络后重试')
   })
 })
+
+// ── streamAI — systemPromptOverride ───────────────────────────────────────────
+
+describe('streamAI — systemPromptOverride', () => {
+  beforeEach(() => {
+    mockFetch.mockReset()
+  })
+
+  it('passes systemPromptOverride in fetch body when provided', async () => {
+    let capturedBody: string | null = null
+    mockFetch.mockImplementationOnce((_url: string, init?: RequestInit) => {
+      capturedBody = init?.body as string ?? null
+      return Promise.resolve(mockSseResponse([
+        'data: {"type":"content","content":"hi"}\n\n',
+        'data: {"type":"done","fullText":"hi"}\n\n',
+      ]))
+    })
+
+    const { streamAI } = await import('../ai')
+    // 7th param is systemPromptOverride
+    for await (const _ of streamAI([], [], undefined, undefined, undefined, undefined, 'TEST PROMPT')) {
+      /* consume */
+    }
+
+    expect(capturedBody).not.toBeNull()
+    const parsed = JSON.parse(capturedBody!)
+    expect(parsed.systemPromptOverride).toBe('TEST PROMPT')
+  })
+
+  it('does not include systemPromptOverride key when not provided', async () => {
+    let capturedBody: string | null = null
+    mockFetch.mockImplementationOnce((_url: string, init?: RequestInit) => {
+      capturedBody = init?.body as string ?? null
+      return Promise.resolve(mockSseResponse([
+        'data: {"type":"content","content":"ok"}\n\n',
+        'data: {"type":"done","fullText":"ok"}\n\n',
+      ]))
+    })
+
+    const { streamAI } = await import('../ai')
+    for await (const _ of streamAI([])) {
+      /* consume */
+    }
+
+    expect(capturedBody).not.toBeNull()
+    const parsed = JSON.parse(capturedBody!)
+    expect(Object.prototype.hasOwnProperty.call(parsed, 'systemPromptOverride')).toBe(false)
+  })
+})

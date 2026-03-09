@@ -144,12 +144,14 @@ interface AIRequestBody {
   compressedMemory?: string
   isOnboarding?: boolean
   conversationId?: string
+  /** 若传入，完全覆盖默认 system prompt，不注入用户偏好/画像/记忆 */
+  systemPromptOverride?: string
 }
 
 aiRoutes.post('/stream', async (c) => {
   const db = userDb(c)
   const body = await c.req.json<AIRequestBody>()
-  const { messages, preferences = [], compressedMemory, isOnboarding = false, conversationId } = body
+  const { messages, preferences = [], compressedMemory, isOnboarding = false, conversationId, systemPromptOverride } = body
 
   // Retrieve API key from DB
   const row = db.prepare('SELECT value FROM config WHERE key = ?').get('apiKey') as
@@ -211,9 +213,11 @@ aiRoutes.post('/stream', async (c) => {
   // 注入当前日期
   const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
 
-  // 选择 system prompt：引导模式用轻量版，不注入偏好和记忆
+  // 选择 system prompt：override 模式直接使用（跳过用户数据注入）
   let systemPrompt: string
-  if (isOnboarding) {
+  if (systemPromptOverride) {
+    systemPrompt = systemPromptOverride.replace('{{DATE}}', today)
+  } else if (isOnboarding) {
     systemPrompt = ONBOARDING_SYSTEM_PROMPT.replace('{{DATE}}', today)
   } else {
     systemPrompt = DEFAULT_SYSTEM_PROMPT.replace('{{DATE}}', today)

@@ -117,6 +117,11 @@ interface CanvasState {
   completeOnboarding: () => Promise<void>
   saveOnboardingTurns: (turns: import('../utils/conversationUtils').Turn[]) => void
 
+  // Lenny Space 模式：对话/节点读写隔离到 lenny-*.json
+  isLennyMode: boolean
+  openLennyMode: () => void
+  closeLennyMode: () => void
+
   // 新增：移除偏好规则
   removePreference: (index: number) => Promise<void>
 
@@ -267,6 +272,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   onboardingPhase: 0,
   onboardingResumeTurns: null,
 
+  // Lenny Space 模式
+  isLennyMode: false,
+
   // 引导完成后进化基因轮询标志
   pendingProfileRefresh: false,
 
@@ -325,6 +333,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     } catch { /* ignore */ }
   },
   setOnboardingPhase: (phase) => set({ onboardingPhase: phase }),
+  openLennyMode: () => set({ isLennyMode: true }),
+  closeLennyMode: () => set({ isLennyMode: false, isModalOpen: false, currentConversation: null }),
   setPendingProfileRefresh: (val) => set({ pendingProfileRefresh: val }),
   setPendingMemoryRefresh: (val) => set({ pendingMemoryRefresh: val }),
   completeOnboarding: async () => {
@@ -1242,7 +1252,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   // 开始对话 (增强：检测意图并智能分支)
   startConversation: async (userMessage: string, images?: string[], files?: import('@shared/types').FileAttachment[], parentId?: string) => {
-    const { nodes, detectIntent, getRelevantMemories } = get()
+    const { nodes, detectIntent, getRelevantMemories, isLennyMode } = get()
 
     // 1. 检测当前意图分类
     const category = detectIntent(userMessage)
@@ -1261,7 +1271,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     }
     set({ currentConversation: conversation, isModalOpen: true, isLoading: false })
 
-    // 3. 后台异步获取记忆，用于自动连线（不阻塞 modal 打开）
+    // 3. Lenny 模式下跳过用户记忆关联（记忆来源不同，不做 parentId 推断）
+    if (isLennyMode) return
+
+    // 4. 后台异步获取记忆，用于自动连线（不阻塞 modal 打开）
     if (!parentId) {
       getRelevantMemories(userMessage).then(memories => {
         const bestMatch = memories.find(m => {
@@ -1297,9 +1310,70 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   // 结束对话 (增强：支持基于意图的话题拆分；explicitConversation 用于 handleClose 后台保存时传入快照)
   endConversation: async (assistantMessage: string, appliedPreferences?: string[], reasoning_content?: string, explicitConversation?: Conversation) => {
-    const { addNode, appendConversation, detectIntent } = get()
+    const { addNode, appendConversation, detectIntent, isLennyMode } = get()
     const currentConversation = explicitConversation ?? get().currentConversation
     if (!currentConversation) return
+
+    // Lenny 模式：简化保存逻辑——直接写 lenny 文件，跳过分类/合并/向量索引/画像提取
+    if (isLennyMode) {
+      const conv: Conversation = {
+        id: currentConversation.id,
+        createdAt: new Date().toISOString(),
+        userMessage: currentConversation.userMessage,
+        assistantMessage,
+        images: [],
+        files: [],
+      }
+      const nodeTitle = currentConversation.userMessage.slice(0, 30) || 'Lenny 对话'
+      // P2-1: 英文停用词过滤，避免 "their/about/which" 等噪声词出现在节点关键词里
+      const lennyStopWords = new Set(['their', 'about', 'which', 'would', 'could', 'there', 'other',
+        'where', 'should', 'these', 'those', 'being', 'after', 'while', 'between', 'through', 'before',
+        'under', 'think', 'right', 'every', 'start', 'point', 'might', 'often', 'first', 'since'])
+      const keywords = assistantMessage
+        .replace(/[#*`>\[\]()]/g, ' ')
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(w => w.length > 4 && !lennyStopWords.has(w))
+        .slice(0, 3)
+      // 分类：简单英文关键词启发
+      let category = '工作事业'
+      const lower = assistantMessage.toLowerCase()
+      if (/relationship|team|culture|management|feedback/.test(lower)) category = '关系情感'
+      else if (/think|philosophy|framework|belief|mindset/.test(lower)) category = '思考世界'
+      else if (/health|workout|sleep|energy/.test(lower)) category = '健康身体'
+      else if (/design|creative|writing|art|music/.test(lower)) category = '创意表达'
+      // 写对话记录
+      await storageService.append(STORAGE_FILES.LENNY_CONVERSATIONS, JSON.stringify(conv))
+      // 写节点
+      const nodesRaw = await storageService.read(STORAGE_FILES.LENNY_NODES)
+      let lennyNodes: Node[] = []
+      try { if (nodesRaw) lennyNodes = JSON.parse(nodesRaw) } catch { /* use empty */ }
+      const centerX = lennyNodes.length > 0 ? lennyNodes.reduce((s, n) => s + n.x, 0) / lennyNodes.length : 1920
+      const centerY = lennyNodes.length > 0 ? lennyNodes.reduce((s, n) => s + n.y, 0) / lennyNodes.length : 1200
+      const minDist = 280
+      let nx = centerX, ny = centerY
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const angle = Math.random() * Math.PI * 2
+        const radius = minDist + Math.random() * 200
+        const cx = centerX + Math.cos(angle) * radius
+        const cy = centerY + Math.sin(angle) * radius
+        if (!lennyNodes.some(n => Math.hypot(n.x - cx, n.y - cy) < minDist)) { nx = cx; ny = cy; break }
+      }
+      const newNode: Node = {
+        id: conv.id,
+        title: nodeTitle,
+        keywords,
+        date: conv.createdAt.split('T')[0],
+        conversationId: conv.id,
+        category,
+        nodeType: 'memory',
+        x: Math.round(nx),
+        y: Math.round(ny),
+      }
+      lennyNodes.push(newNode)
+      await storageService.write(STORAGE_FILES.LENNY_NODES, JSON.stringify(lennyNodes, null, 2))
+      return
+    }
 
     /** 调后端 AI 分类，5s 超时后降级为关键词 */
     const classifyText = async (text: string): Promise<string> => {
@@ -1441,8 +1515,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   // 关闭模态框
   closeModal: () => {
     // 持久化当前对话历史到服务器（fire-and-forget）
-    const { currentConversation, conversationHistory } = get()
-    if (currentConversation?.id && conversationHistory.length > 0) {
+    // P1-3: Lenny 模式下不写用户历史（lenny 对话不属于用户的 conversation_history）
+    const { currentConversation, conversationHistory, isLennyMode } = get()
+    if (!isLennyMode && currentConversation?.id && conversationHistory.length > 0) {
       historyService.saveHistory(currentConversation.id, conversationHistory)
     }
     set({ isModalOpen: false, currentConversation: null, isLoading: false, highlightedCategory: null, highlightedNodeIds: [], focusedCategory: null })
@@ -1464,7 +1539,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const token = ++_openModalToken
     set({ isModalOpen: true, isLoading: true, conversationHistory: [] })
     try {
-      const content = await storageService.read(STORAGE_FILES.CONVERSATIONS)
+      const { isLennyMode } = get()
+      const convFile = isLennyMode ? STORAGE_FILES.LENNY_CONVERSATIONS : STORAGE_FILES.CONVERSATIONS
+      const content = await storageService.read(convFile)
       if (token !== _openModalToken) return  // 被更新的调用抢先了，丢弃此结果
       if (!content) {
         set({ isLoading: false })
@@ -1674,7 +1751,37 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   // 获取相关的历史记忆（后端向量检索，降级到关键词搜索）
   getRelevantMemories: async (query: string): Promise<{ conv: Conversation; category?: string; nodeId?: string }[]> => {
     try {
-      const { nodes } = get()
+      const { nodes, isLennyMode } = get()
+
+      // Lenny 模式：从 lenny-conversations.jsonl 中做关键词搜索
+      if (isLennyMode) {
+        const content = await storageService.read(STORAGE_FILES.LENNY_CONVERSATIONS)
+        if (!content) return []
+        const lennyNodesRaw = await storageService.read(STORAGE_FILES.LENNY_NODES)
+        let lennyNodes: Node[] = []
+        try { if (lennyNodesRaw) lennyNodes = JSON.parse(lennyNodesRaw) } catch { /* */ }
+        const nodeByConvId = new Map<string, Node>()
+        lennyNodes.forEach(n => nodeByConvId.set(n.conversationId, n))
+        const lines = content.trim().split('\n').filter(Boolean)
+        const convs: Conversation[] = []
+        for (const line of lines) {
+          try { const c = JSON.parse(line) as Conversation; if (c.id) convs.push(c) } catch { /* */ }
+        }
+        const stopWords = new Set(['the', 'a', 'an', 'is', 'are', 'to', 'of', 'and', 'or', 'in', 'on', 'at', 'for', 'with'])
+        const keywords = query.toLowerCase().split(/\s+/).filter(k => k.length >= 3 && !stopWords.has(k)).slice(0, 10)
+        if (keywords.length === 0) return convs.slice(-5).map(conv => ({ conv, category: nodeByConvId.get(conv.id)?.category, nodeId: nodeByConvId.get(conv.id)?.id }))
+        return convs
+          .map(conv => {
+            const text = (conv.userMessage + ' ' + conv.assistantMessage).toLowerCase()
+            const score = keywords.reduce((s, k) => s + (text.includes(k) ? 1 : 0), 0)
+            return { conv, score, node: nodeByConvId.get(conv.id) }
+          })
+          .filter(r => r.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 5)
+          .map(r => ({ conv: r.conv, category: r.node?.category, nodeId: r.node?.id }))
+      }
+
       const nodeByConvId = new Map<string, Node>()
       const nodeById = new Map<string, Node>()
       nodes.forEach(n => {
@@ -1761,6 +1868,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   // 追加对话记录（同时触发后端向量索引 + 画像提取任务）
   appendConversation: async (conversation: Conversation) => {
+    const { isLennyMode } = get()
+
+    // Lenny 模式：写 lenny 文件，跳过向量索引和画像提取（lenny 记忆不污染用户数据）
+    // P2-3: 当前 endConversation lenny 分支已直接写文件，此处为防御性保留（未来直接调用者使用）
+    if (isLennyMode) {
+      await storageService.append(STORAGE_FILES.LENNY_CONVERSATIONS, JSON.stringify(conversation))
+      return
+    }
+
     await storageService.append(
       STORAGE_FILES.CONVERSATIONS,
       JSON.stringify(conversation)
