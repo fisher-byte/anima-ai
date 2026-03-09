@@ -66,6 +66,18 @@ export type Turn = {
 const MEMORY_USER_MAX = 80
 const MEMORY_ASSISTANT_MAX = 150
 
+function relativeTime(dateStr?: string): string {
+  if (!dateStr) return ''
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  if (days === 0) return '今天'
+  if (days === 1) return '昨天'
+  if (days < 7) return `${days}天前`
+  if (days < 30) return `${Math.floor(days / 7)}周前`
+  if (days < 365) return `${Math.floor(days / 30)}个月前`
+  return `${Math.floor(days / 365)}年前`
+}
+
 export function compressMemoriesForPrompt(
   memories: { conv: Conversation; category?: string }[]
 ): string {
@@ -74,7 +86,9 @@ export function compressMemoriesForPrompt(
     .map(({ conv }) => {
       const u = (conv.userMessage || '').slice(0, MEMORY_USER_MAX)
       const a = (conv.assistantMessage || '').slice(0, MEMORY_ASSISTANT_MAX)
-      return `用户：${u}${conv.userMessage.length > MEMORY_USER_MAX ? '…' : ''}\n助手：${a}${conv.assistantMessage.length > MEMORY_ASSISTANT_MAX ? '…' : ''}`
+      const when = relativeTime((conv as { createdAt?: string }).createdAt)
+      const prefix = when ? `[${when}] ` : ''
+      return `${prefix}用户：${u}${conv.userMessage.length > MEMORY_USER_MAX ? '…' : ''}\n助手：${a}${conv.assistantMessage.length > MEMORY_ASSISTANT_MAX ? '…' : ''}`
     })
     .join('\n\n')
 }

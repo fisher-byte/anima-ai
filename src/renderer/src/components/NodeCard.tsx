@@ -268,8 +268,8 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
           >
             {node.color && (
               <div
-                className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full"
-                style={{ backgroundColor: node.color.replace('0.9', '0.7') }}
+                className="absolute left-0 top-3 bottom-3 w-[2px] rounded-full"
+                style={{ backgroundColor: 'rgba(0,0,0,0.08)' }}
               />
             )}
 
@@ -315,7 +315,7 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
 
               <div className="flex items-center justify-between text-[10px] text-gray-400 font-medium">
                 <span>{node.date}</span>
-                <div className="w-1.5 h-1.5 rounded-full bg-blue-400/20" />
+                <div className="w-1.5 h-1.5 rounded-full bg-gray-300/40" />
               </div>
 
               {(node.memoryCount ?? 0) > 0 && (

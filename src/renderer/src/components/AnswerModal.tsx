@@ -48,6 +48,7 @@ import {
   buildAIHistory,
 } from '../utils/conversationUtils'
 import { getAuthToken } from '../services/storageService'
+import { FEEDBACK_TRIGGERS } from '@shared/constants'
 import {
   UserMessageContent,
   ClosingAnimation,
@@ -106,6 +107,7 @@ export function AnswerModal() {
   const [clarifyPending, setClarifyPending] = useState<string | null>(null)   // 触发澄清时暂存原始输入
   const [clarifyCustom, setClarifyCustom] = useState('')
   const evolutionToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const feedbackToastCountRef = useRef(0) // 单对话内偏好学习 Toast 计数，最多 2 次
   const showToast = useCallback((label: string, detail: string, duration = 4000) => {
     if (evolutionToastTimerRef.current) clearTimeout(evolutionToastTimerRef.current)
     setEvolutionToast({ label, detail })
@@ -364,6 +366,9 @@ export function AnswerModal() {
     if (!isModalOpen || !currentConversation || isOnboardingMode || isLoading) return
 
     const prepareConversation = async () => {
+      // 对话框打开时，预加载偏好规则用于顶部预告
+      const currentPrefs = getPreferencesForPrompt()
+      if (currentPrefs.length > 0) setAppliedPreferences(currentPrefs)
       if (currentConversation.assistantMessage) {
         isReplayRef.current = true
         didMutateRef.current = false
@@ -531,6 +536,16 @@ export function AnswerModal() {
           payload: { userMessage: trimmed, assistantMessage: lastAssistant.slice(0, 300) }
         })
       }).catch(() => {})
+
+      // 即时反馈：检测到偏好触发词时，立刻告知用户「好的，我记住了。」
+      if (feedbackToastCountRef.current < 2) {
+        const lower = trimmed.toLowerCase()
+        const hasFeedbackTrigger = FEEDBACK_TRIGGERS.some(t => t.keywords.some(k => lower.includes(k.toLowerCase())))
+        if (hasFeedbackTrigger) {
+          feedbackToastCountRef.current += 1
+          showToast('好的，我记住了。', '', 2500)
+        }
+      }
     }
 
     setFeedbackMessage('')
@@ -673,6 +688,7 @@ export function AnswerModal() {
   // ── 关闭并保存 ────────────────────────────────────────────────────────────
   const handleClose = useCallback(() => {
     if (isClosing) return
+    feedbackToastCountRef.current = 0 // 重置偏好学习 Toast 计数
     const shouldSave = !!currentConversation && (!isReplayRef.current || didMutateRef.current)
 
     let conversationSnapshot = currentConversation
@@ -862,6 +878,12 @@ export function AnswerModal() {
                   {isOnboardingMode && !onboardingDone && (
                     <span className="flex-1 text-[12px] text-gray-400 font-medium pl-1">
                       随时可以关闭，下次点击「新手教程」继续
+                    </span>
+                  )}
+                  {/* 偏好预告：非引导模式下，展示最活跃的偏好规则 */}
+                  {!isOnboardingMode && appliedPreferences.length > 0 && (
+                    <span className="flex-1 text-[11px] text-gray-400/70 pl-1 truncate">
+                      已记住：{appliedPreferences[0]}
                     </span>
                   )}
                   {/* 导出菜单 */}
