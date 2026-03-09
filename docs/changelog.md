@@ -1,5 +1,48 @@
 # Anima 变更日志
 
+## [0.2.76] - 2026-03-09
+
+### feat: Lenny Space 全量种子节点扩充（15 → 46 个）
+
+基于 ChatPRD/lennys-podcast-transcripts 仓库（303 个真实 episode）的元数据，将 Lenny Space 种子节点从 15 个扩充到 46 个，覆盖更多知名嘉宾和话题。
+
+#### 新增节点（31 个）
+
+| 嘉宾 | Episode 标题 |
+|------|-------------|
+| Teresa Torres | Continuous Product Discovery |
+| Dylan Field | Why AI Makes Design Quality a Moat |
+| Rahul Vohra | Superhuman's Secret to Success |
+| Ben Horowitz | $46B of Hard Truths: Why Founders Fail |
+| Tobi Lütke | Leadership Playbook: First Principles |
+| Melanie Perkins | She Turned 100+ Rejections into a $42B Company |
+| Hamilton Helmer | Business Strategy: 7 Powers |
+| Nir Eyal | Strategies for Becoming Less Distractible |
+| Seth Godin | Building Remarkable Products and Brands |
+| Annie Duke | How to Become a Better Decision Maker |
+| Stewart Butterfield | Mental Models for Building Products |
+| Kevin Weil | OpenAI's CPO on AI Skills and Moats |
+| Amjad Masad | Behind the Product: Replit |
+| Paul Adams | What AI Means for Your Product Strategy |
+| Claire Vo | Bending the Universe in Your Favor |
+| Jeff Weinstein | Building Product at Stripe |
+| Shishir Mehrotra | The Rituals of Great Teams |
+| Matt Mochary | Are Your Fears Giving You Terrible Advice? |
+| Gustaf Alströmer | Lessons from 600+ YC Startups |
+| Andy Johns | When Enough Is Enough |
+| Luc Levesque | Leveraging Growth Advisors & Mastering SEO |
+
+#### 布局更新
+- 新增第三圈（半径 1050px），31 个新节点均匀分布
+- 新增 10 条逻辑边（边总数 10 → 20）
+- `LENNY_FEATURED_SLUGS` 从 20 个扩充到 38 个
+
+#### 数据来源
+- GitHub: ChatPRD/lennys-podcast-transcripts（303 个真实 episode transcript）
+- 每个节点 title、date、keywords 均来自 transcript YAML frontmatter 真实数据
+
+---
+
 ## [0.2.75] - 2026-03-09
 
 ### feat: Lenny Space 升级为沉浸式记忆画布
