@@ -309,7 +309,7 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
               </h3>
 
               <div className="flex flex-wrap gap-1.5 mb-4">
-                {node.keywords.map((keyword, idx) => (
+                {(node.keywords ?? []).map((keyword, idx) => (
                   <span
                     key={idx}
                     className="text-[10px] px-2 py-0.5 bg-white/50 text-gray-500 rounded-lg border border-gray-100/50"

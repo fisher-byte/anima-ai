@@ -874,7 +874,7 @@ export function AnswerModal() {
           <>
             {/* 遮罩 */}
             <motion.div
-              className="fixed inset-0 z-40 bg-black/30"
+              className={`fixed inset-0 ${isLennyMode ? 'z-[110]' : 'z-40'} bg-black/30`}
               animate={{ opacity: isClosing ? 0 : 1 }}
               transition={{ duration: 0.4 }}
               aria-hidden
@@ -889,7 +889,7 @@ export function AnswerModal() {
             </AnimatePresence>
 
             {/* 对话框主体 */}
-            <div className="fixed bottom-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[64rem]" onClick={e => e.stopPropagation()}>
+            <div className={`fixed bottom-0 left-1/2 -translate-x-1/2 ${isLennyMode ? 'z-[120]' : 'z-50'} w-full max-w-[64rem]`} onClick={e => e.stopPropagation()}>
               <motion.div
                 initial={{ opacity: 0, borderRadius: 32, y: 50 }}
                 animate={isClosing

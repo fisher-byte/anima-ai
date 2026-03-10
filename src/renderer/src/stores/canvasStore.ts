@@ -697,11 +697,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       const hasImportMemory = currentNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
       const hasRealNodes = currentNodes.some(n => n.nodeType !== 'capability')
 
-      // onboarding 完成条件：localStorage 标记 AND（有真实对话节点 OR onboarding节点已完成）
+      // onboarding 完成条件：localStorage 标记 AND（有真实对话节点 OR onboarding节点已完成 OR 两个能力块都存在）
       // 防止跨账号登录时上一个账号的 localStorage 标记污染新账号
+      // 注：若两个能力块都存在，说明 loadNodes 曾经运行过，可以信任 localStorage 的标记
       const lsOnboardingDone = typeof localStorage !== 'undefined' && localStorage.getItem('evo_onboarding_v3')
       const serverConfirmsOnboardingDone = hasRealNodes ||
-        currentNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding' && n.capabilityData?.state === 'completed')
+        currentNodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'onboarding' && n.capabilityData?.state === 'completed') ||
+        (hasOnboarding && hasImportMemory)  // 两个能力块都存在时，视为「服务端已初始化过」
       const onboardingDone = lsOnboardingDone && serverConfirmsOnboardingDone
 
       // 如果 localStorage 说完成但服务端数据不一致，清除本地标记
@@ -1520,7 +1522,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     if (!isLennyMode && currentConversation?.id && conversationHistory.length > 0) {
       historyService.saveHistory(currentConversation.id, conversationHistory)
     }
-    set({ isModalOpen: false, currentConversation: null, isLoading: false, highlightedCategory: null, highlightedNodeIds: [], focusedCategory: null })
+    set({ isModalOpen: false, currentConversation: null, isLoading: false, highlightedCategory: null, highlightedNodeIds: [], focusedCategory: null, conversationHistory: [] })
   },
 
   // 打开模态框（用于回放）
