@@ -4,7 +4,9 @@
  * 与用户个人空间完全对称的体验：
  * - 节点从 lenny-nodes.json 加载，首次进入用种子数据
  * - 画布交互（平移/缩放/拖拽）与 Canvas.tsx 一致
- * - 点击节点 → startConversation → AnswerModal（复用真实对话逻辑）
+ * - 物理力模拟：节点斥力 + 中心引力 + 同类引力，防重叠自动弹开
+ * - 点击节点：有历史 → openModalById（查看历史），无历史 → startConversation（新建）
+ * - 悬浮删除按钮：与主空间 NodeCard 体验一致
  * - 底部输入框：与普通空间 InputBox 体验一致，Enter 发送
  * - 对话结束后自动写 lenny-nodes.json / lenny-conversations.jsonl
  * - 不污染用户的 nodes.json / conversations.jsonl
@@ -13,7 +15,7 @@ import {
   useState, useRef, useEffect, useCallback, useLayoutEffect, useMemo,
 } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowLeft, ArrowUp } from 'lucide-react'
+import { ArrowLeft, ArrowUp, Trash2 } from 'lucide-react'
 import { Edge } from './Edge'
 import { storageService } from '../services/storageService'
 import { LENNY_SEED_NODES, LENNY_SEED_EDGES } from '@shared/lennyData'
@@ -21,17 +23,31 @@ import { STORAGE_FILES } from '@shared/constants'
 import { useCanvasStore } from '../stores/canvasStore'
 import type { Node, Edge as EdgeType } from '@shared/types'
 
+// ─── 物理力常量 ────────────────────────────────────────────────────────────────
+const NODE_REPEL          = 6000
+const NODE_REPEL_MAX_DIST = 400
+const SAME_ATTRACT        = 0.0015
+const SAME_IDEAL_DIST     = 260
+const SAME_MAX_DIST       = 650
+const CENTER_GRAVITY      = 0.00006
+const DAMPING             = 0.80
+const MAX_VELOCITY        = 2.0
+const TEMPERATURE_KICK    = 0.6
+const TEMPERATURE_MIN     = 0.12
+const COOLING_RATE        = 0.996
+
 // ─── LennyNodeCard ────────────────────────────────────────────────────────────
 
 interface LennyNodeCardProps {
   node: Node
-  onContextSelect: (title: string) => void
+  onOpen: (node: Node) => void
+  onDelete: (id: string) => void
   onPositionChange: (id: string, x: number, y: number) => void
   onDragEnd: (id: string, x: number, y: number) => void
   scale: number
 }
 
-function LennyNodeCard({ node, onContextSelect, onPositionChange, onDragEnd, scale }: LennyNodeCardProps) {
+function LennyNodeCard({ node, onOpen, onDelete, onPositionChange, onDragEnd, scale }: LennyNodeCardProps) {
   const [isHovered, setIsHovered] = useState(false)
   const isDraggingRef = useRef(false)
   const mouseDownPosRef = useRef({ x: 0, y: 0 })
@@ -96,8 +112,13 @@ function LennyNodeCard({ node, onContextSelect, onPositionChange, onDragEnd, sca
 
   const handleClick = useCallback(() => {
     if (Date.now() - lastDragEndRef.current < 200) return
-    onContextSelect(node.title)
-  }, [node.title, onContextSelect])
+    onOpen(node)
+  }, [node, onOpen])
+
+  const handleDeleteClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onDelete(node.id)
+  }, [node.id, onDelete])
 
   const categoryColor: Record<string, string> = {
     '工作事业': '#3B82F6',
@@ -140,7 +161,7 @@ function LennyNodeCard({ node, onContextSelect, onPositionChange, onDragEnd, sca
             {node.title}
           </h3>
           <div className="flex flex-wrap gap-1.5 mb-4">
-            {node.keywords.slice(0, 3).map((kw, i) => (
+            {(node.keywords ?? []).slice(0, 3).map((kw, i) => (
               <span
                 key={i}
                 className="text-[10px] px-2 py-0.5 bg-white/50 text-gray-500 rounded-lg border border-gray-100/50"
@@ -157,7 +178,7 @@ function LennyNodeCard({ node, onContextSelect, onPositionChange, onDragEnd, sca
                 animate={{ opacity: 1 }}
                 className="text-amber-500/70"
               >
-                点击提问 →
+                {node.conversationId ? '查看历史 →' : '点击提问 →'}
               </motion.span>
             )}
           </div>
@@ -167,8 +188,36 @@ function LennyNodeCard({ node, onContextSelect, onPositionChange, onDragEnd, sca
           />
         </div>
       </motion.div>
+
+      {/* 悬浮删除按钮（仅用户对话产生的节点可删，不含种子节点） */}
+      {isHovered && node.nodeType === 'memory' && !node.conversationId?.startsWith('lenny-seed-') && (
+        <motion.button
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          onClick={handleDeleteClick}
+          className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center text-gray-400 hover:text-red-500 hover:border-red-200 transition-colors z-20"
+          title="删除节点"
+        >
+          <Trash2 className="w-3 h-3" />
+        </motion.button>
+      )}
     </div>
   )
+}
+
+// ─── 物理力模拟（内部，不暴露 hook） ─────────────────────────────────────────
+
+interface SimNode {
+  id: string
+  x: number
+  y: number
+  category: string
+  vx: number
+  vy: number
+}
+
+function createSimNode(n: Node): SimNode {
+  return { id: n.id, x: n.x, y: n.y, category: n.category ?? '其他', vx: 0, vy: 0 }
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -183,6 +232,7 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
   const [nodes, setNodes] = useState<Node[]>([])
   const [edges, setEdges] = useState<EdgeType[]>([])
   const [nodesLoaded, setNodesLoaded] = useState(false)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
   // ── Input box state ──────────────────────────────────────────────────────────
   const [inputValue, setInputValue] = useState('')
@@ -191,6 +241,8 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
 
   // ── Store ────────────────────────────────────────────────────────────────────
   const startConversation = useCanvasStore(state => state.startConversation)
+  const openModalById = useCanvasStore(state => state.openModalById)
+  const removeNode = useCanvasStore(state => state.removeNode)
   const openLennyMode = useCanvasStore(state => state.openLennyMode)
   const closeLennyMode = useCanvasStore(state => state.closeLennyMode)
   const isModalOpen = useCanvasStore(state => state.isModalOpen)
@@ -212,6 +264,118 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
   const scaleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingWheelDeltaRef = useRef(0)
   const lastWheelClientRef = useRef<{ clientX: number; clientY: number } | null>(null)
+
+  // ── 物理力模拟 refs ──────────────────────────────────────────────────────────
+  const simNodesRef = useRef<SimNode[]>([])
+  const simMapRef = useRef<Map<string, SimNode>>(new Map())
+  const temperatureRef = useRef(0)
+  const simRafRef = useRef<number | null>(null)
+  const hasKickedRef = useRef(false)
+
+  // ── 物理 tick ───────────────────────────────────────────────────────────────
+  const simTickRef = useRef<() => void>()
+  simTickRef.current = () => {
+    const nodes = simNodesRef.current
+    const temp = temperatureRef.current
+
+    if (nodes.length > 1 && temp > 0) {
+      // 计算重心
+      let gcx = 0, gcy = 0
+      for (const n of nodes) { gcx += n.x; gcy += n.y }
+      gcx /= nodes.length; gcy /= nodes.length
+
+      for (let i = 0; i < nodes.length; i++) {
+        const a = nodes[i]
+        let fx = 0, fy = 0
+
+        // 全局中心引力
+        fx -= a.x * CENTER_GRAVITY
+        fy -= a.y * CENTER_GRAVITY
+
+        for (let j = 0; j < nodes.length; j++) {
+          if (i === j) continue
+          const b = nodes[j]
+          const dx = b.x - a.x
+          const dy = b.y - a.y
+          const dist = Math.hypot(dx, dy) || 1
+
+          // 节点斥力
+          if (dist < NODE_REPEL_MAX_DIST) {
+            const repel = NODE_REPEL / (dist * dist)
+            fx -= (dx / dist) * repel
+            fy -= (dy / dist) * repel
+          }
+
+          // 同类引力
+          if (a.category === b.category && dist < SAME_MAX_DIST) {
+            const spring = (dist - SAME_IDEAL_DIST) * SAME_ATTRACT
+            fx += (dx / dist) * spring
+            fy += (dy / dist) * spring
+          }
+        }
+
+        // 速度积分
+        a.vx = (a.vx + fx) * DAMPING
+        a.vy = (a.vy + fy) * DAMPING
+        const speed = Math.hypot(a.vx, a.vy)
+        if (speed > MAX_VELOCITY) { a.vx = (a.vx / speed) * MAX_VELOCITY; a.vy = (a.vy / speed) * MAX_VELOCITY }
+        a.x += a.vx * temp
+        a.y += a.vy * temp
+      }
+
+      // 直写 DOM（不走 React state，避免重渲染）
+      for (const n of nodes) {
+        const el = document.getElementById(`lenny-node-${n.id}`)
+        if (el) { el.style.left = `${n.x}px`; el.style.top = `${n.y}px` }
+      }
+
+      // 温度冷却
+      temperatureRef.current = Math.max(TEMPERATURE_MIN, temp * COOLING_RATE)
+    }
+
+    simRafRef.current = requestAnimationFrame(simTickRef.current!)
+  }
+
+  useEffect(() => {
+    simRafRef.current = requestAnimationFrame(simTickRef.current!)
+    return () => { if (simRafRef.current) cancelAnimationFrame(simRafRef.current) }
+  }, [])
+
+  const kickSim = useCallback((storeNodes: Node[]) => {
+    const prevMap = simMapRef.current
+    const newNodes = storeNodes.map(n => {
+      const prev = prevMap.get(n.id)
+      return prev
+        ? { ...prev, category: n.category ?? '其他' }
+        : createSimNode(n)
+    })
+    simNodesRef.current = newNodes
+    simMapRef.current = new Map(newNodes.map(n => [n.id, n]))
+    hasKickedRef.current = true
+    temperatureRef.current = Math.max(temperatureRef.current, TEMPERATURE_KICK)
+  }, [])
+
+  // 将 sim 内部坐标写回 state（用于 Edge 渲染同步，低频）
+  const flushSimToState = useCallback(() => {
+    setNodes(prev => {
+      const needsUpdate = prev.some(n => {
+        const s = simMapRef.current.get(n.id)
+        return s && (Math.abs(s.x - n.x) > 1 || Math.abs(s.y - n.y) > 1)
+      })
+      if (!needsUpdate) return prev
+      return prev.map(n => {
+        const s = simMapRef.current.get(n.id)
+        return s ? { ...n, x: s.x, y: s.y } : n
+      })
+    })
+  }, [])
+
+  // 每 2 秒同步 sim 坐标到 state（让 Edge SVG 跟上）
+  useEffect(() => {
+    if (!isOpen) return
+    const id = setInterval(flushSimToState, 2000)
+    return () => clearInterval(id)
+  }, [isOpen, flushSimToState])
 
   // ── Load nodes/edges on open ────────────────────────────────────────────────
   useEffect(() => {
@@ -237,8 +401,10 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
       setNodes(loadedNodes)
       setEdges(loadedEdges)
       setNodesLoaded(true)
+      // 启动物理力，让节点自动弹开避免重叠
+      kickSim(loadedNodes)
     })()
-  }, [isOpen])
+  }, [isOpen, kickSim])
 
   // ── 当 modal 关闭后，重新从文件加载最新节点（对话产生了新节点）─────────────
   useEffect(() => {
@@ -249,9 +415,10 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
       try {
         const updated: Node[] = JSON.parse(nodesRaw)
         setNodes(updated)
+        kickSim(updated)
       } catch { /* ignore */ }
     })()
-  }, [isOpen, isModalOpen])
+  }, [isOpen, isModalOpen, kickSim])
 
   // ── 进入/退出时同步 store 的 lenny 模式标记 ─────────────────────────────────
   useEffect(() => {
@@ -395,10 +562,14 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
 
   // ── Node position tracking ──────────────────────────────────────────────────
   const handleNodePositionChange = useCallback((id: string, x: number, y: number) => {
+    const s = simMapRef.current.get(id)
+    if (s) { s.x = x; s.y = y; s.vx = 0; s.vy = 0 }
     setNodes(prev => prev.map(n => n.id === id ? { ...n, x, y } : n))
   }, [])
 
   const handleNodeDragEnd = useCallback((id: string, x: number, y: number) => {
+    const s = simMapRef.current.get(id)
+    if (s) { s.x = x; s.y = y; s.vx = 0; s.vy = 0 }
     setNodes(prev => {
       const updated = prev.map(n => n.id === id ? { ...n, x, y } : n)
       storageService.write(STORAGE_FILES.LENNY_NODES, JSON.stringify(updated)).catch(() => {})
@@ -406,10 +577,37 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
     })
   }, [])
 
-  // ── 点击节点：开启对话（复用真实 AnswerModal）──────────────────────────────
-  const handleContextSelect = useCallback((title: string) => {
-    startConversation(title)
-  }, [startConversation])
+  // ── 点击节点：用户对话节点→查看历史，种子/无历史节点→新建对话 ──────────────
+  const handleNodeOpen = useCallback((node: Node) => {
+    // 种子节点（lenny-seed-* 前缀）没有真实对话记录，走新建对话
+    const isSeedNode = !node.conversationId || node.conversationId.startsWith('lenny-seed-')
+    if (!isSeedNode) {
+      openModalById(node.conversationId)
+    } else {
+      startConversation(node.title)
+    }
+  }, [openModalById, startConversation])
+
+  // ── 删除节点（带确认） ──────────────────────────────────────────────────────
+  const handleDeleteRequest = useCallback((id: string) => {
+    setDeleteConfirmId(id)
+  }, [])
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deleteConfirmId) return
+    const id = deleteConfirmId
+    setDeleteConfirmId(null)
+    // 从本地 state 先移除
+    setNodes(prev => {
+      const updated = prev.filter(n => n.id !== id)
+      // 同步 sim
+      simNodesRef.current = simNodesRef.current.filter(n => n.id !== id)
+      simMapRef.current.delete(id)
+      return updated
+    })
+    // 通过 store 删除（Lenny 模式下操作 lenny-*.json）
+    await removeNode(id)
+  }, [deleteConfirmId, removeNode])
 
   // ── 输入框发送 ──────────────────────────────────────────────────────────────
   const handleInputSend = useCallback(() => {
@@ -444,6 +642,8 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
   }, [nodes])
 
   if (!isOpen) return null
+
+  const confirmTargetNode = deleteConfirmId ? nodes.find(n => n.id === deleteConfirmId) : null
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col" style={{ backgroundColor: '#f8f8fa' }}>
@@ -527,7 +727,8 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
               key={node.id}
               node={node}
               scale={scaleDisplay}
-              onContextSelect={handleContextSelect}
+              onOpen={handleNodeOpen}
+              onDelete={handleDeleteRequest}
               onPositionChange={handleNodePositionChange}
               onDragEnd={handleNodeDragEnd}
             />
@@ -541,6 +742,37 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
           </div>
         )}
       </div>
+
+      {/* ── 删除确认弹窗 ── */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/30">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-2xl shadow-xl p-6 w-80 mx-4"
+          >
+            <h3 className="font-semibold text-gray-800 mb-2">删除这条对话？</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              {confirmTargetNode?.title ?? ''}
+              <br />删除后不可恢复。
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                className="flex-1 py-2.5 rounded-xl bg-red-500 text-sm text-white hover:bg-red-600 transition-colors"
+              >
+                删除
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* ── 底部输入框（与普通空间体验一致）── */}
       {!isModalOpen && (
@@ -585,7 +817,7 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
               </button>
             </motion.div>
             <div className="flex justify-center mt-2 text-[10px] text-gray-400 pointer-events-none select-none tracking-wide">
-              点击节点直接提问，或在此输入 · Enter 发送
+              点击节点查看历史或提问，或在此输入 · Enter 发送
             </div>
           </div>
         </div>

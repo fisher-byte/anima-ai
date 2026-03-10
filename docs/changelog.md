@@ -1,5 +1,45 @@
 # Anima 变更日志
 
+## [0.2.79] - 2026-03-10
+
+### feat: Lenny Space 体验对齐主空间
+
+#### 核心改动
+
+| 模块 | 改动 |
+|------|------|
+| `src/renderer/src/components/LennySpaceCanvas.tsx` | 物理力模拟（节点斥力 + 同类引力 + 中心引力，防重叠自动弹开）；点击用户对话节点 → `openModalById`（查看历史），种子节点 → `startConversation`（新建对话）；悬浮删除按钮（仅 `nodeType=memory` 且非种子节点可删，带确认弹窗） |
+| `src/renderer/src/stores/canvasStore.ts` | `removeNode` Lenny 模式下正确操作 `lenny-nodes.json` / `lenny-conversations.jsonl`，不影响用户数据；`endConversation` 新节点位置改用黄金角螺旋布局（`goldenAngle = π(3-√5)`），彻底避免新节点与已有节点重叠 |
+
+#### 功能详情
+
+1. **LennySpaceCanvas — 物理力模拟**
+   - 节点斥力（`NODE_REPEL=6000`，最大作用距离 400px）防止节点堆叠
+   - 同类节点引力（`SAME_ATTRACT=0.0015`，理想距离 260px）让同分类节点聚集
+   - 全局中心引力（`CENTER_GRAVITY=0.00006`）防止节点漂散到无限远
+   - 物理 tick 直写 DOM（绕过 React state），避免每帧重渲染；每 2 秒同步一次到 state（供 Edge SVG 跟上位置）
+   - 拖拽节点时速度归零，松手后物理恢复
+
+2. **LennySpaceCanvas — 点击行为修复**
+   - 修复前：所有节点点击均调用 `startConversation`（新建对话），用户无法查看已有 Lenny 对话历史
+   - 修复后：`conversationId` 存在且非 `lenny-seed-*` 前缀 → 调用 `openModalById` 查看历史；种子节点/无历史节点 → 调用 `startConversation` 新建
+
+3. **LennySpaceCanvas — 悬浮删除按钮**
+   - 仅 `nodeType === 'memory'` 且 `conversationId` 不以 `lenny-seed-` 开头的节点显示删除按钮
+   - 点击删除按钮触发确认弹窗（`z-[130]`），避免误操作
+   - 确认后先从本地 state 移除（即时反馈），再异步调用 `removeNode` 持久化
+
+4. **canvasStore.removeNode — Lenny 模式修复**
+   - 修复前：Lenny 模式下 `removeNode` 走用户数据路径，操作 `nodes.json`
+   - 修复后：检测 `isLennyMode` 后只操作 `lenny-nodes.json` 和 `lenny-conversations.jsonl`
+
+5. **canvasStore.endConversation — 黄金角螺旋布局**
+   - 修复前：新节点位置通过随机偏移计算，高密度时多次碰撞失败后仍可能重叠
+   - 修复后：使用黄金角（`~137.5°`）螺旋遍历候选位置，半径随序号增大（`r = minDist × √(i+1)`），最多 200 次迭代找到第一个无碰撞位置，彻底消除重叠
+
+---
+
+
 ## [0.2.78] - 2026-03-10
 
 ### fix: Lenny Space 记忆注入 + 首次访问 404 修复 + chatanima.com 域名上线
