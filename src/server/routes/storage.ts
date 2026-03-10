@@ -253,6 +253,13 @@ storageRoutes.get('/:filename', (c) => {
     if (filename === 'semantic-edges.json' || filename === 'logical-edges.json') {
       return c.text('[]')
     }
+    // Lenny 文件首次访问时返回空值（而非 404），前端会用种子数据初始化
+    if (filename === 'lenny-nodes.json' || filename === 'lenny-edges.json') {
+      return c.text('[]')
+    }
+    if (filename === 'lenny-conversations.jsonl') {
+      return c.text('')
+    }
     return c.text('', 404)
   }
 
