@@ -334,7 +334,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
   setOnboardingPhase: (phase) => set({ onboardingPhase: phase }),
   openLennyMode: () => set({ isLennyMode: true }),
-  closeLennyMode: () => set({ isLennyMode: false, isModalOpen: false, currentConversation: null }),
+  closeLennyMode: () => set({ isLennyMode: false, isModalOpen: false, currentConversation: null, conversationHistory: [] }),
   setPendingProfileRefresh: (val) => set({ pendingProfileRefresh: val }),
   setPendingMemoryRefresh: (val) => set({ pendingMemoryRefresh: val }),
   completeOnboarding: async () => {
@@ -1210,6 +1210,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           }
         } catch { /* ignore */ }
       }
+      // LennySpaceCanvas 通过 isModalOpen 变化来重载节点，无需写 store.nodes
       return
     }
 
