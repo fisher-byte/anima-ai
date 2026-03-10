@@ -436,8 +436,13 @@ export function AnswerModal() {
       setAppliedPreferences([])
       setFeedbackMessage('')
 
-      const preferences = getPreferencesForPrompt()
-      sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false, currentConversation.id)
+      const preferences = isLennyMode ? [] : getPreferencesForPrompt()
+      // Lenny 模式：不传 conversationId（避免持久化到用户 conversation_history），用 LENNY_SYSTEM_PROMPT
+      if (isLennyMode) {
+        sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false, undefined, LENNY_SYSTEM_PROMPT)
+      } else {
+        sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false, currentConversation.id)
+      }
     }
 
     prepareConversation()
@@ -653,7 +658,7 @@ export function AnswerModal() {
 
     setIsStreaming(true)
 
-    // Lenny 模式：跳过用户记忆检索，不高亮节点，直接用 Lenny 记忆（存在 lenny-conversations.jsonl）
+    // Lenny 模式：跳过用户记忆检索，不高亮节点，直接用 Lenny 历史对话记忆
     let memories: Awaited<ReturnType<typeof getRelevantMemories>> = []
     let compressed: string | undefined
     if (!isLennyMode) {
@@ -664,6 +669,10 @@ export function AnswerModal() {
         .filter((id): id is string => id != null)
       setHighlight(category, highlightedNodeIds)
       if (highlightedNodeIds.length > 0) focusNode(highlightedNodeIds[0])
+      compressed = compressMemoriesForPrompt(memories)
+    } else {
+      // Lenny 模式：从 lenny-conversations.jsonl 检索历史对话记忆（不高亮节点）
+      memories = await getRelevantMemories(trimmed)
       compressed = compressMemoriesForPrompt(memories)
     }
 
@@ -688,9 +697,9 @@ export function AnswerModal() {
 
     const preferences = isLennyMode ? [] : getPreferencesForPrompt()
     didMutateRef.current = true
-    // Lenny 模式：传 systemPromptOverride，不传 isOnboarding，不传 conversationId（避免写用户历史）
+    // Lenny 模式：传 systemPromptOverride + 历史记忆压缩，不传 conversationId（避免写用户历史）
     if (isLennyMode) {
-      sendMessage(fullMessage, preferences, history, pendingImages, undefined, false, undefined, LENNY_SYSTEM_PROMPT)
+      sendMessage(fullMessage, preferences, history, pendingImages, compressed, false, undefined, LENNY_SYSTEM_PROMPT)
     } else {
       sendMessage(fullMessage, preferences, history, pendingImages, compressed, isOnboardingMode, isOnboardingMode ? undefined : currentConversation?.id)
     }
