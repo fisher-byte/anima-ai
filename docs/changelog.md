@@ -1,5 +1,37 @@
 # Anima 变更日志
 
+## [0.2.78] - 2026-03-10
+
+### fix: Lenny Space 记忆注入 + 首次访问 404 修复 + chatanima.com 域名上线
+
+#### 核心改动
+
+| 模块 | 改动 |
+|------|------|
+| `src/renderer/src/components/AnswerModal.tsx` | Lenny 模式 `doSend` 现在正确调用 `getRelevantMemories` 并将压缩记忆传给 AI（之前传 `undefined`，导致 Lenny 无记忆上下文）；`prepareConversation` 路径同样修复：传 `LENNY_SYSTEM_PROMPT` + 压缩记忆，不写用户 `conversation_history`；补全 `isLennyMode` 至 `prepareConversation` useEffect 依赖数组（之前缺失，导致 Lenny 模式切换时 effect 不重新触发） |
+| `src/server/routes/storage.ts` | `lenny-nodes.json` / `lenny-edges.json` 首次访问返回 `[]` 而非 404；`lenny-conversations.jsonl` 首次返回 `''` 而非 404，避免前端初始化报错 |
+| nginx (101.32.215.209) | 新增 `chatanima.com` port 80 server block，反代至 Node app `:3001`，现在 `http://chatanima.com` 可直接访问 |
+
+#### Bug 修复详情
+
+1. **AnswerModal.tsx - Lenny doSend 记忆缺失**
+   - 修复前：`doSend` 在 Lenny 模式下将 `compressed` 始终赋为 `undefined`，AI 无记忆上下文
+   - 修复后：Lenny 模式同样调用 `getRelevantMemories(trimmed)` 并 `compressMemoriesForPrompt`，记忆注入 AI
+
+2. **AnswerModal.tsx - prepareConversation 路径记忆缺失**
+   - 修复前：节点点击打开对话时（`prepareConversation` 路径）传入普通 system prompt 而非 `LENNY_SYSTEM_PROMPT`，且不传记忆
+   - 修复后：Lenny 模式传 `LENNY_SYSTEM_PROMPT` + `compressed memory`，且 `conversationId` 传 `undefined`（避免写用户历史）
+
+3. **AnswerModal.tsx - prepareConversation useEffect 依赖数组遗漏**
+   - 修复前：`isLennyMode` 用于 `prepareConversation` 内部的条件分支，但未加入依赖数组，导致 Lenny 模式切换时 effect 不会重新执行
+   - 修复后：`isLennyMode` 已加入依赖数组（代码审查中发现并修复）
+
+4. **storage.ts - Lenny 文件首次访问 404**
+   - 修复前：新账号首次进入 Lenny Space 时，`lenny-nodes.json`、`lenny-edges.json`、`lenny-conversations.jsonl` 均返回 404，触发前端错误
+   - 修复后：这三个文件首次访问分别返回 `[]`、`[]`、`''`，前端用种子数据初始化
+
+---
+
 ## [0.2.77] - 2026-03-10
 
 ### fix: Lenny Space 输入框 + 对话历史修复 + E2E 测试加固
