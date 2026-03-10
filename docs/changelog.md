@@ -1,5 +1,29 @@
 # Anima 变更日志
 
+## [0.2.80] - 2026-03-10
+
+### chore: 技术债清理（canvasStore + AnswerModal）
+
+#### 核心改动
+
+| 模块 | 改动 |
+|------|------|
+| `src/renderer/src/stores/canvasStore.ts` | `closeLennyMode` 退出时清空 `conversationHistory`，防止 Lenny 对话历史泄漏到主空间；`removeNode` Lenny 分支添加澄清注释 |
+| `src/renderer/src/components/AnswerModal.tsx` | 移除未使用的 `canvasNodes` store 订阅，避免不必要的重渲染；从 `handleClose` 依赖数组中移除 |
+
+#### 详情
+
+1. **canvasStore.closeLennyMode — 清空 conversationHistory**
+   - 修复前：退出 Lenny 模式时 `conversationHistory` 未重置，Lenny 对话历史可能泄漏到主空间后续对话
+   - 修复后：`closeLennyMode` 末尾调用 `set({ conversationHistory: [] })`，确保干净状态
+
+2. **AnswerModal.tsx — 移除未使用的 canvasNodes 订阅**
+   - 修复前：组件订阅了 `canvasNodes` store，但该值从未在组件内使用，造成不必要的重渲染
+   - 修复后：移除订阅及其在 `handleClose` 依赖数组中的引用，减少无效渲染
+
+---
+
+
 ## [0.2.79] - 2026-03-10
 
 ### feat: Lenny Space 体验对齐主空间

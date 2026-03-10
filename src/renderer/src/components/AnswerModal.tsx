@@ -92,7 +92,6 @@ export function AnswerModal() {
   const isOnboardingMode = useCanvasStore(state => state.isOnboardingMode)
   const completeOnboarding = useCanvasStore(state => state.completeOnboarding)
   const addCapabilityNode = useCanvasStore(state => state.addCapabilityNode)
-  const canvasNodes = useCanvasStore(state => state.nodes)
   const onboardingResumeTurns = useCanvasStore(state => state.onboardingResumeTurns)
   const saveOnboardingTurns = useCanvasStore(state => state.saveOnboardingTurns)
   const isLennyMode = useCanvasStore(state => state.isLennyMode)
@@ -821,7 +820,7 @@ export function AnswerModal() {
       }
     }, 500)
   }, [isClosing, turns, errorMessage, isStreaming, currentConversation, isOnboardingMode, isLennyMode,
-      endConversation, closeModal, appliedPreferences, completeOnboarding, addCapabilityNode, canvasNodes, saveOnboardingTurns])
+      endConversation, closeModal, appliedPreferences, completeOnboarding, addCapabilityNode, saveOnboardingTurns])
 
   // ESC 关闭
   useEffect(() => {
