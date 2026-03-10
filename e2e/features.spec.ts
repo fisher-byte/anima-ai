@@ -76,6 +76,7 @@ async function injectToken(page: import('@playwright/test').Page) {
   await page.addInitScript((token: string) => {
     if (token) localStorage.setItem('anima_access_token', token)
     localStorage.setItem('evo_onboarding_v3', 'done')
+    localStorage.removeItem('evo_view')
   }, ACCESS_TOKEN)
 }
 
@@ -490,6 +491,9 @@ test('画布中多对话节点渲染"X 条对话"角标', async ({ page }) => {
   await injectToken(page)
   await page.goto('http://localhost:5173')
   await waitForBackend(page)
+  // 等待 loadNodes 完全执行完毕（addCapabilityNode DOM 更新 + 异步存储写入）
+  await expect(page.getByText('导入外部记忆')).toBeVisible({ timeout: 8000 })
+  await page.waitForTimeout(500)  // 等存储写入完成
 
   // 注入一个已有多 conversationIds 的测试节点到 nodes.json（通过 storage API）
   const testNode = {
@@ -498,26 +502,30 @@ test('画布中多对话节点渲染"X 条对话"角标', async ({ page }) => {
     conversationIds: ['e2e-conv-1', 'e2e-conv-2'],
     title: 'E2E多对话测试节点',
     category: '学习成长',
-    x: 800, y: 600,
+    x: 1920, y: 1200,
+    nodeType: 'memory',
     color: 'rgba(219,234,254,0.9)',
     date: '2026-03-09',
     topicLabel: 'E2E测试',
+    keywords: [],
+    images: [],
     firstDate: '2026-03-09',
   }
 
-  // 读取现有 nodes
+  // 读取现有 nodes（过滤掉可能残留的测试节点，防止测试污染）
   const readResp = await page.request.get(`${API_BASE}/api/storage/nodes.json`, {
     headers: authHeaders()
   })
-  let existingNodes: unknown[] = []
+  let existingNodes: { id: string }[] = []
   if (readResp.ok()) {
-    try { existingNodes = await readResp.json() as unknown[] } catch { existingNodes = [] }
+    try { existingNodes = await readResp.json() as { id: string }[] } catch { existingNodes = [] }
   }
   if (!Array.isArray(existingNodes)) existingNodes = []
+  const cleanedExisting = existingNodes.filter(n => n.id !== 'e2e-test-multi-conv' && n.id !== 'e2e-test-timeline')
 
   // 写入包含测试节点的列表
   await page.request.put(`${API_BASE}/api/storage/nodes.json`, {
-    data: JSON.stringify([...existingNodes, testNode]),
+    data: JSON.stringify([...cleanedExisting, testNode]),
     headers: authHeaders({ 'Content-Type': 'application/json' })
   })
 
@@ -527,7 +535,7 @@ test('画布中多对话节点渲染"X 条对话"角标', async ({ page }) => {
   await page.waitForTimeout(1500)
 
   // 查找角标文字（"2 条对话"）
-  const badge = page.getByText('2 条对话')
+  const badge = page.locator('#node-e2e-test-multi-conv').getByText('2 条对话')
   await expect(badge).toBeVisible({ timeout: 5000 })
 
   // 清理：删除测试节点
@@ -549,6 +557,9 @@ test('点击多对话节点弹出时间线面板，关闭按钮可关闭', async
   await injectToken(page)
   await page.goto('http://localhost:5173')
   await waitForBackend(page)
+  // 等待 loadNodes 完全执行完毕（addCapabilityNode DOM 更新 + 异步存储写入）
+  await expect(page.getByText('导入外部记忆')).toBeVisible({ timeout: 8000 })
+  await page.waitForTimeout(500)  // 等存储写入完成
 
   const testNode = {
     id: 'e2e-test-timeline',
@@ -556,22 +567,27 @@ test('点击多对话节点弹出时间线面板，关闭按钮可关闭', async
     conversationIds: ['e2e-tl-conv-1', 'e2e-tl-conv-2'],
     title: 'E2E时间线测试节点',
     category: '学习成长',
-    x: 900, y: 700,
+    x: 2100, y: 1200,
+    nodeType: 'memory',
     color: 'rgba(219,234,254,0.9)',
     date: '2026-03-09',
     topicLabel: 'E2E时间线',
+    keywords: [],
+    images: [],
     firstDate: '2026-03-09',
   }
 
   const readResp = await page.request.get(`${API_BASE}/api/storage/nodes.json`, { headers: authHeaders() })
-  let existingNodes: unknown[] = []
+  let existingNodes: { id: string }[] = []
   if (readResp.ok()) {
-    try { existingNodes = await readResp.json() as unknown[] } catch { existingNodes = [] }
+    try { existingNodes = await readResp.json() as { id: string }[] } catch { existingNodes = [] }
   }
   if (!Array.isArray(existingNodes)) existingNodes = []
+  // 过滤掉可能残留的测试节点，防止测试污染
+  const cleanedExisting = existingNodes.filter(n => n.id !== 'e2e-test-multi-conv' && n.id !== 'e2e-test-timeline')
 
   await page.request.put(`${API_BASE}/api/storage/nodes.json`, {
-    data: JSON.stringify([...existingNodes, testNode]),
+    data: JSON.stringify([...cleanedExisting, testNode]),
     headers: authHeaders({ 'Content-Type': 'application/json' })
   })
 
@@ -582,10 +598,10 @@ test('点击多对话节点弹出时间线面板，关闭按钮可关闭', async
   // 点击节点标题
   const nodeTitle = page.getByText('E2E时间线测试节点')
   await expect(nodeTitle).toBeVisible({ timeout: 5000 })
-  await nodeTitle.click()
+  await nodeTitle.click({ force: true })
 
   // 时间线面板应出现（含「条对话」文字）
-  await expect(page.getByText('2 条对话')).toBeVisible({ timeout: 3000 })
+  await expect(page.getByText('2 条对话').first()).toBeVisible({ timeout: 3000 })
 
   // 点 X 关闭
   const closeBtn = page.locator('button').filter({ has: page.locator('svg') }).first()
@@ -629,7 +645,7 @@ test('POST /api/memory/rebuild-node-graph 无节点时返回 reason 字段', asy
 
 test('Canvas 汉堡菜单展开后可见"整理相似节点"按钮', async ({ page }) => {
   await injectToken(page)
-  await page.goto(`${API_BASE}/`)
+  await page.goto('http://localhost:5173')
   await waitForBackend(page)
   await page.waitForTimeout(1000)
 
@@ -682,7 +698,7 @@ test('注入 2 个相似节点 + embeddings，rebuild 后节点数减少 1', asy
 
   // 仅在 embeddings 可用时验证节点合并效果
   if (embed1Ok && embed2Ok) {
-    await page.goto(`${API_BASE}/`)
+    await page.goto('http://localhost:5173')
     await waitForBackend(page)
     await page.waitForTimeout(1500)
 
@@ -730,7 +746,7 @@ test('注入 2 个相似节点 + embeddings，rebuild 后节点数减少 1', asy
 
 test('Canvas 左侧"Lenny Space"按钮可见', async ({ page }) => {
   await injectToken(page)
-  await page.goto(`${API_BASE}/`)
+  await page.goto('http://localhost:5173')
   await waitForBackend(page)
   await page.waitForTimeout(1500)
 
@@ -757,7 +773,7 @@ test('GET /api/storage/lenny-nodes.json 通过文件名白名单，不返回 400
 
 test('Lenny Space 初始化后 lenny-nodes.json 种子节点数量 ≥ 37', async ({ page, request }) => {
   await injectToken(page)
-  await page.goto(`${API_BASE}/`)
+  await page.goto('http://localhost:5173')
   await waitForBackend(page)
 
   // 先检查 lenny-nodes.json 是否已存在（用户已进入过 Lenny Space）

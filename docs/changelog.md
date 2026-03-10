@@ -1,5 +1,41 @@
 # Anima 变更日志
 
+## [0.2.77] - 2026-03-10
+
+### fix: Lenny Space 输入框 + 对话历史修复 + E2E 测试加固
+
+#### 核心改动
+
+| 模块 | 改动 |
+|------|------|
+| `src/renderer/src/stores/canvasStore.ts` | `closeModal` 重置 `conversationHistory: []`，修复对话历史泄漏；`serverConfirmsOnboardingDone` 增加「两个能力块都存在」条件，防止 localStorage 标记被错误清除 |
+| `src/renderer/src/components/LennySpaceCanvas.tsx` | 新增底部输入框，与个人空间 InputBox 风格一致，支持直接在 Lenny Space 发送消息 |
+| `src/renderer/src/components/AnswerModal.tsx` | Lenny 模式下 overlay/panel z-index 提升至 z-[110]/z-[120]，确保遮罩正常覆盖 LennySpaceCanvas（z-100） |
+| `src/renderer/src/components/NodeCard.tsx` | `node.keywords.map` 增加空值防御（`?? []`），修复测试节点缺少 keywords 字段时的崩溃 |
+| `e2e/features.spec.ts` | 修复 4 个 E2E 测试 bug：`page.goto(\`\${API_BASE}/\`)` 改为正确的前端 URL；测试节点补全 keywords/images/nodeType 字段；injectToken 清除 evo_view；等待能力块渲染以同步 addCapabilityNode 写入时序；按节点 id 定位 badge |
+
+#### Bug 修复详情
+
+1. **canvasStore.ts - closeModal 历史泄漏**
+   - 修复前：关闭对话弹窗时未清空 `conversationHistory`，导致下次开启对话时携带旧历史
+   - 修复后：`closeModal` 末尾重置 `conversationHistory: []`
+
+2. **LennySpaceCanvas.tsx - 缺少输入框**
+   - 新增底部输入框（与 InputBox 样式一致），支持用户在 Lenny Space 直接输入问题
+   - 实现 `handleInputSend` / `handleInputChange` / `handleInputKeyDown` 三个处理器
+
+3. **AnswerModal.tsx - z-index 层叠问题**
+   - Lenny 模式下 overlay 从 `z-40` 提升至 `z-[110]`，panel 从 `z-50` 提升至 `z-[120]`
+   - 确保对话弹窗完整覆盖 LennySpaceCanvas（z-100）
+
+4. **E2E 测试稳健性**
+   - 修复 4 个 UI 测试的根因（`page.goto` URL 错误、缺少 keywords 字段、loadNodes 异步写入竞态）
+   - 新增 `loadNodes` 完成等待逻辑（等待"导入外部记忆"节点可见）
+   - 修复测试节点坐标（移至画布中心 1920,1200 确保可见）
+   - 增加 `serverConfirmsOnboardingDone` 新条件，防止 E2E 场景中 localStorage 被误清除
+
+---
+
 ## [0.2.76] - 2026-03-09
 
 ### feat: Lenny Space 全量种子节点扩充（15 → 46 个）

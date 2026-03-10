@@ -5,6 +5,7 @@
  * - 节点从 lenny-nodes.json 加载，首次进入用种子数据
  * - 画布交互（平移/缩放/拖拽）与 Canvas.tsx 一致
  * - 点击节点 → startConversation → AnswerModal（复用真实对话逻辑）
+ * - 底部输入框：与普通空间 InputBox 体验一致，Enter 发送
  * - 对话结束后自动写 lenny-nodes.json / lenny-conversations.jsonl
  * - 不污染用户的 nodes.json / conversations.jsonl
  */
@@ -12,7 +13,7 @@ import {
   useState, useRef, useEffect, useCallback, useLayoutEffect, useMemo,
 } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, ArrowUp } from 'lucide-react'
 import { Edge } from './Edge'
 import { storageService } from '../services/storageService'
 import { LENNY_SEED_NODES, LENNY_SEED_EDGES } from '@shared/lennyData'
@@ -182,6 +183,11 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
   const [nodes, setNodes] = useState<Node[]>([])
   const [edges, setEdges] = useState<EdgeType[]>([])
   const [nodesLoaded, setNodesLoaded] = useState(false)
+
+  // ── Input box state ──────────────────────────────────────────────────────────
+  const [inputValue, setInputValue] = useState('')
+  const [inputFocused, setInputFocused] = useState(false)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   // ── Store ────────────────────────────────────────────────────────────────────
   const startConversation = useCanvasStore(state => state.startConversation)
@@ -405,6 +411,31 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
     startConversation(title)
   }, [startConversation])
 
+  // ── 输入框发送 ──────────────────────────────────────────────────────────────
+  const handleInputSend = useCallback(() => {
+    const trimmed = inputValue.trim()
+    if (!trimmed) return
+    setInputValue('')
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto'
+    }
+    startConversation(trimmed)
+  }, [inputValue, startConversation])
+
+  const handleInputKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleInputSend()
+    }
+  }, [handleInputSend])
+
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputValue(e.target.value)
+    const el = e.target
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+  }, [])
+
   // ── Node/Edge map for rendering ─────────────────────────────────────────────
   const nodeMap = useMemo(() => {
     const map = new Map<string, Node>()
@@ -509,16 +540,56 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
             <p className="text-sm text-gray-400 italic">Loading Lenny's knowledge…</p>
           </div>
         )}
-
-        {/* 提示：点击节点开始对话 */}
-        {nodesLoaded && nodes.length > 0 && (
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 pointer-events-none">
-            <span className="text-[12px] text-gray-400 bg-white/80 backdrop-blur-sm px-3 py-1.5 rounded-full border border-gray-100 shadow-sm">
-              点击任意节点，向 Lenny 提问
-            </span>
-          </div>
-        )}
       </div>
+
+      {/* ── 底部输入框（与普通空间体验一致）── */}
+      {!isModalOpen && (
+        <div
+          className="absolute bottom-0 left-0 right-0 z-20 flex justify-center pb-6 px-4"
+          style={{ pointerEvents: 'auto' }}
+        >
+          <div className="w-full max-w-2xl">
+            <motion.div
+              layout
+              className={`
+                relative flex items-end gap-1.5 rounded-[28px]
+                bg-white p-2.5
+                border shadow-[0_8px_30px_rgba(0,0,0,0.08)]
+                transition-all duration-200
+                ${inputFocused ? 'border-gray-900 shadow-[0_8px_30px_rgba(0,0,0,0.12)]' : 'border-gray-200'}
+              `}
+            >
+              <textarea
+                ref={inputRef}
+                value={inputValue}
+                onChange={handleInputChange}
+                onFocus={() => setInputFocused(true)}
+                onBlur={() => setInputFocused(false)}
+                onKeyDown={handleInputKeyDown}
+                placeholder="向 Lenny 提问…"
+                rows={1}
+                className="flex-1 bg-transparent border-none outline-none resize-none px-2 py-3.5 text-gray-800 placeholder-gray-400 min-h-[52px] max-h-[160px] text-[15px] leading-relaxed overflow-y-auto scrollbar-none"
+                style={{ scrollbarWidth: 'none' } as React.CSSProperties}
+              />
+              <button
+                onClick={handleInputSend}
+                disabled={!inputValue.trim()}
+                className={`mb-1 p-2.5 rounded-2xl transition-all duration-200 flex items-center justify-center transform active:scale-95 ${
+                  !inputValue.trim()
+                    ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
+                    : 'bg-gray-900 text-white hover:bg-black shadow-sm'
+                }`}
+                aria-label="发送"
+              >
+                <ArrowUp className="w-5 h-5 stroke-[3px]" />
+              </button>
+            </motion.div>
+            <div className="flex justify-center mt-2 text-[10px] text-gray-400 pointer-events-none select-none tracking-wide">
+              点击节点直接提问，或在此输入 · Enter 发送
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         .lenny-dot-grid {
