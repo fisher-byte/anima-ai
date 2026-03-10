@@ -1184,6 +1184,35 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   // 删除节点
   removeNode: async (id: string) => {
+    const { isLennyMode } = get()
+
+    // Lenny 模式：只操作 lenny-*.json，不影响用户数据
+    if (isLennyMode) {
+      const nodesRaw = await storageService.read(STORAGE_FILES.LENNY_NODES)
+      let lennyNodes: Node[] = []
+      try { if (nodesRaw) lennyNodes = JSON.parse(nodesRaw) } catch { /* use empty */ }
+      const nodeToRemove = lennyNodes.find(n => n.id === id)
+      const updatedNodes = lennyNodes.filter(n => n.id !== id)
+      await storageService.write(STORAGE_FILES.LENNY_NODES, JSON.stringify(updatedNodes, null, 2))
+      // 同步清理 lenny-conversations.jsonl
+      if (nodeToRemove) {
+        try {
+          const content = await storageService.read(STORAGE_FILES.LENNY_CONVERSATIONS)
+          if (content) {
+            const lines = content.trim().split('\n').filter(Boolean)
+            const filteredLines = lines.filter(line => {
+              try {
+                const conv = JSON.parse(line) as Conversation
+                return conv.id !== nodeToRemove.conversationId
+              } catch { return true }
+            })
+            await storageService.write(STORAGE_FILES.LENNY_CONVERSATIONS, filteredLines.join('\n') + (filteredLines.length > 0 ? '\n' : ''))
+          }
+        } catch { /* ignore */ }
+      }
+      return
+    }
+
     const { nodes } = get()
     const nodeToRemove = nodes.find(n => n.id === id)
     const updatedNodes = nodes.filter(n => n.id !== id)
@@ -1191,7 +1220,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     get().clearSemanticEdgesForNode(id) // 清理该节点相关的语义边
     get().clearLogicalEdgesForNode(id) // 清理该节点相关的逻辑边
     get().updateEdges() // 删除后同步更新连线
-    
+
     // 1. 同步删除节点文件记录
     await storageService.write(STORAGE_FILES.NODES, JSON.stringify(updatedNodes, null, 2))
 
@@ -1352,14 +1381,18 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       try { if (nodesRaw) lennyNodes = JSON.parse(nodesRaw) } catch { /* use empty */ }
       const centerX = lennyNodes.length > 0 ? lennyNodes.reduce((s, n) => s + n.x, 0) / lennyNodes.length : 1920
       const centerY = lennyNodes.length > 0 ? lennyNodes.reduce((s, n) => s + n.y, 0) / lennyNodes.length : 1200
-      const minDist = 280
-      let nx = centerX, ny = centerY
-      for (let attempt = 0; attempt < 20; attempt++) {
-        const angle = Math.random() * Math.PI * 2
-        const radius = minDist + Math.random() * 200
-        const cx = centerX + Math.cos(angle) * radius
-        const cy = centerY + Math.sin(angle) * radius
-        if (!lennyNodes.some(n => Math.hypot(n.x - cx, n.y - cy) < minDist)) { nx = cx; ny = cy; break }
+      const minDist = 300
+      // 螺旋环形布局：确保新节点不与已有节点重叠（无随机失败风险）
+      let nx = centerX + 300, ny = centerY
+      {
+        const goldenAngle = Math.PI * (3 - Math.sqrt(5)) // ~137.5°
+        for (let i = 0; i < 200; i++) {
+          const r = minDist * Math.sqrt(i + 1)
+          const theta = i * goldenAngle
+          const cx = centerX + r * Math.cos(theta)
+          const cy = centerY + r * Math.sin(theta)
+          if (!lennyNodes.some(n => Math.hypot(n.x - cx, n.y - cy) < minDist)) { nx = cx; ny = cy; break }
+        }
       }
       const newNode: Node = {
         id: conv.id,
