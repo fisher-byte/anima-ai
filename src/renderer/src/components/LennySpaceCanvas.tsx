@@ -10,22 +10,26 @@
  * - 底部输入框：与普通空间 InputBox 体验一致，Enter 发送
  * - 对话结束后自动写 lenny-nodes.json / lenny-conversations.jsonl
  * - 不污染用户的 nodes.json / conversations.jsonl
+ * - 左侧历史侧边栏：复用 lenny-conversations.jsonl
+ * - 右上角设置按钮：打开 SettingsModal
  */
 import {
   useState, useRef, useEffect, useCallback, useLayoutEffect, useMemo,
 } from 'react'
-import { motion } from 'framer-motion'
-import { ArrowLeft, ArrowUp, Trash2 } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { ArrowLeft, ArrowUp, Trash2, Settings, History, X, ChevronRight } from 'lucide-react'
 import { Edge } from './Edge'
+import { SettingsModal } from './SettingsModal'
 import { storageService } from '../services/storageService'
 import { LENNY_SEED_NODES, LENNY_SEED_EDGES } from '@shared/lennyData'
 import { STORAGE_FILES } from '@shared/constants'
 import { useCanvasStore } from '../stores/canvasStore'
+import { useT } from '../i18n'
 import type { Node, Edge as EdgeType } from '@shared/types'
 
 // ─── 物理力常量 ────────────────────────────────────────────────────────────────
-const NODE_REPEL          = 6000
-const NODE_REPEL_MAX_DIST = 400
+const NODE_REPEL          = 8000
+const NODE_REPEL_MAX_DIST = 500
 const SAME_ATTRACT        = 0.0015
 const SAME_IDEAL_DIST     = 260
 const SAME_MAX_DIST       = 650
@@ -48,6 +52,7 @@ interface LennyNodeCardProps {
 }
 
 function LennyNodeCard({ node, onOpen, onDelete, onPositionChange, onDragEnd, scale }: LennyNodeCardProps) {
+  const { t } = useT()
   const [isHovered, setIsHovered] = useState(false)
   const isDraggingRef = useRef(false)
   const mouseDownPosRef = useRef({ x: 0, y: 0 })
@@ -196,7 +201,7 @@ function LennyNodeCard({ node, onOpen, onDelete, onPositionChange, onDragEnd, sc
           animate={{ opacity: 1, scale: 1 }}
           onClick={handleDeleteClick}
           className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center text-gray-400 hover:text-red-500 hover:border-red-200 transition-colors z-20"
-          title="删除节点"
+          title={t.space.deleteNodeTooltip}
         >
           <Trash2 className="w-3 h-3" />
         </motion.button>
@@ -228,11 +233,17 @@ interface LennySpaceCanvasProps {
 }
 
 export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
+  const { t } = useT()
   // ── Canvas state ────────────────────────────────────────────────────────────
   const [nodes, setNodes] = useState<Node[]>([])
   const [edges, setEdges] = useState<EdgeType[]>([])
   const [nodesLoaded, setNodesLoaded] = useState(false)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+
+  // ── Settings / History sidebar state ─────────────────────────────────────
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+  const [historyItems, setHistoryItems] = useState<Array<{ id: string; userMessage: string; createdAt: string }>>([])
 
   // ── Input box state ──────────────────────────────────────────────────────────
   const [inputValue, setInputValue] = useState('')
@@ -272,6 +283,8 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
   const simRafRef = useRef<number | null>(null)
   const hasKickedRef = useRef(false)
 
+  const initialNodesCenterRef = useRef({ x: 1920, y: 1200 })
+
   // ── 物理 tick ───────────────────────────────────────────────────────────────
   const simTickRef = useRef<() => void>()
   simTickRef.current = () => {
@@ -288,9 +301,9 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
         const a = nodes[i]
         let fx = 0, fy = 0
 
-        // 全局中心引力
-        fx -= a.x * CENTER_GRAVITY
-        fy -= a.y * CENTER_GRAVITY
+        // 全局中心引力（朝向节点群重心，防止整体漂移，不向原点坍缩）
+        fx += (gcx - a.x) * CENTER_GRAVITY
+        fy += (gcy - a.y) * CENTER_GRAVITY
 
         for (let j = 0; j < nodes.length; j++) {
           if (i === j) continue
@@ -400,6 +413,13 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
       }
       setNodes(loadedNodes)
       setEdges(loadedEdges)
+      // 记录节点群中心，供 initial transform 使用
+      if (loadedNodes.length > 0) {
+        initialNodesCenterRef.current = {
+          x: loadedNodes.reduce((s, n) => s + n.x, 0) / loadedNodes.length,
+          y: loadedNodes.reduce((s, n) => s + n.y, 0) / loadedNodes.length,
+        }
+      }
       setNodesLoaded(true)
       // 启动物理力，让节点自动弹开避免重叠
       kickSim(loadedNodes)
@@ -429,6 +449,23 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
     }
   }, [isOpen, openLennyMode, closeLennyMode])
 
+  // ── 加载历史对话（打开侧边栏时） ──────────────────────────────────────────
+  useEffect(() => {
+    if (!isHistoryOpen) return
+    ;(async () => {
+      const raw = await storageService.read(STORAGE_FILES.LENNY_CONVERSATIONS)
+      if (!raw) return
+      const items = raw.trim().split('\n').filter(Boolean).map(line => {
+        try { return JSON.parse(line) } catch { return null }
+      }).filter(Boolean).reverse()
+      setHistoryItems(items.map((c: any) => ({
+        id: c.id,
+        userMessage: c.userMessage ?? t.space.noContent,
+        createdAt: c.createdAt ?? '',
+      })))
+    })()
+  }, [isHistoryOpen])
+
   // ── applyTransform ──────────────────────────────────────────────────────────
   const applyTransform = useCallback((offset: { x: number; y: number }, scale: number) => {
     if (contentLayerRef.current) {
@@ -443,12 +480,20 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
     const vw = window.innerWidth
     const vh = window.innerHeight
     const initScale = 0.7
+    // contentLayer CSS: left=-vw, top=-vh, transformOrigin='0 0'
+    // 节点屏幕坐标公式（与 Canvas.tsx 一致）：
+    //   screenX = node.x * scale + offset.x - vw
+    // 让节点群中心在视口中央：
+    //   offset.x = vw/2 - cx * scale + vw
+    const cx = initialNodesCenterRef.current.x
+    const cy = initialNodesCenterRef.current.y
     const initOffset = {
-      x: vw * 1.5 - 1920 * initScale,
-      y: vh * 1.5 - 1200 * initScale,
+      x: vw / 2 - cx * initScale + vw,
+      y: vh / 2 - cy * initScale + vh,
     }
     applyTransform(initOffset, initScale)
     setScaleDisplay(initScale)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodesLoaded, isOpen, applyTransform])
 
   // ── Wheel zoom ──────────────────────────────────────────────────────────────
@@ -651,28 +696,46 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
       {/* ── Top bar ── */}
       <div
         className="relative z-20 flex items-center gap-4 px-5 border-b border-gray-100"
-        style={{ height: 56, backgroundColor: 'rgba(248,248,250,0.95)', backdropFilter: 'blur(12px)' }}
+        style={{ height: 56, backgroundColor: 'rgba(248,248,250,0.97)', backdropFilter: 'blur(12px)' }}
       >
         <button
           onClick={onClose}
-          className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-800 transition-colors"
+          className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-all shrink-0"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>返回我的空间</span>
+          <span>{t.space.backToMySpace}</span>
         </button>
 
-        <div className="flex-1 flex items-center justify-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold text-sm shadow-lg shrink-0">
+        <div className="flex-1 flex items-center justify-center gap-3 min-w-0">
+          <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center text-white font-semibold text-[11px] shrink-0">
             L
           </div>
-          <div>
-            <div className="text-sm font-semibold text-gray-800">Lenny's Space</div>
-            <div className="text-xs text-gray-400">Product · Growth · Career</div>
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-gray-800 leading-tight">Lenny Rachitsky</div>
+            <div className="text-[10px] text-gray-400 leading-tight mt-0.5 flex items-center gap-1.5">
+              <span>{t.space.talkTo}</span>
+              <span className="text-gray-200">·</span>
+              <span>{t.space.knowsYourMemory}</span>
+            </div>
           </div>
         </div>
 
-        <div className="text-[11px] font-bold text-gray-300" style={{ minWidth: 40, textAlign: 'right' }}>
-          {Math.round(scaleDisplay * 100)}%
+        <div className="flex items-center gap-1 shrink-0">
+          <span className="text-[11px] font-bold text-gray-300 mr-2">{Math.round(scaleDisplay * 100)}%</span>
+          <button
+            onClick={() => setIsHistoryOpen(v => !v)}
+            className={`p-2 rounded-xl transition-colors ${isHistoryOpen ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
+            title={t.space.conversationHistory}
+          >
+            <History className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+            title={t.space.settingsTooltip}
+          >
+            <Settings className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
@@ -738,10 +801,50 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
         {/* 提示：无节点时 */}
         {nodesLoaded && nodes.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <p className="text-sm text-gray-400 italic">Loading Lenny's knowledge…</p>
+            <p className="text-sm text-gray-400 italic">{t.space.loading('Lenny')}</p>
           </div>
         )}
       </div>
+
+      {/* ── 历史对话侧边栏 ── */}
+      <AnimatePresence>
+        {isHistoryOpen && (
+          <motion.div
+            initial={{ x: -320, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: -320, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 36 }}
+            className="fixed left-0 z-[110] flex flex-col bg-white/95 backdrop-blur-md border-r border-gray-100 shadow-xl"
+            style={{ top: 56, bottom: 0, width: 280 }}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <span className="text-sm font-semibold text-gray-700">{t.space.historyTitle('Lenny')}</span>
+              <button onClick={() => setIsHistoryOpen(false)} className="p-1 text-gray-400 hover:text-gray-700 rounded-lg">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto py-2">
+              {historyItems.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center mt-8 px-4">{t.space.noHistory}</p>
+              ) : (
+                historyItems.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => { openModalById(item.id); setIsHistoryOpen(false) }}
+                    className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors group"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-[13px] text-gray-700 leading-snug line-clamp-2 flex-1">{item.userMessage}</p>
+                      <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 shrink-0 mt-0.5 transition-colors" />
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1">{item.createdAt ? new Date(item.createdAt).toLocaleDateString('zh-CN') : ''}</p>
+                  </button>
+                ))
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── 删除确认弹窗 ── */}
       {deleteConfirmId && (
@@ -751,23 +854,23 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
             animate={{ scale: 1, opacity: 1 }}
             className="bg-white rounded-2xl shadow-xl p-6 w-80 mx-4"
           >
-            <h3 className="font-semibold text-gray-800 mb-2">删除这条对话？</h3>
+            <h3 className="font-semibold text-gray-800 mb-2">{t.space.deleteNodeTitle}</h3>
             <p className="text-sm text-gray-500 mb-5">
               {confirmTargetNode?.title ?? ''}
-              <br />删除后不可恢复。
+              <br />{t.space.deleteNodeWarning}
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteConfirmId(null)}
                 className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
               >
-                取消
+                {t.space.deleteCancel}
               </button>
               <button
                 onClick={handleDeleteConfirm}
                 className="flex-1 py-2.5 rounded-xl bg-red-500 text-sm text-white hover:bg-red-600 transition-colors"
               >
-                删除
+                {t.space.deleteConfirm}
               </button>
             </div>
           </motion.div>
@@ -798,7 +901,7 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
                 onFocus={() => setInputFocused(true)}
                 onBlur={() => setInputFocused(false)}
                 onKeyDown={handleInputKeyDown}
-                placeholder="向 Lenny 提问…"
+                placeholder={t.space.lennyPlaceholder}
                 rows={1}
                 className="flex-1 bg-transparent border-none outline-none resize-none px-2 py-3.5 text-gray-800 placeholder-gray-400 min-h-[52px] max-h-[160px] text-[15px] leading-relaxed overflow-y-auto scrollbar-none"
                 style={{ scrollbarWidth: 'none' } as React.CSSProperties}
@@ -817,7 +920,7 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
               </button>
             </motion.div>
             <div className="flex justify-center mt-2 text-[10px] text-gray-400 pointer-events-none select-none tracking-wide">
-              点击节点查看历史或提问，或在此输入 · Enter 发送
+              {t.space.clickHint}
             </div>
           </div>
         </div>
@@ -831,6 +934,9 @@ export function LennySpaceCanvas({ isOpen, onClose }: LennySpaceCanvasProps) {
         }
         .lenny-dot-grid.\\!cursor-grabbing { cursor: grabbing !important; }
       `}</style>
+
+      {/* ── 设置弹窗 ── */}
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </div>
   )
 }

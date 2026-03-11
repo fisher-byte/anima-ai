@@ -21,6 +21,7 @@ import { storageService } from '../services/storageService'
 import { PG_SEED_NODES, PG_SEED_EDGES } from '@shared/pgData'
 import { STORAGE_FILES } from '@shared/constants'
 import { useCanvasStore } from '../stores/canvasStore'
+import { useT } from '../i18n'
 import type { Node, Edge as EdgeType } from '@shared/types'
 
 // ─── 物理力常量（与 LennySpaceCanvas 相同）──────────────────────────────────
@@ -48,6 +49,7 @@ interface PGNodeCardProps {
 }
 
 function PGNodeCard({ node, onOpen, onDelete, onPositionChange, onDragEnd, scale }: PGNodeCardProps) {
+  const { t } = useT()
   const [isHovered, setIsHovered] = useState(false)
   const isDraggingRef = useRef(false)
   const mouseDownPosRef = useRef({ x: 0, y: 0 })
@@ -196,8 +198,7 @@ function PGNodeCard({ node, onOpen, onDelete, onPositionChange, onDragEnd, scale
           animate={{ opacity: 1, scale: 1 }}
           onClick={handleDeleteClick}
           className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center text-gray-400 hover:text-red-500 hover:border-red-200 transition-colors z-20"
-          title="Delete node"
-        >
+          title={t.space.deleteNodeTooltip}        >
           <Trash2 className="w-3 h-3" />
         </motion.button>
       )}
@@ -228,6 +229,7 @@ interface PGSpaceCanvasProps {
 }
 
 export function PGSpaceCanvas({ isOpen, onClose }: PGSpaceCanvasProps) {
+  const { t } = useT()
   const [nodes, setNodes] = useState<Node[]>([])
   const [edges, setEdges] = useState<EdgeType[]>([])
   const [nodesLoaded, setNodesLoaded] = useState(false)
@@ -429,7 +431,7 @@ export function PGSpaceCanvas({ isOpen, onClose }: PGSpaceCanvasProps) {
       }).filter(Boolean).reverse()
       setHistoryItems(items.map((c: any) => ({
         id: c.id,
-        userMessage: c.userMessage ?? '(no content)',
+        userMessage: c.userMessage ?? t.space.noContent,
         createdAt: c.createdAt ?? '',
       })))
     })()
@@ -652,42 +654,43 @@ export function PGSpaceCanvas({ isOpen, onClose }: PGSpaceCanvasProps) {
       {/* ── Top bar ── */}
       <div
         className="relative z-20 flex items-center gap-4 px-5 border-b border-gray-100"
-        style={{ height: 56, backgroundColor: 'rgba(248,248,250,0.95)', backdropFilter: 'blur(12px)' }}
+        style={{ height: 56, backgroundColor: 'rgba(248,248,250,0.97)', backdropFilter: 'blur(12px)' }}
       >
         <button
           onClick={onClose}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-all"
+          className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-all shrink-0"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>My Space</span>
+          <span>{t.space.backToMySpace}</span>
         </button>
 
-        <div className="flex-1 flex items-center justify-center gap-3">
-          <div className="relative shrink-0">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs shadow-lg">
-              PG
-            </div>
-            <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-[1.5px] border-white" />
+        <div className="flex-1 flex items-center justify-center gap-3 min-w-0">
+          <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center text-white font-semibold text-[11px] shrink-0">
+            PG
           </div>
-          <div>
-            <div className="text-sm font-semibold text-gray-800">Paul Graham's Space</div>
-            <div className="text-xs text-gray-400">Startup · Thinking · Wealth</div>
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-gray-800 leading-tight">Paul Graham</div>
+            <div className="text-[10px] text-gray-400 leading-tight mt-0.5 flex items-center gap-1.5">
+              <span>{t.space.talkTo}</span>
+              <span className="text-gray-200">·</span>
+              <span>{t.space.knowsYourMemory}</span>
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           <span className="text-[11px] font-bold text-gray-300 mr-2">{Math.round(scaleDisplay * 100)}%</span>
           <button
             onClick={() => setIsHistoryOpen(v => !v)}
             className={`p-2 rounded-xl transition-colors ${isHistoryOpen ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
-            title="Conversation history"
+            title={t.space.conversationHistory}
           >
             <History className="w-4 h-4" />
           </button>
           <button
             onClick={() => setIsSettingsOpen(true)}
             className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
-            title="Settings"
+            title={t.space.settingsTooltip}
           >
             <Settings className="w-4 h-4" />
           </button>
@@ -753,7 +756,7 @@ export function PGSpaceCanvas({ isOpen, onClose }: PGSpaceCanvasProps) {
 
         {nodesLoaded && nodes.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <p className="text-sm text-gray-400 italic">Loading Paul Graham's knowledge…</p>
+            <p className="text-sm text-gray-400 italic">{t.space.loading('Paul Graham')}</p>
           </div>
         )}
       </div>
@@ -770,14 +773,14 @@ export function PGSpaceCanvas({ isOpen, onClose }: PGSpaceCanvasProps) {
             style={{ top: 56, bottom: 0, width: 280 }}
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-              <span className="text-sm font-semibold text-gray-700">PG Conversation History</span>
+              <span className="text-sm font-semibold text-gray-700">{t.space.historyTitle('Paul Graham')}</span>
               <button onClick={() => setIsHistoryOpen(false)} className="p-1 text-gray-400 hover:text-gray-700 rounded-lg">
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto py-2">
               {historyItems.length === 0 ? (
-                <p className="text-xs text-gray-400 text-center mt-8 px-4">No conversations yet</p>
+                <p className="text-xs text-gray-400 text-center mt-8 px-4">{t.space.noHistory}</p>
               ) : (
                 historyItems.map(item => (
                   <button
@@ -806,23 +809,23 @@ export function PGSpaceCanvas({ isOpen, onClose }: PGSpaceCanvasProps) {
             animate={{ scale: 1, opacity: 1 }}
             className="bg-white rounded-2xl shadow-xl p-6 w-80 mx-4"
           >
-            <h3 className="font-semibold text-gray-800 mb-2">Delete this node?</h3>
+            <h3 className="font-semibold text-gray-800 mb-2">{t.space.deleteNodeTitle}</h3>
             <p className="text-sm text-gray-500 mb-5">
               {confirmTargetNode?.title ?? ''}
-              <br />This cannot be undone.
+              <br />{t.space.deleteNodeWarning}
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteConfirmId(null)}
                 className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
               >
-                Cancel
+                {t.space.deleteCancel}
               </button>
               <button
                 onClick={handleDeleteConfirm}
                 className="flex-1 py-2.5 rounded-xl bg-red-500 text-sm text-white hover:bg-red-600 transition-colors"
               >
-                Delete
+                {t.space.deleteConfirm}
               </button>
             </div>
           </motion.div>
@@ -843,7 +846,7 @@ export function PGSpaceCanvas({ isOpen, onClose }: PGSpaceCanvasProps) {
                 bg-white p-2.5
                 border shadow-[0_8px_30px_rgba(0,0,0,0.08)]
                 transition-all duration-200
-                ${inputFocused ? 'border-indigo-400 shadow-[0_8px_30px_rgba(99,102,241,0.12)]' : 'border-gray-200'}
+                ${inputFocused ? 'border-gray-900 shadow-[0_8px_30px_rgba(0,0,0,0.12)]' : 'border-gray-200'}
               `}
             >
               <textarea
@@ -853,7 +856,7 @@ export function PGSpaceCanvas({ isOpen, onClose }: PGSpaceCanvasProps) {
                 onFocus={() => setInputFocused(true)}
                 onBlur={() => setInputFocused(false)}
                 onKeyDown={handleInputKeyDown}
-                placeholder="Ask Paul Graham anything…"
+                placeholder={t.space.pgPlaceholder}
                 rows={1}
                 className="flex-1 bg-transparent border-none outline-none resize-none px-2 py-3.5 text-gray-800 placeholder-gray-400 min-h-[52px] max-h-[160px] text-[15px] leading-relaxed overflow-y-auto scrollbar-none"
                 style={{ scrollbarWidth: 'none' } as React.CSSProperties}
@@ -864,7 +867,7 @@ export function PGSpaceCanvas({ isOpen, onClose }: PGSpaceCanvasProps) {
                 className={`mb-1 p-2.5 rounded-2xl transition-all duration-200 flex items-center justify-center transform active:scale-95 ${
                   !inputValue.trim()
                     ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
-                    : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm'
+                    : 'bg-gray-900 text-white hover:bg-black shadow-sm'
                 }`}
                 aria-label="Send"
               >
@@ -872,7 +875,7 @@ export function PGSpaceCanvas({ isOpen, onClose }: PGSpaceCanvasProps) {
               </button>
             </motion.div>
             <div className="flex justify-center mt-2 text-[10px] text-gray-400 pointer-events-none select-none tracking-wide">
-              Click a node to explore or ask a question · Enter to send
+              {t.space.clickHint}
             </div>
           </div>
         </div>
