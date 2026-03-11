@@ -48,6 +48,11 @@
  *   37. Canvas 左侧 "Paul Graham" 入口节点可见
  *   38. GET /api/storage/pg-nodes.json 通过白名单校验（不返回 400）
  *   39. pg-nodes.json 初始化后种子节点数量 >= 30
+ *
+ * 反馈功能 (v0.2.85)
+ *   40. POST /api/feedback 提交反馈返回 201 + id
+ *   41. GET /api/feedback 返回 reports 数组
+ *   42. POST /api/feedback 缺 message 返回 400
  */
 
 import { test, expect } from '@playwright/test'
@@ -892,4 +897,52 @@ test('PG Space 初始化后 pg-nodes.json 种子节点数量 ≥ 30', async ({ p
     data: JSON.stringify([]),
     headers: authHeaders({ 'Content-Type': 'application/json' })
   })
+})
+
+// ── 测试 40：POST /api/feedback 提交反馈返回 201 + id (v0.2.85) ───────────────
+
+test('POST /api/feedback 提交反馈返回 201 + id', async ({ request }) => {
+  const resp = await request.post(`${API_BASE}/api/feedback`, {
+    data: {
+      type: 'bug',
+      message: 'E2E 测试反馈 - 页面加载慢',
+      context: { url: 'http://localhost:3000', lastConvId: null }
+    },
+    headers: authHeaders()
+  })
+  expect(resp.status()).toBe(201)
+  const data = await resp.json() as { ok: boolean; id: string }
+  expect(data.ok).toBe(true)
+  expect(typeof data.id).toBe('string')
+  expect(data.id.length).toBeGreaterThan(0)
+})
+
+// ── 测试 41：GET /api/feedback 返回 reports 数组 (v0.2.85) ──────────────────
+
+test('GET /api/feedback 返回 reports 数组', async ({ request }) => {
+  // Submit one report first
+  await request.post(`${API_BASE}/api/feedback`, {
+    data: { type: 'feedback', message: 'E2E GET 测试反馈' },
+    headers: authHeaders()
+  })
+
+  const resp = await request.get(`${API_BASE}/api/feedback`, {
+    headers: authHeaders()
+  })
+  expect(resp.ok()).toBe(true)
+  const data = await resp.json() as { reports: unknown[] }
+  expect(Array.isArray(data.reports)).toBe(true)
+  expect(data.reports.length).toBeGreaterThanOrEqual(1)
+})
+
+// ── 测试 42：POST /api/feedback 缺 message 返回 400 (v0.2.85) ───────────────
+
+test('POST /api/feedback 缺 message 返回 400', async ({ request }) => {
+  const resp = await request.post(`${API_BASE}/api/feedback`, {
+    data: { type: 'bug', message: '' },
+    headers: authHeaders()
+  })
+  expect(resp.status()).toBe(400)
+  const data = await resp.json() as { error: string }
+  expect(data.error).toMatch(/message/)
 })
