@@ -119,7 +119,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           })
           const result = await verifyRes.json()
           if (!result.valid) {
-            setKeyError('API Key 无效，请检查后重试')
+            setKeyError(t.input.invalidKey)
           }
         } catch {
           // 网络超时等，不阻止保存，静默跳过
@@ -165,7 +165,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <div className="p-2 bg-gray-100 rounded-xl">
                 <Settings className="w-5 h-5" />
               </div>
-              <h2 className="font-semibold text-lg">应用设置</h2>
+              <h2 className="font-semibold text-lg">{t.settings.title}</h2>
             </div>
             <button
               onClick={onClose}
@@ -181,7 +181,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
                 <Key className="w-3.5 h-3.5" />
-                我的身份码
+                {t.settings.identityCode}
               </label>
               <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3">
                 <span className="flex-1 text-xs text-gray-500 font-mono truncate select-all">{currentToken}</span>
@@ -190,15 +190,15 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   className="shrink-0 flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors"
                 >
                   {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
-                  {copied ? '已复制' : '复制'}
+                  {copied ? t.settings.copied : t.settings.copy}
                 </button>
               </div>
-              <p className="text-[10px] text-gray-400 px-1">换设备时，在新设备的设置里输入此码，可恢复你的所有记忆。</p>
+              <p className="text-[10px] text-gray-400 px-1">{t.settings.identityHelper}</p>
               <button
                 onClick={() => setShowMigrate(v => !v)}
                 className="text-[11px] text-gray-400 hover:text-gray-700 underline underline-offset-2 transition-colors"
               >
-                {showMigrate ? '取消迁移' : '输入其他设备的身份码来迁移记忆 →'}
+                {showMigrate ? t.settings.cancelMigration : t.settings.migratePrompt}
               </button>
               <AnimatePresence>
                 {showMigrate && (
@@ -210,7 +210,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       type="text"
                       value={migrateInput}
                       onChange={e => setMigrateInput(e.target.value)}
-                      placeholder="粘贴身份码…"
+                      placeholder={t.settings.identityCodePlaceholder}
                       className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-xs font-mono focus:ring-2 focus:ring-blue-100 focus:bg-white outline-none transition-all"
                     />
                     <button
@@ -218,7 +218,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       disabled={!migrateInput.trim() || migrateInput.trim() === currentToken}
                       className="w-full py-2.5 bg-gray-900 text-white text-xs font-medium rounded-2xl hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                     >
-                      切换身份，加载对应记忆
+                      {t.settings.migrateBtn}
                     </button>
                   </motion.div>
                 )}
@@ -229,17 +229,17 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
                 <Shield className="w-3.5 h-3.5" />
-                API Key (安全存储)
+                {t.settings.apiKeyLabel}
               </label>
               <input
                 type="password"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder={hasExistingKey ? '已保存，填写新值可覆盖' : 'sk-...'}
+                placeholder={hasExistingKey ? t.settings.apiKeySavedPlaceholder : t.settings.apiKeyDefaultPlaceholder}
                 className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-100 focus:bg-white outline-none transition-all"
               />
               <p className="text-[10px] text-gray-400 px-1">
-                {hasExistingKey ? 'API Key 已保存。留空不修改，填写新值可覆盖。' : '你的密钥加密保存在服务端数据库，不会暴露给浏览器。'}
+                {hasExistingKey ? t.settings.apiKeySavedHelper : t.settings.apiKeySecureHelper}
               </p>
               {keyError && (
                 <p className="text-[11px] text-red-500 font-medium px-1">{keyError}</p>
@@ -250,13 +250,13 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
                 <Link className="w-3.5 h-3.5" />
-                API 代理地址 (可选)
+                {t.settings.baseUrlLabel}
               </label>
               <input
                 type="text"
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
-                placeholder="https://api.moonshot.cn/v1"
+                placeholder={t.settings.baseUrlPlaceholder}
                 className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-100 focus:bg-white outline-none transition-all"
               />
             </div>
@@ -265,19 +265,19 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
                 <Cpu className="w-3.5 h-3.5" />
-                当前模型
+                {t.settings.modelLabel}
               </label>
               <select
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
                 className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-100 focus:bg-white outline-none transition-all appearance-none cursor-pointer"
               >
-                <optgroup label="Kimi (Moonshot)">
+                <optgroup label={t.settings.kimiGroup}>
                   {Object.entries(SUPPORTED_MODELS.KIMI).map(([id, name]) => (
                     <option key={id} value={id}>{name}</option>
                   ))}
                 </optgroup>
-                <optgroup label="OpenAI">
+                <optgroup label={t.settings.openaiGroup}>
                   {Object.entries(SUPPORTED_MODELS.OPENAI).map(([id, name]) => (
                     <option key={id} value={id}>{name}</option>
                   ))}

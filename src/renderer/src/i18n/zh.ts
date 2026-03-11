@@ -101,6 +101,55 @@ export interface Translations {
     lennyPlaceholder: string
     pgPlaceholder: string
   }
+  sidebar: {
+    historyTab: string
+    memoryTab: string
+    evolutionTab: string
+    loading: string
+    noHistory: string
+    aboutMemory: string
+    refreshMemory: string
+    consolidating: string
+    consolidate: string
+    consolidateTip: string
+    memoryDesc: string
+    loadingMemory: string
+    memoryWritten: string
+    memoryAdded: (n: number) => string
+    noMemory: string
+    chatMore: string
+    editMemory: string
+    deleteMemory: string
+    cancel: string
+    save: string
+    userProfile: string
+    edit: string
+    clear: string
+    clearProfileTitle: string
+    clearProfileMsg: string
+    clearProfileConfirm: string
+    forgetLabel: string
+    writingStyleLabel: (style: string) => string
+    lastUpdated: (date: string) => string
+    mentalModel: string
+    refresh: string
+    mentalCognition: string
+    mentalGoals: string
+    mentalThinking: string
+    mentalDomain: string
+    mentalEmotion: string
+    evolutionDesc: string
+    noPreferences: string
+    lastActive: (date: string) => string
+    forgetPreference: string
+    profOccupation: string
+    profLocation: string
+    profWritingStyle: string
+    profInterests: string
+    profTools: string
+    profGoals: string
+    appliedMemories: (n: number) => string
+  }
 }
 
 export const zh: Translations = {
@@ -187,6 +236,57 @@ export const zh: Translations = {
     saving: '保存中…',
     saveBtn: '保存设置',
     language: '语言',
+  },
+
+  // ── ConversationSidebar ──────────────────────────────────────────────────
+  sidebar: {
+    historyTab: '历史',
+    memoryTab: '记忆',
+    evolutionTab: '进化基因',
+    loading: '加载中...',
+    noHistory: '暂无对话记录',
+    aboutMemory: '关于你的记忆',
+    refreshMemory: '刷新记忆',
+    consolidating: '整理中…',
+    consolidate: '整理',
+    consolidateTip: 'AI 合并重复或过时的记忆条目，新信息优先保留',
+    memoryDesc: 'AI 从每次对话中自动摘取你透露的信息，在这里积累成你的专属记忆。',
+    loadingMemory: '正在加载…',
+    memoryWritten: '✦ 新记忆已写入',
+    memoryAdded: (n: number) => `新增 ${n} 条`,
+    noMemory: '暂无记忆条目',
+    chatMore: '多聊几次，记忆会自动积累',
+    editMemory: '编辑这条记忆',
+    deleteMemory: '删除这条记忆',
+    cancel: '取消',
+    save: '保存',
+    userProfile: '用户画像',
+    edit: '编辑',
+    clear: '清空',
+    clearProfileTitle: '清空用户画像？',
+    clearProfileMsg: '所有画像信息将被删除，不可恢复。',
+    clearProfileConfirm: '清空',
+    forgetLabel: '遗忘',
+    writingStyleLabel: (style: string) => `回答风格：${style}`,
+    lastUpdated: (date: string) => `最近更新：${date}`,
+    mentalModel: '心智模型',
+    refresh: '刷新',
+    mentalCognition: '认知框架',
+    mentalGoals: '长期目标',
+    mentalThinking: '思维偏好',
+    mentalDomain: '领域知识',
+    mentalEmotion: '情绪模式',
+    evolutionDesc: '每次你觉得回答不对劲，说出来，我就会记住。这里是已经记下来的规则。',
+    noPreferences: '尚未习得任何偏好',
+    lastActive: (date: string) => `最后活跃：${date}`,
+    forgetPreference: '遗忘这条偏好？',
+    profOccupation: '职业',
+    profLocation: '城市/地区',
+    profWritingStyle: '回答风格（如简洁、详细）',
+    profInterests: '兴趣（逗号分隔）',
+    profTools: '工具/技术（逗号分隔）',
+    profGoals: '目标（逗号分隔）',
+    appliedMemories: (n: number) => `已应用 ${n} 条记忆`,
   },
 
   // ── Spaces (shared) ───────────────────────────────────────────────────────

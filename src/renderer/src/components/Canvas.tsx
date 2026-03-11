@@ -765,6 +765,18 @@ export function Canvas() {
     <>
       {/* 工具栏 */}
       <div className="fixed top-6 right-6 z-30 flex items-center gap-3">
+        {/* GitHub link */}
+        <a
+          href="https://github.com/chatanima/evocanvas"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="p-2.5 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm hover:shadow-md transition-all border border-gray-100 text-gray-400 hover:text-gray-900 flex items-center justify-center"
+          title="GitHub"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.942.359.31.678.921.678 1.856 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
+          </svg>
+        </a>
         {/* 视图控制挂件 */}
         <div className="flex items-center bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 overflow-hidden px-1 py-1">
           <button
@@ -775,7 +787,7 @@ export function Canvas() {
               setScale(newScale)
             }}
             className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
-            title="缩小"
+            title={t.canvas.zoomOut}
           >
             <Minus className="w-4 h-4" />
           </button>
@@ -787,7 +799,7 @@ export function Canvas() {
               setScaleDisplay(1)
               resetView()
             }}
-            title="重置视图"
+            title={t.canvas.resetView}
           >
             <span className="text-[11px] font-bold text-gray-500 uppercase">{Math.round(scaleDisplay * 100)}%</span>
           </div>
@@ -799,7 +811,7 @@ export function Canvas() {
               setScale(newScale)
             }}
             className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
-            title="放大"
+            title={t.canvas.zoomIn}
           >
             <Plus className="w-4 h-4" />
           </button>
@@ -809,7 +821,7 @@ export function Canvas() {
         <button
           onClick={() => setViewMode(m => m === 'timeline' ? 'free' : 'timeline')}
           className={`p-3 backdrop-blur-md rounded-2xl shadow-sm hover:shadow-md transition-all border ${viewMode === 'timeline' ? 'bg-blue-50/90 border-blue-200 text-blue-600' : 'bg-white/90 border-gray-100 text-gray-500 hover:text-gray-900'}`}
-          title="时间轴视图"
+          title={t.canvas.timeline}
         >
           <Clock className="w-5 h-5" />
         </button>
@@ -818,7 +830,7 @@ export function Canvas() {
         <button
           onClick={() => { setSidebarTab('history'); setIsSidebarOpen(true) }}
           className="p-3 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm hover:shadow-md transition-all border border-gray-100 text-gray-500 hover:text-gray-900"
-          title="对话历史"
+          title={t.canvas.history}
         >
           <History className="w-5 h-5" />
         </button>
@@ -828,7 +840,7 @@ export function Canvas() {
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             className={`p-3 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm hover:shadow-md transition-all border border-gray-100 ${isMenuOpen ? 'text-blue-600 bg-blue-50/50 ring-2 ring-blue-100' : 'text-gray-500 hover:text-gray-900'}`}
-            title="更多应用"
+            title={t.canvas.moreApps}
           >
             <LayoutGrid className="w-5 h-5" />
           </button>
@@ -846,7 +858,7 @@ export function Canvas() {
                   className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
                 >
                   <Search className="w-4 h-4" />
-                  <span className="font-medium">全局搜索</span>
+                  <span className="font-medium">{t.canvas.globalSearch}</span>
                   <span className="ml-auto text-[10px] text-gray-300 font-bold border px-1 rounded">⌘K</span>
                 </button>
                 <button
@@ -854,7 +866,7 @@ export function Canvas() {
                   className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
                 >
                   <Sparkles className="w-4 h-4" />
-                  <span className="font-medium">关于你的记忆</span>
+                  <span className="font-medium">{t.canvas.aboutMemory}</span>
                 </button>
                 <button
                   onClick={() => { setSidebarTab('evolution'); setIsSidebarOpen(true); setIsMenuOpen(false); setHasNewEvolution(false) }}
@@ -866,9 +878,9 @@ export function Canvas() {
                       <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full" />
                     )}
                   </div>
-                  <span className="font-medium">进化日志</span>
+                  <span className="font-medium">{t.canvas.evolutionLog}</span>
                   {hasNewEvolution && (
-                    <span className="ml-auto text-[10px] text-blue-500 font-bold">新</span>
+                    <span className="ml-auto text-[10px] text-blue-500 font-bold">{t.canvas.newBadge}</span>
                   )}
                 </button>
                 <div className="my-1 border-t border-gray-100/50" />
@@ -877,7 +889,7 @@ export function Canvas() {
                   className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
                 >
                   <Settings className="w-4 h-4" />
-                  <span className="font-medium">偏好设置</span>
+                  <span className="font-medium">{t.canvas.preferences}</span>
                 </button>
                 <div className="my-1 border-t border-gray-100/50" />
                 <button
@@ -886,13 +898,13 @@ export function Canvas() {
                   className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all disabled:opacity-40"
                 >
                   <GitMerge className="w-4 h-4" />
-                  <span className="font-medium">整理相似节点</span>
-                  {nodeGraphRebuild.phase === 'analyzing' && <span className="ml-auto text-xs text-gray-400">分析中…</span>}
+                  <span className="font-medium">{t.canvas.mergeNodes}</span>
+                  {nodeGraphRebuild.phase === 'analyzing' && <span className="ml-auto text-xs text-gray-400">{t.canvas.analyzing}</span>}
                   {nodeGraphRebuild.phase === 'merging' && (
-                    <span className="ml-auto text-xs text-gray-400">{nodeGraphRebuild.processedClusters}/{nodeGraphRebuild.totalClusters}</span>
+                    <span className="ml-auto text-xs text-gray-400">{t.canvas.mergeProgress(nodeGraphRebuild.processedClusters, nodeGraphRebuild.totalClusters)}</span>
                   )}
                   {nodeGraphRebuild.phase === 'done' && nodeGraphRebuild.totalClusters > 0 && (
-                    <span className="ml-auto text-xs text-green-500">已合并 {nodeGraphRebuild.totalClusters} 组</span>
+                    <span className="ml-auto text-xs text-green-500">{t.canvas.merged(nodeGraphRebuild.totalClusters)}</span>
                   )}
                 </button>
               </motion.div>
@@ -904,7 +916,7 @@ export function Canvas() {
       {/* 节点数量指示 */}
       {nodes.length > 0 && (
         <div className="fixed top-4 left-4 z-30 px-3 py-1 bg-white/80 rounded-full text-xs text-gray-500 shadow-sm border border-gray-100">
-          {nodes.length} 个节点
+          {t.canvas.nodeCount(nodes.length)}
         </div>
       )}
 
