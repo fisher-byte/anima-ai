@@ -28,7 +28,8 @@ function createTestDb() {
 
 // Build a minimal Hono app wired with feedback routes and the test db
 function buildApp(db: InstanceType<typeof Database>) {
-  const app = new Hono()
+  type Env = { Variables: { db: InstanceType<typeof Database> } }
+  const app = new Hono<Env>()
   // Inject db into context
   app.use('*', async (c, next) => {
     c.set('db', db)
@@ -37,7 +38,7 @@ function buildApp(db: InstanceType<typeof Database>) {
 
   // Import and mount feedback routes inline to avoid circular env issues
   app.get('/feedback', (c) => {
-    const rows = (c.get('db') as InstanceType<typeof Database>).prepare(
+    const rows = c.get('db').prepare(
       'SELECT id, type, message, context, image_mime, created_at FROM feedback_reports ORDER BY created_at DESC'
     ).all()
     return c.json({ reports: rows })
@@ -56,7 +57,7 @@ function buildApp(db: InstanceType<typeof Database>) {
     const imageMime = body.imageMime ?? null
     const createdAt = new Date().toISOString()
 
-    ;(c.get('db') as InstanceType<typeof Database>).prepare(
+    c.get('db').prepare(
       'INSERT INTO feedback_reports (id, type, message, context, image_data, image_mime, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
     ).run(id, type, message, context, imageData, imageMime, createdAt)
 

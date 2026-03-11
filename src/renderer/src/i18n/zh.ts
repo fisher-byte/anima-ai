@@ -135,6 +135,11 @@ export interface Translations {
     lastUpdated: (date: string) => string
     mentalModel: string
     refresh: string
+    mentalModelTooltip: string
+    consolidateQueued: string
+    consolidateBusy: string
+    mentalModelQueued: string
+    refreshError: string
     mentalCognition: string
     mentalGoals: string
     mentalThinking: string
@@ -401,6 +406,11 @@ export const zh: Translations = {
     lastUpdated: (date: string) => `最近更新：${date}`,
     mentalModel: '心智模型',
     refresh: '刷新',
+    mentalModelTooltip: '重新提炼心智模型',
+    consolidateQueued: '整理任务已提交，约 30 秒后完成，刷新可查看结果',
+    consolidateBusy: '已有整理任务在进行中，稍后刷新查看',
+    mentalModelQueued: '心智模型重建任务已提交，约 30 秒后自动刷新',
+    refreshError: '刷新失败，请检查网络后重试',
     mentalCognition: '认知框架',
     mentalGoals: '长期目标',
     mentalThinking: '思维偏好',

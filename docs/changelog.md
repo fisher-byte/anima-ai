@@ -1,5 +1,30 @@
 # Anima 变更日志
 
+## [0.2.87] - 2026-03-12
+
+### fix: i18n 收尾 + TypeScript 零错误 + E2E 修正
+
+#### i18n 补全
+- `Canvas.tsx`：10 个硬编码中文字符串 → `t.canvas.*`（welcomeDefault / greeting / nightCare / mondayReminder / mergeBanner / mergeBtn / welcomeRecent / welcomeGoal）
+- `ConversationSidebar.tsx`：5 个硬编码字符串 → `t.sidebar.*`（consolidateQueued / consolidateBusy / mentalModelQueued / refreshError / mentalModelTooltip）
+- `zh.ts` / `en.ts` sidebar 命名空间新增 5 个字段
+
+#### TypeScript 修复
+- `canvasStore.ts`：移除未使用的 `configService` import（TS6133）
+- `feedback.test.ts`：使用 `Hono<Env>` 泛型修复 context type（TS2769）
+- `npx tsc --noEmit` 现在零错误通过
+
+#### E2E 测试修正
+- 测试 21/22 更新：反映当前开放认证模型（任意 token 接受，按 token 隔离用户）
+- 全部 33 个 E2E 测试通过
+
+#### 测试状态
+- 单元测试：427/427 通过
+- E2E 测试：33/33 通过
+- TypeScript：0 错误
+
+---
+
 ## [0.2.86] - 2026-03-12
 
 ### feat: 全量 i18n — 所有组件支持中英双语

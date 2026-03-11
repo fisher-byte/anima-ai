@@ -18,7 +18,7 @@
 import { create } from 'zustand'
 import type { Node, Edge, Conversation, Profile, PreferenceRule, NodePosition } from '@shared/types'
 import { STORAGE_FILES, FEEDBACK_TRIGGERS, CONFIDENCE_CONFIG, UI_CONFIG } from '@shared/constants'
-import { storageService, historyService, configService } from '../services/storageService'
+import { storageService, historyService } from '../services/storageService'
 import { getAuthToken } from '../services/storageService'
 import { FILE_BLOCK_PREFIX } from '../utils/conversationUtils'
 
