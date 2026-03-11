@@ -341,8 +341,10 @@
 | v0.2.79 | 2026-03-10 | Lenny Space 物理力模拟 + 对话体验对齐主空间 |
 | v0.2.80 | 2026-03-10 | canvasStore + AnswerModal 技术债清理 |
 | v0.2.81 | 2026-03-11 | **Paul Graham Space** + Lenny 卡片重设计 + anima-base 人物 SOP + 422 测试 |
+| v0.2.82 | 2026-03-11 | **多语言支持**（i18n 架构）+ Spaces 极简重设计 + 大师对话氛围 |
+| v0.2.83 | 2026-03-11 | **全量 i18n 覆盖**（SettingsModal/InputBox/ConversationSidebar）+ GitHub 入口 + chatanima.com 上线 |
 
 ---
 
-*最后更新: 2026-03-11（v0.2.81）*
+*最后更新: 2026-03-11（v0.2.83）*
 *维护者: Anima Team*

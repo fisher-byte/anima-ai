@@ -85,22 +85,22 @@ export function ClosingAnimation({ isOnboarding, appliedPreferences }: { isOnboa
   const label = isOnboarding ? '记忆已生成 ✦' : '已记下来了'
   return (
     <motion.div
-      initial={{ opacity: 0, x: -8, y: -4 }}
-      animate={{ opacity: 1, x: 0, y: 0 }}
-      exit={{ opacity: 0, x: -8 }}
-      transition={{ duration: 0.22, ease: 'easeOut' }}
-      className="fixed top-4 left-4 z-[55] pointer-events-none flex flex-col gap-1.5"
+      initial={{ opacity: 0, y: -16, scale: 0.92 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -12, scale: 0.94 }}
+      transition={{ duration: 0.28, ease: [0.34, 1.56, 0.64, 1] }}
+      className="fixed top-6 left-1/2 -translate-x-1/2 z-[55] pointer-events-none flex flex-col items-center gap-1.5"
     >
-      <div className="flex items-center gap-2 px-3.5 py-2 bg-gray-900 text-white text-[12px] font-medium rounded-2xl shadow-lg">
-        <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+      <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white text-[13px] font-medium rounded-2xl shadow-xl">
+        <svg className="w-4 h-4 flex-shrink-0 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         {label}
       </div>
       {appliedPreferences.length > 0 && (
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-[11px] font-medium rounded-2xl shadow-md">
+        <div className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 text-white text-[11px] font-medium rounded-2xl shadow-md">
           <Sparkles className="w-3 h-3 text-yellow-300 flex-shrink-0" />
-          已应用 {appliedPreferences.length} 条偏好
+          已应用 {appliedPreferences.length} 条进化基因
         </div>
       )}
     </motion.div>

@@ -159,5 +159,6 @@ export const en: Translations = {
     deleteNodeTooltip: 'Delete node',
     lennyPlaceholder: 'Ask Lenny anything…',
     pgPlaceholder: 'Ask Paul Graham anything…',
+    conversationCount: (n: number) => `${n} conversation${n === 1 ? '' : 's'}`,
   },
 }

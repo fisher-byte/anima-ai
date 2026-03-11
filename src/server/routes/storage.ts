@@ -257,7 +257,7 @@ storageRoutes.get('/:filename', (c) => {
     if (filename === 'lenny-nodes.json' || filename === 'lenny-edges.json') {
       return c.text('[]')
     }
-    if (filename === 'lenny-conversations.jsonl') {
+    if (filename === 'lenny-conversations.jsonl' || filename === 'conversations.jsonl') {
       return c.text('')
     }
     return c.text('', 404)

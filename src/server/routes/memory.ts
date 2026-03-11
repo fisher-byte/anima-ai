@@ -993,3 +993,53 @@ memoryRoutes.delete('/logical-edges/:conversationId', (c) => {
   db.prepare('DELETE FROM logical_edges WHERE source_conv = ? OR target_conv = ?').run(conversationId, conversationId)
   return c.json({ ok: true })
 })
+
+/**
+ * POST /api/memory/sync-lenny-conv
+ * Body: { conversationId, userMessage, assistantMessage }
+ *
+ * Lenny 对话结束后同步写入用户的 conversations.jsonl，
+ * 并触发记忆提取（extract_memory + extract_preferences agent 任务）。
+ */
+memoryRoutes.post('/sync-lenny-conv', async (c) => {
+  const db = userDb(c)
+  const { conversationId, userMessage, assistantMessage } = await c.req.json<{
+    conversationId: string
+    userMessage: string
+    assistantMessage: string
+  }>()
+
+  if (!conversationId || !userMessage || !assistantMessage) {
+    return c.json({ ok: false, error: 'missing fields' }, 400)
+  }
+
+  const now = new Date().toISOString()
+  const conv = {
+    id: `lenny-${conversationId}`,
+    createdAt: now,
+    userMessage,
+    assistantMessage,
+    source: 'lenny',
+    images: [],
+    files: [],
+  }
+
+  // Append to user's conversations.jsonl (same storage table)
+  try {
+    const existing = (db.prepare("SELECT content FROM storage WHERE filename = 'conversations.jsonl'").get() as { content: string } | undefined)?.content ?? ''
+    const updated = existing ? `${existing}\n${JSON.stringify(conv)}` : JSON.stringify(conv)
+    db.prepare("INSERT INTO storage (filename, content, updated_at) VALUES (?, ?, ?) ON CONFLICT(filename) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at")
+      .run('conversations.jsonl', updated, now)
+  } catch (e) {
+    console.error('[sync-lenny-conv] failed to write conversations.jsonl', e)
+    return c.json({ ok: false }, 500)
+  }
+
+  // Enqueue memory extraction for this conversation
+  try {
+    enqueueTask(db, 'extract_memory', { conversationId: conv.id, userMessage, assistantMessage })
+    enqueueTask(db, 'extract_preferences', { conversationId: conv.id, userMessage, assistantMessage })
+  } catch { /* non-fatal */ }
+
+  return c.json({ ok: true })
+})

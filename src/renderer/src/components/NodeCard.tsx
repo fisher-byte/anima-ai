@@ -21,6 +21,7 @@ import { useCanvasStore } from '../stores/canvasStore'
 import { useLodScale } from '../hooks/useLodScale'
 import { useConfirm } from './GlobalUI'
 import { ForceSimContext } from './Canvas'
+import { useT } from '../i18n'
 import type { Node } from '@shared/types'
 
 /** 拖拽推挤半径：在此范围内的节点会被推开 */
@@ -47,6 +48,7 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
   const isHighlighted = useCanvasStore(state => state.highlightedNodeIds.includes(node.id))
   const confirm = useConfirm()
   const forceSim = useContext(ForceSimContext)
+  const { t } = useT()
 
   const scale = useLodScale([0.4, 0.6])
   const [isDragging, setIsDragging] = useState(false)
@@ -202,9 +204,9 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
   const handleDelete = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation()
     const ok = await confirm({
-      title: '删除这条对话？',
-      message: '删除后不可恢复。',
-      confirmLabel: '删除',
+      title: t.space.deleteNodeTitle,
+      message: t.space.deleteNodeWarning,
+      confirmLabel: t.space.deleteConfirm,
       danger: true,
     })
     if (!ok) return
@@ -349,7 +351,7 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
               {(node.conversationIds?.length ?? 1) > 1 && (
                 <div className="flex items-center gap-1 mt-2 text-[10px] text-gray-400">
                   <MessageSquare className="w-3 h-3" />
-                  <span>{node.conversationIds!.length} 条对话</span>
+                  <span data-testid="conversation-count">{t.space.conversationCount(node.conversationIds!.length)}</span>
                 </div>
               )}
             </div>

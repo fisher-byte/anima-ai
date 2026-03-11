@@ -61,7 +61,19 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     <div className="fixed inset-0 bg-white flex items-center justify-center z-50">
       <div className="w-full max-w-sm px-8">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight mb-2">Anima</h1>
+          <div className="flex items-center justify-center gap-2.5 mb-2">
+            <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
+              <circle cx="16" cy="16" r="14" stroke="#111827" strokeWidth="1.5" fill="none" opacity="0.12"/>
+              <circle cx="16" cy="16" r="3" fill="#111827"/>
+              <circle cx="16" cy="5.5" r="2" fill="#111827" opacity="0.7"/>
+              <circle cx="25.5" cy="22" r="2" fill="#111827" opacity="0.7"/>
+              <circle cx="6.5" cy="22" r="2" fill="#111827" opacity="0.7"/>
+              <line x1="16" y1="13" x2="16" y2="7.5" stroke="#111827" strokeWidth="1" opacity="0.35"/>
+              <line x1="18.6" y1="17.5" x2="23.8" y2="20.5" stroke="#111827" strokeWidth="1" opacity="0.35"/>
+              <line x1="13.4" y1="17.5" x2="8.2" y2="20.5" stroke="#111827" strokeWidth="1" opacity="0.35"/>
+            </svg>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Anima</h1>
+          </div>
           <p className="text-sm text-gray-400">请输入访问令牌以继续</p>
         </div>
 

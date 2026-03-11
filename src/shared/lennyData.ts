@@ -40,7 +40,7 @@ export const LENNY_SEED_NODES: Node[] = [
     ...pos(0, 0),   // 中央
   },
 
-  // ── 第一圈（半径 380）─────────────────────────────────────────────────────────
+  // ── 第一圈（半径 650）─────────────────────────────────────────────────────────
   {
     id: 'lenny-seed-chesky-playbook',
     title: "Brian Chesky's New Playbook",
@@ -50,7 +50,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(30, 380),
+    ...pos(30, 650),
   },
   {
     id: 'lenny-seed-shreyas-pm-art',
@@ -61,7 +61,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(90, 380),
+    ...pos(90, 650),
   },
   {
     id: 'lenny-seed-julie-zhuo-ai-mgmt',
@@ -72,7 +72,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '思考世界',
     color: '#8B5CF6',
     nodeType: 'memory',
-    ...pos(150, 380),
+    ...pos(150, 650),
   },
   {
     id: 'lenny-seed-elena-verna-plg',
@@ -83,7 +83,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(210, 380),
+    ...pos(210, 650),
   },
   {
     id: 'lenny-seed-april-dunford-positioning',
@@ -94,7 +94,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(270, 380),
+    ...pos(270, 650),
   },
   {
     id: 'lenny-seed-casey-winters-growth',
@@ -105,10 +105,10 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(330, 380),
+    ...pos(330, 650),
   },
 
-  // ── 第二圈（半径 700）─────────────────────────────────────────────────────────
+  // ── 第二圈（半径 1200）─────────────────────────────────────────────────────────
   {
     id: 'lenny-seed-shreyas-influence',
     title: "How Great PMs Drive Influence",
@@ -118,7 +118,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(20, 700),
+    ...pos(20, 1200),
   },
   {
     id: 'lenny-seed-marty-cagan-empowered',
@@ -129,7 +129,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(60, 700),
+    ...pos(60, 1200),
   },
   {
     id: 'lenny-seed-nikita-bier-virality',
@@ -140,7 +140,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(100, 700),
+    ...pos(100, 1200),
   },
   {
     id: 'lenny-seed-madhavan-pricing',
@@ -151,7 +151,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(140, 700),
+    ...pos(140, 1200),
   },
   {
     id: 'lenny-seed-kim-scott-radical',
@@ -162,7 +162,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '关系情感',
     color: '#EC4899',
     nodeType: 'memory',
-    ...pos(180, 700),
+    ...pos(180, 1200),
   },
   {
     id: 'lenny-seed-drew-houston-founder',
@@ -173,7 +173,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(220, 700),
+    ...pos(220, 1200),
   },
   {
     id: 'lenny-seed-sahil-mansuri-b2b-sales',
@@ -184,7 +184,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(260, 700),
+    ...pos(260, 1200),
   },
   {
     id: 'lenny-seed-gokul-metrics',
@@ -195,10 +195,10 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(300, 700),
+    ...pos(300, 1200),
   },
 
-  // ── 第三圈（半径 1050）── 新增节点 ────────────────────────────────────────────
+  // ── 第三圈（半径 1900）── 新增节点 ────────────────────────────────────────────
   {
     id: 'lenny-seed-teresa-torres',
     title: "Continuous Product Discovery",
@@ -208,7 +208,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(0, 1050),
+    ...pos(0, 1900),
   },
   {
     id: 'lenny-seed-dylan-field',
@@ -219,7 +219,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '思考世界',
     color: '#8B5CF6',
     nodeType: 'memory',
-    ...pos(24, 1050),
+    ...pos(18, 1900),
   },
   {
     id: 'lenny-seed-rahul-vohra',
@@ -230,7 +230,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(48, 1050),
+    ...pos(36, 1900),
   },
   {
     id: 'lenny-seed-ben-horowitz',
@@ -241,7 +241,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(72, 1050),
+    ...pos(54, 1900),
   },
   {
     id: 'lenny-seed-tobi-lutke',
@@ -252,7 +252,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(96, 1050),
+    ...pos(72, 1900),
   },
   {
     id: 'lenny-seed-melanie-perkins',
@@ -263,7 +263,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(120, 1050),
+    ...pos(90, 1900),
   },
   {
     id: 'lenny-seed-hamilton-helmer',
@@ -274,7 +274,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '思考世界',
     color: '#8B5CF6',
     nodeType: 'memory',
-    ...pos(144, 1050),
+    ...pos(108, 1900),
   },
   {
     id: 'lenny-seed-nir-eyal',
@@ -285,7 +285,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '身心健康',
     color: '#10B981',
     nodeType: 'memory',
-    ...pos(168, 1050),
+    ...pos(126, 1900),
   },
   {
     id: 'lenny-seed-seth-godin',
@@ -296,7 +296,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '思考世界',
     color: '#8B5CF6',
     nodeType: 'memory',
-    ...pos(192, 1050),
+    ...pos(144, 1900),
   },
   {
     id: 'lenny-seed-annie-duke',
@@ -307,7 +307,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '思考世界',
     color: '#8B5CF6',
     nodeType: 'memory',
-    ...pos(216, 1050),
+    ...pos(162, 1900),
   },
   {
     id: 'lenny-seed-stewart-butterfield',
@@ -318,7 +318,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(240, 1050),
+    ...pos(180, 1900),
   },
   {
     id: 'lenny-seed-kevin-weil',
@@ -329,7 +329,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '思考世界',
     color: '#8B5CF6',
     nodeType: 'memory',
-    ...pos(264, 1050),
+    ...pos(198, 1900),
   },
   {
     id: 'lenny-seed-amjad-masad',
@@ -340,7 +340,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '思考世界',
     color: '#8B5CF6',
     nodeType: 'memory',
-    ...pos(288, 1050),
+    ...pos(216, 1900),
   },
   {
     id: 'lenny-seed-paul-adams',
@@ -351,7 +351,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(312, 1050),
+    ...pos(234, 1900),
   },
   {
     id: 'lenny-seed-claire-vo',
@@ -362,7 +362,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(336, 1050),
+    ...pos(252, 1900),
   },
   {
     id: 'lenny-seed-jeff-weinstein',
@@ -373,7 +373,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(355, 1050),
+    ...pos(270, 1900),
   },
   {
     id: 'lenny-seed-shishir-mehrotra',
@@ -384,7 +384,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '关系情感',
     color: '#EC4899',
     nodeType: 'memory',
-    ...pos(15, 1050),
+    ...pos(288, 1900),
   },
   {
     id: 'lenny-seed-matt-mochary',
@@ -395,7 +395,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '身心健康',
     color: '#10B981',
     nodeType: 'memory',
-    ...pos(39, 1050),
+    ...pos(306, 1900),
   },
   {
     id: 'lenny-seed-gustaf-alstromer',
@@ -406,7 +406,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(63, 1050),
+    ...pos(324, 1900),
   },
   {
     id: 'lenny-seed-andy-johns',
@@ -417,7 +417,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '身心健康',
     color: '#10B981',
     nodeType: 'memory',
-    ...pos(87, 1050),
+    ...pos(342, 1900),
   },
   {
     id: 'lenny-seed-luc-levesque',
@@ -428,7 +428,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(111, 1050),
+    ...pos(355, 1900),
   },
   {
     id: 'lenny-seed-gustaf-alstromer2',
@@ -439,7 +439,7 @@ export const LENNY_SEED_NODES: Node[] = [
     category: '工作事业',
     color: '#3B82F6',
     nodeType: 'memory',
-    ...pos(135, 1050),
+    ...pos(11, 1900),
   },
 ]
 

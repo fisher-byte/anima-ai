@@ -841,6 +841,7 @@ export function Canvas() {
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             className={`p-3 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm hover:shadow-md transition-all border border-gray-100 ${isMenuOpen ? 'text-blue-600 bg-blue-50/50 ring-2 ring-blue-100' : 'text-gray-500 hover:text-gray-900'}`}
             title={t.canvas.moreApps}
+            data-testid="menu-btn"
           >
             <LayoutGrid className="w-5 h-5" />
           </button>
