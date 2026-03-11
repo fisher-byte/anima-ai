@@ -163,6 +163,122 @@ export interface Translations {
     thanks: string
     error: string
   }
+  login: {
+    subtitle: string
+    enterToken: string
+    invalidToken: string
+    serverError: string
+    networkError: string
+    verifying: string
+    enter: string
+  }
+  onboarding: {
+    splitTitle: string
+    splitBody: string
+    splitBold: string
+    splitBodySuffix: string
+    startExplore: string
+  }
+  modal: {
+    onboardingHint: string
+    memorized: string
+    exportMd: string
+    exportJson: string
+    connecting: string
+    cancel: string
+    send: string
+    memoriesRef: (n: number) => string
+    edit: string
+    copy: string
+    regenerate: string
+    stopGeneration: string
+    clarifyTitle: string
+    clarifyOpt1: string
+    clarifyOpt2: string
+    clarifyPrefix: string
+    clarifyPlaceholder: string
+    exportMdLabel: string
+    exportJsonLabel: string
+    fileTooBig: string
+    uploadFailed: (status: number) => string
+    uploadNetworkError: string
+    evolutionActive: (n: number) => string
+    geneRecorded: string
+    profileUpdated: string
+    backgroundAnalysis: string
+    gotIt: string
+    closingMemoryGenerated: string
+    closingNoted: string
+    closingApplied: (n: number) => string
+    onboardingIntroPlaceholder: string
+    replyPlaceholder: string
+    chars: (n: number) => string
+  }
+  timeline: {
+    noNodes: string
+    noTitle: string
+  }
+  nodeTimeline: {
+    conversations: (n: number) => string
+    since: (date: string) => string
+    loading: string
+    noRecords: string
+    noContent: string
+    continue: string
+  }
+  search: {
+    placeholder: string
+    tabNodes: (n: number) => string
+    tabContent: (n: number) => string
+    typeToSearch: string
+    noResults: string
+    escHint: string
+  }
+  importMemory: {
+    title: string
+    stepSelect: string
+    stepConfirm: string
+    stepPaste: (name: string) => string
+    stepGeneric: string
+    confirmGemini: string
+    geminiCopied: string
+    pastePlaceholder: (name: string) => string
+    saving: string
+    save: string
+    copied: string
+    copy: string
+    genericNote: string
+    genericPlaceholder: string
+    otherAI: string
+    otherAIDesc: string
+    externalAI: string
+  }
+  grayHint: {
+    concise: string
+    avoid: string
+    structured: string
+    yourPref: string
+    prefix: string
+  }
+  thinking: {
+    analyzing: string
+    deepReasoning: string
+    fullThinking: string
+    waiting: string
+    doneSummary: (n: number) => string
+    done: string
+  }
+  fileBubble: {
+    size: string
+    type: string
+    unknown: string
+    download: string
+  }
+  clusterLabel: {
+    capability: string
+    memories: (n: number) => string
+    clickToUse: string
+  }
 }
 
 export const zh: Translations = {
@@ -336,6 +452,144 @@ export const zh: Translations = {
     submitting: '提交中…',
     thanks: '感谢反馈！',
     error: '提交失败，请重试',
+  },
+
+  // ── LoginPage ─────────────────────────────────────────────────────────────
+  login: {
+    subtitle: '请输入访问令牌以继续',
+    enterToken: '请输入访问令牌',
+    invalidToken: '令牌无效，请重新输入',
+    serverError: '服务异常，请稍后再试',
+    networkError: '网络异常，请检查连接',
+    verifying: '验证中...',
+    enter: '进入',
+  },
+
+  // ── OnboardingCompletePopup ───────────────────────────────────────────────
+  onboarding: {
+    splitTitle: '已拆分成两个节点',
+    splitBody: '你的对话已保存到画布，接下来',
+    splitBold: '自由探索',
+    splitBodySuffix: '就好——随便问我什么，我都会自动帮你整理记忆。',
+    startExplore: '开始探索',
+  },
+
+  // ── AnswerModal & AnswerModalSubcomponents ────────────────────────────────
+  modal: {
+    onboardingHint: '随时可以关闭，下次点击「新手教程」继续',
+    memorized: '已记住：',
+    exportMd: '导出对话 (MD)',
+    exportJson: '导出全量数据 (JSON)',
+    connecting: '正在连接…',
+    cancel: '取消',
+    send: '发送',
+    memoriesRef: (n: number) => `引用了 ${n} 条记忆：`,
+    edit: '编辑',
+    copy: '复制',
+    regenerate: '重新生成',
+    stopGeneration: '停止生成',
+    clarifyTitle: '想先确认一下方向，这样调研结果更准 ✦',
+    clarifyOpt1: '行业与市场数据（规模、趋势、融资）',
+    clarifyOpt2: '产品或技术方案对比（功能、优劣势）',
+    clarifyPrefix: '请对以下方向做深度调研：',
+    clarifyPlaceholder: '或直接写出你想调研的具体问题…',
+    exportMdLabel: '导出对话 (MD)',
+    exportJsonLabel: '导出全量数据 (JSON)',
+    fileTooBig: '文件过大，无法上传到记忆库',
+    uploadFailed: (status: number) => `上传失败（${status}）`,
+    uploadNetworkError: '网络错误，文件未能上传到记忆库',
+    evolutionActive: (n: number) => `已应用 ${n} 条偏好规则`,
+    geneRecorded: '✦ 进化基因已记录',
+    profileUpdated: '✦ 人物信息已更新',
+    backgroundAnalysis: '✦ 已记下，正在后台分析',
+    gotIt: '好的，我记住了。',
+    closingMemoryGenerated: '记忆已生成 ✦',
+    closingNoted: '已记下来了',
+    closingApplied: (n: number) => `已应用 ${n} 条进化基因`,
+    onboardingIntroPlaceholder: '在这里介绍你自己…',
+    replyPlaceholder: '回复…',
+    chars: (n: number) => `${n} 字`,
+  },
+
+  // ── TimelineView ──────────────────────────────────────────────────────────
+  timeline: {
+    noNodes: '暂无节点数据',
+    noTitle: '无标题',
+  },
+
+  // ── NodeTimelinePanel ─────────────────────────────────────────────────────
+  nodeTimeline: {
+    conversations: (n: number) => `${n} 条对话`,
+    since: (date: string) => `· 始于 ${date}`,
+    loading: '加载中…',
+    noRecords: '暂无对话记录',
+    noContent: '（无内容）',
+    continue: '续话',
+  },
+
+  // ── SearchPanel ───────────────────────────────────────────────────────────
+  search: {
+    placeholder: '搜索节点标题、关键词...',
+    tabNodes: (n: number) => `节点 (${n})`,
+    tabContent: (n: number) => `内容 (${n})`,
+    typeToSearch: '输入关键词开始搜索',
+    noResults: '未找到匹配结果',
+    escHint: '按 ESC 关闭',
+  },
+
+  // ── ImportMemoryModal ─────────────────────────────────────────────────────
+  importMemory: {
+    title: '导入外部记忆',
+    stepSelect: '从其他 AI 把你的记忆带过来',
+    stepConfirm: '已复制提示词，跳转后直接粘贴发送，再粘回来',
+    stepPaste: (name: string) => `把 ${name} 的回答粘贴到下方`,
+    stepGeneric: '复制下方提示词，去你常用的 AI 发送，把回答粘贴回来',
+    confirmGemini: '确认跳转到 Gemini',
+    geminiCopied: '提示词已复制，跳转之后直接粘贴发送，把回答复制回来。',
+    pastePlaceholder: (name: string) => `把 ${name} 的回答粘贴到这里…`,
+    saving: '正在提取记忆节点…',
+    save: '保存为记忆节点',
+    copied: '已复制',
+    copy: '复制',
+    genericNote: '把上面的提示词发给你常用的 AI（如豆包、文心、通义等），再把回答粘贴到下方。',
+    genericPlaceholder: '把 AI 的回答粘贴到这里…',
+    otherAI: '其他 AI / 通用方式',
+    otherAIDesc: '复制提示词，粘贴回答',
+    externalAI: '外部AI',
+  },
+
+  // ── GrayHint ──────────────────────────────────────────────────────────────
+  grayHint: {
+    concise: '简洁表达',
+    avoid: '避免某些内容',
+    structured: '结构化输出',
+    yourPref: '你的偏好',
+    prefix: '我记得你上次更喜欢',
+  },
+
+  // ── ThinkingSection ───────────────────────────────────────────────────────
+  thinking: {
+    analyzing: '正在分析...',
+    deepReasoning: '深度推理中...',
+    fullThinking: '全力思考中...',
+    waiting: '正在思考',
+    doneSummary: (n: number) => `思考完毕 · ${n} 字`,
+    done: '思考完毕',
+  },
+
+  // ── FileBubble ────────────────────────────────────────────────────────────
+  fileBubble: {
+    size: '大小：',
+    type: '类型：',
+    unknown: '未知',
+    download: '下载文件',
+  },
+
+  // ── ClusterLabel & NodeCard ───────────────────────────────────────────────
+  clusterLabel: {
+    capability: '能力',
+    memories: (n: number) => `${n} 条记忆`,
+    clickToUse: '点击使用',
   },
 }
 

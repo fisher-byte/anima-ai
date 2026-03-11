@@ -1,6 +1,32 @@
 # Anima 变更日志
 
-## [0.2.85] - 2026-03-12
+## [0.2.86] - 2026-03-12
+
+### feat: 全量 i18n — 所有组件支持中英双语
+
+#### 新增 i18n 命名空间
+
+| 命名空间 | 覆盖组件 |
+|----------|---------|
+| `login` | LoginPage |
+| `onboarding` | OnboardingCompletePopup |
+| `modal` | AnswerModal, AnswerModalSubcomponents |
+| `timeline` | TimelineView |
+| `nodeTimeline` | NodeTimelinePanel |
+| `search` | SearchPanel |
+| `importMemory` | ImportMemoryModal |
+| `grayHint` | GrayHint |
+| `thinking` | ThinkingSection |
+| `fileBubble` | FileBubble |
+| `clusterLabel` | ClusterLabel, NodeCard |
+
+#### 改动
+- 以上所有组件新增 `useT()` 调用，所有用户可见字符串替换为 `t.*`
+- `AnswerModal` 将 turns 循环变量从 `t` 重命名为 `turn`，避免与 `useT()` 的 `t` 冲突
+- `GrayHint` 偏好匹配新增英文关键词支持
+- `TimelineView` 分类色条补充英文分类名映射
+
+
 
 ### feat: 反馈按钮 + feedback_reports 表 + 全量检查
 

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { File as FileIcon, Download, AlertCircle } from 'lucide-react'
 import type { FileAttachment } from '@shared/types'
+import { useT } from '../i18n'
 
 interface FileBubbleProps {
   file: FileAttachment
@@ -13,6 +14,7 @@ interface FileBubbleProps {
  * 视觉上作为"小卫星"环绕对话气泡存在。
  */
 export function FileBubble({ file }: FileBubbleProps) {
+  const { t } = useT()
   const [expanded, setExpanded] = useState(false)
   const sizeKB = (file.size / 1024).toFixed(1)
 
@@ -50,9 +52,9 @@ export function FileBubble({ file }: FileBubbleProps) {
             className="overflow-hidden"
           >
             <div className="mt-2 pt-2 border-t border-gray-100 space-y-1.5">
-              <div className="text-[10px] text-gray-400">大小：{sizeKB} KB</div>
+              <div className="text-[10px] text-gray-400">{t.fileBubble.size}{sizeKB} KB</div>
               <div className="text-[10px] text-gray-400 truncate">
-                类型：{file.type || '未知'}
+                {t.fileBubble.type}{file.type || t.fileBubble.unknown}
               </div>
               {file.uploadError && (
                 <div className="flex items-center gap-1 text-[10px] text-amber-600">
@@ -73,7 +75,7 @@ export function FileBubble({ file }: FileBubbleProps) {
                   className="flex items-center gap-1 mt-1 text-[10px] text-blue-500 hover:text-blue-700 font-medium"
                 >
                   <Download className="w-3 h-3" />
-                  下载文件
+                  {t.fileBubble.download}
                 </a>
               )}
             </div>

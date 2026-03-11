@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import type { FileAttachment } from '@shared/types'
 import { stripFileBlocksOnly } from '../utils/conversationUtils'
+import { useT } from '../i18n'
 
 // ── UserMessageContent ────────────────────────────────────────────────────────
 
@@ -53,6 +54,7 @@ export function UserMessageContent({ content }: { content: string }) {
 // ── ReferenceBlockBubble ──────────────────────────────────────────────────────
 
 export function ReferenceBlockBubble({ content }: { content: string }) {
+  const { t } = useT()
   const [expanded, setExpanded] = useState(false)
   const firstLine = content.split('\n')[0].trim()
   const preview = firstLine.slice(0, 40) + (firstLine.length > 40 ? '…' : '')
@@ -62,7 +64,7 @@ export function ReferenceBlockBubble({ content }: { content: string }) {
       <div className="flex items-center gap-2">
         <Quote className="w-3 h-3 text-amber-400 flex-shrink-0" />
         <span className="flex-1 truncate">{preview}</span>
-        <span className="text-[11px] text-amber-400 flex-shrink-0">{wordCount} 字</span>
+        <span className="text-[11px] text-amber-400 flex-shrink-0">{t.modal.chars(wordCount)}</span>
         <button
           onClick={() => setExpanded(v => !v)}
           className="p-0.5 text-amber-400 hover:text-amber-600 transition-colors flex-shrink-0"
@@ -82,7 +84,8 @@ export function ReferenceBlockBubble({ content }: { content: string }) {
 // ── ClosingAnimation ──────────────────────────────────────────────────────────
 
 export function ClosingAnimation({ isOnboarding, appliedPreferences }: { isOnboarding: boolean; appliedPreferences: string[] }) {
-  const label = isOnboarding ? '记忆已生成 ✦' : '已记下来了'
+  const { t } = useT()
+  const label = isOnboarding ? t.modal.closingMemoryGenerated : t.modal.closingNoted
   return (
     <motion.div
       initial={{ opacity: 0, y: -16, scale: 0.92 }}
@@ -100,7 +103,7 @@ export function ClosingAnimation({ isOnboarding, appliedPreferences }: { isOnboa
       {appliedPreferences.length > 0 && (
         <div className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 text-white text-[11px] font-medium rounded-2xl shadow-md">
           <Sparkles className="w-3 h-3 text-yellow-300 flex-shrink-0" />
-          已应用 {appliedPreferences.length} 条进化基因
+          {t.modal.closingApplied(appliedPreferences.length)}
         </div>
       )}
     </motion.div>
@@ -135,6 +138,7 @@ export function InputArea({
   onFeedbackChange, onFeedbackSubmit, onStopGeneration, onFileSelect, onDrop, onRemoveFile,
   onAddReferenceBlock, onRemoveReferenceBlock
 }: InputAreaProps) {
+  const { t } = useT()
   const handlePaste = (e: React.ClipboardEvent) => {
     // A-3: 有文件时不处理文本（图片/文件粘贴由父组件 fileInputRef 处理）
     if (e.clipboardData.files.length > 0) return
@@ -225,7 +229,7 @@ export function InputArea({
               ref={textareaRef}
               value={feedbackMessage}
               onChange={onFeedbackChange}
-              placeholder={isOnboardingMode ? '在这里介绍你自己…' : '回复…'}
+              placeholder={isOnboardingMode ? t.modal.onboardingIntroPlaceholder : t.modal.replyPlaceholder}
               className="w-full bg-transparent border-none outline-none resize-none py-3 text-[15px] max-h-[120px]"
               rows={1}
               onPaste={handlePaste}

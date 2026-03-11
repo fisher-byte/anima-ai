@@ -54,6 +54,7 @@ import {
   ClosingAnimation,
   InputArea,
 } from './AnswerModalSubcomponents'
+import { useT } from '../i18n'
 
 function authFetch(url: string, init?: RequestInit): Promise<Response> {
   const token = getAuthToken()
@@ -79,6 +80,7 @@ function extractUserInfo(message: string): string {
 }
 
 export function AnswerModal() {
+  const { t } = useT()
   const isModalOpen = useCanvasStore(state => state.isModalOpen)
   const currentConversation = useCanvasStore(state => state.currentConversation)
   const closeModal = useCanvasStore(state => state.closeModal)
@@ -163,10 +165,10 @@ export function AnswerModal() {
           if (convId) formData.append('convId', convId)
           const uploadRes = await authFetch('/api/storage/file', { method: 'POST', body: formData })
           if (!uploadRes.ok) {
-            uploadError = uploadRes.status === 413 ? '文件过大，无法上传到记忆库' : `上传失败（${uploadRes.status}）`
+            uploadError = uploadRes.status === 413 ? t.modal.fileTooBig : t.modal.uploadFailed(uploadRes.status)
           }
         } catch {
-          uploadError = '网络错误，文件未能上传到记忆库'
+          uploadError = t.modal.uploadNetworkError
         }
 
         const attachment: FileAttachment = {
@@ -235,7 +237,7 @@ export function AnswerModal() {
       setAppliedPreferences(prefs)
 
       if (prefs.length >= 2 && !isReplayRef.current) {
-        showToast('✦ 进化基因生效', `已应用 ${prefs.length} 条偏好规则`)
+        showToast('✦ 进化基因生效', t.modal.evolutionActive(prefs.length))
       }
 
       // 新手引导阶段推进
@@ -274,7 +276,7 @@ export function AnswerModal() {
     },
     onStopped: () => {
       setIsStreaming(false)
-      setErrorMessage('生成已停止')
+      setErrorMessage(t.modal.stopGeneration)
       didMutateRef.current = true
     }
   })
@@ -549,7 +551,7 @@ export function AnswerModal() {
         const hasFeedbackTrigger = FEEDBACK_TRIGGERS.some(t => t.keywords.some(k => lower.includes(k.toLowerCase())))
         if (hasFeedbackTrigger) {
           feedbackToastCountRef.current += 1
-          showToast('好的，我记住了。', '', 2500)
+          showToast(t.modal.gotIt, '', 2500)
         }
       }
     }
@@ -565,7 +567,7 @@ export function AnswerModal() {
       onboardingPhaseRef.current = 3
       setIsStreaming(true)
       setTurns(prev => [...prev, { user: fullTrimmed, assistant: '' }])
-      showToast('✦ 进化基因已记录', trimmed.slice(0, 45))
+      showToast(t.modal.geneRecorded, trimmed.slice(0, 45))
 
       const fullText = ONBOARDING_GENE_SAVED
       let charIndex = 0
@@ -628,9 +630,9 @@ export function AnswerModal() {
           setIsStreaming(false)
           const infoDetail = extractUserInfo(trimmed)
           if (infoDetail) {
-            showToast('✦ 人物信息已更新', infoDetail, 4000)
+            showToast(t.modal.profileUpdated, infoDetail, 4000)
           } else {
-            showToast('✦ 已记下，正在后台分析', '', 2500)
+            showToast(t.modal.backgroundAnalysis, '', 2500)
           }
           return
         }
@@ -912,13 +914,13 @@ export function AnswerModal() {
                   {/* 引导模式提示（未完成时显示） */}
                   {isOnboardingMode && !onboardingDone && (
                     <span className="flex-1 text-[12px] text-gray-400 font-medium pl-1">
-                      随时可以关闭，下次点击「新手教程」继续
+                      {t.modal.onboardingHint}
                     </span>
                   )}
                   {/* 偏好预告：非引导模式下，展示最活跃的偏好规则 */}
                   {!isOnboardingMode && appliedPreferences.length > 0 && (
                     <span className="flex-1 text-[11px] text-gray-400/70 pl-1 truncate">
-                      已记住：{appliedPreferences[0]}
+                      {t.modal.memorized}{appliedPreferences[0]}
                     </span>
                   )}
                   {/* 导出菜单 */}
@@ -939,11 +941,11 @@ export function AnswerModal() {
                           onMouseLeave={() => setShowExportMenu(false)}
                         >
                           <button onClick={handleExportConversation} className="w-full flex items-center gap-2.5 px-4 py-3 text-[13px] text-gray-700 hover:bg-gray-50 transition-colors text-left">
-                            <Download className="w-3.5 h-3.5 text-gray-400" />导出对话 (MD)
+                            <Download className="w-3.5 h-3.5 text-gray-400" />{t.modal.exportMd}
                           </button>
                           <div className="h-px bg-gray-50 mx-3" />
                           <button onClick={handleExportAll} className="w-full flex items-center gap-2.5 px-4 py-3 text-[13px] text-gray-700 hover:bg-gray-50 transition-colors text-left">
-                            <Download className="w-3.5 h-3.5 text-gray-400" />导出全量数据 (JSON)
+                            <Download className="w-3.5 h-3.5 text-gray-400" />{t.modal.exportJson}
                           </button>
                         </motion.div>
                       )}
@@ -979,30 +981,30 @@ export function AnswerModal() {
                             />
                           ))}
                         </div>
-                        <span className="text-[13px] text-gray-400">正在连接…</span>
+                        <span className="text-[13px] text-gray-400">{t.modal.connecting}</span>
                       </div>
-                    ) : turns.map((t, idx) => (
+                    ) : turns.map((turn, idx) => (
                       <div key={idx} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
 
                         {/* 用户消息 + 文件气泡 */}
                         <div className="flex justify-end mb-6">
                           <div className="flex flex-col items-end gap-1 max-w-[85%] group/usermsg">
-                            {t.images && t.images.length > 0 && (
+                            {turn.images && turn.images.length > 0 && (
                               <div className="flex flex-wrap gap-2 justify-end">
-                                {t.images.map((img, i) => (
+                                {turn.images.map((img, i) => (
                                   <img key={i} src={img} className="w-32 h-32 object-cover rounded-2xl border border-gray-100 shadow-sm" />
                                 ))}
                               </div>
                             )}
-                            {t.files && t.files.filter(f => !f.preview).length > 0 && (
+                            {turn.files && turn.files.filter(f => !f.preview).length > 0 && (
                               <div className="flex flex-wrap gap-1.5 justify-end">
-                                {t.files.filter(f => !f.preview).map(file => (
+                                {turn.files.filter(f => !f.preview).map(file => (
                                   <FileBubble key={file.id} file={file} />
                                 ))}
                               </div>
                             )}
 
-                            {t.user && (
+                            {turn.user && (
                               <div className="bg-[#F4F4F4] rounded-3xl px-5 py-3.5 text-[15px] leading-relaxed text-gray-900 min-w-[60px] max-w-full">
                                 {editingIndex === idx ? (
                                   <div className="flex flex-col gap-3">
@@ -1024,32 +1026,32 @@ export function AnswerModal() {
                                       }}
                                     />
                                     <div className="flex justify-end gap-3 text-[13px]">
-                                      <button onClick={() => setEditingIndex(null)} className="text-gray-400 hover:text-gray-600 transition-colors">取消</button>
-                                      <button onClick={handleSaveEdit} className="bg-gray-900 text-white px-3.5 py-1 rounded-full hover:bg-black transition-colors font-medium">发送</button>
+                                      <button onClick={() => setEditingIndex(null)} className="text-gray-400 hover:text-gray-600 transition-colors">{t.modal.cancel}</button>
+                                      <button onClick={handleSaveEdit} className="bg-gray-900 text-white px-3.5 py-1 rounded-full hover:bg-black transition-colors font-medium">{t.modal.send}</button>
                                     </div>
                                   </div>
-                                ) : <UserMessageContent content={t.user} />}
+                                ) : <UserMessageContent content={turn.user} />}
                               </div>
                             )}
 
-                            {t.memories && t.memories.length > 0 && (
+                            {turn.memories && turn.memories.length > 0 && (
                               <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-1.5 justify-end">
                                 <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 rounded-full border border-gray-200 text-gray-600 text-[11px] font-medium">
                                   <Layers className="w-3 h-3 flex-shrink-0" />
-                                  <span>引用了 {t.memories.length} 条记忆：</span>
-                                  <span className="opacity-75 truncate max-w-[140px]">{t.memories[0].conv.userMessage.slice(0, 20)}{t.memories[0].conv.userMessage.length > 20 ? '…' : ''}</span>
+                                  <span>{t.modal.memoriesRef(turn.memories.length)}</span>
+                                  <span className="opacity-75 truncate max-w-[140px]">{turn.memories[0].conv.userMessage.slice(0, 20)}{turn.memories[0].conv.userMessage.length > 20 ? '…' : ''}</span>
                                 </div>
                               </motion.div>
                             )}
 
-                            {!isStreaming && editingIndex !== idx && t.user && (
+                            {!isStreaming && editingIndex !== idx && turn.user && (
                               <div className="flex items-center gap-0.5 opacity-0 group-hover/usermsg:opacity-100 transition-opacity duration-150">
-                                <button onClick={() => handleStartEdit(idx, t.user)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title="编辑">
+                                <button onClick={() => handleStartEdit(idx, turn.user)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title={t.modal.edit}>
                                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                   </svg>
                                 </button>
-                                <button onClick={() => handleCopyMessage(t.user, idx)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title="复制">
+                                <button onClick={() => handleCopyMessage(turn.user, idx)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title={t.modal.copy}>
                                   {copiedIndex === idx ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                                 </button>
                               </div>
@@ -1072,28 +1074,28 @@ export function AnswerModal() {
                               </div>
                             )}
                             <ThinkingSection
-                              content={t.reasoning || ''}
-                              isStreaming={isStreaming && idx === turns.length - 1 && !t.assistant && !!(t.reasoning)}
-                              isWaiting={isStreaming && idx === turns.length - 1 && !t.assistant && !t.reasoning}
-                              forceCollapsed={!!t.assistant || idx > 0}
+                              content={turn.reasoning || ''}
+                              isStreaming={isStreaming && idx === turns.length - 1 && !turn.assistant && !!(turn.reasoning)}
+                              isWaiting={isStreaming && idx === turns.length - 1 && !turn.assistant && !turn.reasoning}
+                              forceCollapsed={!!turn.assistant || idx > 0}
                             />
                             <div className="text-gray-800 text-[15px] leading-7 group/aimsg">
-                              {t.error ? (
-                                <div className="text-red-500 text-sm">{t.error}</div>
+                              {turn.error ? (
+                                <div className="text-red-500 text-sm">{turn.error}</div>
                               ) : (
                                 <div className="prose prose-slate max-w-none prose-sm prose-p:my-1.5 prose-headings:my-2">
                                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                    {stripLeadingNumberHeading(t.assistant || (isStreaming && idx === turns.length - 1 ? '...' : ''))}
+                                    {stripLeadingNumberHeading(turn.assistant || (isStreaming && idx === turns.length - 1 ? '...' : ''))}
                                   </ReactMarkdown>
                                 </div>
                               )}
-                              {t.assistant && !isStreaming && (
+                              {turn.assistant && !isStreaming && (
                                 <div className="flex items-center gap-0.5 mt-2 opacity-0 group-hover/aimsg:opacity-100 transition-opacity duration-150">
-                                  <button onClick={() => handleCopyMessage(t.assistant, idx)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100" title="复制">
+                                  <button onClick={() => handleCopyMessage(turn.assistant, idx)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100" title={t.modal.copy}>
                                     {copiedIndex === idx ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                                   </button>
                                   {!isOnboardingMode && (
-                                    <button onClick={() => handleRegenerate(idx)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100" title="重新生成">
+                                    <button onClick={() => handleRegenerate(idx)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100" title={t.modal.regenerate}>
                                       <RefreshCw className="w-4 h-4" />
                                     </button>
                                   )}
@@ -1116,13 +1118,13 @@ export function AnswerModal() {
                         initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
                         className="absolute bottom-full left-0 mb-2 w-full bg-white/95 backdrop-blur-md border border-gray-200 rounded-2xl shadow-lg p-4 z-10"
                       >
-                        <p className="text-[12px] text-gray-500 mb-3">想先确认一下方向，这样调研结果更准 ✦</p>
+                        <p className="text-[12px] text-gray-500 mb-3">{t.modal.clarifyTitle}</p>
                         <div className="flex flex-col gap-2 mb-3">
-                          {['行业与市场数据（规模、趋势、融资）', '产品或技术方案对比（功能、优劣势）'].map((opt) => (
+                          {[t.modal.clarifyOpt1, t.modal.clarifyOpt2].map((opt) => (
                             <button
                               key={opt}
                               onClick={() => {
-                                const msg = `请对以下方向做深度调研：${clarifyPending} — ${opt}`
+                                const msg = `${t.modal.clarifyPrefix}${clarifyPending} — ${opt}`
                                 sendClarifiedMessage(msg)
                               }}
                               className="text-left px-3 py-2 rounded-xl border border-gray-200 text-[13px] text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all"
@@ -1140,14 +1142,14 @@ export function AnswerModal() {
                                 sendClarifiedMessage(clarifyCustom.trim())
                               }
                             }}
-                            placeholder="或直接写出你想调研的具体问题…"
+                            placeholder={t.modal.clarifyPlaceholder}
                             className="flex-1 text-[12px] px-3 py-1.5 rounded-lg border border-gray-200 outline-none focus:border-gray-400 text-gray-700 placeholder:text-gray-400"
                           />
                           <button
                             onClick={() => { setClarifyPending(null); setClarifyCustom('') }}
                             className="text-[11px] text-gray-400 hover:text-gray-600 px-2"
                           >
-                            取消
+                            {t.modal.cancel}
                           </button>
                         </div>
                       </motion.div>

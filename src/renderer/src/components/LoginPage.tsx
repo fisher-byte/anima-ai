@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { setAuthToken } from '../services/storageService'
+import { useT } from '../i18n'
 
 const TOKEN_KEY = 'anima_access_token'
 
@@ -8,14 +9,15 @@ interface LoginPageProps {
 }
 
 export function LoginPage({ onLogin }: LoginPageProps) {
+  const { t } = useT()
   const [token, setToken] = useState('')
   const [error, setError] = useState('')
   const [isChecking, setIsChecking] = useState(false)
 
   const handleSubmit = useCallback(async () => {
-    const t = token.trim()
-    if (!t) {
-      setError('请输入访问令牌')
+    const tok = token.trim()
+    if (!tok) {
+      setError(t.login.enterToken)
       return
     }
 
@@ -23,35 +25,35 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     setError('')
 
     // 注入 token 并验证（用 health 端点 + 带 token 探活）
-    setAuthToken(t)
+    setAuthToken(tok)
     try {
       const res = await fetch('/api/storage/nodes.json', {
-        headers: { Authorization: `Bearer ${t}` }
+        headers: { Authorization: `Bearer ${tok}` }
       })
       if (res.ok || res.status === 404) {
         // token 有效（200=有数据, 404=新用户空库）
-        localStorage.setItem(TOKEN_KEY, t)
+        localStorage.setItem(TOKEN_KEY, tok)
         // 已有服务端数据的用户跳过新手教程
         if (res.ok) {
           localStorage.setItem('evo_onboarding_v3', 'done')
         }
         onLogin()
       } else if (res.status === 401 || res.status === 403) {
-        setError('令牌无效，请重新输入')
+        setError(t.login.invalidToken)
         setAuthToken('')
       } else {
         // 其他错误（如 500），不放行
-        setError('服务异常，请稍后再试')
+        setError(t.login.serverError)
         setAuthToken('')
       }
     } catch {
       // 网络异常，不放行
-      setError('网络异常，请检查连接')
+      setError(t.login.networkError)
       setAuthToken('')
     } finally {
       setIsChecking(false)
     }
-  }, [token, onLogin])
+  }, [token, onLogin, t])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') handleSubmit()
@@ -74,7 +76,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             </svg>
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Anima</h1>
           </div>
-          <p className="text-sm text-gray-400">请输入访问令牌以继续</p>
+          <p className="text-sm text-gray-400">{t.login.subtitle}</p>
         </div>
 
         <div className="space-y-3">
@@ -101,7 +103,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             disabled={isChecking || !token.trim()}
             className="w-full py-3 rounded-2xl bg-gray-900 text-white text-sm font-medium transition-all hover:bg-black disabled:bg-gray-100 disabled:text-gray-300 disabled:cursor-not-allowed"
           >
-            {isChecking ? '验证中...' : '进入'}
+            {isChecking ? t.login.verifying : t.login.enter}
           </button>
         </div>
       </div>
