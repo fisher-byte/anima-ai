@@ -18,10 +18,10 @@
 
 ## 项目状态
 
-- **当前版本**: v0.2.24
+- **当前版本**: v0.2.85
 - **开发状态**: Active
-- **最后更新**: 2026-03-05
-- **GitHub**: https://github.com/fisher-byte/Cogniflow
+- **最后更新**: 2026-03-12
+- **GitHub**: https://github.com/fisher-byte/anima-ai
 
 ## 核心功能
 
