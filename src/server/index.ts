@@ -21,6 +21,7 @@ import { storageRoutes } from './routes/storage'
 import { configRoutes } from './routes/config'
 import { aiRoutes } from './routes/ai'
 import { memoryRoutes, initCategoryPrototypes } from './routes/memory'
+import { feedbackRoutes } from './routes/feedback'
 import { startAgentWorker, bootstrapAllEmbeddings } from './agentWorker'
 
 type AppEnv = {
@@ -70,6 +71,7 @@ app.route('/api/storage', storageRoutes)
 app.route('/api/config', configRoutes)
 app.route('/api/ai', aiRoutes)
 app.route('/api/memory', memoryRoutes)
+app.route('/api/feedback', feedbackRoutes)
 
 // ── Static Frontend (production) ──────────────────────────────────────────────
 if (process.env.NODE_ENV === 'production') {

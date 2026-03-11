@@ -162,4 +162,17 @@ export const en: Translations = {
     pgPlaceholder: 'Ask Paul Graham anything…',
     conversationCount: (n: number) => `${n} conversation${n === 1 ? '' : 's'}`,
   },
+
+  // ── Feedback ──────────────────────────────────────────────────────────────
+  feedback: {
+    title: 'Feedback',
+    typeBug: 'Bug',
+    typeSuggestion: 'Suggestion',
+    placeholder: 'Describe the issue or suggestion…',
+    uploadImage: 'Upload screenshot (optional)',
+    submit: 'Submit',
+    submitting: 'Submitting…',
+    thanks: 'Thanks for your feedback!',
+    error: 'Submission failed, please try again',
+  },
 }

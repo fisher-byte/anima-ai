@@ -4,6 +4,7 @@ import { InputBox } from './components/InputBox'
 import { AnswerModal } from './components/AnswerModal'
 import { OnboardingGuide } from './components/OnboardingGuide'
 import { GlobalUI } from './components/GlobalUI'
+import { FeedbackButton } from './components/FeedbackButton'
 import { LanguageProvider } from './i18n'
 import { useCanvasStore } from './stores/canvasStore'
 import { setAuthToken, getAuthToken } from './services/storageService'
@@ -43,6 +44,7 @@ function App() {
         <div className="relative w-full h-full overflow-hidden bg-white">
           <Canvas />
           <InputBox />
+          <FeedbackButton />
           <AnswerModal />
           <OnboardingGuide />
         </div>

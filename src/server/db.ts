@@ -183,7 +183,17 @@ function initSchema(database: InstanceType<typeof Database>) {
       id         INTEGER PRIMARY KEY CHECK (id = 1),
       model_json TEXT NOT NULL DEFAULT '{}',
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )`
+    )`,
+    `CREATE TABLE IF NOT EXISTS feedback_reports (
+      id          TEXT NOT NULL PRIMARY KEY,
+      type        TEXT NOT NULL DEFAULT 'feedback',
+      message     TEXT NOT NULL DEFAULT '',
+      context     TEXT NOT NULL DEFAULT '{}',
+      image_data  BLOB,
+      image_mime  TEXT,
+      created_at  TEXT NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback_reports(created_at DESC)`
   ]
   for (const sql of migrations) {
     try { database.exec(sql) } catch { /* column/index already exists */ }

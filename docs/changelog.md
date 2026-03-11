@@ -1,5 +1,38 @@
 # Anima 变更日志
 
+## [0.2.85] - 2026-03-12
+
+### feat: 反馈按钮 + feedback_reports 表 + 全量检查
+
+#### 核心改动
+
+| 文件 | 操作 |
+|------|------|
+| `src/server/db.ts` | 追加 `feedback_reports` 建表 migration 及 `idx_feedback_created` 索引 |
+| `src/server/routes/feedback.ts` | 新建：`GET /api/feedback`（列表）、`POST /api/feedback`（提交），Hono + userDb 模式 |
+| `src/server/index.ts` | 注册 `feedbackRoutes` 到 `/api/feedback` |
+| `src/renderer/src/components/FeedbackButton.tsx` | 新建：固定在 InputBox 右侧的反馈浮层按钮（类型 toggle / textarea / 图片上传 / 提交） |
+| `src/renderer/src/App.tsx` | 挂载 `<FeedbackButton />` |
+| `src/renderer/src/i18n/zh.ts` | 新增 `feedback` 命名空间（9 个翻译键）；更新 `Translations` 接口 |
+| `src/renderer/src/i18n/en.ts` | 同步 `feedback` 英文翻译 |
+| `src/server/__tests__/feedback.test.ts` | 新建单元测试：POST 201 + id、GET 列表、POST 缺 message 返回 400、落库可读 |
+| `e2e/features.spec.ts` | 新增测试 40/41/42：POST feedback、GET feedback、POST 缺 message 400 |
+
+#### 功能详情
+
+1. **反馈按钮**：固定在 InputBox 右侧外（`fixed bottom-[52px] right-6 z-50`），点击展开浮层面板
+2. **类型切换**：🐛 报错 / 💡 建议两种模式
+3. **图片上传**：点击上传区域选择图片，以 base64 形式发送到服务端，存为 BLOB
+4. **自动上下文收集**：提交时自动附带 `url`, `userAgent`, `lastConvId`
+5. **i18n 双语**：中英文切换正常
+
+#### Code Review 结论（全量）
+
+- `src/server/routes/memory.ts` — embedding key 已移至 env，正常
+- `src/server/db.ts` — fts5 修复、getAllUserDbs 修复，已生效，无 P0 bug
+- `src/renderer/src/components/Canvas.tsx` — 菜单修复已生效
+- `src/renderer/src/i18n/index.tsx` — title 跟随语言，正常
+
 ## [0.2.84] - 2026-03-11
 
 ### fix: E2E 测试健壮性 + NodeCard i18n + Canvas data-testid 选择器

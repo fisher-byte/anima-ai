@@ -152,6 +152,17 @@ export interface Translations {
     profGoals: string
     appliedMemories: (n: number) => string
   }
+  feedback: {
+    title: string
+    typeBug: string
+    typeSuggestion: string
+    placeholder: string
+    uploadImage: string
+    submit: string
+    submitting: string
+    thanks: string
+    error: string
+  }
 }
 
 export const zh: Translations = {
@@ -312,6 +323,19 @@ export const zh: Translations = {
     lennyPlaceholder: '向 Lenny 提问…',
     pgPlaceholder: '向 Paul Graham 提问…',
     conversationCount: (n: number) => `${n} 条对话`,
+  },
+
+  // ── Feedback ──────────────────────────────────────────────────────────────
+  feedback: {
+    title: '反馈',
+    typeBug: '报错',
+    typeSuggestion: '建议',
+    placeholder: '描述遇到的问题或建议…',
+    uploadImage: '上传截图（可选）',
+    submit: '提交',
+    submitting: '提交中…',
+    thanks: '感谢反馈！',
+    error: '提交失败，请重试',
   },
 }
 

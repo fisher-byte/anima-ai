@@ -237,6 +237,16 @@
 - [ ] 多模型路由：简单问答走小模型（moonshot-v1-8k），复杂推理走大模型；隐私内容可走本地 Ollama
 - [ ] 模型健康检测：启动时自动 ping 配置的 baseUrl，提前发现 API 连通性问题
 
+#### v0.2.85 — 反馈功能（已完成）
+
+- [x] **反馈按钮**：固定在 InputBox 右侧外，点击展开浮层面板
+- [x] **类型切换**：🐛 报错 / 💡 建议
+- [x] **文字反馈**：textarea 输入，自动收集上下文（url, userAgent, lastConvId）
+- [x] **图片上传**：可选截图上传，存为 BLOB
+- [x] **`feedback_reports` 表**：SQLite migration 自动建表，支持多租户隔离
+- [x] **`GET/POST /api/feedback`** 路由
+- [x] **i18n 双语**：中英文切换正常
+
 ---
 
 ### 🔮 远期（v0.4.0+）
