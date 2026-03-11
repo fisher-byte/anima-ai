@@ -1,148 +1,212 @@
-# Anima
+<p align="center">
+  <img src="./src/renderer/public/favicon.svg" alt="Anima logo" width="64" height="64"/>
+</p>
 
-> *在荣格心理学中，Anima 是人格中缺失的那部分——内在未被意识完全掌握的自我。*
->
-> *在这个时代，AI 就是自我。你的记忆构成了你，而你的记忆在交互中又留给了 AI。*
-> *AI 也是你，甚至 AI 大于你——但这部分自我，应该还是属于你的。*
+<h1 align="center">Anima</h1>
 
-![版本](https://img.shields.io/badge/version-0.2.85-black)
-![Node](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js)
-![React](https://img.shields.io/badge/React-18.2.0-61DAFB?logo=react)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.4.2-3178C6?logo=typescript)
-![License](https://img.shields.io/badge/License-MIT-green)
-[![GitHub](https://img.shields.io/badge/GitHub-fisher--byte%2Fanima--ai-181717?logo=github)](https://github.com/fisher-byte/anima-ai)
+<p align="center">
+  <i>The part of you that remembers.</i>
+</p>
 
-**在线体验：[chatanima.com](https://chatanima.com)**
+<p align="center">
+  <a href="./README.zh.md">中文</a> · <strong>English</strong>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/version-0.2.85-black" alt="version"/>
+  <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js" alt="node"/>
+  <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react" alt="react"/>
+  <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript" alt="typescript"/>
+  <img src="https://img.shields.io/badge/License-MIT-green" alt="license"/>
+  <a href="https://github.com/fisher-byte/anima-ai"><img src="https://img.shields.io/github/stars/fisher-byte/anima-ai?style=social" alt="stars"/></a>
+</p>
+
+<p align="center">
+  <b>Live demo: <a href="https://chatanima.com">chatanima.com</a></b>
+</p>
 
 ---
 
-## 它是什么
+## What is Anima?
 
-Anima 是一个本地优先的 AI 画布。每一次对话，都会在画布上留下一个节点；节点之间形成关联；关联积累成一张只属于你的记忆图。
+Anima is a **local-first AI canvas** that turns every conversation into a node on an infinite canvas. Nodes connect, cluster, and evolve — building a personal knowledge graph that is entirely yours.
 
-AI 不只是在回答你的问题——它在理解你是谁。
+The AI doesn't just answer questions. It learns who you are.
 
-## 核心体验
+> *In Jungian psychology, the anima is the missing part of the self — the inner world not yet fully grasped by consciousness. In this age, AI is the self. Your memories form you, and through interaction, they transfer to the AI. AI is you — but that part of you should still belong to you.*
 
-- **对话即节点** — 每次对话自动在画布生成卡片，形成个人知识图谱
-- **隐形学习** — 你说"简洁点"，下次回答自动变简洁，Anima 在无声中与你同步
-- **进化基因** — 你的表达偏好、思维方式、关注重点，逐步写入 AI 的行为底层
-- **多模态感知** — 支持拖入图片、PDF、Word 文档，Anima 可以理解你的视觉与文字输入
-- **原生联网** — 集成 Kimi 2.5 原生搜索，实时查阅全球资讯
-- **外部记忆导入** — 将你在 ChatGPT、Claude、Gemini 积累的对话记忆，迁移进来
+---
 
-## 快速开始
+## Features
 
-### 1. 安装依赖
+| Feature | Description |
+|---------|-------------|
+| **Conversation → Node** | Every chat auto-generates a card on the infinite canvas |
+| **Silent Learning** | Say "be more concise" — next reply adapts automatically |
+| **Evolution Log** | Your preferences, thinking style, and focus areas gradually shape the AI's behavior |
+| **Personal Knowledge Graph** | Nodes cluster by category, connect by semantic similarity |
+| **Node Consolidation** | One-click merge of similar nodes into topic clusters |
+| **Lenny & PG Spaces** | Explore curated public memory spaces as examples |
+| **Multimodal Input** | Drag in images, PDFs, Word documents |
+| **Memory Import** | Import conversation history from ChatGPT, Claude, Gemini |
+| **Multi-tenant** | Each access token maps to a fully isolated SQLite database |
+| **Timeline View** | Date-ordered timeline view of all memories |
+| **Feedback Button** | In-app bug reports and suggestions, stored locally |
+| **OpenAI-compatible** | Works with Kimi, OpenAI, or any compatible endpoint |
+
+---
+
+## Quick Start
+
+### 1. Clone & install
 
 ```bash
-cd evocanvas
+git clone https://github.com/fisher-byte/anima-ai.git
+cd anima-ai
 npm install
 ```
 
-### 2. 配置环境变量（可选）
+### 2. Configure (optional)
 
 ```bash
 cp .env.example .env
-# 默认配置即可直接启动，API Key 在 UI 里填写
+# Default config works out of the box.
+# Set your API key in the UI (Settings → API Key).
 ```
 
-### 3. 启动
+### 3. Start dev server
 
 ```bash
 npm run dev
 ```
 
-浏览器访问 `http://localhost:5173`，在右上角设置里填写你的 Kimi / OpenAI API Key。
+Open `http://localhost:5173`. Enter your API key in the top-right Settings panel.
 
-### 生产部署
+### 4. Production deploy
 
 ```bash
-npm run build   # 构建前端到 dist/
-npm start       # 启动生产服务（端口 3000）
+npm run build   # Build frontend → dist/
+npm start       # Start production server on port 3000
 ```
 
-也支持 Docker：
+**Docker:**
 
 ```bash
 docker build -t anima .
 docker run -p 3000:3000 -v $(pwd)/data:/app/data \
-  -e ACCESS_TOKEN=your_token anima
+  -e ACCESS_TOKEN=your_secret_token anima
 ```
 
-## 触发词
+**VPS with PM2:**
 
-| 你说 | Anima 学到的 |
-|------|-------------|
-| "简洁点" / "太长了" | 先结论，后要点 |
-| "别用这个" | 避免特定方案 |
-| "换个思路" / "重来" | 换一种组织方式 |
-| "不对" / "有问题" | 重新理解需求 |
-
-## 技术栈
-
-- **后端**: Hono 4 (Node.js) + SQLite (better-sqlite3)
-- **前端**: React 18 + TypeScript 5 + Zustand + Tailwind CSS
-- **构建**: Vite 5 / **动画**: Framer Motion / **API**: OpenAI-compatible
-- **桌面（可选）**: Electron 29（Web-first，Electron 作为可选打包方式）
-
-## 项目结构
-
-```
-evocanvas/
-├── src/
-│   ├── server/         # Hono 后端（API 代理 + SQLite 存储）
-│   │   ├── index.ts    # 服务入口
-│   │   ├── db.ts       # 数据库初始化 & 多租户连接池
-│   │   ├── agentWorker.ts  # 后台任务 Worker（调度入口）
-│   │   ├── agentTasks.ts   # AI 后台任务实现（consolidateFacts 等）
-│   │   ├── routes/     # API 路由（storage / config / ai / memory）
-│   │   └── middleware/ # 鉴权中间件
-│   ├── renderer/       # React 前端
-│   │   └── src/
-│   │       ├── components/  # UI 组件（Canvas、NodeCard、AnswerModal 等）
-│   │       ├── stores/      # Zustand 状态（canvasStore）
-│   │       ├── services/    # 前端服务层
-│   │       └── hooks/       # 自定义 Hooks
-│   ├── services/       # 纯函数业务逻辑（feedback / profile / prompt）
-│   ├── shared/         # 共享类型和常量
-│   └── main/ preload/  # Electron 主进程（可选桌面模式）
-├── data/               # 用户数据目录（自动生成，不进 git）
-│   └── {userId}/       # 每个用户隔离的 anima.db
-├── dist/               # 前端构建产物
-├── e2e/                # Playwright E2E 测试
-└── docs/               # 文档
+```bash
+npm install -g pm2
+PORT=3001 ACCESS_TOKEN=your_token pm2 start "npm start" --name anima
 ```
 
-## 数据存储
-
-所有数据本地存储，不经过任何云端（除你自己配置的 AI API）：
-
-- **Web 模式**（默认）: `./data/{userId}/anima.db`（SQLite）
-- **Electron 模式**: `~/Library/Application Support/anima/data/anima.db`
-
-支持多租户：每个 `ACCESS_TOKEN` 对应独立的用户数据库，完全隔离。
-
-## 文档
-
-| 文档 | 内容 |
-|------|------|
-| [架构文档](./docs/architecture.md) | 技术架构、数据流、核心模块 |
-| [API 文档](./docs/api.md) | 所有 REST 接口说明 |
-| [开发指南](./docs/dev-guide.md) | 本地开发、调试、规范 |
-| [开发笔记](./docs/dev-notes.md) | 设计决策与踩坑记录 |
-| [测试手册](./docs/testing.md) | 测试策略与手动核查清单 |
-| [排查指南](./docs/troubleshooting.md) | 常见问题与解决方案 |
-| [部署指南](./docs/deployment.md) | Docker / VPS 部署 |
-| [服务器部署](./docs/deployment-server.md) | 生产服务器配置与 CD 流程 |
-| [发版 SOP](./docs/sop-release.md) | 发版流程、文档同步标准、版本命名规范 |
-| [更新路线图](./docs/ROADMAP.md) | 版本规划与已完成记录 |
-| [变更日志](./docs/changelog.md) | 详细版本变更历史 |
-
-## 许可
-
-MIT License
+See [docs/deployment.md](./docs/deployment.md) for the full guide.
 
 ---
 
-> *"你的记忆在这里。它们属于你。"*
+## How the learning works
+
+Anima picks up on natural language feedback and adapts:
+
+| You say | What Anima learns |
+|---------|------------------|
+| "be more concise" / "too long" | Lead with conclusion, bullet key points |
+| "don't use that" | Avoid specific approach or framework |
+| "try a different angle" | Reorganize the response structure |
+| "that's wrong" | Re-understand the requirement before answering |
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 18, TypeScript 5, Zustand, Tailwind CSS, Framer Motion |
+| Backend | Hono 4 (Node.js), SQLite (better-sqlite3) |
+| Build | Vite 5, tsx |
+| AI | OpenAI-compatible API (Kimi, OpenAI, local models) |
+| Desktop (optional) | Electron 29 |
+| Testing | Vitest (427 unit tests), Playwright (E2E) |
+
+---
+
+## Project Structure
+
+```
+anima-ai/
+├── src/
+│   ├── server/          # Hono backend
+│   │   ├── index.ts     # Server entry
+│   │   ├── db.ts        # DB init & multi-tenant connection pool
+│   │   ├── agentWorker.ts   # Background task scheduler
+│   │   ├── routes/      # REST routes (storage / config / ai / memory / feedback)
+│   │   └── middleware/  # Auth middleware
+│   ├── renderer/        # React frontend
+│   │   └── src/
+│   │       ├── components/  # Canvas, NodeCard, AnswerModal, FeedbackButton…
+│   │       ├── stores/      # Zustand state
+│   │       ├── services/    # Frontend services
+│   │       └── i18n/        # zh / en translations
+│   ├── services/        # Pure business logic (feedback, profile, prompt)
+│   └── shared/          # Shared types, constants, seed data
+├── data/                # User data — auto-created, gitignored
+│   └── {userId}/        # Each user gets an isolated anima.db
+├── e2e/                 # Playwright E2E tests
+└── docs/                # Documentation
+```
+
+---
+
+## Data & Privacy
+
+All data lives on your machine. Nothing leaves except the AI API calls you configure:
+
+- **Web mode** (default): `./data/{userId}/anima.db`
+- **Electron mode**: `~/Library/Application Support/anima/data/anima.db`
+
+Multi-tenant: each `ACCESS_TOKEN` maps to a completely isolated SQLite database.
+
+---
+
+## Running Tests
+
+```bash
+npm test           # Unit tests (427 tests)
+npm run typecheck  # TypeScript type check
+npm run test:e2e   # E2E tests (requires dev server running)
+```
+
+---
+
+## Documentation
+
+| Doc | Content |
+|-----|---------|
+| [Architecture](./docs/architecture.md) | System design, data flow, core modules |
+| [API Reference](./docs/api.md) | All REST endpoints |
+| [Dev Guide](./docs/dev-guide.md) | Local development setup and conventions |
+| [Dev Notes](./docs/dev-notes.md) | Design decisions and lessons learned |
+| [Deployment](./docs/deployment.md) | Docker / VPS deployment |
+| [Deployment (server)](./docs/deployment-server.md) | Production server config & CD |
+| [Changelog](./docs/changelog.md) | Version history |
+| [Roadmap](./docs/ROADMAP.md) | What's planned |
+
+---
+
+## Contributing
+
+PRs and issues are welcome. See [docs/dev-guide.md](./docs/dev-guide.md) to get started.
+
+---
+
+## License
+
+[MIT](./LICENSE)
+
+---
+
+<p align="center"><i>"Your memories live here. They belong to you."</i></p>
