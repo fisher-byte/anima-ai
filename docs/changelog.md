@@ -1,6 +1,56 @@
 # Anima 变更日志
 
-## [0.2.80] - 2026-03-10
+## [0.2.81] - 2026-03-11
+
+### feat: Paul Graham Space + Lenny 节点重设计 + 人物 SOP
+
+#### 核心改动
+
+| 模块 | 改动 |
+|------|------|
+| `src/shared/pgData.ts` | **新建**：Paul Graham Space 种子数据，35 个节点（4 圈同心圆布局，CX=1920/CY=1200）+ 20 条语义边 |
+| `src/shared/constants.ts` | 新增 `PG_NODES / PG_CONVERSATIONS / PG_EDGES` 到 `STORAGE_FILES`；新增 `PG_SYSTEM_PROMPT`（Paul Graham 人格 prompt）；`pg-*.json/jsonl` 加入 `ALLOWED_FILENAMES`；`APP_VERSION` → `0.2.81` |
+| `src/renderer/src/components/Canvas.tsx` | Lenny 入口按钮改为 **"Public Spaces"** 多人物卡片区（Lenny amber 主题 + Paul Graham indigo 主题），支持状态独立控制 |
+| `src/renderer/src/components/PGSpaceCanvas.tsx` | **新建**：Paul Graham Space 全功能画布组件（物理力模拟 + 节点卡片 + 对话 + 历史侧边栏），与 LennySpaceCanvas 架构相同但存储完全隔离 |
+| `docs/ADD_FIGURE_SOP.md` | **新建**：从 anima-base 引入新人物 Space 的 6 步 SOP，含节点设计原则、坐标布局、颜色主题推荐 |
+| `src/renderer/src/stores/__tests__/canvasStore.pgMode.test.ts` | **新建**：17 个 PG Space 单元测试（存储隔离 + seed 数据完整性 + lenny mode 行为验证） |
+| `e2e/features.spec.ts` | 新增测试 37–39：PG 入口卡片可见 + `pg-nodes.json` 白名单校验 + 初始化节点数量 ≥ 30 |
+
+#### 功能详情
+
+1. **Paul Graham Space — 35 个种子节点**
+   - 中央节点：`pg-seed-startup-equals-growth`（"Startup = Growth"，1920,1200）
+   - 第一圈（radius=650）：6 个核心概念（Founder Mode, How to Do Great Work, How to Think for Yourself, Wealth, Hackers & Painters, What to Work On）
+   - 第二圈（radius=1200）：11 个扩展主题
+   - 第三圈（radius=1850）：17 个具体文章/概念
+   - 20 条语义边，覆盖 `深化了 / 启发了 / 依赖于 / 重新思考了` 关系
+
+2. **Public Spaces 卡片重设计**
+   - 从单一 Lenny pill 按钮升级为独立的人物节点卡片区
+   - 每张卡片：渐变头像 + 在线指示器（绿点）+ 人物名 + 分类标签 + 节点数量彩点 + hover 箭头
+   - Lenny：amber/orange/rose 渐变；Paul Graham：indigo/violet/purple 渐变
+
+3. **存储隔离验证**
+   - PG Space 读写 `pg-nodes.json` / `pg-conversations.jsonl` / `pg-edges.json`
+   - Lenny Space 读写 `lenny-*.json/jsonl`
+   - 用户主空间读写 `nodes.json` / `conversations.jsonl`
+   - 三者完全不交叉
+
+4. **anima-base SOP 文档**
+   - `docs/ADD_FIGURE_SOP.md`：6 步流程，覆盖节点设计、存储注册、组件创建、Canvas 注册、验证清单
+   - 内置 Find & Replace 替换表（15+ 标识符），可直接按文档为新人物快速建立 Space
+   - 推荐主题色方案：Marty Cagan (blue/cyan), Naval Ravikant (emerald/teal), Seth Godin (orange/red) 等
+
+#### 测试覆盖
+
+- 单元测试：404 → **422**（+18，含 17 个 PG Space 专属测试）
+- E2E 测试：描述 36 → **39**（PG 入口可见 + 白名单 + 节点数量验证）
+- `npx tsc --noEmit`：零 TypeScript 错误
+
+---
+
+
+
 
 ### chore: 技术债清理（canvasStore + AnswerModal）
 
