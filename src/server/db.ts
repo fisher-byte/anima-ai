@@ -111,29 +111,37 @@ function initSchema(database: InstanceType<typeof Database>) {
       updated_at      TEXT NOT NULL
     );
 
-    -- FTS5 虚拟表：memory_facts 全文索引（BM25 fallback 用）
-    CREATE VIRTUAL TABLE IF NOT EXISTS memory_facts_fts
-      USING fts5(id UNINDEXED, fact, tokenize='unicode61 remove_diacritics 1');
-
-    CREATE TRIGGER IF NOT EXISTS fts_sync_insert AFTER INSERT ON memory_facts BEGIN
-      INSERT INTO memory_facts_fts(id, fact) VALUES (NEW.id, NEW.fact);
-    END;
-
-    CREATE TRIGGER IF NOT EXISTS fts_sync_invalidate AFTER UPDATE OF invalid_at ON memory_facts
-      WHEN NEW.invalid_at IS NOT NULL BEGIN
-      DELETE FROM memory_facts_fts WHERE id = NEW.id;
-    END;
-
-    CREATE TRIGGER IF NOT EXISTS fts_sync_delete AFTER DELETE ON memory_facts BEGIN
-      DELETE FROM memory_facts_fts WHERE id = OLD.id;
-    END;
-
-    -- fact 内容更新时同步 FTS5 索引（避免检索到已编辑的旧文本）
-    CREATE TRIGGER IF NOT EXISTS fts_sync_update AFTER UPDATE OF fact ON memory_facts
-      WHEN NEW.invalid_at IS NULL BEGIN
-      UPDATE memory_facts_fts SET fact = NEW.fact WHERE id = NEW.id;
-    END;
   `)
+
+  // FTS5 虚拟表及触发器：SQLite 某些版本下 CREATE VIRTUAL TABLE IF NOT EXISTS
+  // 仍会尝试创建 shadow table 并报 "already exists" 错误，因此先检查再创建。
+  const ftsExists = (database.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='memory_facts_fts'"
+  ).get() as { name: string } | undefined)?.name
+  if (!ftsExists) {
+    database.exec(`
+      CREATE VIRTUAL TABLE memory_facts_fts
+        USING fts5(id UNINDEXED, fact, tokenize='unicode61 remove_diacritics 1');
+
+      CREATE TRIGGER fts_sync_insert AFTER INSERT ON memory_facts BEGIN
+        INSERT INTO memory_facts_fts(id, fact) VALUES (NEW.id, NEW.fact);
+      END;
+
+      CREATE TRIGGER fts_sync_invalidate AFTER UPDATE OF invalid_at ON memory_facts
+        WHEN NEW.invalid_at IS NOT NULL BEGIN
+        DELETE FROM memory_facts_fts WHERE id = NEW.id;
+      END;
+
+      CREATE TRIGGER fts_sync_delete AFTER DELETE ON memory_facts BEGIN
+        DELETE FROM memory_facts_fts WHERE id = OLD.id;
+      END;
+
+      CREATE TRIGGER fts_sync_update AFTER UPDATE OF fact ON memory_facts
+        WHEN NEW.invalid_at IS NULL BEGIN
+        UPDATE memory_facts_fts SET fact = NEW.fact WHERE id = NEW.id;
+      END;
+    `)
+  }
 
   // Incremental migrations
   const migrations = [
@@ -331,19 +339,25 @@ export const db = getDb()
 export function getAllUserDbs(): Array<{ userId: string; db: InstanceType<typeof Database> }> {
   const result: Array<{ userId: string; db: InstanceType<typeof Database> }> = []
   // Scan the data directory for per-user subdirectories (12-char hex userId)
+  let entries: fs.Dirent[]
   try {
-    const entries = fs.readdirSync(DATA_DIR, { withFileTypes: true })
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue
-      // userId directories are 12-char hex strings
-      if (!/^[0-9a-f]{12}$/.test(entry.name)) continue
-      const userId = entry.name
-      const dbPath = path.join(DATA_DIR, userId, 'anima.db')
-      if (!fs.existsSync(dbPath)) continue
-      result.push({ userId, db: getDb(userId) })
-    }
+    entries = fs.readdirSync(DATA_DIR, { withFileTypes: true })
   } catch (e) {
     console.warn('[db] getAllUserDbs scan failed:', e)
+    return result
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    // userId directories are 12-char hex strings
+    if (!/^[0-9a-f]{12}$/.test(entry.name)) continue
+    const userId = entry.name
+    const dbPath = path.join(DATA_DIR, userId, 'anima.db')
+    if (!fs.existsSync(dbPath)) continue
+    try {
+      result.push({ userId, db: getDb(userId) })
+    } catch (e) {
+      console.warn('[db] getAllUserDbs: skipping user %s due to error:', userId, e)
+    }
   }
   return result
 }
