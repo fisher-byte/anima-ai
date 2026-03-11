@@ -18,6 +18,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { useT } from '../i18n'
 
 const THINK_MIN_LEN = 50
 
@@ -28,17 +29,18 @@ interface ThinkingSectionProps {
   forceCollapsed?: boolean
 }
 
-/** 根据 thinking 内容长度返回当前思考阶段标签 */
-function getThinkingLabel(content: string): string {
-  const len = content.length
-  if (len < 200) return '正在分析...'
-  if (len < 800) return '深度推理中...'
-  return '全力思考中...'
-}
-
 export function ThinkingSection({ content, isStreaming, isWaiting, forceCollapsed }: ThinkingSectionProps) {
+  const { t } = useT()
   const [isExpanded, setIsExpanded] = useState(() => !(forceCollapsed ?? false))
   const [dot, setDot] = useState(0)
+
+  /** 根据 thinking 内容长度返回当前思考阶段标签 */
+  function getThinkingLabel(c: string): string {
+    const len = c.length
+    if (len < 200) return t.thinking.analyzing
+    if (len < 800) return t.thinking.deepReasoning
+    return t.thinking.fullThinking
+  }
 
   useEffect(() => {
     if (forceCollapsed) {
@@ -76,7 +78,7 @@ export function ThinkingSection({ content, isStreaming, isWaiting, forceCollapse
           ))}
         </div>
         <span className="text-xs text-gray-400 font-medium tracking-wide">
-          {'正在思考' + '.'.repeat(dot + 1)}
+          {t.thinking.waiting + '.'.repeat(dot + 1)}
         </span>
       </motion.div>
     )
@@ -87,8 +89,8 @@ export function ThinkingSection({ content, isStreaming, isWaiting, forceCollapse
 
   // 思考完毕时的摘要信息（字数）
   const doneLabel = !isStreaming && content
-    ? `思考完毕 · ${content.length} 字`
-    : '思考完毕'
+    ? t.thinking.doneSummary(content.length)
+    : t.thinking.done
 
   return (
     <div className="mb-3">
@@ -131,4 +133,3 @@ export function ThinkingSection({ content, isStreaming, isWaiting, forceCollapse
     </div>
   )
 }
-

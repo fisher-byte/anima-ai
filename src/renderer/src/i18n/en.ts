@@ -175,4 +175,142 @@ export const en: Translations = {
     thanks: 'Thanks for your feedback!',
     error: 'Submission failed, please try again',
   },
+
+  // ── LoginPage ─────────────────────────────────────────────────────────────
+  login: {
+    subtitle: 'Enter your access token to continue',
+    enterToken: 'Please enter your access token',
+    invalidToken: 'Invalid token, please try again',
+    serverError: 'Server error, please try again later',
+    networkError: 'Network error, please check your connection',
+    verifying: 'Verifying...',
+    enter: 'Enter',
+  },
+
+  // ── OnboardingCompletePopup ───────────────────────────────────────────────
+  onboarding: {
+    splitTitle: 'Split into two nodes',
+    splitBody: 'Your conversation has been saved to the canvas. From here,',
+    splitBold: 'explore freely',
+    splitBodySuffix: ' — ask me anything and I\'ll organize your memories automatically.',
+    startExplore: 'Start exploring',
+  },
+
+  // ── AnswerModal & AnswerModalSubcomponents ────────────────────────────────
+  modal: {
+    onboardingHint: 'Close anytime — click "Tutorial" to resume later',
+    memorized: 'Remembered: ',
+    exportMd: 'Export chat (MD)',
+    exportJson: 'Export all data (JSON)',
+    connecting: 'Connecting…',
+    cancel: 'Cancel',
+    send: 'Send',
+    memoriesRef: (n: number) => `${n} memor${n === 1 ? 'y' : 'ies'} referenced:`,
+    edit: 'Edit',
+    copy: 'Copy',
+    regenerate: 'Regenerate',
+    stopGeneration: 'Stop',
+    clarifyTitle: 'Let me confirm the direction first for better results ✦',
+    clarifyOpt1: 'Industry & market data (size, trends, funding)',
+    clarifyOpt2: 'Product or tech comparison (features, pros/cons)',
+    clarifyPrefix: 'Please research the following:',
+    clarifyPlaceholder: 'Or type your specific research question…',
+    exportMdLabel: 'Export chat (MD)',
+    exportJsonLabel: 'Export all data (JSON)',
+    fileTooBig: 'File too large to upload to memory',
+    uploadFailed: (status: number) => `Upload failed (${status})`,
+    uploadNetworkError: 'Network error — file could not be saved to memory',
+    evolutionActive: (n: number) => `${n} preference rule${n === 1 ? '' : 's'} applied`,
+    geneRecorded: '✦ Evolution gene recorded',
+    profileUpdated: '✦ Profile updated',
+    backgroundAnalysis: '✦ Noted — analyzing in background',
+    gotIt: 'Got it, I\'ll remember that.',
+    closingMemoryGenerated: 'Memory generated ✦',
+    closingNoted: 'Noted',
+    closingApplied: (n: number) => `${n} evolution gene${n === 1 ? '' : 's'} applied`,
+    onboardingIntroPlaceholder: 'Introduce yourself here…',
+    replyPlaceholder: 'Reply…',
+    chars: (n: number) => `${n} chars`,
+  },
+
+  // ── TimelineView ──────────────────────────────────────────────────────────
+  timeline: {
+    noNodes: 'No nodes yet',
+    noTitle: 'Untitled',
+  },
+
+  // ── NodeTimelinePanel ─────────────────────────────────────────────────────
+  nodeTimeline: {
+    conversations: (n: number) => `${n} conversation${n === 1 ? '' : 's'}`,
+    since: (date: string) => `· since ${date}`,
+    loading: 'Loading…',
+    noRecords: 'No conversations yet',
+    noContent: '(no content)',
+    continue: 'Continue',
+  },
+
+  // ── SearchPanel ───────────────────────────────────────────────────────────
+  search: {
+    placeholder: 'Search node titles, keywords...',
+    tabNodes: (n: number) => `Nodes (${n})`,
+    tabContent: (n: number) => `Content (${n})`,
+    typeToSearch: 'Type to search',
+    noResults: 'No results found',
+    escHint: 'Press ESC to close',
+  },
+
+  // ── ImportMemoryModal ─────────────────────────────────────────────────────
+  importMemory: {
+    title: 'Import external memories',
+    stepSelect: 'Bring your memories from another AI',
+    stepConfirm: 'Prompt copied — paste it after you jump, then copy the reply back',
+    stepPaste: (name: string) => `Paste ${name}'s reply below`,
+    stepGeneric: 'Copy the prompt, send it to your preferred AI, paste the reply back',
+    confirmGemini: 'Go to Gemini',
+    geminiCopied: 'Prompt copied. Paste it after jumping, copy the reply and come back.',
+    pastePlaceholder: (name: string) => `Paste ${name}'s reply here…`,
+    saving: 'Extracting memory nodes…',
+    save: 'Save as memory nodes',
+    copied: 'Copied',
+    copy: 'Copy',
+    genericNote: 'Send the prompt above to your preferred AI (e.g. ChatGPT, Gemini), then paste the reply below.',
+    genericPlaceholder: 'Paste the AI\'s reply here…',
+    otherAI: 'Other AI / Generic',
+    otherAIDesc: 'Copy prompt, paste reply',
+    externalAI: 'External AI',
+  },
+
+  // ── GrayHint ──────────────────────────────────────────────────────────────
+  grayHint: {
+    concise: 'concise responses',
+    avoid: 'avoiding certain content',
+    structured: 'structured output',
+    yourPref: 'your preference',
+    prefix: 'I remember you preferred',
+  },
+
+  // ── ThinkingSection ───────────────────────────────────────────────────────
+  thinking: {
+    analyzing: 'Analyzing...',
+    deepReasoning: 'Deep reasoning...',
+    fullThinking: 'Thinking hard...',
+    waiting: 'Thinking',
+    doneSummary: (n: number) => `Thought · ${n} chars`,
+    done: 'Done thinking',
+  },
+
+  // ── FileBubble ────────────────────────────────────────────────────────────
+  fileBubble: {
+    size: 'Size: ',
+    type: 'Type: ',
+    unknown: 'unknown',
+    download: 'Download',
+  },
+
+  // ── ClusterLabel & NodeCard ───────────────────────────────────────────────
+  clusterLabel: {
+    capability: 'Capabilities',
+    memories: (n: number) => `${n} memor${n === 1 ? 'y' : 'ies'}`,
+    clickToUse: 'Click to use',
+  },
 }

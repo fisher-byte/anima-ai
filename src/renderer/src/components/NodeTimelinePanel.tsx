@@ -11,8 +11,10 @@ import { useCanvasStore } from '../stores/canvasStore'
 import { storageService } from '../services/storageService'
 import { STORAGE_FILES } from '@shared/constants'
 import type { Conversation } from '@shared/types'
+import { useT } from '../i18n'
 
 export function NodeTimelinePanel() {
+  const { t } = useT()
   const timelineNodeId = useCanvasStore(state => state.timelineNodeId)
   const nodes = useCanvasStore(state => state.nodes)
   const closeNodeTimeline = useCanvasStore(state => state.closeNodeTimeline)
@@ -101,17 +103,17 @@ export function NodeTimelinePanel() {
 
         <div className="flex items-center gap-1.5 mt-2 text-[11px] text-gray-400">
           <MessageSquare className="w-3.5 h-3.5" />
-          <span>{conversationIds.length} 条对话</span>
-          {node.firstDate && <span>· 始于 {node.firstDate}</span>}
+          <span>{t.nodeTimeline.conversations(conversationIds.length)}</span>
+          {node.firstDate && <span>{t.nodeTimeline.since(node.firstDate)}</span>}
         </div>
       </div>
 
       {/* Timeline List */}
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
         {isLoading ? (
-          <div className="flex items-center justify-center py-8 text-gray-400 text-sm">加载中…</div>
+          <div className="flex items-center justify-center py-8 text-gray-400 text-sm">{t.nodeTimeline.loading}</div>
         ) : conversations.length === 0 ? (
-          <div className="flex items-center justify-center py-8 text-gray-400 text-sm">暂无对话记录</div>
+          <div className="flex items-center justify-center py-8 text-gray-400 text-sm">{t.nodeTimeline.noRecords}</div>
         ) : (
           conversations.map((conv, idx) => {
             const date = conv.createdAt ? conv.createdAt.split('T')[0] : ''
@@ -131,7 +133,7 @@ export function NodeTimelinePanel() {
                 >
                   <div className="text-[10px] text-gray-400 mb-0.5">{date}</div>
                   <div className="text-[13px] text-gray-700 group-hover:text-gray-900 transition-colors line-clamp-2">
-                    {preview || '（无内容）'}
+                    {preview || t.nodeTimeline.noContent}
                   </div>
                 </button>
               </div>
@@ -147,7 +149,7 @@ export function NodeTimelinePanel() {
           className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-700 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          续话
+          {t.nodeTimeline.continue}
         </button>
       </div>
     </motion.div>

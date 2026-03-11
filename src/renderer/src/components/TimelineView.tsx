@@ -7,6 +7,7 @@
  * 碰撞处理：同日期同分类有多个节点时，按卡片高度垂直堆叠，行高动态扩展。
  */
 import type { Node as CanvasNode } from '@shared/types'
+import { useT } from '../i18n'
 
 interface TimelineViewProps {
   nodes: CanvasNode[]
@@ -22,10 +23,17 @@ const CATEGORY_COLORS: Record<string, string> = {
   '情感关系': 'bg-rose-400',
   '思考世界': 'bg-purple-400',
   '其他': 'bg-gray-400',
+  'Daily Life': 'bg-green-400',
+  'Daily Tasks': 'bg-yellow-400',
+  'Learning': 'bg-blue-400',
+  'Work': 'bg-sky-400',
+  'Relationships': 'bg-rose-400',
+  'Reflection': 'bg-purple-400',
+  'Other': 'bg-gray-400',
 }
 
 function getCategoryColor(category: string | undefined): string {
-  return CATEGORY_COLORS[category ?? '其他'] ?? 'bg-gray-400'
+  return CATEGORY_COLORS[category ?? '其他'] ?? CATEGORY_COLORS[category ?? 'Other'] ?? 'bg-gray-400'
 }
 
 const CARD_H = 80    // 每张卡片高度（含间距）
@@ -36,6 +44,7 @@ const HEADER_H = 48  // 顶部日期行高
 const ROW_PAD = 16   // 行上下 padding
 
 export function TimelineView({ nodes, openModalById }: TimelineViewProps) {
+  const { t } = useT()
   // 过滤掉 capability 节点
   const memoryNodes = nodes.filter(n => n.nodeType !== 'capability')
 
@@ -52,7 +61,7 @@ export function TimelineView({ nodes, openModalById }: TimelineViewProps) {
   if (memoryNodes.length === 0) {
     return (
       <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-sm pointer-events-none select-none">
-        暂无节点数据
+        {t.timeline.noNodes}
       </div>
     )
   }
@@ -164,7 +173,7 @@ export function TimelineView({ nodes, openModalById }: TimelineViewProps) {
                     >
                       <div className={`w-full h-1 rounded-full ${colorBar} mb-2 opacity-60`} />
                       <p className="text-xs font-medium text-gray-700 line-clamp-2 leading-snug">
-                        {node.title || '无标题'}
+                        {node.title || t.timeline.noTitle}
                       </p>
                     </button>
                   ))

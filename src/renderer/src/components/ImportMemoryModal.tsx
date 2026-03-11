@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, ArrowLeft, ExternalLink, Copy, Check } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { IMPORT_MEMORY_PROMPTS } from '@shared/constants'
+import { useT } from '../i18n'
 
 /** ChatGPT/Claude 支持 URL 预填；Gemini 不支持，仅返回打开页的 URL */
 function buildPrefillUrl(platformId: keyof typeof IMPORT_MEMORY_PROMPTS, prompt: string): string {
@@ -35,6 +36,7 @@ const PLATFORMS: Platform[] = [
 type Step = 'select' | 'confirm' | 'paste' | 'generic'
 
 export function ImportMemoryModal() {
+  const { t } = useT()
   const activeCapabilityId = useCanvasStore(state => state.activeCapabilityId)
   const closeCapability = useCanvasStore(state => state.closeCapability)
   const saveMemoryImport = useCanvasStore(state => state.saveMemoryImport)
@@ -82,7 +84,7 @@ export function ImportMemoryModal() {
     if (!content || isSaving) return
     setIsSaving(true)
     try {
-      await saveMemoryImport(content, selectedPlatform?.name ?? '外部AI')
+      await saveMemoryImport(content, selectedPlatform?.name ?? t.importMemory.externalAI)
       setStep('select')
       setPasteContent('')
       setSelectedPlatform(null)
@@ -90,7 +92,7 @@ export function ImportMemoryModal() {
     } finally {
       setIsSaving(false)
     }
-  }, [pasteContent, isSaving, selectedPlatform, saveMemoryImport, closeCapability])
+  }, [pasteContent, isSaving, selectedPlatform, saveMemoryImport, closeCapability, t])
 
   const handleClose = useCallback(() => {
     setStep('select')
@@ -137,12 +139,12 @@ export function ImportMemoryModal() {
                   </button>
                 )}
                 <div>
-                  <div className="text-[15px] font-bold text-gray-900">导入外部记忆</div>
+                  <div className="text-[15px] font-bold text-gray-900">{t.importMemory.title}</div>
                   <div className="text-[11px] text-gray-400 mt-0.5">
-                    {step === 'select' && '从其他 AI 把你的记忆带过来'}
-                    {step === 'confirm' && '已复制提示词，跳转后直接粘贴发送，再粘回来'}
-                    {step === 'paste' && `把 ${selectedPlatform?.name ?? 'AI'} 的回答粘贴到下方`}
-                    {step === 'generic' && '复制下方提示词，去你常用的 AI 发送，把回答粘贴回来'}
+                    {step === 'select' && t.importMemory.stepSelect}
+                    {step === 'confirm' && t.importMemory.stepConfirm}
+                    {step === 'paste' && t.importMemory.stepPaste(selectedPlatform?.name ?? 'AI')}
+                    {step === 'generic' && t.importMemory.stepGeneric}
                   </div>
                 </div>
               </div>
@@ -172,8 +174,8 @@ export function ImportMemoryModal() {
                     className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-gray-50 hover:bg-gray-100 border border-gray-100 transition-all text-left"
                   >
                     <div>
-                      <div className="text-[13px] font-semibold text-gray-700">其他 AI / 通用方式</div>
-                      <div className="text-[11px] text-gray-400 mt-0.5">复制提示词，粘贴回答</div>
+                      <div className="text-[13px] font-semibold text-gray-700">{t.importMemory.otherAI}</div>
+                      <div className="text-[11px] text-gray-400 mt-0.5">{t.importMemory.otherAIDesc}</div>
                     </div>
                     <Copy className="w-4 h-4 text-gray-400 flex-shrink-0" />
                   </button>
@@ -184,14 +186,14 @@ export function ImportMemoryModal() {
               {step === 'confirm' && selectedPlatform?.id === 'gemini' && (
                 <div className="mt-2 space-y-4">
                   <p className="text-[14px] text-gray-700 leading-relaxed">
-                    提示词已复制，跳转之后直接粘贴发送，把回答复制回来。
+                    {t.importMemory.geminiCopied}
                   </p>
                   <button
                     onClick={handleConfirmJumpToGemini}
                     className="w-full flex items-center justify-center gap-2 py-3 bg-gray-700 text-white rounded-xl font-semibold text-[14px] hover:bg-gray-800 transition-colors"
                   >
                     <ExternalLink className="w-4 h-4" />
-                    确认跳转到 Gemini
+                    {t.importMemory.confirmGemini}
                   </button>
                 </div>
               )}
@@ -202,7 +204,7 @@ export function ImportMemoryModal() {
                   <textarea
                     value={pasteContent}
                     onChange={e => setPasteContent(e.target.value)}
-                    placeholder={`把 ${selectedPlatform.name} 的回答粘贴到这里…`}
+                    placeholder={t.importMemory.pastePlaceholder(selectedPlatform.name)}
                     className="w-full h-44 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-[13px] resize-none outline-none focus:border-gray-400 transition-colors"
                     autoFocus
                   />
@@ -211,7 +213,7 @@ export function ImportMemoryModal() {
                     disabled={!pasteContent.trim() || isSaving}
                     className="w-full py-3 bg-gray-900 text-white rounded-xl font-semibold text-[14px] hover:bg-black disabled:opacity-40 transition-colors"
                   >
-                    {isSaving ? '正在提取记忆节点…' : '保存为记忆节点'}
+                    {isSaving ? t.importMemory.saving : t.importMemory.save}
                   </button>
                 </div>
               )}
@@ -229,16 +231,16 @@ export function ImportMemoryModal() {
                       className="absolute top-2 right-2 flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-gray-200 rounded-xl text-[11px] font-semibold text-gray-600 hover:bg-gray-50 transition-all shadow-sm"
                     >
                       {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
-                      {copied ? '已复制' : '复制'}
+                      {copied ? t.importMemory.copied : t.importMemory.copy}
                     </button>
                   </div>
                   <p className="text-[11px] text-gray-400 leading-relaxed">
-                    把上面的提示词发给你常用的 AI（如豆包、文心、通义等），再把回答粘贴到下方。
+                    {t.importMemory.genericNote}
                   </p>
                   <textarea
                     value={pasteContent}
                     onChange={e => setPasteContent(e.target.value)}
-                    placeholder="把 AI 的回答粘贴到这里…"
+                    placeholder={t.importMemory.genericPlaceholder}
                     className="w-full h-36 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-[13px] resize-none outline-none focus:border-gray-400 transition-colors"
                   />
                   <button
@@ -246,7 +248,7 @@ export function ImportMemoryModal() {
                     disabled={!pasteContent.trim() || isSaving}
                     className="w-full py-3 bg-gray-900 text-white rounded-xl font-semibold text-[14px] hover:bg-black disabled:opacity-40 transition-colors"
                   >
-                    {isSaving ? '正在提取记忆节点…' : '保存为记忆节点'}
+                    {isSaving ? t.importMemory.saving : t.importMemory.save}
                   </button>
                 </div>
               )}

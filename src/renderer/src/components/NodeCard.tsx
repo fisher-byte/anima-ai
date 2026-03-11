@@ -290,7 +290,7 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
                     exit={{ opacity: 0, scale: 0.8 }}
                     onClick={handleDelete}
                     className="absolute -top-2.5 -right-2.5 w-8 h-8 rounded-full bg-white shadow-sm border border-gray-100 text-gray-300 hover:text-red-400 hover:border-red-100 flex items-center justify-center transition-colors"
-                    title="删除节点"
+                    title={t.space.deleteNodeTooltip}
                   >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <line x1="18" y1="6" x2="6" y2="18" />
@@ -329,7 +329,7 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
               {(node.memoryCount ?? 0) > 0 && (
                 <div className="flex items-center gap-1 mt-2 text-[10px] text-gray-400">
                   <Layers className="w-3 h-3" />
-                  <span>引用了 {node.memoryCount} 条记忆</span>
+                  <span>{t.clusterLabel.memories(node.memoryCount ?? 0)}</span>
                 </div>
               )}
 
@@ -365,6 +365,7 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
 // ── 能力节点渲染 ──────────────────────────────────────────────────────────────
 
 function CapabilityNodeCard({ node }: { node: Node }) {
+  const { t } = useT()
   const openCapability = useCanvasStore(state => state.openCapability)
   const openOnboarding = useCanvasStore(state => state.openOnboarding)
   const updateNodePosition = useCanvasStore(state => state.updateNodePosition)
@@ -470,7 +471,7 @@ function CapabilityNodeCard({ node }: { node: Node }) {
             {ICONS[capId]}
           </div>
           <div className="text-[12px] font-semibold text-gray-700 leading-tight">{node.title}</div>
-          <div className="text-[10px] text-gray-400">点击使用</div>
+          <div className="text-[10px] text-gray-400">{t.clusterLabel.clickToUse}</div>
         </div>
       </motion.div>
     </div>
