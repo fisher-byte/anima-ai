@@ -767,7 +767,7 @@ export function Canvas() {
       <div className="fixed top-6 right-6 z-30 flex items-center gap-3">
         {/* GitHub link */}
         <a
-          href="https://github.com/chatanima/evocanvas"
+          href="https://github.com/fisher-byte/anima-ai"
           target="_blank"
           rel="noopener noreferrer"
           className="p-2.5 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm hover:shadow-md transition-all border border-gray-100 text-gray-400 hover:text-gray-900 flex items-center justify-center"
@@ -893,7 +893,7 @@ export function Canvas() {
                   <span className="font-medium whitespace-nowrap">{t.canvas.preferences}</span>
                 </button>
                 <a
-                  href="https://github.com/fisher-byte/Cogniflow"
+                  href="https://github.com/fisher-byte/anima-ai"
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => setIsMenuOpen(false)}

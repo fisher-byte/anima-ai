@@ -1,14 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <!-- Outer circle (subtle ring) -->
-  <circle cx="16" cy="16" r="14" stroke="#111827" stroke-width="1.5" fill="none" opacity="0.12"/>
+  <defs>
+    <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </radialGradient>
+    <radialGradient id="nodeGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#a78bfa"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </radialGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="16" cy="16" r="15" fill="#0f0f1a"/>
+  <!-- Connection lines -->
+  <line x1="16" y1="13" x2="16" y2="7.5" stroke="#6366f1" stroke-width="1.2" opacity="0.6"/>
+  <line x1="18.6" y1="17.5" x2="23.8" y2="20.5" stroke="#6366f1" stroke-width="1.2" opacity="0.6"/>
+  <line x1="13.4" y1="17.5" x2="8.2" y2="20.5" stroke="#6366f1" stroke-width="1.2" opacity="0.6"/>
   <!-- Central node -->
-  <circle cx="16" cy="16" r="3" fill="#111827"/>
-  <!-- Three orbital nodes -->
-  <circle cx="16" cy="5.5" r="2" fill="#111827" opacity="0.7"/>
-  <circle cx="25.5" cy="22" r="2" fill="#111827" opacity="0.7"/>
-  <circle cx="6.5" cy="22" r="2" fill="#111827" opacity="0.7"/>
-  <!-- Connection lines from center to nodes -->
-  <line x1="16" y1="13" x2="16" y2="7.5" stroke="#111827" stroke-width="1" opacity="0.35"/>
-  <line x1="18.6" y1="17.5" x2="23.8" y2="20.5" stroke="#111827" stroke-width="1" opacity="0.35"/>
-  <line x1="13.4" y1="17.5" x2="8.2" y2="20.5" stroke="#111827" stroke-width="1" opacity="0.35"/>
+  <circle cx="16" cy="16" r="3.5" fill="url(#centerGlow)"/>
+  <!-- Orbital nodes -->
+  <circle cx="16" cy="5.5" r="2" fill="url(#nodeGlow)" opacity="0.85"/>
+  <circle cx="25.5" cy="22" r="2" fill="url(#nodeGlow)" opacity="0.85"/>
+  <circle cx="6.5" cy="22" r="2" fill="url(#nodeGlow)" opacity="0.85"/>
 </svg>

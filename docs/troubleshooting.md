@@ -255,4 +255,4 @@ echo "Config API 状态码: $HTTP_CODE"
 5. 截图（如有）
 
 反馈渠道：
-- GitHub Issues: https://github.com/fisher-byte/Cogniflow/issues
+- GitHub Issues: https://github.com/fisher-byte/anima-ai/issues
