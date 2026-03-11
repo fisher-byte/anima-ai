@@ -20,11 +20,11 @@ import { X, Paperclip, FileText, FileCode, File as FileIcon, Loader2, ArrowUp, S
 import { formatFilesForAI, FilePreview, getFileType, readImageAsBase64, formatFileSize } from '../../../services/fileParsing'
 import type { FileAttachment } from '@shared/types'
 import { getAuthToken, configService } from '../services/storageService'
-
-const GHOST_TEXT = '问我任何事'
+import { useT } from '../i18n'
 
 /** 引用块胶囊：折叠展示粘贴的长文本，保留在输入框上方 */
 function ReferenceBlockPreview({ content, onRemove }: { content: string; onRemove: () => void }) {
+  const { t } = useT()
   const [expanded, setExpanded] = useState(false)
   const preview = content.slice(0, 30) + (content.length > 30 ? '…' : '')
   return (
@@ -41,14 +41,14 @@ function ReferenceBlockPreview({ content, onRemove }: { content: string; onRemov
         <button
           onClick={() => setExpanded(v => !v)}
           className="p-0.5 text-amber-500 hover:text-amber-700 transition-colors"
-          title={expanded ? '折叠' : '展开'}
+          title={expanded ? t.input.collapse : t.input.expand}
         >
           {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
         </button>
         <button
           onClick={onRemove}
           className="p-0.5 text-amber-400 hover:text-red-500 transition-colors"
-          title="移除引用块"
+          title={t.input.removeRef}
         >
           <X className="w-3.5 h-3.5" />
         </button>
@@ -92,6 +92,7 @@ export function InputBox() {
   const hasApiKey = useCanvasStore(state => state.hasApiKey)
   const apiKeyChecked = useCanvasStore(state => state.apiKeyChecked)
   const checkApiKey = useCanvasStore(state => state.checkApiKey)
+  const { t } = useT()
 
   // 引导完成后检测是否需要配置 API Key
   // isOnboardingMode 从 true→false 时触发检查（completeOnboarding 已调用 checkApiKey，但防止漏掉边缘情况）
@@ -154,7 +155,7 @@ export function InputBox() {
           // 文件大小限制：10 MB
           const MAX_FILE_SIZE = 10 * 1024 * 1024
           if (file.size > MAX_FILE_SIZE) {
-            throw new Error(`文件 "${file.name}" 超过 10MB 限制（当前 ${(file.size / 1024 / 1024).toFixed(1)}MB）`)
+            throw new Error(t.input.fileTooLarge(file.name, (file.size / 1024 / 1024).toFixed(1)))
           }
 
           const type = getFileType(file)
@@ -164,7 +165,7 @@ export function InputBox() {
           if (type === 'image') {
             // 图片直接读取为 base64
             preview = await readImageAsBase64(file)
-            content = `[图片: ${file.name}]`
+            content = t.input.imageLabel(file.name)
             setImages(prev => [...prev, preview!].slice(0, 4))
           } else {
             // 其他文件类型需要解析
@@ -222,7 +223,7 @@ export function InputBox() {
     } finally {
       setIsProcessing(false)
     }
-  }, [])
+  }, [t])
 
   // 处理粘贴
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
@@ -298,14 +299,14 @@ export function InputBox() {
         setIsApiKeyMode(false)
         setApiKeyInput('')
       } else {
-        setApiKeyError('Key 无效，请检查后重试')
+        setApiKeyError(t.input.invalidKey)
       }
     } catch {
-      setApiKeyError('验证超时，请检查网络')
+      setApiKeyError(t.input.keyTimeout)
     } finally {
       setIsVerifyingKey(false)
     }
-  }, [apiKeyInput, isVerifyingKey, checkApiKey])
+  }, [apiKeyInput, isVerifyingKey, checkApiKey, t])
 
   // 提交：先上传文件到后端，再触发对话
   const handleSubmit = useCallback(async () => {
@@ -349,12 +350,12 @@ export function InputBox() {
         if (token) uploadHeaders.set('Authorization', `Bearer ${token}`)
         const res = await fetch('/api/storage/file', { method: 'POST', body: formData, headers: uploadHeaders })
         if (!res.ok) {
-          uploadedFiles.push({ ...clean, uploadError: `上传失败（${res.status}）` })
+          uploadedFiles.push({ ...clean, uploadError: t.input.uploadFailed(res.status) })
         } else {
           uploadedFiles.push(clean)
         }
       } catch {
-        uploadedFiles.push({ ...clean, uploadError: '网络错误，文件未能上传到记忆库' })
+        uploadedFiles.push({ ...clean, uploadError: t.input.uploadNetworkError })
       }
     }
 
@@ -397,7 +398,7 @@ export function InputBox() {
         textarea.style.height = 'auto'
       }
     })
-  }, [message, images, files, referenceBlocks, isProcessing, needsApiKey, startConversation, setHighlight])
+  }, [message, images, files, referenceBlocks, isProcessing, needsApiKey, startConversation, setHighlight, t])
 
   // 键盘处理
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -460,12 +461,12 @@ export function InputBox() {
     return (
       <div className="fixed bottom-0 left-0 right-0 flex justify-center pb-6 z-30">
         <div className="w-full max-w-xl mx-4 flex items-center gap-3 px-4 py-3 bg-white rounded-2xl shadow-lg border border-gray-100">
-          <span className="flex-1 text-sm text-gray-400">需要配置 Kimi API Key 才能开始对话</span>
+          <span className="flex-1 text-sm text-gray-400">{t.input.needApiKey}</span>
           <button
             onClick={() => setIsApiKeyMode(true)}
             className="px-3 py-1.5 text-sm font-medium bg-gray-900 text-white rounded-xl hover:bg-black transition-colors"
           >
-            设置 API Key
+            {t.input.setApiKey}
           </button>
         </div>
       </div>
@@ -483,7 +484,7 @@ export function InputBox() {
               value={apiKeyInput}
               onChange={e => setApiKeyInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') void handleSaveApiKey() }}
-              placeholder="粘贴你的 Kimi API Key（moonshot.cn 获取，如 sk-…）"
+              placeholder={t.input.apiKeyPlaceholder}
               autoFocus
               className="flex-1 text-sm outline-none bg-transparent text-gray-800 placeholder-gray-300"
             />
@@ -491,14 +492,14 @@ export function InputBox() {
               onClick={() => { setIsApiKeyMode(false); setApiKeyError('') }}
               className="text-xs text-gray-400 hover:text-gray-600 px-2"
             >
-              取消
+              {t.input.cancel}
             </button>
             <button
               onClick={() => void handleSaveApiKey()}
               disabled={!apiKeyInput.trim() || isVerifyingKey}
               className="px-3 py-1.5 text-sm font-medium bg-gray-900 text-white rounded-xl hover:bg-black disabled:opacity-40 transition-colors"
             >
-              {isVerifyingKey ? '验证中…' : '保存'}
+              {isVerifyingKey ? t.input.validating : t.input.save}
             </button>
           </div>
           {apiKeyError && (
@@ -568,7 +569,7 @@ export function InputBox() {
                         {file.name}
                     </span>
                     <span className="text-[10px] text-gray-400 font-medium">
-                        {file.status === 'reading' ? '解析中...' : file.size}
+                        {file.status === 'reading' ? t.input.parsing : file.size}
                     </span>
                     </div>
                     <button
@@ -617,7 +618,7 @@ export function InputBox() {
             onClick={() => fileInputRef.current?.click()}
             disabled={isProcessing}
             className="mb-1.5 p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-all disabled:opacity-50"
-            title="上传文件 (图片、文档、代码)"
+            title={t.input.uploadFile}
             >
             <Paperclip className="w-5 h-5" />
             </button>
@@ -637,7 +638,7 @@ export function InputBox() {
             onBlur={() => setFocused(false)}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            placeholder={GHOST_TEXT}
+            placeholder={t.input.placeholder}
             className="flex-1 bg-transparent border-none outline-none resize-none px-2 py-3.5 text-gray-800 placeholder-gray-400 min-h-[52px] max-h-[220px] text-[15px] leading-relaxed overflow-y-auto scrollbar-none"
             style={{ scrollbarWidth: 'none' }}
             rows={1}
@@ -654,7 +655,7 @@ export function InputBox() {
                     className="flex items-center gap-1.5 px-3 py-1.5 mb-2 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold mr-1 whitespace-nowrap"
                 >
                     <Sparkles className="w-3 h-3" />
-                    <span>{matchCount} 记忆</span>
+                    <span>{t.input.memoryBadge(matchCount)}</span>
                 </motion.div>
                 )}
             </AnimatePresence>
@@ -667,7 +668,7 @@ export function InputBox() {
                 ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
                 : 'bg-gray-900 text-white hover:bg-black shadow-sm'
             }`}
-            aria-label="发送"
+            aria-label={t.input.send}
             >
             <ArrowUp className="w-5 h-5 stroke-[3px]" />
             </button>
@@ -675,7 +676,7 @@ export function InputBox() {
 
         {/* 快捷键提示：简洁单行，减少视觉噪音 */}
         <div className="flex justify-center mt-2 text-[10px] text-gray-300 pointer-events-none select-none tracking-wide">
-            Enter 发送 · Shift+Enter 换行
+            {t.input.hint}
         </div>
       </motion.div>
       </div>

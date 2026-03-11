@@ -27,6 +27,7 @@ import { useCanvasStore } from '../stores/canvasStore'
 import { useConfirm } from './GlobalUI'
 import type { Conversation } from '@shared/types'
 import { storageService, getAuthToken } from '../services/storageService'
+import { useT } from '../i18n'
 
 function authFetch(url: string, init?: RequestInit): Promise<Response> {
   const token = getAuthToken()
@@ -73,6 +74,7 @@ interface ConversationSidebarProps {
 export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }: ConversationSidebarProps) {
   const { nodes, profile, openModalById, focusNode, removePreference, loadProfile, pendingProfileRefresh, setPendingProfileRefresh, pendingMemoryRefresh, setPendingMemoryRefresh } = useCanvasStore()
   const confirm = useConfirm()
+  const { t } = useT()
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeTab, setActiveTab] = useState<'history' | 'memory' | 'evolution'>(initialTab)
   const [isLoading, setIsLoading] = useState(false)
@@ -341,21 +343,21 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
               className={`flex items-center gap-1.5 text-[12px] font-semibold transition-colors ${activeTab === 'history' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
             >
               <History className="w-3.5 h-3.5" />
-              历史
+              {t.sidebar.historyTab}
             </button>
             <button
               onClick={() => setActiveTab('memory')}
               className={`flex items-center gap-1.5 text-[12px] font-semibold transition-colors ${activeTab === 'memory' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
             >
               <BookOpen className="w-3.5 h-3.5" />
-              记忆
+              {t.sidebar.memoryTab}
             </button>
             <button
               onClick={() => setActiveTab('evolution')}
               className={`flex items-center gap-1.5 text-[12px] font-semibold transition-colors ${activeTab === 'evolution' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
             >
               <BrainCircuit className="w-3.5 h-3.5" />
-              进化基因
+              {t.sidebar.evolutionTab}
             </button>
           </div>
           <button
@@ -381,12 +383,12 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                 {isLoading ? (
                   <div className="text-center text-gray-400 py-12">
                     <div className="w-6 h-6 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin mx-auto mb-3" />
-                    加载中...
+                    {t.sidebar.loading}
                   </div>
                 ) : conversations.length === 0 ? (
                   <div className="text-center text-gray-400 py-12 space-y-2">
                     <MessageSquare className="w-8 h-8 mx-auto opacity-20" />
-                    <p className="text-xs">暂无对话记录</p>
+                    <p className="text-xs">{t.sidebar.noHistory}</p>
                   </div>
                 ) : (
                   conversations
@@ -413,7 +415,7 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                           {conversation.appliedPreferences && conversation.appliedPreferences.length > 0 && (
                             <div className="mt-3 flex items-center gap-1.5 text-[10px] text-blue-500 font-medium">
                               <Sparkles className="w-3 h-3" />
-                              <span>已应用 {conversation.appliedPreferences.length} 条记忆</span>
+                              <span>{t.sidebar.appliedMemories(conversation.appliedPreferences.length)}</span>
                             </div>
                           )}
                         </div>
@@ -436,13 +438,13 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                   <div className="flex items-center justify-between mb-1">
                     <h3 className="text-xs font-bold text-gray-700 flex items-center gap-2">
                       <BookOpen className="w-3.5 h-3.5" />
-                      关于你的记忆
+                      {t.sidebar.aboutMemory}
                     </h3>
                     <button
                       onClick={() => fetchMemoryFacts(false)}
                       disabled={isMemoryLoading}
                       className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all disabled:opacity-40"
-                      title="刷新记忆"
+                      title={t.sidebar.refreshMemory}
                     >
                       <RotateCcw className={`w-3 h-3 ${isMemoryLoading ? 'animate-spin' : ''}`} />
                     </button>
@@ -454,24 +456,24 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                           className="flex items-center gap-1 px-1.5 py-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all disabled:opacity-40"
                         >
                           <Layers className={`w-3 h-3 ${isConsolidating ? 'animate-pulse' : ''}`} />
-                          <span className="text-[10px] font-medium">{isConsolidating ? '整理中…' : '整理'}</span>
+                          <span className="text-[10px] font-medium">{isConsolidating ? t.sidebar.consolidating : t.sidebar.consolidate}</span>
                         </button>
                         {/* hover tooltip */}
                         <div className="absolute right-0 top-full mt-1.5 w-44 px-3 py-2 bg-gray-800 text-white text-[10px] leading-relaxed rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 whitespace-normal">
-                          AI 合并重复或过时的记忆条目，新信息优先保留
+                          {t.sidebar.consolidateTip}
                         </div>
                       </div>
                     )}
                   </div>
                   <p className="text-[10px] text-gray-400 leading-relaxed">
-                    AI 从每次对话中自动摘取你透露的信息，在这里积累成你的专属记忆。
+                    {t.sidebar.memoryDesc}
                   </p>
                 </div>
 
                 {isMemoryLoading && memoryFacts.length === 0 ? (
                   <div className="text-center text-gray-400 py-8">
                     <div className="w-5 h-5 border-2 border-gray-200 border-t-gray-400 rounded-full animate-spin mx-auto mb-2" />
-                    <span className="text-xs">正在加载…</span>
+                    <span className="text-xs">{t.sidebar.loadingMemory}</span>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -485,8 +487,8 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                           exit={{ opacity: 0, y: -4 }}
                           className="flex items-center gap-2 p-3 bg-blue-50/60 border border-blue-100/80 rounded-2xl"
                         >
-                          <span className="text-[11px] text-blue-500 font-medium">✦ 新记忆已写入</span>
-                          <span className="text-[10px] text-blue-400">新增 {memoryToast.added} 条</span>
+                          <span className="text-[11px] text-blue-500 font-medium">{t.sidebar.memoryWritten}</span>
+                          <span className="text-[10px] text-blue-400">{t.sidebar.memoryAdded(memoryToast.added)}</span>
                         </motion.div>
                       )}
                       {consolidateToast && (
@@ -506,8 +508,8 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                     {memoryFacts.length === 0 ? (
                       <div className="text-center text-gray-400 py-12 space-y-2">
                         <BookOpen className="w-8 h-8 mx-auto opacity-20" />
-                        <p className="text-xs">暂无记忆条目</p>
-                        <p className="text-[10px] opacity-60">多聊几次，记忆会自动积累</p>
+                        <p className="text-xs">{t.sidebar.noMemory}</p>
+                        <p className="text-[10px] opacity-60">{t.sidebar.chatMore}</p>
                       </div>
                     ) : (
                       memoryFacts.map(fact => (
@@ -535,8 +537,8 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                                 }}
                               />
                               <div className="flex justify-end gap-2 text-[11px]">
-                                <button onClick={() => setEditingFactId(null)} className="text-gray-400 hover:text-gray-600">取消</button>
-                                <button onClick={() => void handleSaveFact(fact.id)} className="text-gray-700 font-medium hover:text-gray-900">保存</button>
+                                <button onClick={() => setEditingFactId(null)} className="text-gray-400 hover:text-gray-600">{t.sidebar.cancel}</button>
+                                <button onClick={() => void handleSaveFact(fact.id)} className="text-gray-700 font-medium hover:text-gray-900">{t.sidebar.save}</button>
                               </div>
                             </div>
                           ) : (
@@ -554,14 +556,14 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                             <button
                               onClick={() => { setEditingFactId(fact.id); setEditingFactText(fact.fact) }}
                               className="p-1 rounded-lg text-gray-300 hover:text-gray-500 hover:bg-gray-100"
-                              title="编辑这条记忆"
+                              title={t.sidebar.editMemory}
                             >
                               <Pencil className="w-3 h-3" />
                             </button>
                             <button
                               onClick={() => handleDeleteFact(fact.id)}
                               className="p-1 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50"
-                              title="删除这条记忆"
+                              title={t.sidebar.deleteMemory}
                             >
                               <Trash2 className="w-3 h-3" />
                             </button>
@@ -590,7 +592,7 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <User className="w-3.5 h-3.5 text-gray-500" />
-                        <span className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">用户画像</span>
+                        <span className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">{t.sidebar.userProfile}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         {!isEditingProfile ? (
@@ -600,11 +602,11 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                               className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-700 transition-colors"
                             >
                               <Pencil className="w-2.5 h-2.5" />
-                              编辑
+                              {t.sidebar.edit}
                             </button>
                             <button
                               onClick={async () => {
-                                const ok = await confirm({ title: '清空用户画像？', message: '所有画像信息将被删除，不可恢复。', confirmLabel: '清空', danger: true })
+                                const ok = await confirm({ title: t.sidebar.clearProfileTitle, message: t.sidebar.clearProfileMsg, confirmLabel: t.sidebar.clearProfileConfirm, danger: true })
                                 if (ok) {
                                   await authFetch('/api/memory/profile', { method: 'DELETE' })
                                   setUserProfile(null)
@@ -612,7 +614,7 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                               }}
                               className="text-[10px] text-gray-300 hover:text-red-400 transition-colors"
                             >
-                              清空
+                              {t.sidebar.clear}
                             </button>
                           </>
                         ) : (
@@ -622,13 +624,13 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                             className="flex items-center gap-1 text-[10px] text-green-600 hover:text-green-700 font-medium transition-colors"
                           >
                             <Check className="w-2.5 h-2.5" />
-                            保存
+                            {t.sidebar.save}
                           </button>
                           <button
                             onClick={handleCancelEditProfile}
                             className="text-[10px] text-gray-400 hover:text-gray-600 transition-colors"
                           >
-                            取消
+                            {t.sidebar.cancel}
                           </button>
                         </div>
                       )}
@@ -642,7 +644,7 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                           <Briefcase className="w-3 h-3 text-gray-400 flex-shrink-0" />
                           <input
                             className="flex-1 text-[11px] text-gray-700 border border-gray-200 rounded-md px-2 py-1 outline-none focus:border-gray-400"
-                            placeholder="职业"
+                            placeholder={t.sidebar.profOccupation}
                             value={editProfileDraft.occupation ?? ''}
                             onChange={e => setEditProfileDraft(d => ({ ...d, occupation: e.target.value }))}
                           />
@@ -652,7 +654,7 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                           <MapPin className="w-3 h-3 text-gray-400 flex-shrink-0" />
                           <input
                             className="flex-1 text-[11px] text-gray-700 border border-gray-200 rounded-md px-2 py-1 outline-none focus:border-gray-400"
-                            placeholder="城市/地区"
+                            placeholder={t.sidebar.profLocation}
                             value={editProfileDraft.location ?? ''}
                             onChange={e => setEditProfileDraft(d => ({ ...d, location: e.target.value }))}
                           />
@@ -662,7 +664,7 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                           <BookOpen className="w-3 h-3 text-gray-400 flex-shrink-0" />
                           <input
                             className="flex-1 text-[11px] text-gray-700 border border-gray-200 rounded-md px-2 py-1 outline-none focus:border-gray-400"
-                            placeholder="回答风格（如简洁、详细）"
+                            placeholder={t.sidebar.profWritingStyle}
                             value={editProfileDraft.writingStyle ?? ''}
                             onChange={e => setEditProfileDraft(d => ({ ...d, writingStyle: e.target.value }))}
                           />
@@ -672,7 +674,7 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                           <Heart className="w-3 h-3 text-gray-400 mt-1.5 flex-shrink-0" />
                           <input
                             className="flex-1 text-[11px] text-gray-700 border border-gray-200 rounded-md px-2 py-1 outline-none focus:border-gray-400"
-                            placeholder="兴趣（逗号分隔）"
+                            placeholder={t.sidebar.profInterests}
                             value={(editProfileDraft.interests ?? []).join(', ')}
                             onChange={e => setEditProfileDraft(d => ({ ...d, interests: parseArrField(e.target.value) }))}
                           />
@@ -682,7 +684,7 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                           <Wrench className="w-3 h-3 text-gray-400 mt-1.5 flex-shrink-0" />
                           <input
                             className="flex-1 text-[11px] text-gray-700 border border-gray-200 rounded-md px-2 py-1 outline-none focus:border-gray-400"
-                            placeholder="工具/技术（逗号分隔）"
+                            placeholder={t.sidebar.profTools}
                             value={(editProfileDraft.tools ?? []).join(', ')}
                             onChange={e => setEditProfileDraft(d => ({ ...d, tools: parseArrField(e.target.value) }))}
                           />
@@ -692,7 +694,7 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                           <Target className="w-3 h-3 text-gray-400 mt-1.5 flex-shrink-0" />
                           <input
                             className="flex-1 text-[11px] text-gray-700 border border-gray-200 rounded-md px-2 py-1 outline-none focus:border-gray-400"
-                            placeholder="目标（逗号分隔）"
+                            placeholder={t.sidebar.profGoals}
                             value={(editProfileDraft.goals ?? []).join(', ')}
                             onChange={e => setEditProfileDraft(d => ({ ...d, goals: parseArrField(e.target.value) }))}
                           />
@@ -743,12 +745,12 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                           </div>
                         )}
                         {userProfile!.writingStyle && (
-                          <div className="mt-1 text-[10px] text-gray-400 italic">回答风格：{userProfile!.writingStyle}</div>
+                          <div className="mt-1 text-[10px] text-gray-400 italic">{t.sidebar.writingStyleLabel(userProfile!.writingStyle!)}</div>
                         )}
                         {userProfile!.lastExtracted && (
                           <div className="text-[10px] text-gray-300 flex items-center gap-1 pt-1 border-t border-gray-100">
                             <Calendar className="w-2.5 h-2.5" />
-                            最近更新：{userProfile!.lastExtracted.split('T')[0]}
+                            {t.sidebar.lastUpdated(userProfile!.lastExtracted!.split('T')[0])}
                           </div>
                         )}
                       </div>
@@ -765,7 +767,7 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <BrainCircuit className="w-3.5 h-3.5 text-gray-500" />
-                        <span className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">心智模型</span>
+                        <span className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">{t.sidebar.mentalModel}</span>
                       </div>
                       <button
                         onClick={async () => {
@@ -786,13 +788,13 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                         title="重新提炼心智模型"
                       >
                         <RotateCcw className={`w-2.5 h-2.5 ${isMentalModelRefreshing ? 'animate-spin' : ''}`} />
-                        刷新
+                        {t.sidebar.refresh}
                       </button>
                     </div>
                     <div className="space-y-2">
                       {(mentalModel.认知框架?.length ?? 0) > 0 && (
                         <div>
-                          <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-1">认知框架</div>
+                          <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-1">{t.sidebar.mentalCognition}</div>
                           <div className="flex flex-wrap gap-1">
                             {mentalModel.认知框架!.map((item, i) => (
                               <span key={i} className="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded-md text-[10px]">{item}</span>
@@ -802,7 +804,7 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                       )}
                       {(mentalModel.长期目标?.length ?? 0) > 0 && (
                         <div>
-                          <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-1">长期目标</div>
+                          <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-1">{t.sidebar.mentalGoals}</div>
                           <div className="flex flex-wrap gap-1">
                             {mentalModel.长期目标!.map((item, i) => (
                               <span key={i} className="px-1.5 py-0.5 bg-green-50 text-green-600 rounded-md text-[10px]">{item}</span>
@@ -812,7 +814,7 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                       )}
                       {(mentalModel.思维偏好?.length ?? 0) > 0 && (
                         <div>
-                          <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-1">思维偏好</div>
+                          <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-1">{t.sidebar.mentalThinking}</div>
                           <div className="flex flex-wrap gap-1">
                             {mentalModel.思维偏好!.map((item, i) => (
                               <span key={i} className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded-md text-[10px]">{item}</span>
@@ -822,7 +824,7 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                       )}
                       {mentalModel.领域知识 && Object.keys(mentalModel.领域知识).length > 0 && (
                         <div>
-                          <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-1">领域知识</div>
+                          <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-1">{t.sidebar.mentalDomain}</div>
                           <div className="flex flex-wrap gap-1">
                             {Object.entries(mentalModel.领域知识).map(([domain, level]) => (
                               <span key={domain} className="px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded-md text-[10px]">{domain} · {level}</span>
@@ -832,7 +834,7 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                       )}
                       {(mentalModel.情绪模式?.length ?? 0) > 0 && (
                         <div>
-                          <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-1">情绪模式</div>
+                          <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-1">{t.sidebar.mentalEmotion}</div>
                           <div className="flex flex-wrap gap-1">
                             {mentalModel.情绪模式!.map((item, i) => (
                               <span key={i} className="px-1.5 py-0.5 bg-rose-50 text-rose-500 rounded-md text-[10px]">{item}</span>
@@ -847,12 +849,12 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                 {/* 偏好规则列表 */}
                 <div className="space-y-3">
                   <p className="text-[11px] text-gray-400 leading-relaxed pb-1">
-                    每次你觉得回答不对劲，说出来，我就会记住。这里是已经记下来的规则。
+                    {t.sidebar.evolutionDesc}
                   </p>
                   {profile.rules.length === 0 ? (
                     <div className="text-center text-gray-400 py-12 space-y-2">
                       <Sparkles className="w-8 h-8 mx-auto opacity-20" />
-                      <p className="text-xs">尚未习得任何偏好</p>
+                      <p className="text-xs">{t.sidebar.noPreferences}</p>
                     </div>
                   ) : (
                     profile.rules
@@ -867,12 +869,12 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                               </div>
                               <div className="text-[10px] text-gray-400 flex items-center gap-1 mt-1">
                                 <Calendar className="w-2.5 h-2.5" />
-                                最后活跃：{rule.updatedAt.split('T')[0]}
+                                {t.sidebar.lastActive(rule.updatedAt.split('T')[0])}
                               </div>
                             </div>
                             <button
                               onClick={async () => {
-                                const ok = await confirm({ title: '遗忘这条偏好？', confirmLabel: '遗忘', danger: true })
+                                const ok = await confirm({ title: t.sidebar.forgetPreference, confirmLabel: t.sidebar.forgetLabel, danger: true })
                                 if (ok) await removePreference(idx)
                               }}
                               className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0 mt-0.5"
