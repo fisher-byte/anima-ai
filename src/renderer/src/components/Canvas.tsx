@@ -16,7 +16,7 @@
  */
 import { useState, useRef, useCallback, useMemo, useEffect, createContext } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit, Sparkles, Clock, GitMerge, Mic } from 'lucide-react'
+import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit, Sparkles, Clock, GitMerge } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useForceSimulation, type ForceSimulationAPI } from '../hooks/useForceSimulation'
 import { NodeCard } from './NodeCard'
@@ -27,6 +27,7 @@ import { ConversationSidebar } from './ConversationSidebar'
 import { SearchPanel } from './SearchPanel'
 import { SettingsModal } from './SettingsModal'
 import { LennySpaceCanvas } from './LennySpaceCanvas'
+import { PGSpaceCanvas } from './PGSpaceCanvas'
 
 import { AmbientBackground } from './AmbientBackground'
 import { ClusterLabel } from './ClusterLabel'
@@ -161,6 +162,8 @@ export function Canvas() {
   const isTimelineOpen = useCanvasStore(state => state.isTimelineOpen)
   const nodeGraphRebuild = useCanvasStore(state => state.nodeGraphRebuild)
   const rebuildNodeGraph = useCanvasStore(state => state.rebuildNodeGraph)
+  // 订阅 profile.rules 长度，用于进化基因红点（不用节点数量，避免虚触发）
+  const profileRulesCount = useCanvasStore(state => state.profile?.rules?.length ?? 0)
 
   // 空画布欢迎语（个性化，当天缓存）
   const [welcomeText, setWelcomeText] = useState<string | null>(null)
@@ -347,25 +350,31 @@ export function Canvas() {
   const [viewMode, setViewMode] = useState<'free' | 'timeline'>('free')
   const [showMergeBanner, setShowMergeBanner] = useState(false)
   const [isLennySpaceOpen, setIsLennySpaceOpen] = useState(false)
+  const [isPGSpaceOpen, setIsPGSpaceOpen] = useState(false)
   const prevNodeCountRef = useRef(0)
+  const prevRulesCountRef = useRef(profileRulesCount)
 
-  // 节点数量增加时亮起进化红点；初始加载检测重叠后自动 kick
-  // 只统计非 capability 节点：capability 节点（新手引导/导入记忆）在 loadNodes 后
-  // 由 addCapabilityNode 添加，不应触发 kick 打乱已持久化的布局
+  // 节点数量增加时做物理 kick；初始加载启动公转动画
+  // （红点改为由进化基因规则数量变化触发，不再与节点数绑定）
   useEffect(() => {
     const memoryNodeCount = nodes.filter(n => n.nodeType !== 'capability').length
     if (memoryNodeCount > prevNodeCountRef.current) {
       if (prevNodeCountRef.current > 0) {
-        // 运行中新增节点：亮红点 + kick
-        setHasNewEvolution(true)
         forceSim.kick()
       } else if (memoryNodeCount > 0) {
-        // 初始加载：只启动公转动画，不触发布局力（节点保持持久化位置）
         forceSim.startRotation()
       }
     }
     prevNodeCountRef.current = memoryNodeCount
   }, [nodes, forceSim])
+
+  // 进化基因规则数量增加时亮红点（真实有新规则才提示）
+  useEffect(() => {
+    if (profileRulesCount > prevRulesCountRef.current && prevRulesCountRef.current >= 0) {
+      setHasNewEvolution(true)
+    }
+    prevRulesCountRef.current = profileRulesCount
+  }, [profileRulesCount])
 
   // 节点/边变化时同步到力模拟引擎
   useEffect(() => {
@@ -897,15 +906,77 @@ export function Canvas() {
         </div>
       )}
 
-      {/* Lenny Space 入口按钮 */}
-      <button
-        onClick={() => setIsLennySpaceOpen(true)}
-        className="fixed left-4 bottom-40 z-30 flex items-center gap-2 px-3 py-2.5 bg-gradient-to-r from-amber-500/90 to-orange-500/90 backdrop-blur-md rounded-2xl shadow-lg hover:shadow-xl hover:from-amber-400/90 hover:to-orange-400/90 transition-all border border-amber-400/30 text-white group"
-        title="Lenny Space — 体验公开记忆空间"
-      >
-        <Mic className="w-4 h-4 shrink-0" />
-        <span className="text-xs font-medium whitespace-nowrap">Lenny Space</span>
-      </button>
+      {/* Public Figures 入口区 */}
+      <div className="fixed left-4 bottom-36 z-30 flex flex-col gap-2">
+        {/* 区域标签 */}
+        <div className="flex items-center gap-1.5 px-1 mb-0.5">
+          <div className="w-3.5 h-[1px] bg-gray-300" />
+          <span className="text-[10px] text-gray-400 font-medium tracking-wider uppercase">Public Spaces</span>
+          <div className="w-3.5 h-[1px] bg-gray-300" />
+        </div>
+
+        {/* Lenny Rachitsky 节点 */}
+        <motion.button
+          onClick={() => setIsLennySpaceOpen(true)}
+          whileHover={{ scale: 1.03, y: -2 }}
+          whileTap={{ scale: 0.97 }}
+          className="flex items-center gap-3 px-3 py-2.5 bg-white/95 backdrop-blur-md rounded-2xl shadow-[0_2px_16px_rgba(0,0,0,0.07)] border border-gray-100/80 hover:shadow-[0_6px_28px_rgba(251,146,60,0.18)] hover:border-orange-100 transition-all group cursor-pointer w-[188px]"
+        >
+          {/* 高端渐变头像 */}
+          <div className="relative shrink-0">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-400 via-orange-400 to-rose-400 flex items-center justify-center text-white font-bold text-sm shadow-md">
+              L
+            </div>
+            {/* 在线光晕 */}
+            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-[1.5px] border-white shadow-sm" />
+          </div>
+          <div className="text-left flex-1 min-w-0">
+            <div className="text-xs font-semibold text-gray-800 leading-tight truncate">Lenny Rachitsky</div>
+            <div className="text-[10px] text-gray-400 leading-tight mt-0.5">Product · Growth</div>
+            <div className="flex items-center gap-1 mt-1">
+              <div className="flex -space-x-0.5">
+                {['#3B82F6','#8B5CF6','#10B981'].map(c => (
+                  <div key={c} className="w-2 h-2 rounded-full border border-white" style={{ background: c }} />
+                ))}
+              </div>
+              <span className="text-[9px] text-gray-400">46 nodes</span>
+            </div>
+          </div>
+          <svg className="w-3 h-3 text-gray-300 group-hover:text-orange-400 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+          </svg>
+        </motion.button>
+
+        {/* Paul Graham 节点 */}
+        <motion.button
+          onClick={() => setIsPGSpaceOpen(true)}
+          whileHover={{ scale: 1.03, y: -2 }}
+          whileTap={{ scale: 0.97 }}
+          className="flex items-center gap-3 px-3 py-2.5 bg-white/95 backdrop-blur-md rounded-2xl shadow-[0_2px_16px_rgba(0,0,0,0.07)] border border-gray-100/80 hover:shadow-[0_6px_28px_rgba(99,102,241,0.18)] hover:border-indigo-100 transition-all group cursor-pointer w-[188px]"
+        >
+          <div className="relative shrink-0">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-md">
+              PG
+            </div>
+            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-[1.5px] border-white shadow-sm" />
+          </div>
+          <div className="text-left flex-1 min-w-0">
+            <div className="text-xs font-semibold text-gray-800 leading-tight truncate">Paul Graham</div>
+            <div className="text-[10px] text-gray-400 leading-tight mt-0.5">Startup · Thinking</div>
+            <div className="flex items-center gap-1 mt-1">
+              <div className="flex -space-x-0.5">
+                {['#6366F1','#8B5CF6','#3B82F6'].map(c => (
+                  <div key={c} className="w-2 h-2 rounded-full border border-white" style={{ background: c }} />
+                ))}
+              </div>
+              <span className="text-[9px] text-gray-400">35 nodes</span>
+            </div>
+          </div>
+          <svg className="w-3 h-3 text-gray-300 group-hover:text-indigo-400 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+          </svg>
+        </motion.button>
+      </div>
 
       <AmbientBackground />
 
@@ -1031,6 +1102,10 @@ export function Canvas() {
       <LennySpaceCanvas
         isOpen={isLennySpaceOpen}
         onClose={() => setIsLennySpaceOpen(false)}
+      />
+      <PGSpaceCanvas
+        isOpen={isPGSpaceOpen}
+        onClose={() => setIsPGSpaceOpen(false)}
       />
 
       {/* 记忆引用连线 overlay：高亮节点 → 输入框 */}

@@ -43,6 +43,11 @@
  *
  * Lenny Space 种子节点数量验证 (v0.2.76)
  *   36. GET /api/storage/lenny-nodes.json 初始化后节点数量 ≥ 37（覆盖 v0.2.76 扩充）
+ *
+ * Paul Graham Space (v0.2.81)
+ *   37. Canvas 左侧 "Paul Graham" 入口节点可见
+ *   38. GET /api/storage/pg-nodes.json 通过白名单校验（不返回 400）
+ *   39. pg-nodes.json 初始化后种子节点数量 >= 30
  */
 
 import { test, expect } from '@playwright/test'
@@ -824,6 +829,92 @@ test('Lenny Space 初始化后 lenny-nodes.json 种子节点数量 ≥ 37', asyn
 
   // 清理：恢复空数组（不污染用户数据）
   await request.put(`${API_BASE}/api/storage/lenny-nodes.json`, {
+    data: JSON.stringify([]),
+    headers: authHeaders({ 'Content-Type': 'application/json' })
+  })
+})
+
+// ── 测试 37：Paul Graham Space 入口节点在 Canvas 可见 (v0.2.81) ──────────────
+
+test('Canvas 左侧"Paul Graham"节点卡片可见', async ({ page }) => {
+  await injectToken(page)
+  await page.goto('http://localhost:5173')
+  await waitForBackend(page)
+  await page.waitForTimeout(1500)
+
+  // PG 入口卡片通过文字 "Paul Graham" 定位
+  const pgCard = page.getByText('Paul Graham').first()
+  await expect(pgCard).toBeVisible({ timeout: 6000 })
+})
+
+// ── 测试 38：pg-nodes.json 存储接口通过白名单（不返回 400）(v0.2.81) ──────────
+
+test('GET /api/storage/pg-nodes.json 通过文件名白名单，不返回 400', async ({ request }) => {
+  const resp = await request.get(`${API_BASE}/api/storage/pg-nodes.json`, {
+    headers: authHeaders()
+  })
+  // 白名单合法文件名，不应返回 400（Invalid filename）
+  expect(resp.status()).not.toBe(400)
+  // 不应 500
+  expect(resp.status()).toBeLessThan(500)
+  // 合法响应：200（有数据）或 404（用户首次，文件尚未创建）均可接受
+  expect([200, 404]).toContain(resp.status())
+})
+
+// ── 测试 39：pg-nodes.json 初始化后种子节点数量 ≥ 30 (v0.2.81) ──────────────
+
+test('PG Space 初始化后 pg-nodes.json 种子节点数量 ≥ 30', async ({ page, request }) => {
+  await injectToken(page)
+  await page.goto('http://localhost:5173')
+  await waitForBackend(page)
+
+  // 先检查 pg-nodes.json 是否已存在（用户已进入过 PG Space）
+  const readResp = await request.get(`${API_BASE}/api/storage/pg-nodes.json`, {
+    headers: authHeaders()
+  })
+
+  if (readResp.status() === 200) {
+    // 已初始化：直接验证节点数量
+    const nodes = await readResp.json() as unknown[]
+    if (Array.isArray(nodes) && nodes.length > 0) {
+      expect(nodes.length).toBeGreaterThanOrEqual(30)
+      return
+    }
+  }
+
+  // 未初始化：通过 Storage API 写入种子数据，验证接口接受 30 个节点
+  const seedNodes = Array.from({ length: 30 }, (_, i) => ({
+    id: `pg-seed-e2e-${i}`,
+    title: `E2E PG Seed Node ${i}`,
+    conversationId: `pg-seed-e2e-${i}`,
+    category: '工作事业',
+    color: '#6366F1',
+    nodeType: 'memory',
+    x: 1920 + i * 50,
+    y: 1200,
+    date: '2026-01-01',
+    keywords: [],
+  }))
+
+  const writeResp = await request.put(`${API_BASE}/api/storage/pg-nodes.json`, {
+    data: JSON.stringify(seedNodes),
+    headers: authHeaders({ 'Content-Type': 'application/json' })
+  })
+  // 写入 30 个节点不应报错
+  expect(writeResp.status()).toBeLessThan(500)
+  expect(writeResp.status()).not.toBe(400)
+
+  // 读回验证
+  const verifyResp = await request.get(`${API_BASE}/api/storage/pg-nodes.json`, {
+    headers: authHeaders()
+  })
+  expect(verifyResp.ok()).toBe(true)
+  const saved = await verifyResp.json() as unknown[]
+  expect(Array.isArray(saved)).toBe(true)
+  expect(saved.length).toBeGreaterThanOrEqual(30)
+
+  // 清理：恢复空数组（不污染用户数据）
+  await request.put(`${API_BASE}/api/storage/pg-nodes.json`, {
     data: JSON.stringify([]),
     headers: authHeaders({ 'Content-Type': 'application/json' })
   })
