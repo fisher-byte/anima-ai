@@ -40,6 +40,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, lang)
     document.documentElement.lang = lang
+    document.title = lang === 'zh'
+      ? 'Anima — 属于你的那部分自我'
+      : 'Anima — The part of you that remembers'
   }, [lang])
 
   const setLang = (l: Lang) => setLangState(l)

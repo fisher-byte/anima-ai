@@ -16,7 +16,7 @@
  */
 import { useState, useRef, useCallback, useMemo, useEffect, createContext } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit, Sparkles, Clock, GitMerge } from 'lucide-react'
+import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit, Sparkles, Clock, GitMerge, Github } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useForceSimulation, type ForceSimulationAPI } from '../hooks/useForceSimulation'
 import { NodeCard } from './NodeCard'
@@ -852,34 +852,34 @@ export function Canvas() {
                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                className="absolute right-0 mt-3 w-48 bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-gray-100 p-2 z-40 origin-top-right"
+                className="absolute right-0 mt-3 w-56 bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-gray-100 p-2 z-40 origin-top-right"
               >
                 <button
                   onClick={() => { setIsSearchOpen(true); setIsMenuOpen(false); }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
                 >
-                  <Search className="w-4 h-4" />
-                  <span className="font-medium">{t.canvas.globalSearch}</span>
+                  <Search className="w-4 h-4 shrink-0" />
+                  <span className="font-medium whitespace-nowrap">{t.canvas.globalSearch}</span>
                   <span className="ml-auto text-[10px] text-gray-300 font-bold border px-1 rounded">⌘K</span>
                 </button>
                 <button
                   onClick={() => { setSidebarTab('memory'); setIsSidebarOpen(true); setIsMenuOpen(false); }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
                 >
-                  <Sparkles className="w-4 h-4" />
-                  <span className="font-medium">{t.canvas.aboutMemory}</span>
+                  <Sparkles className="w-4 h-4 shrink-0" />
+                  <span className="font-medium whitespace-nowrap">{t.canvas.aboutMemory}</span>
                 </button>
                 <button
                   onClick={() => { setSidebarTab('evolution'); setIsSidebarOpen(true); setIsMenuOpen(false); setHasNewEvolution(false) }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
                 >
-                  <div className="relative">
+                  <div className="relative shrink-0">
                     <BrainCircuit className="w-4 h-4" />
                     {hasNewEvolution && (
                       <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full" />
                     )}
                   </div>
-                  <span className="font-medium">{t.canvas.evolutionLog}</span>
+                  <span className="font-medium whitespace-nowrap">{t.canvas.evolutionLog}</span>
                   {hasNewEvolution && (
                     <span className="ml-auto text-[10px] text-blue-500 font-bold">{t.canvas.newBadge}</span>
                   )}
@@ -889,17 +889,27 @@ export function Canvas() {
                   onClick={() => { setIsSettingsOpen(true); setIsMenuOpen(false); }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
                 >
-                  <Settings className="w-4 h-4" />
-                  <span className="font-medium">{t.canvas.preferences}</span>
+                  <Settings className="w-4 h-4 shrink-0" />
+                  <span className="font-medium whitespace-nowrap">{t.canvas.preferences}</span>
                 </button>
+                <a
+                  href="https://github.com/fisher-byte/Cogniflow"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
+                >
+                  <Github className="w-4 h-4 shrink-0" />
+                  <span className="font-medium whitespace-nowrap">{t.canvas.githubLink}</span>
+                </a>
                 <div className="my-1 border-t border-gray-100/50" />
                 <button
                   onClick={() => { setIsMenuOpen(false); rebuildNodeGraph() }}
                   disabled={nodeGraphRebuild.phase !== 'idle' && nodeGraphRebuild.phase !== 'done' && nodeGraphRebuild.phase !== 'error'}
                   className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all disabled:opacity-40"
                 >
-                  <GitMerge className="w-4 h-4" />
-                  <span className="font-medium">{t.canvas.mergeNodes}</span>
+                  <GitMerge className="w-4 h-4 shrink-0" />
+                  <span className="font-medium whitespace-nowrap">{t.canvas.mergeNodes}</span>
                   {nodeGraphRebuild.phase === 'analyzing' && <span className="ml-auto text-xs text-gray-400">{t.canvas.analyzing}</span>}
                   {nodeGraphRebuild.phase === 'merging' && (
                     <span className="ml-auto text-xs text-gray-400">{t.canvas.mergeProgress(nodeGraphRebuild.processedClusters, nodeGraphRebuild.totalClusters)}</span>
