@@ -25,9 +25,9 @@
  * ThinkingSection / isWaiting (v0.2.44)
  *   20. InputBox 中 textarea 可以输入文字，发送按钮状态正常
  *
- * 多租户隔离 (v0.2.32)
- *   21. 无 token 请求返回 401
- *   22. 错误 token 请求返回 401
+ * 开放认证模型 (v0.2.87)
+ *   21. 无 token 请求返回 200（_default 用户桶）
+ *   22. 任意 token 均返回 200（按 token 隔离用户）
  *
  * 语义边 / Embedding (v0.2.47)
  *   23. POST /api/memory/search/by-id 接口存在且返回正常格式
@@ -389,27 +389,20 @@ test('InputBox textarea 可以输入文字，发送按钮状态正确', async ({
   await expect(textarea).toHaveValue('')
 })
 
-// ── 测试 21：无 token 请求返回 401 ────────────────────────────────────────────
-test('无 Authorization token 请求 /api/memory/facts 返回 401', async ({ request }) => {
-  if (!ACCESS_TOKEN) {
-    // AUTH_DISABLED 模式下跳过
-    return
-  }
+// ── 测试 21：无 token 请求使用 _default 用户桶，返回 200 ───────────────────────
+test('无 Authorization token 请求 /api/memory/facts 返回 200（开放模型）', async ({ request }) => {
+  // 当前 auth 模型：任何请求均被接受；无 token → _default 用户桶
   const resp = await request.get(`${API_BASE}/api/memory/facts`)
-  expect(resp.status()).toBe(401)
+  expect(resp.status()).toBe(200)
 })
 
-// ── 测试 22：错误 token 返回 401 ──────────────────────────────────────────────
-test('错误 token 请求 /api/memory/facts 返回 401', async ({ request }) => {
-  if (!ACCESS_TOKEN) {
-    return
-  }
+// ── 测试 22：任意 token 均被接受，返回 200 ────────────────────────────────────
+test('任意 token 请求 /api/memory/facts 均返回 200（按 token 隔离用户）', async ({ request }) => {
+  // 当前 auth 模型：token 即 userId，不做白名单验证
   const resp = await request.get(`${API_BASE}/api/memory/facts`, {
     headers: { Authorization: 'Bearer totally_wrong_token_e2e' }
   })
-  // 错误 token 应返回 4xx（401 未认证 或 403 禁止访问）
-  expect(resp.status()).toBeGreaterThanOrEqual(400)
-  expect(resp.status()).toBeLessThan(500)
+  expect(resp.status()).toBe(200)
 })
 
 // ── 测试 23：POST /api/memory/search/by-id 接口存在且返回正常格式 ───────────────

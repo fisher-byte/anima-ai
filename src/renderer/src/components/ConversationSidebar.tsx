@@ -248,9 +248,9 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
       const resp = await authFetch('/api/memory/consolidate', { method: 'POST' })
       const data = await resp.json() as { ok: boolean; queued: boolean; reason?: string }
       if (data.ok && data.queued) {
-        setConsolidateToast('整理任务已提交，约 30 秒后完成，刷新可查看结果')
+        setConsolidateToast(t.sidebar.consolidateQueued)
       } else if (data.ok && !data.queued) {
-        setConsolidateToast('已有整理任务在进行中，稍后刷新查看')
+        setConsolidateToast(t.sidebar.consolidateBusy)
       }
       setTimeout(() => setConsolidateToast(null), 4000)
     } catch {}
@@ -775,17 +775,17 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                           setIsMentalModelRefreshing(true)
                           try {
                             await authFetch('/api/memory/mental-model/refresh', { method: 'POST' })
-                            setConsolidateToast('心智模型重建任务已提交，约 30 秒后自动刷新')
+                            setConsolidateToast(t.sidebar.mentalModelQueued)
                             setTimeout(() => setConsolidateToast(null), 4000)
                             setPendingMentalModelRefresh(true)
                           } catch {
-                            setConsolidateToast('刷新失败，请检查网络后重试')
+                            setConsolidateToast(t.sidebar.refreshError)
                             setTimeout(() => setConsolidateToast(null), 3000)
                           }
                           setIsMentalModelRefreshing(false)
                         }}
                         className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-700 transition-colors"
-                        title="重新提炼心智模型"
+                        title={t.sidebar.mentalModelTooltip}
                       >
                         <RotateCcw className={`w-2.5 h-2.5 ${isMentalModelRefreshing ? 'animate-spin' : ''}`} />
                         {t.sidebar.refresh}

@@ -1,10 +1,22 @@
 # Anima 更新路线图
 
-## 版本规划
+## 已完成版本
 
-### 🚀 近期（v0.1.4 - v0.1.6）
+#### v0.2.87 - 全量 i18n 收尾 + TypeScript 零错误 + E2E 修正（已完成）
+- [x] Canvas.tsx、ConversationSidebar.tsx 全部硬编码中文字符串 i18n 化（welcomeDefault/greeting/nightCare/mondayReminder/mergeBanner/consolidateQueued/consolidateBusy/mentalModelQueued/refreshError/mentalModelTooltip）
+- [x] zh.ts / en.ts 新增 5 个 sidebar 字段（支持双语）
+- [x] canvasStore.ts 移除未使用的 `configService` import（消除 TS6133）
+- [x] feedback.test.ts 使用 `Hono<Env>` 泛型修复 context `.set('db')` 类型错误（消除 TS2769）
+- [x] `npx tsc --noEmit` 零错误通过
+- [x] `npx vitest run` 427/427 通过
+- [x] E2E 测试 33/33 通过（更新测试 21/22 反映开放认证模型）
 
-#### v0.1.4 - 体验优化（已完成）
+#### v0.2.86 - 全量 i18n 双语支持（已完成）
+- [x] 所有 UI 组件支持中英双语（15 个组件，11 个新命名空间）
+- [x] 新增命名空间：login / onboarding / modal / timeline / nodeTimeline / search / importMemory / grayHint / thinking / fileBubble / clusterLabel
+- [x] AnswerModal.tsx `turns.map` 循环变量 `t → turn` 避免与 `useT()` 冲突
+
+
 
 **界面改进**:
 - [x] 修复返回画布无效问题

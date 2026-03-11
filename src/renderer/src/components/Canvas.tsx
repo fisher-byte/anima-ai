@@ -419,14 +419,14 @@ export function Canvas() {
         if (elapsed < 24 * 60 * 60 * 1000) return
 
         // 获取心智模型长期目标，生成提示文本
-        let triggerText = '最近有什么新想法？'
+        let triggerText = t.canvas.welcomeDefault
         try {
           const mmRes = await fetch('/api/memory/mental-model', { headers })
           if (mmRes.ok) {
             const mmData = await mmRes.json() as { model?: Record<string, unknown> }
             const goals = mmData.model?.['长期目标'] as string[] | undefined
             if (goals?.[0]) {
-              triggerText = `你好，上次聊到"${goals[0].slice(0, 20)}"，有新的进展吗？`
+              triggerText = t.canvas.greeting(goals[0].slice(0, 20))
             }
           }
         } catch { /* 静默 */ }
@@ -458,7 +458,7 @@ export function Canvas() {
 
         // 尝试从心智模型取长期目标
         const mmRes = await fetch('/api/memory/mental-model', { headers })
-        let text = '说点什么吧，我会记住的。'
+        let text = t.canvas.welcomeDefault
 
         if (mmRes.ok) {
           const mmData = await mmRes.json() as { model?: Record<string, unknown> }
@@ -466,9 +466,9 @@ export function Canvas() {
           const recent = mmData.model?.['近期关注'] as string[] | undefined
 
           if (recent?.[0]) {
-            text = `最近你在关注「${recent[0].slice(0, 18)}」，今天有什么新想法？`
+            text = t.canvas.welcomeRecent(recent[0].slice(0, 18))
           } else if (goals?.[0]) {
-            text = `你在努力实现「${goals[0].slice(0, 18)}」，今天走到哪一步了？`
+            text = t.canvas.welcomeGoal(goals[0].slice(0, 18))
           }
         }
 
@@ -476,7 +476,7 @@ export function Canvas() {
         sessionStorage.setItem(cacheDateKey, today)
         setWelcomeText(text)
       } catch {
-        setWelcomeText('说点什么吧，我会记住的。')
+        setWelcomeText(t.canvas.welcomeDefault)
       }
     })()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -520,7 +520,7 @@ export function Canvas() {
           if (recentLate.length >= 3) {
             localStorage.setItem(lateKey, String(now))
             sessionStorage.setItem('anima_notice_shown', String(now))
-            toast.info('我注意到你最近经常在深夜聊天，还好吗？')
+            toast.info(t.canvas.nightCare)
             return
           }
         }
@@ -536,7 +536,7 @@ export function Canvas() {
             if (recent?.[0]) {
               localStorage.setItem(mondayKey, String(now))
               sessionStorage.setItem('anima_notice_shown', String(now))
-              toast.info(`新的一周，上周你在关注「${recent[0].slice(0, 20)}」，这周想继续吗？`)
+              toast.info(t.canvas.mondayReminder(recent[0].slice(0, 20)))
               return
             }
           }
@@ -1132,11 +1132,11 @@ export function Canvas() {
             className="fixed bottom-40 left-1/2 -translate-x-1/2 z-20 bg-gray-800/90 backdrop-blur-sm text-white text-sm px-4 py-3 rounded-xl shadow-xl flex items-center gap-3"
           >
             <Sparkles className="w-4 h-4 text-yellow-400 shrink-0" />
-            <span>发现 {nodes.filter(n => n.nodeType !== 'capability').length} 个历史节点，要整理合并相似话题吗？</span>
+            <span>{t.canvas.mergeBanner(nodes.filter(n => n.nodeType !== 'capability').length)}</span>
             <button
               onClick={() => { setShowMergeBanner(false); rebuildNodeGraph() }}
               className="ml-2 px-3 py-1 bg-indigo-500 hover:bg-indigo-600 rounded-lg text-xs font-medium"
-            >整理</button>
+            >{t.canvas.mergeBtn}</button>
             <button
               onClick={() => {
                 setShowMergeBanner(false)
