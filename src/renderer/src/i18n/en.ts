@@ -19,6 +19,7 @@ export const en: Translations = {
     evolutionLog: 'Evolution log',
     newBadge: 'New',
     preferences: 'Preferences',
+    githubLink: 'Open Source on GitHub',
     mergeNodes: 'Merge similar nodes',
     analyzing: 'Analyzing…',
     merged: (n: number) => `Merged ${n} group${n === 1 ? '' : 's'}`,

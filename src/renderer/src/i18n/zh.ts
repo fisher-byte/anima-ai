@@ -17,6 +17,7 @@ export interface Translations {
     evolutionLog: string
     newBadge: string
     preferences: string
+    githubLink: string
     mergeNodes: string
     analyzing: string
     merged: (n: number) => string
@@ -169,6 +170,7 @@ export const zh: Translations = {
     evolutionLog: '进化日志',
     newBadge: '新',
     preferences: '偏好设置',
+    githubLink: '开源项目 GitHub',
     mergeNodes: '整理相似节点',
     analyzing: '分析中…',
     merged: (n: number) => `已合并 ${n} 组`,

@@ -49,13 +49,14 @@ function getApiConfig(db: InstanceType<typeof Database>): { apiKey: string; base
 }
 
 // 内置 embedding 配置（阿里云，不依赖用户配置）
+const BUILTIN_EMBED_KEY = process.env.BUILTIN_EMBED_API_KEY || ''
 const BUILTIN_EMBED = {
-  apiKey: 'sk-af1d01c2c2ff4e23baafc404b1c23c78',
+  apiKey: BUILTIN_EMBED_KEY,
   baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
   model: 'text-embedding-v4'  // Qwen3 最新，支持 2048 维
 }
 const BUILTIN_EMBED_MULTIMODAL = {
-  apiKey: 'sk-af1d01c2c2ff4e23baafc404b1c23c78',
+  apiKey: BUILTIN_EMBED_KEY,
   baseUrl: 'https://dashscope.aliyuncs.com/api/v1/services/embeddings/multimodal-embedding',
   model: 'qwen3-vl-embedding'  // 多模态：图片+文本统一向量空间
 }
