@@ -78,6 +78,14 @@ configRoutes.put('/settings', async (c) => {
   return c.json({ ok: true })
 })
 
+// GET /api/config/has-usable-key — 前端用：判断当前用户是否可用 key（用户自有 key 或后端共享 key 任一即可）
+configRoutes.get('/has-usable-key', (c) => {
+  const db = userDb(c)
+  const userKey = getConfig(db, 'apiKey') ?? ''
+  const sharedKey = process.env.SHARED_API_KEY ?? ''
+  return c.json({ hasKey: !!(userKey || sharedKey) })
+})
+
 // POST /api/config/verify-key — lightweight upstream check (list models)
 configRoutes.post('/verify-key', async (c) => {
   const { apiKey, baseUrl } = await c.req.json<{ apiKey: string; baseUrl?: string }>()

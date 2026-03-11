@@ -100,6 +100,7 @@ export interface Translations {
     deleteNodeTooltip: string
     lennyPlaceholder: string
     pgPlaceholder: string
+    conversationCount: (n: number) => string
   }
   sidebar: {
     historyTab: string
@@ -308,6 +309,7 @@ export const zh: Translations = {
     deleteNodeTooltip: '删除节点',
     lennyPlaceholder: '向 Lenny 提问…',
     pgPlaceholder: '向 Paul Graham 提问…',
+    conversationCount: (n: number) => `${n} 条对话`,
   },
 }
 

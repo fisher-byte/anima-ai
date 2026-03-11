@@ -148,24 +148,75 @@ interface AIRequestBody {
   systemPromptOverride?: string
 }
 
+// ── 每用户每日限流（共享 key 模式，按 token 费用计算）──────────────────────────
+// moonshot-v1-8k: ¥0.012 / 千token（输入输出同价）
+// 默认每日上限 ¥5 ≈ 416,666 tokens（可通过 DAILY_LIMIT_YUAN 调整）
+const PRICE_PER_1K_TOKENS = 0.012 // 元
+function getDailyTokenLimit(): number {
+  const yuan = parseFloat(process.env.DAILY_LIMIT_YUAN ?? '5')
+  return Math.round((yuan / PRICE_PER_1K_TOKENS) * 1000)
+}
+
+function checkDailyBudget(db: InstanceType<typeof Database>): { allowed: boolean; usedYuan: number; limitYuan: number } {
+  const limitTokens = getDailyTokenLimit()
+  const limitYuan = parseFloat(process.env.DAILY_LIMIT_YUAN ?? '5')
+  const today = new Date().toISOString().slice(0, 10)
+  const key = `daily_tokens_${today}`
+  try {
+    const row = db.prepare('SELECT value FROM config WHERE key = ?').get(key) as { value: string } | undefined
+    const usedTokens = row ? parseInt(row.value, 10) : 0
+    const usedYuan = parseFloat(((usedTokens / 1000) * PRICE_PER_1K_TOKENS).toFixed(4))
+    return { allowed: usedTokens < limitTokens, usedYuan, limitYuan }
+  } catch {
+    return { allowed: true, usedYuan: 0, limitYuan }
+  }
+}
+
+function addDailyTokens(db: InstanceType<typeof Database>, tokens: number): void {
+  if (tokens <= 0) return
+  const today = new Date().toISOString().slice(0, 10)
+  const key = `daily_tokens_${today}`
+  const now = new Date().toISOString()
+  try {
+    const row = db.prepare('SELECT value FROM config WHERE key = ?').get(key) as { value: string } | undefined
+    if (row) {
+      db.prepare("UPDATE config SET value = ?, updated_at = ? WHERE key = ?")
+        .run(String(parseInt(row.value, 10) + tokens), now, key)
+    } else {
+      db.prepare("INSERT INTO config (key, value, updated_at) VALUES (?, ?, ?)").run(key, String(tokens), now)
+    }
+  } catch { /* 失败时静默，不阻断 */ }
+}
+
 aiRoutes.post('/stream', async (c) => {
   const db = userDb(c)
   const body = await c.req.json<AIRequestBody>()
   const { messages, preferences = [], compressedMemory, isOnboarding = false, conversationId, systemPromptOverride } = body
 
-  // Retrieve API key from DB
-  const row = db.prepare('SELECT value FROM config WHERE key = ?').get('apiKey') as
+  // ── API Key 解析：用户自己的 key → 共享 key → 报错 ──────────────────────────
+  const userKeyRow = db.prepare('SELECT value FROM config WHERE key = ?').get('apiKey') as
     | { value: string }
     | undefined
-  const apiKey = row?.value ?? ''
+  const apiKey = userKeyRow?.value ?? ''
 
-  // 引导模式下，若无用户 key，使用演示 key（仅供新手引导消耗）
-  const effectiveApiKey = isOnboarding && !apiKey
-    ? (process.env.ONBOARDING_API_KEY ?? '')
-    : apiKey
+  const sharedApiKey = process.env.SHARED_API_KEY ?? process.env.ONBOARDING_API_KEY ?? ''
+  const usingSharedKey = !apiKey && !!sharedApiKey
+
+  // 引导模式 / 使用共享 key 时检查限流
+  const effectiveApiKey = apiKey || sharedApiKey
 
   if (!effectiveApiKey) {
     return c.json({ error: 'API Key 未配置，请在设置中填写' }, 400)
+  }
+
+  // 仅使用共享 key 时做限流（有自己 key 的用户不受限）
+  if (usingSharedKey && !isOnboarding) {
+    const { allowed, usedYuan, limitYuan } = checkDailyBudget(db)
+    if (!allowed) {
+      return c.json({
+        error: `今日免费额度已用完（已用 ¥${usedYuan.toFixed(2)} / 上限 ¥${limitYuan}）。请在右上角设置中填写自己的 API Key 继续使用。`
+      }, 429)
+    }
   }
 
   const modelRow = db.prepare('SELECT value FROM config WHERE key = ?').get('model') as
@@ -399,13 +450,15 @@ aiRoutes.post('/stream', async (c) => {
     const readRound = async (res: Response): Promise<{
       toolCalls: Array<{ id: string; type: string; function: { name: string; arguments: string } }>
       finishReason: string | null
+      totalTokens: number
     }> => {
       const toolCallMap: Record<number, { id: string; type: string; function: { name: string; arguments: string } }> = {}
       let finishReason: string | null = null
+      let totalTokens = 0
       const decoder = new TextDecoder()
       let sseBuffer = ''
       const reader = res.body?.getReader()
-      if (!reader) return { toolCalls: [], finishReason: null }
+      if (!reader) return { toolCalls: [], finishReason: null, totalTokens: 0 }
 
       try {
         while (true) {
@@ -425,6 +478,10 @@ aiRoutes.post('/stream', async (c) => {
                 const delta = parsed.choices?.[0]?.delta
                 const fr = parsed.choices?.[0]?.finish_reason
                 if (fr) finishReason = fr
+                // 捕获 token 用量（Kimi 在最后一个有效 chunk 里带 usage）
+                if (parsed.usage?.total_tokens) {
+                  totalTokens = parsed.usage.total_tokens
+                }
 
                 if (delta?.reasoning_content) {
                   reasoningContent += delta.reasoning_content
@@ -458,7 +515,7 @@ aiRoutes.post('/stream', async (c) => {
       } finally {
         reader.releaseLock()
       }
-      return { toolCalls: Object.values(toolCallMap), finishReason }
+      return { toolCalls: Object.values(toolCallMap), finishReason, totalTokens }
     }
 
     try {
@@ -484,9 +541,11 @@ aiRoutes.post('/stream', async (c) => {
       let currentMessages = [...fullMessages]
       let currentResponse = response
       let round = 1
+      let totalTokensUsed = 0
 
       while (round <= MAX_SEARCH_ROUNDS) {
-        const { toolCalls, finishReason } = await readRound(currentResponse)
+        const { toolCalls, finishReason, totalTokens } = await readRound(currentResponse)
+        if (totalTokens > 0) totalTokensUsed += totalTokens
 
         // 非 tool_calls 结束，或没有任何 tool call → 正常退出
         if (finishReason !== 'tool_calls' || toolCalls.length === 0) break
@@ -538,6 +597,11 @@ aiRoutes.post('/stream', async (c) => {
 
       await sendEvent({ type: 'done', fullText: fullContent })
 
+      // 共享 key 模式：累加本轮消耗的 token 数
+      if (usingSharedKey && totalTokensUsed > 0) {
+        addDailyTokens(db, totalTokensUsed)
+      }
+
       // B2: 每次实质性对话结束后尝试触发心智模型更新
       if (!isOnboarding && fullContent.length > 80) {
         try {
@@ -587,7 +651,7 @@ aiRoutes.post('/summarize', async (c) => {
   const row = db.prepare('SELECT value FROM config WHERE key = ?').get('apiKey') as
     | { value: string }
     | undefined
-  const apiKey = row?.value ?? ''
+  const apiKey = row?.value ?? (process.env.SHARED_API_KEY ?? process.env.ONBOARDING_API_KEY ?? '')
   if (!apiKey) return c.json({ title: null, error: 'API Key 未配置' }, 400)
 
   const baseUrlRow = db.prepare('SELECT value FROM config WHERE key = ?').get('baseUrl') as

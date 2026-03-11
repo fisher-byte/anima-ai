@@ -1,6 +1,6 @@
 # Anima 服务器部署文档
 
-**最后更新**: 2026-03-09
+**最后更新**: 2026-03-10
 **应用版本**: v0.2.74
 
 ---
@@ -99,19 +99,20 @@ pm2 save
 
 ## Nginx 配置
 
-### `/etc/nginx/conf.d/anima.conf`
+### `/etc/nginx/conf.d/evocanvas.conf`
+
+> **实际配置**：服务器上的配置文件名为 `evocanvas.conf`，包含三个 server 块：8080 内网入口、443 HTTPS 主入口（chatanima.com）、80 HTTP→HTTPS 重定向。
+
 ```nginx
+# 内网 8080 — 绕过域名直接访问（测试/运维用）
 server {
     listen 8080;
     server_name _;
     client_max_body_size 20M;
 
-    # 静态文件直接从磁盘提供（绕过 Node.js，避免大文件 chunked encoding 截断）
-    root /opt/anima/dist;
+    root /opt/evocanvas/dist;
     index index.html;
 
-    # gzip on-the-fly（注意：gzip_static 必须为 off，否则新 chunk 文件名变化后
-    # 找不到旧 .gz 文件会返回 ERR_EMPTY_RESPONSE）
     gzip on;
     gzip_types text/plain text/css application/javascript application/json text/xml;
     gzip_min_length 1000;
@@ -133,16 +134,79 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_buffering off;      # SSE 流式响应必须关闭缓冲
+        proxy_buffering off;
         proxy_read_timeout 120s;
         proxy_send_timeout 120s;
     }
 
-    # SPA fallback — 禁止缓存 index.html，确保每次部署后获取最新版本
     location / {
         add_header Cache-Control "no-cache, no-store, must-revalidate";
         try_files $uri $uri/ /index.html;
     }
+}
+
+# HTTPS 主入口 — chatanima.com（Certbot 管理证书）
+server {
+    listen 443 ssl;
+    server_name chatanima.com www.chatanima.com;
+    client_max_body_size 20M;
+
+    root /opt/evocanvas/dist;
+    index index.html;
+
+    gzip on;
+    gzip_types text/plain text/css application/javascript application/json text/xml;
+    gzip_min_length 1000;
+    gzip_comp_level 6;
+
+    # HSTS — 告知浏览器此域名始终用 HTTPS（消除不安全警告）
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    ssl_certificate /etc/letsencrypt/live/chatanima.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/chatanima.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_read_timeout 120s;
+        proxy_send_timeout 120s;
+    }
+
+    location / {
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        try_files $uri $uri/ /index.html;
+    }
+}
+
+# HTTP → HTTPS 重定向
+server {
+    listen 80;
+    server_name chatanima.com www.chatanima.com;
+
+    if ($host = www.chatanima.com) {
+        return 301 https://$host$request_uri;
+    }
+    if ($host = chatanima.com) {
+        return 301 https://$host$request_uri;
+    }
+
+    return 404;
 }
 ```
 

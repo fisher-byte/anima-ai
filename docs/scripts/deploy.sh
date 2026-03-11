@@ -57,9 +57,14 @@ if [ -n "${SYNC_ENV}" ] && [ "${SYNC_ENV}" != "0" ]; then
   if [ ! -f .env ]; then
     echo "⚠ 本地无 .env，跳过"
   else
-    scp -o StrictHostKeyChecking=no .env "${SERVER}:${REMOTE_DIR}/.env"
-    ssh -o StrictHostKeyChecking=no "$SERVER" "cd ${REMOTE_DIR} && pm2 restart evocanvas"
-    echo "✓ .env 已同步并已重启 evocanvas"
+    # Merge：只把本地有而服务器没有的 key 追加过去，不覆盖服务器独有的 key（如 SHARED_API_KEY）
+    while IFS= read -r line; do
+      [[ "$line" =~ ^#.*$ || -z "$line" ]] && continue
+      key="${line%%=*}"
+      ssh -o StrictHostKeyChecking=no "$SERVER" "grep -q '^${key}=' ${REMOTE_DIR}/.env 2>/dev/null || echo '${line}' >> ${REMOTE_DIR}/.env"
+    done < .env
+    ssh -o StrictHostKeyChecking=no "$SERVER" "cd ${REMOTE_DIR} && pm2 restart evocanvas --update-env"
+    echo "✓ .env 已合并（不覆盖服务器独有 key）并已重启 evocanvas"
   fi
 else
   echo ""
