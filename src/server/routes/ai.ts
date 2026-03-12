@@ -188,9 +188,16 @@ function addDailyTokens(db: InstanceType<typeof Database>, tokens: number): void
   } catch { /* 失败时静默，不阻断 */ }
 }
 
+// POST /stream body 上限：20MB（含图片 base64，单张图片约 5~8MB）
+const MAX_STREAM_BODY = 20 * 1024 * 1024
+
 aiRoutes.post('/stream', async (c) => {
   const db = userDb(c)
-  const body = await c.req.json<AIRequestBody>()
+  const rawBody = await c.req.text()
+  if (Buffer.byteLength(rawBody, 'utf8') > MAX_STREAM_BODY) {
+    return c.json({ error: '请求体过大，最大支持 20MB（单次请求图片数量过多或消息过长）' }, 413)
+  }
+  const body = JSON.parse(rawBody) as AIRequestBody
   const { messages, preferences = [], compressedMemory, isOnboarding = false, conversationId, systemPromptOverride } = body
 
   // ── API Key 解析：用户自己的 key → 共享 key → 报错 ──────────────────────────
@@ -643,10 +650,14 @@ aiRoutes.post('/stream', async (c) => {
  */
 aiRoutes.post('/summarize', async (c) => {
   const db = userDb(c)
-  const { userMessage, assistantMessage } = await c.req.json<{
+  const rawBody = await c.req.text()
+  if (Buffer.byteLength(rawBody, 'utf8') > 1 * 1024 * 1024) {
+    return c.json({ title: null }, 413)
+  }
+  const { userMessage, assistantMessage } = JSON.parse(rawBody) as {
     userMessage: string
     assistantMessage: string
-  }>()
+  }
 
   const row = db.prepare('SELECT value FROM config WHERE key = ?').get('apiKey') as
     | { value: string }

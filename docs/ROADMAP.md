@@ -2,6 +2,43 @@
 
 ## 已完成版本
 
+#### v0.2.97 - 全量 code review + AI 路由 body 限制（已完成）
+- [x] 全量 code review：db.ts / agentWorker.ts / memory.ts / ai.ts / canvasStore.ts 无 P0 问题
+- [x] `ai.ts POST /stream` 新增 20MB body 上限（防超大图片 base64 消息）
+- [x] `ai.ts POST /summarize` 新增 1MB body 上限
+- [x] 文档同步：ROADMAP 补全 v0.2.91~v0.2.96 版本历史
+- [x] vitest 427/427 | tsc 0 errors | E2E 45/48
+
+#### v0.2.96 - 修复 E2E 测试污染 Google Analytics 数据（已完成）
+- [x] `index.html` 加 `location.hostname` 检测，localhost/127.0.0.1 时不加载 gtag.js
+- [x] 修复前 GA 数据严重虚高（每次跑 48 个测试 = 48 次假页面访问）
+- [x] 清理服务器上 2 个 E2E 测试账户遗留数据
+
+#### v0.2.95 - 服务端安全加固（已完成）
+- [x] P0-2: `storage.ts` PUT 文本上限 10MB，POST append 上限 1MB，防 DoS
+- [x] P0-1: `GET /file/:id` Content-Disposition 补 ASCII fallback，符合 RFC 6266
+- [x] P1-4: `feedback.ts` message ≤ 5000 字符，imageData ≤ 5MB
+- [x] P1-5: `config.ts` PUT /settings 验证 baseUrl 必须 http/https；verify-key 防 SSRF
+- [x] vitest 427/427 | tsc 0 errors | E2E 45/48
+
+#### v0.2.94 - Playwright journey 测试全套通过（已完成）
+- [x] 修复 J-1/J-2 反复失败根因：`getRelevantMemories` 降级路径读历史记录导致 mergeIntoNode
+- [x] `beforeEach` 清空 `conversations.jsonl`，mock `/api/memory/search` 返回空结果
+- [x] `canvasStore.ts` 集成 Zustand devtools + `window.__CANVAS_STORE__` 暴露（dev 环境）
+- [x] J-1 ✓ J-2 ✓ J-3 ✓ J-4 ✓ J-5 ✓，全套 45/48 通过（3 skip 为条件性跳过）
+
+#### v0.2.93 - 所有 Space 对话同步到主空间（已完成）
+- [x] PG Space、Lenny Space 对话关闭后均同步到主空间 `conversations.jsonl`
+- [x] 触发记忆提取 + 节点生成，实现跨 Space 记忆积累
+
+#### v0.2.92 - PG/Lenny Space isPGMode 时序竞争修复（已完成）
+- [x] `AnswerModal.tsx` handleClose 开始时快照 `wasPGMode`/`wasLennyMode`
+- [x] setTimeout 回调里恢复正确状态，杜绝 500ms 内 mode 被覆盖的竞争条件
+
+#### v0.2.91 - 多租户修复 + onboarding bug 修复（已完成）
+- [x] 多租户数据隔离修复，各用户独立 SQLite DB
+- [x] Onboarding 全链路修复
+
 #### v0.2.88 - 代码质量：全量英文化 + 零残留中文（已完成）
 - [x] `canvasStore.ts` 修复 2 处用户可见 `lastError` 中文字符串 → 英文
 - [x] `AnswerModal.tsx` 修复 4 处 console.error 中文 → 英文
