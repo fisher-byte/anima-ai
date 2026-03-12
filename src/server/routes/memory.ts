@@ -1008,41 +1008,113 @@ memoryRoutes.delete('/logical-edges/:conversationId', (c) => {
  */
 memoryRoutes.post('/sync-lenny-conv', async (c) => {
   const db = userDb(c)
-  const { conversationId, userMessage, assistantMessage } = await c.req.json<{
+  const { conversationId, userMessage, assistantMessage, source } = await c.req.json<{
     conversationId: string
     userMessage: string
     assistantMessage: string
+    source?: string  // 'lenny' | 'pg'，默认 'lenny'
   }>()
 
   if (!conversationId || !userMessage) {
     return c.json({ ok: false, error: 'missing fields' }, 400)
   }
-  // assistantMessage 可为空（AI 未响应时跳过记忆提取，但仍写入对话记录）
   const safeAssistant = assistantMessage?.trim() ?? ''
+  const convSource = source === 'pg' ? 'pg' : 'lenny'
 
   const now = new Date().toISOString()
   const conv = {
-    id: `lenny-${conversationId}`,
+    id: `${convSource}-${conversationId}`,
     createdAt: now,
     userMessage,
     assistantMessage: safeAssistant,
-    source: 'lenny',
+    source: convSource,
     images: [],
     files: [],
   }
 
-  // Append to user's conversations.jsonl (same storage table)
+  // 1. Append to user's conversations.jsonl
   try {
     const existing = (db.prepare("SELECT content FROM storage WHERE filename = 'conversations.jsonl'").get() as { content: string } | undefined)?.content ?? ''
-    const updated = existing ? `${existing}\n${JSON.stringify(conv)}` : JSON.stringify(conv)
-    db.prepare("INSERT INTO storage (filename, content, updated_at) VALUES (?, ?, ?) ON CONFLICT(filename) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at")
-      .run('conversations.jsonl', updated, now)
+    // 幂等：如果此对话已存在则跳过（重复调用保护）
+    if (!existing.includes(`"id":"${conv.id}"`)) {
+      const updated = existing ? `${existing}\n${JSON.stringify(conv)}` : JSON.stringify(conv)
+      db.prepare("INSERT INTO storage (filename, content, updated_at) VALUES (?, ?, ?) ON CONFLICT(filename) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at")
+        .run('conversations.jsonl', updated, now)
+    }
   } catch (e) {
     console.error('[sync-lenny-conv] failed to write conversations.jsonl', e)
     return c.json({ ok: false }, 500)
   }
 
-  // Enqueue memory extraction only when there is actual assistant content
+  // 2. 在主空间 nodes.json 里生成对应节点（让用户在画布上看到这条对话）
+  if (safeAssistant) {
+    try {
+      const nodesRaw = (db.prepare("SELECT content FROM storage WHERE filename = 'nodes.json'").get() as { content: string } | undefined)?.content ?? '[]'
+      const nodes: Array<Record<string, unknown>> = JSON.parse(nodesRaw)
+
+      // 幂等：节点已存在则不重复添加
+      const alreadyExists = nodes.some((n) => n.id === conv.id || n.conversationId === conv.id)
+      if (!alreadyExists) {
+        // 分类：基于 userMessage 内容启发
+        const lower = (userMessage + ' ' + safeAssistant).toLowerCase()
+        let category = '工作事业'
+        if (/relationship|team|family|friend|emotion|感情|家人|朋友|情感|恋爱|婚姻/.test(lower)) category = '关系情感'
+        else if (/think|philosophy|belief|mindset|meaning|哲学|思考|价值观|世界|意义/.test(lower)) category = '思考世界'
+        else if (/health|sleep|workout|diet|body|睡眠|健康|锻炼|饮食|身体/.test(lower)) category = '身心健康'
+        else if (/learn|study|book|course|skill|学习|读书|技能|考试|成长/.test(lower)) category = '学习成长'
+
+        // 螺旋布局：找一个不与现有节点重叠的位置
+        const centerX = nodes.length > 0 ? (nodes.reduce((s, n) => s + (n.x as number || 1920), 0) / nodes.length) : 1920
+        const centerY = nodes.length > 0 ? (nodes.reduce((s, n) => s + (n.y as number || 1200), 0) / nodes.length) : 1200
+        const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+        let nx = centerX + 350, ny = centerY
+        for (let i = 0; i < 200; i++) {
+          const r = 320 * Math.sqrt(i + 1)
+          const theta = i * goldenAngle
+          const cx = centerX + r * Math.cos(theta)
+          const cy = centerY + r * Math.sin(theta)
+          if (!nodes.some((n) => Math.hypot((n.x as number) - cx, (n.y as number) - cy) < 280)) {
+            nx = cx; ny = cy; break
+          }
+        }
+
+        // 关键词：从 userMessage 中提取（简单分词，去停用词）
+        const stopWords = new Set(['their','about','which','would','could','there','other',
+          'where','should','these','those','being','after','while','between','through',
+          'before','under','think','right','every','start','point','might','often','first','since',
+          '这样','什么','那么','就是','一个','我们','他们','可以','没有','还是','已经','因为','所以'])
+        const keywords = userMessage
+          .replace(/[#*`>\[\]()]/g, ' ')
+          .toLowerCase()
+          .split(/[\s，。！？,.!?]+/)
+          .filter(w => w.length > 2 && !stopWords.has(w))
+          .slice(0, 3)
+
+        const newNode = {
+          id: conv.id,
+          title: userMessage.slice(0, 30),
+          keywords,
+          date: now.split('T')[0],
+          conversationId: conv.id,
+          x: Math.round(nx),
+          y: Math.round(ny),
+          category,
+          nodeType: 'conversation',
+          conversationIds: [conv.id],
+          topicLabel: category,
+          firstDate: now.split('T')[0],
+        }
+        nodes.push(newNode)
+        db.prepare("INSERT INTO storage (filename, content, updated_at) VALUES (?, ?, ?) ON CONFLICT(filename) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at")
+          .run('nodes.json', JSON.stringify(nodes), now)
+      }
+    } catch (e) {
+      console.error('[sync-lenny-conv] failed to write nodes.json', e)
+      // non-fatal：节点写失败不影响对话记录和记忆提取
+    }
+  }
+
+  // 3. 记忆提取任务
   if (safeAssistant) {
     try {
       enqueueTask(db, 'extract_profile', { conversationId: conv.id, userMessage, assistantMessage: safeAssistant })
