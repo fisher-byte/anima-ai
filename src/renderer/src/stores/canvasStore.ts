@@ -1434,7 +1434,7 @@ export const useCanvasStore = create<CanvasState>()(
       lennyNodes.push(newNode)
       await storageService.write(nodesFile, JSON.stringify(lennyNodes, null, 2))
 
-      // P4: 所有 Space（Lenny / PG / 未来扩展）的对话均同步到用户主空间，触发记忆提取
+      // P4: 所有 Space（Lenny / PG / 未来扩展）的对话均同步到用户主空间，触发记忆提取 + 节点生成
       if (assistantMessage.trim()) {
         try {
           await authFetch('/api/memory/sync-lenny-conv', {
@@ -1443,6 +1443,7 @@ export const useCanvasStore = create<CanvasState>()(
               conversationId: conv.id,
               userMessage: conv.userMessage,
               assistantMessage,
+              source: isPGMode ? 'pg' : 'lenny',
             }),
           })
         } catch { /* 静默失败，不影响 Lenny 空间体验 */ }
