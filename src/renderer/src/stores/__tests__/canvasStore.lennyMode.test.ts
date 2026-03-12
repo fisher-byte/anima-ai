@@ -6,6 +6,7 @@
  * 2. closeLennyMode → isLennyMode: false, isModalOpen: false, currentConversation: null
  * 3. endConversation lenny 模式：写 LENNY_CONVERSATIONS / LENNY_NODES，不调 /api/memory/classify 或 /api/memory/index
  * 4. appendConversation lenny 模式：写 LENNY_CONVERSATIONS，不调 /api/memory/index 或 /api/memory/queue
+ * 5. P0-1 fix: addNode early-returns in Lenny mode → nodes.json NOT written (no main space pollution)
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -60,6 +61,7 @@ function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
 describe('canvasStore — openLennyMode / closeLennyMode', () => {
   beforeEach(() => {
     mockFetch.mockReset()
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({}) })
     mockStorageRead.mockReset()
     mockStorageWrite.mockReset()
     mockStorageAppend.mockReset()
@@ -104,6 +106,7 @@ describe('canvasStore — openLennyMode / closeLennyMode', () => {
 describe('canvasStore — endConversation in lenny mode', () => {
   beforeEach(() => {
     mockFetch.mockReset()
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({}) })
     mockStorageRead.mockReset()
     mockStorageWrite.mockReset()
     mockStorageAppend.mockReset()
@@ -156,7 +159,7 @@ describe('canvasStore — endConversation in lenny mode', () => {
     expect(lennyNodesCall).toBeDefined()
   })
 
-  it('does NOT write to user nodes.json when in lenny mode', async () => {
+  it('does NOT write to nodes.json when in lenny mode (addNode early return prevents main space pollution)', async () => {
     const { useCanvasStore } = await import('../canvasStore')
     const conv = makeConversation()
 
@@ -167,6 +170,8 @@ describe('canvasStore — endConversation in lenny mode', () => {
 
     await useCanvasStore.getState().endConversation('Lenny answer')
 
+    // P0-1 fix: addNode early-returns when isLennyMode is true, so nodes.json must NOT be written.
+    // Lenny conversation nodes are written to lenny-nodes.json in the endConversation Lenny branch.
     const writeCalls = mockStorageWrite.mock.calls
     const userNodesCall = writeCalls.find((call) => call[0] === 'nodes.json')
     expect(userNodesCall).toBeUndefined()
@@ -226,6 +231,7 @@ describe('canvasStore — endConversation in lenny mode', () => {
 describe('canvasStore — appendConversation in lenny mode', () => {
   beforeEach(() => {
     mockFetch.mockReset()
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({}) })
     mockStorageRead.mockReset()
     mockStorageWrite.mockReset()
     mockStorageAppend.mockReset()

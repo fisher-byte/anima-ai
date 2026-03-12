@@ -255,7 +255,11 @@ memoryRoutes.post('/search', async (c) => {
       const score = cosineSim(queryF32, vec)
       return { conversationId: row.conversation_id, score }
     })
-    .filter(r => r.score > 0.5 && !r.conversationId.startsWith('file-'))
+    .filter(r => r.score > 0.5
+      && !r.conversationId.startsWith('file-')
+      && !r.conversationId.startsWith('lenny-')
+      && !r.conversationId.startsWith('pg-')
+    )
     .sort((a, b) => b.score - a.score)
     .slice(0, topK)
 
@@ -1041,9 +1045,23 @@ memoryRoutes.post('/sync-lenny-conv', async (c) => {
   // Enqueue memory extraction only when there is actual assistant content
   if (safeAssistant) {
     try {
-      enqueueTask(db, 'extract_memory', { conversationId: conv.id, userMessage, assistantMessage: safeAssistant })
-      enqueueTask(db, 'extract_preferences', { conversationId: conv.id, userMessage, assistantMessage: safeAssistant })
+      enqueueTask(db, 'extract_profile', { conversationId: conv.id, userMessage, assistantMessage: safeAssistant })
+      enqueueTask(db, 'extract_preference', { conversationId: conv.id, userMessage, assistantMessage: safeAssistant })
     } catch { /* non-fatal */ }
+
+    // 向量索引（fire-and-forget）
+    const indexText = userMessage + ' ' + safeAssistant
+    fetchEmbedding(db, indexText).then(vec => {
+      if (!vec) return
+      const ts = new Date().toISOString()
+      try {
+        db.prepare(`
+          INSERT INTO embeddings (conversation_id, vector, dim, updated_at)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT(conversation_id) DO UPDATE SET vector=excluded.vector, dim=excluded.dim, updated_at=excluded.updated_at
+        `).run(conv.id, vecToBuffer(vec), vec.length, ts)
+      } catch { /* non-fatal */ }
+    }).catch(() => {})
   }
 
   return c.json({ ok: true })

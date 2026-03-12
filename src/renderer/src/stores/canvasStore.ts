@@ -763,6 +763,10 @@ export const useCanvasStore = create<CanvasState>()(
 
   // 添加节点（explicitCategory 由 endConversation 传入时优先使用，保证话题拆分分类正确）
   addNode: async (conversation: Conversation, position?: NodePosition, explicitCategory?: string, memoryCount?: number, topicLabel?: string) => {
+    // Lenny/PG 模式：对话节点已由 endConversation space 分支单独写入 space 文件，
+    // addNode 不应写主空间 nodes.json，否则会污染主空间画布。
+    if (get().isLennyMode) return
+
     const { nodes } = get()
 
     // 生成标题：截断文件内容块（FILE_BLOCK_PREFIX 截断法，避免正则被文件内容干扰）
@@ -1442,6 +1446,24 @@ export const useCanvasStore = create<CanvasState>()(
             }),
           })
         } catch { /* 静默失败，不影响 Lenny 空间体验 */ }
+
+        // 记忆事实提取（fire-and-forget）
+        const cleanUserMsg = conv.userMessage
+          .replace(/\[REFERENCE_START\][\s\S]*?\[REFERENCE_END\]/g, '[引用内容已省略]')
+          .trim()
+        if (cleanUserMsg.length > 5) {
+          authFetch('/api/memory/extract', {
+            method: 'POST',
+            body: JSON.stringify({
+              conversationId: conv.id,
+              userMessage: cleanUserMsg,
+              assistantMessage: assistantMessage.slice(0, 400),
+            }),
+          }).catch(() => {})
+        }
+
+        // 主空间节点：将 Lenny/PG 对话以 memory 节点形式写入用户主空间画布
+        await addNode(conv).catch(() => {})
       }
 
       return

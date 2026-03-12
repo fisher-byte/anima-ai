@@ -66,6 +66,15 @@ interface SimCluster {
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
+export interface ForceSimulationOptions {
+  /** 禁用同类引力（适用于大多数节点同 category 的场景，如 Lenny 空间） */
+  noSameAttract?: boolean
+  /** 禁用星云级力（适用于不需要按 category 分区的场景） */
+  noClusterForce?: boolean
+  /** 禁用低频 store 同步（Lenny/PG 空间用，避免把 space 节点坐标写入主空间 store） */
+  noStoreSync?: boolean
+}
+
 export interface ForceSimulationAPI {
   sync: (nodes: Node[], edges: Edge[]) => void
   kick: () => void
@@ -80,7 +89,8 @@ export interface ForceSimulationAPI {
   flushToStore: () => void
 }
 
-export function useForceSimulation(): ForceSimulationAPI {
+export function useForceSimulation(options: ForceSimulationOptions = {}): ForceSimulationAPI {
+  const { noSameAttract = false, noClusterForce = false, noStoreSync = false } = options
   // 只用 getState() 取函数引用，不订阅 store，不触发重渲染
   const updateNodePositionInMemory = useCanvasStore.getState().updateNodePositionInMemory
   const updateNodePosition = useCanvasStore.getState().updateNodePosition
@@ -175,7 +185,7 @@ export function useForceSimulation(): ForceSimulationAPI {
 
         if (a.category === b.category) {
           // 同类引力弹簧
-          if (dist < SAME_MAX_DIST) {
+          if (!noSameAttract && dist < SAME_MAX_DIST) {
             const spring = (dist - SAME_IDEAL_DIST) * SAME_ATTRACT
             a.fx += (dx / dist) * spring
             a.fy += (dy / dist) * spring
@@ -206,6 +216,7 @@ export function useForceSimulation(): ForceSimulationAPI {
     }
 
     // 4. 星云间斥力 & 连线引力
+    if (!noClusterForce) {
     for (let i = 0; i < clusters.length; i++) {
       for (let j = i + 1; j < clusters.length; j++) {
         const c1   = clusters[i]; const c2 = clusters[j]
@@ -244,6 +255,7 @@ export function useForceSimulation(): ForceSimulationAPI {
         }
       }
     }
+    } // end if (!noClusterForce)
 
     // 5. 速度积分
     for (const n of nodes) {
@@ -289,7 +301,7 @@ export function useForceSimulation(): ForceSimulationAPI {
     // 7. 低频 store 同步（让 Edge SVG 和 ClusterLabel 跟上 DOM 坐标）
     //    每 90 帧（约 1.5fps）同步一次，避免 React 重渲染干扰动画
     frameCountRef.current++
-    if (frameCountRef.current % 90 === 0 && !dragId) {
+    if (!noStoreSync && frameCountRef.current % 90 === 0 && !dragId) {
       const updateFn = useCanvasStore.getState().updateNodePositionInMemory
       for (const n of nodes) {
         if (!n.isCapability) updateFn(n.id, n.x, n.y)
