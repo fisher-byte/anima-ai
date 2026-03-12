@@ -1,5 +1,28 @@
 # Anima 变更日志
 
+## [0.2.97] - 2026-03-12
+
+### fix: 全量 code review — AI 路由 body 大小限制 + 文档同步
+
+**Code review 结论：**
+- db.ts、agentWorker.ts、memory.ts：无 P0/P1 问题
+- config.ts、storage.ts、feedback.ts：已在 v0.2.95 修复
+- canvasStore.ts：async 操作均有 try/catch 或 `.catch()` 覆盖，无 unhandled rejection
+
+**本次修复：**
+- `ai.ts POST /stream`：新增 20MB body 上限（含 base64 图片）
+- `ai.ts POST /summarize`：新增 1MB body 上限
+
+**验证：**
+
+| 指标 | 结果 |
+|------|------|
+| `tsc --noEmit` | 0 错误 ✓ |
+| `vitest run` | 427/427 ✓ |
+| `playwright test` | 45/48 ✓（3 skip 正常） |
+
+---
+
 ## [0.2.96] - 2026-03-12
 
 ### fix: E2E 测试污染 Google Analytics 数据
