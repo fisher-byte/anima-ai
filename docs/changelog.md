@@ -1,5 +1,24 @@
 # Anima 变更日志
 
+## [0.2.96] - 2026-03-12
+
+### fix: E2E 测试污染 Google Analytics 数据
+
+**根因：** `src/renderer/index.html` 中 GA script 无条件加载，Playwright E2E 测试（运行在 `localhost:5173`）每次执行都会向 GA 发送真实事件，导致：
+- GA "活跃用户"数据虚高（每次 CI/本地跑测试 = 48 次假页面访问）
+- "用户数"、"会话数"与实际宣发情况严重不匹配
+- 指标数据完全不可信
+
+**修复：** 在 `index.html` 中加 `location.hostname` 检测，localhost/127.0.0.1 时不加载 GA script。生产环境（chatanima.com）不受影响。
+
+```js
+if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+  // 动态注入 gtag.js
+}
+```
+
+---
+
 ## [0.2.95] - 2026-03-12
 
 ### fix: 服务端安全加固（P0/P1 code review 修复）
