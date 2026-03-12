@@ -11,6 +11,10 @@ import type Database from 'better-sqlite3'
 
 export const feedbackRoutes = new Hono()
 
+// P1-4: 反馈文字上限 5000 字符，图片上限 5 MB（base64 字符数 × 0.75 ≈ 字节数）
+const MAX_MESSAGE_LENGTH = 5000
+const MAX_IMAGE_BASE64_LENGTH = Math.ceil(5 * 1024 * 1024 * (4 / 3)) // ~6.9M chars
+
 function userDb(c: { get: (key: string) => unknown }): InstanceType<typeof Database> {
   return c.get('db') as InstanceType<typeof Database>
 }
@@ -40,6 +44,15 @@ feedbackRoutes.post('/', async (c) => {
   const message = body.message ?? ''
   if (!message.trim()) {
     return c.json({ error: 'message is required' }, 400)
+  }
+  // P1-4: 消息长度限制
+  if (message.length > MAX_MESSAGE_LENGTH) {
+    return c.json({ error: `message 过长，最大 ${MAX_MESSAGE_LENGTH} 字符` }, 400)
+  }
+
+  // P1-4: 图片大小限制（5 MB）
+  if (body.imageData && body.imageData.length > MAX_IMAGE_BASE64_LENGTH) {
+    return c.json({ error: '图片过大，最大支持 5MB' }, 413)
   }
 
   const id = randomUUID()

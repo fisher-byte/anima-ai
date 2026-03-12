@@ -1,5 +1,28 @@
 # Anima 变更日志
 
+## [0.2.95] - 2026-03-12
+
+### fix: 服务端安全加固（P0/P1 code review 修复）
+
+**修复问题（来自全量 code review）：**
+
+| 等级 | 文件 | 修复内容 |
+|------|------|----------|
+| P0-2 | `storage.ts` | `PUT /:filename` 加 10MB 上限；`POST /:filename/append` 加 1MB 上限，防止 DoS |
+| P0-1 | `storage.ts` | `Content-Disposition` 新增 ASCII fallback（`filename="..."` + `filename*=UTF-8''...`），符合 RFC 6266 |
+| P1-4 | `feedback.ts` | `message` 加 5000 字符上限；`imageData` base64 加 5MB 上限（防超大图片写入） |
+| P1-5 | `config.ts` | `PUT /settings` 验证 `baseUrl` 必须是合法 http/https URL；`POST /verify-key` 同步加 URL 格式校验，防 SSRF |
+
+**验证结果：**
+
+| 指标 | 结果 |
+|------|------|
+| `tsc --noEmit` | 0 错误 ✓ |
+| 单元测试 | 427/427 ✓ |
+| E2E 测试 | 45/48 ✓（3 skip 为条件性跳过） |
+
+---
+
 ## [0.2.94] - 2026-03-12
 
 ### test: Playwright journey 测试全套通过（J-1 ~ J-5）

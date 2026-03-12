@@ -72,8 +72,23 @@ configRoutes.put('/settings', async (c) => {
   const db = userDb(c)
   const body = await c.req.json<{ model?: string; baseUrl?: string }>()
 
+  // P1-5: baseUrl 格式验证 — 必须是合法的 http/https URL
+  if (body.baseUrl !== undefined) {
+    if (body.baseUrl !== '') {
+      let parsedUrl: URL
+      try {
+        parsedUrl = new URL(body.baseUrl)
+      } catch {
+        return c.json({ error: 'baseUrl 格式无效，请输入合法的 URL（以 http:// 或 https:// 开头）' }, 400)
+      }
+      if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+        return c.json({ error: 'baseUrl 必须以 http:// 或 https:// 开头' }, 400)
+      }
+    }
+    upsertConfig(db, 'baseUrl', body.baseUrl)
+  }
+
   if (body.model !== undefined) upsertConfig(db, 'model', body.model)
-  if (body.baseUrl !== undefined) upsertConfig(db, 'baseUrl', body.baseUrl)
 
   return c.json({ ok: true })
 })
@@ -89,7 +104,18 @@ configRoutes.get('/has-usable-key', (c) => {
 // POST /api/config/verify-key — lightweight upstream check (list models)
 configRoutes.post('/verify-key', async (c) => {
   const { apiKey, baseUrl } = await c.req.json<{ apiKey: string; baseUrl?: string }>()
-  const url = (baseUrl || 'https://api.moonshot.cn/v1').replace(/\/$/, '')
+  const rawUrl = (baseUrl || 'https://api.moonshot.cn/v1').replace(/\/$/, '')
+  // P1-5: 验证 baseUrl 格式，防止 SSRF 等攻击
+  let url: string
+  try {
+    const parsed = new URL(rawUrl)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return c.json({ valid: false, reason: 'invalid_url' })
+    }
+    url = parsed.href.replace(/\/$/, '')
+  } catch {
+    return c.json({ valid: false, reason: 'invalid_url' })
+  }
   try {
     const resp = await fetch(`${url}/models`, {
       headers: { Authorization: `Bearer ${apiKey}` },
