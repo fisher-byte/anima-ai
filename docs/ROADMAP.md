@@ -374,8 +374,14 @@
 | v0.2.81 | 2026-03-11 | **Paul Graham Space** + Lenny 卡片重设计 + anima-base 人物 SOP + 422 测试 |
 | v0.2.82 | 2026-03-11 | **多语言支持**（i18n 架构）+ Spaces 极简重设计 + 大师对话氛围 |
 | v0.2.83 | 2026-03-11 | **全量 i18n 覆盖**（SettingsModal/InputBox/ConversationSidebar）+ GitHub 入口 + chatanima.com 上线 |
+| v0.2.84 | 2026-03-12 | 代码质量：全量英文化 + 零残留中文 + 全量 i18n 双语 + TypeScript 零错误 |
+| v0.2.85 | 2026-03-12 | **反馈功能**：FeedbackButton + feedback_reports 表 + 图片上传 + i18n |
+| v0.2.91 | 2026-03-12 | Lenny/PG Space isLennyMode 分支 6 处 hardcode 修复 |
+| v0.2.92 | 2026-03-12 | isPGMode 时序竞争修复（AnswerModal handleClose 快照）|
+| v0.2.93 | 2026-03-12 | 所有 Space 对话同步到主空间（sync-lenny-conv 守卫移除）|
+| v0.2.94 | 2026-03-12 | **Playwright journey 测试 J-1~J-5 全套通过**（mock search + conversations 清空）|
 
 ---
 
-*最后更新: 2026-03-11（v0.2.83）*
+*最后更新: 2026-03-12（v0.2.94）*
 *维护者: Anima Team*
