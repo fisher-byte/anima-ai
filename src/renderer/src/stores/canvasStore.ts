@@ -1198,20 +1198,22 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   // 删除节点
   removeNode: async (id: string) => {
-    const { isLennyMode } = get()
+    const { isLennyMode, isPGMode } = get()
 
-    // Lenny 模式：只操作 lenny-*.json，不影响用户数据
+    // Space 模式（Lenny 或 PG）：只操作对应 space 的 json 文件，不影响用户数据
     if (isLennyMode) {
-      const nodesRaw = await storageService.read(STORAGE_FILES.LENNY_NODES)
+      const nodesFile = isPGMode ? STORAGE_FILES.PG_NODES : STORAGE_FILES.LENNY_NODES
+      const convsFile = isPGMode ? STORAGE_FILES.PG_CONVERSATIONS : STORAGE_FILES.LENNY_CONVERSATIONS
+      const nodesRaw = await storageService.read(nodesFile)
       let lennyNodes: Node[] = []
       try { if (nodesRaw) lennyNodes = JSON.parse(nodesRaw) } catch { /* use empty */ }
       const nodeToRemove = lennyNodes.find(n => n.id === id)
       const updatedNodes = lennyNodes.filter(n => n.id !== id)
-      await storageService.write(STORAGE_FILES.LENNY_NODES, JSON.stringify(updatedNodes, null, 2))
-      // 同步清理 lenny-conversations.jsonl
+      await storageService.write(nodesFile, JSON.stringify(updatedNodes, null, 2))
+      // 同步清理 conversations 文件
       if (nodeToRemove) {
         try {
-          const content = await storageService.read(STORAGE_FILES.LENNY_CONVERSATIONS)
+          const content = await storageService.read(convsFile)
           if (content) {
             const lines = content.trim().split('\n').filter(Boolean)
             const filteredLines = lines.filter(line => {
@@ -1220,11 +1222,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
                 return conv.id !== nodeToRemove.conversationId
               } catch { return true }
             })
-            await storageService.write(STORAGE_FILES.LENNY_CONVERSATIONS, filteredLines.join('\n') + (filteredLines.length > 0 ? '\n' : ''))
+            await storageService.write(convsFile, filteredLines.join('\n') + (filteredLines.length > 0 ? '\n' : ''))
           }
         } catch { /* ignore */ }
       }
-      // LennySpaceCanvas 通过 isModalOpen 变化来重载节点，无需写 store.nodes
+      // SpaceCanvas 通过 isModalOpen 变化来重载节点，无需写 store.nodes
       return
     }
 
@@ -1356,12 +1358,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   // 结束对话 (增强：支持基于意图的话题拆分；explicitConversation 用于 handleClose 后台保存时传入快照)
   endConversation: async (assistantMessage: string, appliedPreferences?: string[], reasoning_content?: string, explicitConversation?: Conversation) => {
-    const { addNode, appendConversation, detectIntent, isLennyMode } = get()
+    const { addNode, appendConversation, detectIntent, isLennyMode, isPGMode } = get()
     const currentConversation = explicitConversation ?? get().currentConversation
     if (!currentConversation) return
 
-    // Lenny 模式：简化保存逻辑——直接写 lenny 文件，跳过分类/合并/向量索引/画像提取
+    // Space 模式（Lenny 或 PG）：简化保存逻辑——直接写对应 space 文件，跳过分类/合并/向量索引/画像提取
     if (isLennyMode) {
+      const nodesFile = isPGMode ? STORAGE_FILES.PG_NODES : STORAGE_FILES.LENNY_NODES
+      const convsFile = isPGMode ? STORAGE_FILES.PG_CONVERSATIONS : STORAGE_FILES.LENNY_CONVERSATIONS
       const conv: Conversation = {
         id: currentConversation.id,
         createdAt: new Date().toISOString(),
@@ -1389,9 +1393,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       else if (/health|workout|sleep|energy/.test(lower)) category = '健康身体'
       else if (/design|creative|writing|art|music/.test(lower)) category = '创意表达'
       // 写对话记录
-      await storageService.append(STORAGE_FILES.LENNY_CONVERSATIONS, JSON.stringify(conv))
+      await storageService.append(convsFile, JSON.stringify(conv))
       // 写节点
-      const nodesRaw = await storageService.read(STORAGE_FILES.LENNY_NODES)
+      const nodesRaw = await storageService.read(nodesFile)
       let lennyNodes: Node[] = []
       try { if (nodesRaw) lennyNodes = JSON.parse(nodesRaw) } catch { /* use empty */ }
       const centerX = lennyNodes.length > 0 ? lennyNodes.reduce((s, n) => s + n.x, 0) / lennyNodes.length : 1920
@@ -1421,11 +1425,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         y: Math.round(ny),
       }
       lennyNodes.push(newNode)
-      await storageService.write(STORAGE_FILES.LENNY_NODES, JSON.stringify(lennyNodes, null, 2))
+      await storageService.write(nodesFile, JSON.stringify(lennyNodes, null, 2))
 
-      // P4: 把 Lenny 对话同步写入用户的 conversations.jsonl，触发记忆提取 pipeline
-      // 只在有实际对话内容时才同步（assistantMessage 为空说明 AI 未响应，跳过）
-      if (assistantMessage.trim()) {
+      // P4: 仅 Lenny Space 把对话同步写入用户的 conversations.jsonl 触发记忆提取（PG Space 不污染用户记忆）
+      if (!isPGMode && assistantMessage.trim()) {
         try {
           await authFetch('/api/memory/sync-lenny-conv', {
             method: 'POST',
@@ -1605,8 +1608,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const token = ++_openModalToken
     set({ isModalOpen: true, isLoading: true, conversationHistory: [] })
     try {
-      const { isLennyMode } = get()
-      const convFile = isLennyMode ? STORAGE_FILES.LENNY_CONVERSATIONS : STORAGE_FILES.CONVERSATIONS
+      const { isLennyMode, isPGMode } = get()
+      const convFile = isLennyMode
+        ? (isPGMode ? STORAGE_FILES.PG_CONVERSATIONS : STORAGE_FILES.LENNY_CONVERSATIONS)
+        : STORAGE_FILES.CONVERSATIONS
       const content = await storageService.read(convFile)
       if (token !== _openModalToken) return  // 被更新的调用抢先了，丢弃此结果
       if (!content) {
@@ -1817,17 +1822,19 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   // 获取相关的历史记忆（后端向量检索，降级到关键词搜索）
   getRelevantMemories: async (query: string): Promise<{ conv: Conversation; category?: string; nodeId?: string }[]> => {
     try {
-      const { nodes, isLennyMode } = get()
+      const { nodes, isLennyMode, isPGMode } = get()
 
-      // Lenny 模式：从 lenny-conversations.jsonl 中做关键词搜索
+      // Space 模式：从 space-specific conversations/nodes 文件中做关键词搜索
       if (isLennyMode) {
-        const content = await storageService.read(STORAGE_FILES.LENNY_CONVERSATIONS)
+        const convsFile = isPGMode ? STORAGE_FILES.PG_CONVERSATIONS : STORAGE_FILES.LENNY_CONVERSATIONS
+        const nodesFile = isPGMode ? STORAGE_FILES.PG_NODES : STORAGE_FILES.LENNY_NODES
+        const content = await storageService.read(convsFile)
         if (!content) return []
-        const lennyNodesRaw = await storageService.read(STORAGE_FILES.LENNY_NODES)
-        let lennyNodes: Node[] = []
-        try { if (lennyNodesRaw) lennyNodes = JSON.parse(lennyNodesRaw) } catch { /* */ }
+        const spaceNodesRaw = await storageService.read(nodesFile)
+        let spaceNodes: Node[] = []
+        try { if (spaceNodesRaw) spaceNodes = JSON.parse(spaceNodesRaw) } catch { /* */ }
         const nodeByConvId = new Map<string, Node>()
-        lennyNodes.forEach(n => nodeByConvId.set(n.conversationId, n))
+        spaceNodes.forEach(n => nodeByConvId.set(n.conversationId, n))
         const lines = content.trim().split('\n').filter(Boolean)
         const convs: Conversation[] = []
         for (const line of lines) {
@@ -1934,12 +1941,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   // 追加对话记录（同时触发后端向量索引 + 画像提取任务）
   appendConversation: async (conversation: Conversation) => {
-    const { isLennyMode } = get()
+    const { isLennyMode, isPGMode } = get()
 
-    // Lenny 模式：写 lenny 文件，跳过向量索引和画像提取（lenny 记忆不污染用户数据）
-    // P2-3: 当前 endConversation lenny 分支已直接写文件，此处为防御性保留（未来直接调用者使用）
+    // Space 模式：写 space-specific 文件，跳过向量索引和画像提取（space 记忆不污染用户数据）
+    // P2-3: 当前 endConversation space 分支已直接写文件，此处为防御性保留（未来直接调用者使用）
     if (isLennyMode) {
-      await storageService.append(STORAGE_FILES.LENNY_CONVERSATIONS, JSON.stringify(conversation))
+      const convsFile = isPGMode ? STORAGE_FILES.PG_CONVERSATIONS : STORAGE_FILES.LENNY_CONVERSATIONS
+      await storageService.append(convsFile, JSON.stringify(conversation))
       return
     }
 

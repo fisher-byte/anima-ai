@@ -1,5 +1,28 @@
 # Anima 变更日志
 
+## [0.2.91] - 2026-03-12
+
+### fix: PG Space 文件隔离全量修复（6 处遗漏的 LENNY 文件引用）
+
+**根因：** v0.2.90 引入了 `isPGMode` flag，但 `canvasStore.ts` 中有 6 处 `isLennyMode` 分支仍硬编码使用 `LENNY_*` 文件，导致 PG Space 的节点和对话数据被错误写入 / 读取 Lenny 的存储文件。
+
+**受影响的操作：**
+- `removeNode`：删除 PG 节点时错误操作 `lenny-nodes.json`
+- `endConversation`（3 处）：写节点/对话到 lenny 文件；`sync-lenny-conv` 在 PG 模式下仍触发
+- `openModalById`：打开 PG 节点回放时从 lenny 文件读历史
+- `getRelevantMemories`：PG 聊天时从 lenny 文件搜索相关记忆
+- `appendConversation`：防御性写入路径仍指向 lenny 文件
+
+**修复：** 所有 6 处统一用 `isPGMode ? STORAGE_FILES.PG_* : STORAGE_FILES.LENNY_*` 选择正确文件；`sync-lenny-conv` 调用增加 `!isPGMode` 守卫（PG 对话不应混入用户记忆）。
+
+| 指标 | 结果 |
+|------|------|
+| 单元测试 | 427/427 ✓ |
+| TS 类型检查 | 0 错误 ✓ |
+| E2E 测试 | 40/40 ✓ |
+
+---
+
 ## [0.2.90] - 2026-03-12
 
 ### fix: Paul Graham Space 误用 Lenny persona
