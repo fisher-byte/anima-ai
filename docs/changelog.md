@@ -1,5 +1,15 @@
 # Anima 变更日志
 
+## [0.2.93] - 2026-03-12
+
+### feat: 所有 Space 对话同步到主空间
+
+PG Space、Lenny Space 以及未来新增的空间，对话关闭后均通过 `sync-lenny-conv` 同步到用户主空间的 `conversations.jsonl`，触发记忆提取 + 节点生成。
+
+之前 PG Space 被设计为不同步（"不污染用户记忆"），现按需求调整为全量同步。
+
+---
+
 ## [0.2.92] - 2026-03-12
 
 ### fix: PG Space / Lenny Space 对话关闭时 isPGMode 时序竞争 → 写错文件

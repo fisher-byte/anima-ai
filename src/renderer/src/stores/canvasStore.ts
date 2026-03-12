@@ -1427,8 +1427,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       lennyNodes.push(newNode)
       await storageService.write(nodesFile, JSON.stringify(lennyNodes, null, 2))
 
-      // P4: 仅 Lenny Space 把对话同步写入用户的 conversations.jsonl 触发记忆提取（PG Space 不污染用户记忆）
-      if (!isPGMode && assistantMessage.trim()) {
+      // P4: 所有 Space（Lenny / PG / 未来扩展）的对话均同步到用户主空间，触发记忆提取
+      if (assistantMessage.trim()) {
         try {
           await authFetch('/api/memory/sync-lenny-conv', {
             method: 'POST',
