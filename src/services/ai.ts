@@ -358,8 +358,8 @@ export async function generateNodeTitle(content: string): Promise<string> {
     const response = await callAI(messages)
     return response.content.slice(0, 8).trim() || '未命名'
   } catch (error) {
-    console.error('生成节点标题失败:', error)
-    return '未命名'
+    console.error('Failed to generate node title:', error)
+    return 'Untitled'
   }
 }
 
@@ -382,7 +382,7 @@ export async function generateKeywords(content: string): Promise<string[]> {
       .filter(k => k.length >= 2 && k.length <= 6)
       .slice(0, 3)
   } catch (error) {
-    console.error('生成关键词失败:', error)
+    console.error('Failed to generate keywords:', error)
     return []
   }
 }

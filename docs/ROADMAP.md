@@ -2,6 +2,15 @@
 
 ## 已完成版本
 
+#### v0.2.88 - 代码质量：全量英文化 + 零残留中文（已完成）
+- [x] `canvasStore.ts` 修复 2 处用户可见 `lastError` 中文字符串 → 英文
+- [x] `AnswerModal.tsx` 修复 4 处 console.error 中文 → 英文
+- [x] `InputBox.tsx` 修复 1 处 console.error 中文 → 英文
+- [x] `src/services/ai.ts` 修复 2 处 console.error 中文 → 英文
+- [x] `src/services/fileParsing.ts` 修复 2 处 console.error 中文 + Error message → 英文
+- [x] 全量扫描确认：项目中零残留中文用户可见字符串或开发日志
+- [x] vitest 427/427 | tsc 0 errors | playwright E2E 33/33
+
 #### v0.2.87 - 全量 i18n 收尾 + TypeScript 零错误 + E2E 修正（已完成）
 - [x] Canvas.tsx、ConversationSidebar.tsx 全部硬编码中文字符串 i18n 化（welcomeDefault/greeting/nightCare/mondayReminder/mergeBanner/consolidateQueued/consolidateBusy/mentalModelQueued/refreshError/mentalModelTooltip）
 - [x] zh.ts / en.ts 新增 5 个 sidebar 字段（支持双语）

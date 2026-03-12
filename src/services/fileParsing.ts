@@ -196,8 +196,8 @@ export async function parseFile(file: File): Promise<ParsedFile> {
       preview
     }
   } catch (error) {
-    console.error(`解析文件 ${file.name} 失败:`, error)
-    throw new Error(`无法解析文件 "${file.name}": ${error instanceof Error ? error.message : '未知错误'}`)
+    console.error(`Failed to parse file ${file.name}:`, error)
+    throw new Error(`Cannot parse file "${file.name}": ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 
@@ -212,7 +212,7 @@ export async function parseFiles(files: File[]): Promise<ParsedFile[]> {
       const parsed = await parseFile(file)
       results.push(parsed)
     } catch (error) {
-      console.error(`跳过文件 ${file.name}:`, error)
+      console.error(`Skipping file ${file.name}:`, error)
       // 继续处理其他文件
     }
   }

@@ -1,5 +1,28 @@
 # Anima 变更日志
 
+## [0.2.88] - 2026-03-12
+
+### fix: 全量英文化 — 清除所有残留中文调试/错误信息
+
+#### 修复内容
+
+| 文件 | 修复 |
+|------|------|
+| `canvasStore.ts` | 2 处用户可见 `lastError` 中文 → 英文（toast 展示的错误） |
+| `AnswerModal.tsx` | 4 处 console.error 中文 → 英文 |
+| `InputBox.tsx` | 1 处 console.error 中文 → 英文 |
+| `src/services/ai.ts` | 2 处 console.error 中文 + fallback `'未命名'` → `'Untitled'` |
+| `src/services/fileParsing.ts` | 2 处 console.error + Error message 中文 → 英文 |
+
+全量扫描结果：项目中零残留中文用户可见字符串或开发日志。
+
+#### 测试状态
+- 单元测试：427/427 ✓
+- E2E 测试：33/33 ✓
+- TypeScript：0 错误 ✓
+
+---
+
 ## [0.2.87] - 2026-03-12
 
 ### fix: i18n 收尾 + TypeScript 零错误 + E2E 修正
