@@ -1,5 +1,31 @@
 # Anima 变更日志
 
+## [0.2.94] - 2026-03-12
+
+### test: Playwright journey 测试全套通过（J-1 ~ J-5）
+
+**根因分析（J-1/J-2 反复失败）：**
+
+`getRelevantMemories` 在向量检索返回空结果时会降级到本地关键词搜索，从 `conversations.jsonl` 中找相似历史对话。
+历史测试运行产生的 J1/J2 相关记录关键词匹配成功，`bestMatch` 非空，`effectiveParentId` 被写入 `currentConversation.parentId`。
+`endConversation` 检测到 `parentNodeId !== null` 后走 `mergeIntoNode` 而非 `addNode`，导致节点计数不变，断言失败。
+
+**修复：**
+1. `e2e/journey.spec.ts`（新增）：
+   - `beforeEach` 清空 `conversations.jsonl`，防止降级关键词搜索找到历史记录
+   - `mockMemorySideEffects` 新增 mock `/api/memory/search` 返回空结果，阻止向量路径合并
+   - J-1/J-2 消息加唯一 ID 防 merge（双重保护）
+   - `waitForNodeCountAbove` 轮询替代 fixed timeout
+   - J-5 通过 `window.__CANVAS_STORE__.openModalById` 绕过画布动画限制
+2. `canvasStore.ts`：Zustand devtools 集成 + `window.__CANVAS_STORE__` 暴露（dev 环境）
+
+| 指标 | 结果 |
+|------|------|
+| 全套 E2E 测试 | 45/48 ✓（3 skip 为条件性跳过，正常） |
+| journey 测试 | J-1 ✓ J-2 ✓ J-3 ✓ J-4 ✓ J-5 ✓ |
+
+---
+
 ## [0.2.93] - 2026-03-12
 
 ### feat: 所有 Space 对话同步到主空间

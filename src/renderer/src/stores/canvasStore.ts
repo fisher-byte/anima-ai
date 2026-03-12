@@ -16,6 +16,7 @@
  */
 
 import { create } from 'zustand'
+import { devtools } from 'zustand/middleware'
 import type { Node, Edge, Conversation, Profile, PreferenceRule, NodePosition } from '@shared/types'
 import { STORAGE_FILES, FEEDBACK_TRIGGERS, CONFIDENCE_CONFIG, UI_CONFIG } from '@shared/constants'
 import { storageService, historyService } from '../services/storageService'
@@ -252,7 +253,9 @@ async function _rebuildAllSemanticEdges(get: () => CanvasState): Promise<void> {
   }
 }
 
-export const useCanvasStore = create<CanvasState>((set, get) => ({
+export const useCanvasStore = create<CanvasState>()(
+  devtools(
+    (set, get) => ({
   nodes: [],
   edges: [],
   semanticEdges: [],
@@ -2086,4 +2089,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       set({ nodeGraphRebuild: { phase: 'error', totalClusters: 0, processedClusters: 0, errorMessage: String(err) } })
     }
   },
-}))
+  }),
+  {
+    name: 'CanvasStore',
+    enabled: process.env.NODE_ENV !== 'production',
+  }
+))
+
+// 在非生产环境暴露 store 到 window，供 E2E 测试和 Redux DevTools 直接访问
+if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+  // @ts-ignore
+  window.__CANVAS_STORE__ = useCanvasStore
+}
