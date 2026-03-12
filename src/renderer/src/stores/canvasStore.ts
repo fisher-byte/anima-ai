@@ -1559,8 +1559,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           await addNode(conv, undefined, group.category, isFirst ? appliedMemoryIds.length : 0, topicLabel ?? undefined)
         }
       } catch (error) {
-        console.error(`保存话题分组 ${i} 失败:`, error)
-        if (isFirst) set({ lastError: '保存对话失败，请检查网络连接' })
+        console.error(`Failed to save topic group ${i}:`, error)
+        if (isFirst) set({ lastError: 'Failed to save conversation — check your connection' })
       }
     }
 
@@ -2013,7 +2013,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       set({ nodes: newNodes })
       get().updateEdges()
       storageService.write(STORAGE_FILES.NODES, JSON.stringify(newNodes, null, 2)).catch(() => {})
-    } catch { set({ lastError: '节点重分类失败，请稍后重试' }) }
+    } catch { set({ lastError: 'Node re-categorization failed — please try again' }) }
   },
 
   openNodeTimeline: (nodeId: string) => set({ timelineNodeId: nodeId, isTimelineOpen: true }),

@@ -214,7 +214,7 @@ export function InputBox() {
             )
           )
         } catch (error) {
-          console.error(`解析文件 ${file.name} 失败:`, error)
+          console.error(`Failed to parse file ${file.name}:`, error)
           setFilePreviews(prev =>
             prev.map(p => p.id === previewId ? { ...p, status: 'error' } : p)
           )

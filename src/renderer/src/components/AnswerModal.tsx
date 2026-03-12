@@ -182,7 +182,7 @@ export function AnswerModal() {
       setPendingImages(prev => [...prev, ...newImages].slice(0, 4))
       setPendingFiles(prev => [...prev, ...newFiles].slice(0, 8))
     } catch (error) {
-      console.error('文件上传失败:', error)
+      console.error('File upload failed:', error)
     }
   }, [currentConversation])
 
@@ -777,7 +777,7 @@ export function AnswerModal() {
             files: t.files || []
           }
           endConversation(cleanAssistant, [], t.reasoning, conv)
-            .catch(err => console.error('引导对话节点保存失败:', err))
+            .catch(err => console.error('Failed to save onboarding node:', err))
         })
         localStorage.setItem('evo_onboarding_v3', 'done')
         void completeOnboarding()
@@ -803,14 +803,14 @@ export function AnswerModal() {
         if (shouldSave && conversationSnapshot && conversationSnapshot.userMessage) {
           const lastAssistant = savedTurns.length > 0 ? (savedTurns[savedTurns.length - 1].assistant || '') : ''
           await endConversation(lastAssistant, [], lastReasoning, conversationSnapshot)
-            .catch(err => console.error('Lenny 保存失败:', err))
+            .catch(err => console.error('Failed to save Lenny conversation:', err))
         }
         closeModal()
       } else {
         closeModal()
         if (shouldSave && conversationSnapshot && conversationSnapshot.userMessage) {
           endConversation(finalResponse, savedAppliedPreferences, lastReasoning, conversationSnapshot)
-            .catch(err => console.error('后台保存对话失败:', err))
+            .catch(err => console.error('Failed to save conversation in background:', err))
         }
         // 中途退出引导（phase < 2）：补齐能力块，确保画布上始终有 import-memory 和 onboarding 入口
         if (isOnboardingMode) {
