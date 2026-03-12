@@ -1,5 +1,26 @@
 # Anima 变更日志
 
+## [0.2.92] - 2026-03-12
+
+### fix: PG Space / Lenny Space 对话关闭时 isPGMode 时序竞争 → 写错文件
+
+**根因（日志实证）：** AnswerModal 的 `handleClose` 用 `setTimeout(500ms)` 延迟执行 `endConversation`，而这 500ms 内，`isPGMode` 可能被 store 的其他操作修改为 `false`（`isLennyMode` 仍为 `true`），导致 PG 对话被写入 `lenny-conversations.jsonl` 和 `lenny-nodes.json`，而不是 pg 对应文件。节点不出现、对话记录 404。
+
+**Lenny Space 同样受影响**（相同的时序路径）。
+
+**修复：**
+- `AnswerModal.tsx`：在 `handleClose` 开始时同时快照 `wasPGMode = isPGMode`
+- 在 setTimeout 回调里，调 `endConversation` 之前用 `useCanvasStore.setState({ isLennyMode: wasLennyMode, isPGMode: wasPGMode })` 恢复正确状态，杜绝竞争
+- `canvasStore.ts`：默认节点标题 `'Lenny 对话'` → `'Conversation'`（PG Space 也共用此路径）
+
+| 指标 | 结果 |
+|------|------|
+| 单元测试 | 427/427 ✓ |
+| TS 类型检查 | 0 错误 ✓ |
+| E2E 测试 | 40/40 ✓ |
+
+---
+
 ## [0.2.91] - 2026-03-12
 
 ### fix: PG Space 文件隔离全量修复（6 处遗漏的 LENNY 文件引用）

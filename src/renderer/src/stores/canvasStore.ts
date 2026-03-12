@@ -1374,7 +1374,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         images: [],
         files: [],
       }
-      const nodeTitle = currentConversation.userMessage.slice(0, 30) || 'Lenny 对话'
+      const nodeTitle = currentConversation.userMessage.slice(0, 30) || 'Conversation'
       // P2-1: 英文停用词过滤，避免 "their/about/which" 等噪声词出现在节点关键词里
       const lennyStopWords = new Set(['their', 'about', 'which', 'would', 'could', 'there', 'other',
         'where', 'should', 'these', 'those', 'being', 'after', 'while', 'between', 'through', 'before',

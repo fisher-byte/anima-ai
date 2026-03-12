@@ -745,8 +745,9 @@ export function AnswerModal() {
     const onboardingInProgress = isOnboardingMode && onboardingPhaseRef.current >= 2 && !onboardingCompleted
     // 在 setTimeout 之前拍一个快照，避免被后续 setTurns([]) 影响
     const savedTurns = [...turns]
-    // P2-4: 提前捕获 isLennyMode，防止 closeLennyMode 先于 endConversation 把 isLennyMode 改为 false
+    // P2-4: 提前捕获 isLennyMode / isPGMode，防止 closePGMode/closeLennyMode 先于 endConversation 把 flags 改为 false
     const wasLennyMode = isLennyMode
+    const wasPGMode = isPGMode
 
     setIsClosing(true)
     // A-5: 关闭时主动清理 onboarding 流式定时器，防止资源泄漏
@@ -800,13 +801,15 @@ export function AnswerModal() {
         const hasImportMemory = useCanvasStore.getState().nodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
         if (!hasImportMemory) void addCapabilityNode('import-memory')
       } else if (wasLennyMode) {
-        // P0-1: Lenny 模式：先 await endConversation 写入 lenny-nodes.json，再 closeModal
-        // 这样 LennySpaceCanvas 的节点重载 effect 触发时文件已经写完，新节点可以出现
+        // P0-1: Space 模式（Lenny/PG）：先 await endConversation 写入 space 文件，再 closeModal
+        // 这样 SpaceCanvas 的节点重载 effect 触发时文件已经写完，新节点可以出现
         // P0-2: 用最后一轮的干净 assistant 内容，不用多轮拼接格式
+        // P5-1: 用 wasPGMode 快照恢复 isPGMode，防止 250ms 内其他操作提前修改 store 状态导致写错文件
+        useCanvasStore.setState({ isLennyMode: wasLennyMode, isPGMode: wasPGMode })
         if (shouldSave && conversationSnapshot && conversationSnapshot.userMessage) {
           const lastAssistant = savedTurns.length > 0 ? (savedTurns[savedTurns.length - 1].assistant || '') : ''
           await endConversation(lastAssistant, [], lastReasoning, conversationSnapshot)
-            .catch(err => console.error('Failed to save Lenny conversation:', err))
+            .catch(err => console.error('Failed to save Space conversation:', err))
         }
         closeModal()
       } else {
@@ -824,7 +827,7 @@ export function AnswerModal() {
         }
       }
     }, 500)
-  }, [isClosing, turns, errorMessage, isStreaming, currentConversation, isOnboardingMode, isLennyMode,
+  }, [isClosing, turns, errorMessage, isStreaming, currentConversation, isOnboardingMode, isLennyMode, isPGMode,
       endConversation, closeModal, appliedPreferences, completeOnboarding, addCapabilityNode, saveOnboardingTurns])
 
   // ESC 关闭
