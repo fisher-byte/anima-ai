@@ -48,7 +48,7 @@ import {
   buildAIHistory,
 } from '../utils/conversationUtils'
 import { getAuthToken } from '../services/storageService'
-import { FEEDBACK_TRIGGERS, LENNY_SYSTEM_PROMPT } from '@shared/constants'
+import { FEEDBACK_TRIGGERS, LENNY_SYSTEM_PROMPT, PG_SYSTEM_PROMPT } from '@shared/constants'
 import {
   UserMessageContent,
   ClosingAnimation,
@@ -97,6 +97,7 @@ export function AnswerModal() {
   const onboardingResumeTurns = useCanvasStore(state => state.onboardingResumeTurns)
   const saveOnboardingTurns = useCanvasStore(state => state.saveOnboardingTurns)
   const isLennyMode = useCanvasStore(state => state.isLennyMode)
+  const isPGMode = useCanvasStore(state => state.isPGMode)
 
   const [turns, setTurns] = useState<Turn[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
@@ -438,16 +439,17 @@ export function AnswerModal() {
       setFeedbackMessage('')
 
       const preferences = isLennyMode ? [] : getPreferencesForPrompt()
-      // Lenny 模式：不传 conversationId（避免持久化到用户 conversation_history），用 LENNY_SYSTEM_PROMPT
+      // Lenny/PG 模式：不传 conversationId（避免持久化到用户 conversation_history），使用对应 persona 的 system prompt
       if (isLennyMode) {
-        sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false, undefined, LENNY_SYSTEM_PROMPT)
+        const spacePrompt = isPGMode ? PG_SYSTEM_PROMPT : LENNY_SYSTEM_PROMPT
+        sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false, undefined, spacePrompt)
       } else {
         sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false, currentConversation.id)
       }
     }
 
     prepareConversation()
-  }, [isModalOpen, currentConversation, isOnboardingMode, isLoading, resetHistory, sendMessage, getPreferencesForPrompt, getRelevantMemories, isLennyMode])
+  }, [isModalOpen, currentConversation, isOnboardingMode, isLoading, resetHistory, sendMessage, getPreferencesForPrompt, getRelevantMemories, isLennyMode, isPGMode])
 
   // ── 编辑 / 重生成 / 复制 ────────────────────────────────────────────────────
   const handleStartEdit = (index: number, content: string) => {
@@ -698,13 +700,14 @@ export function AnswerModal() {
 
     const preferences = isLennyMode ? [] : getPreferencesForPrompt()
     didMutateRef.current = true
-    // Lenny 模式：传 systemPromptOverride + 历史记忆压缩，不传 conversationId（避免写用户历史）
+    // Lenny/PG 模式：传 systemPromptOverride + 历史记忆压缩，不传 conversationId（避免写用户历史）
     if (isLennyMode) {
-      sendMessage(fullMessage, preferences, history, pendingImages, compressed, false, undefined, LENNY_SYSTEM_PROMPT)
+      const spacePrompt = isPGMode ? PG_SYSTEM_PROMPT : LENNY_SYSTEM_PROMPT
+      sendMessage(fullMessage, preferences, history, pendingImages, compressed, false, undefined, spacePrompt)
     } else {
       sendMessage(fullMessage, preferences, history, pendingImages, compressed, isOnboardingMode, isOnboardingMode ? undefined : currentConversation?.id)
     }
-  }, [feedbackMessage, pendingImages, pendingFiles, pendingReferenceBlocks, isStreaming, isOnboardingMode, isLennyMode,
+  }, [feedbackMessage, pendingImages, pendingFiles, pendingReferenceBlocks, isStreaming, isOnboardingMode, isLennyMode, isPGMode,
       getPreferencesForPrompt, sendMessage, turns, getRelevantMemories, setHighlight, focusNode])
 
   // ── 关闭并保存 ────────────────────────────────────────────────────────────

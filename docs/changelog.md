@@ -1,5 +1,18 @@
 # Anima 变更日志
 
+## [0.2.90] - 2026-03-12
+
+### fix: Paul Graham Space 误用 Lenny persona
+
+**根因：** PG Space 复用了 `isLennyMode` flag，但 AnswerModal 里两处 `sendMessage` 都硬编码传 `LENNY_SYSTEM_PROMPT`，导致 Paul Graham Space 里 AI 自我介绍为 Lenny Rachitsky。
+
+**修复：**
+- `canvasStore.ts`：新增 `isPGMode` state + `openPGMode` / `closePGMode` action；`openPGMode` 同时设 `isLennyMode: true`（复用隔离机制）
+- `PGSpaceCanvas.tsx`：改用 `openPGMode` / `closePGMode` 替代 `openLennyMode` / `closeLennyMode`
+- `AnswerModal.tsx`：导入 `PG_SYSTEM_PROMPT`，根据 `isPGMode` 选用正确 persona prompt
+
+---
+
 ## [0.2.89] - 2026-03-12
 
 ### fix: Lenny Space 关闭时 sync-lenny-conv 400 bug

@@ -246,8 +246,8 @@ export function PGSpaceCanvas({ isOpen, onClose }: PGSpaceCanvasProps) {
   const startConversation = useCanvasStore(state => state.startConversation)
   const openModalById = useCanvasStore(state => state.openModalById)
   const removeNode = useCanvasStore(state => state.removeNode)
-  const openLennyMode = useCanvasStore(state => state.openLennyMode)
-  const closeLennyMode = useCanvasStore(state => state.closeLennyMode)
+  const openPGMode = useCanvasStore(state => state.openPGMode)
+  const closePGMode = useCanvasStore(state => state.closePGMode)
   const isModalOpen = useCanvasStore(state => state.isModalOpen)
 
   const canvasRef = useRef<HTMLDivElement>(null)
@@ -417,9 +417,9 @@ export function PGSpaceCanvas({ isOpen, onClose }: PGSpaceCanvasProps) {
   }, [isOpen, isModalOpen, kickSim])
 
   useEffect(() => {
-    if (isOpen) openLennyMode()
-    else closeLennyMode()
-  }, [isOpen, openLennyMode, closeLennyMode])
+    if (isOpen) openPGMode()
+    else closePGMode()
+  }, [isOpen, openPGMode, closePGMode])
 
   useEffect(() => {
     if (!isHistoryOpen) return

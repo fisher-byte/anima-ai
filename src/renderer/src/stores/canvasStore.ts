@@ -122,6 +122,11 @@ interface CanvasState {
   openLennyMode: () => void
   closeLennyMode: () => void
 
+  // Paul Graham Space 模式（复用 isLennyMode 的隔离机制，但使用 PG system prompt 和 pg-* 文件）
+  isPGMode: boolean
+  openPGMode: () => void
+  closePGMode: () => void
+
   // 新增：移除偏好规则
   removePreference: (index: number) => Promise<void>
 
@@ -274,6 +279,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   // Lenny Space 模式
   isLennyMode: false,
+  // Paul Graham Space 模式
+  isPGMode: false,
 
   // 引导完成后进化基因轮询标志
   pendingProfileRefresh: false,
@@ -333,8 +340,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     } catch { /* ignore */ }
   },
   setOnboardingPhase: (phase) => set({ onboardingPhase: phase }),
-  openLennyMode: () => set({ isLennyMode: true }),
-  closeLennyMode: () => set({ isLennyMode: false, isModalOpen: false, currentConversation: null, conversationHistory: [] }),
+  openLennyMode: () => set({ isLennyMode: true, isPGMode: false }),
+  closeLennyMode: () => set({ isLennyMode: false, isPGMode: false, isModalOpen: false, currentConversation: null, conversationHistory: [] }),
+  openPGMode: () => set({ isLennyMode: true, isPGMode: true }),
+  closePGMode: () => set({ isLennyMode: false, isPGMode: false, isModalOpen: false, currentConversation: null, conversationHistory: [] }),
   setPendingProfileRefresh: (val) => set({ pendingProfileRefresh: val }),
   setPendingMemoryRefresh: (val) => set({ pendingMemoryRefresh: val }),
   completeOnboarding: async () => {
