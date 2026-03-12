@@ -1,5 +1,52 @@
 # Anima 变更日志
 
+## [0.2.99] - 2026-03-12
+
+### fix: useForceSimulation CENTER_GRAVITY 指向重心而非坐标原点
+
+**根因：** `CENTER_GRAVITY` 写的是 `fx -= a.x * CENTER_GRAVITY`，即把节点吸向坐标原点 `(0,0)`。主空间靠 `SAME_ATTRACT` 平衡，视觉不明显。Lenny 禁用 `SAME_ATTRACT` 后失去对抗力，所有节点飞向左上角堆成一坨。
+
+**修复：** 改为 `fx += (gcx - a.x) * CENTER_GRAVITY`，指向所有节点的几何重心，无论节点初始位置都能被温和地向中心区域收拢。
+
+| 指标 | 结果 |
+|------|------|
+| `tsc --noEmit` | 0 错误 ✓ |
+| `vitest run` | 427/427 ✓ |
+| `playwright test` | 45/48 ✓（3 skip 正常） |
+
+---
+
+## [0.2.98] - 2026-03-12
+
+### fix: Lenny/PG 空间节点布局 + 多轮对话历史 + 记忆管道 + 主空间污染 P0
+
+**Lenny & PG 节点布局：**
+- `useForceSimulation` 新增 `noSameAttract` / `noClusterForce` / `noStoreSync` 选项
+- `LennySpaceCanvas` 使用 `noSameAttract: true, noClusterForce: true, noStoreSync: true`
+- `PGSpaceCanvas` NODE_REPEL 8000→18000，斥力范围 500→700，移除同类弹簧力
+- 拖拽：`onDragStart` → `forceSim.setDragging(id)`；`handleNodePositionChange` 不再调 `setNodes`
+- Edge SVG 坐标：2 秒 DOM→state 同步 interval
+
+**多轮对话历史：**
+- `AnswerModal.handleClose`：序列化所有 turns 为 `#N\n用户：...\nAI：...` 格式
+- 修复 `t.user` undefined → `t.user || ''`
+
+**记忆管道：**
+- `sync-lenny-conv`：修复任务类型 `extract_memory→extract_profile`，`extract_preferences→extract_preference`
+- `canvasStore.endConversation`：关闭 Lenny/PG 对话后 fire `/api/memory/extract`
+
+**P0（主空间污染）：**
+- `addNode`：Lenny 模式提前 return，不写 `nodes.json`
+- `/memory/search`：过滤 `lenny-*` / `pg-*` 前缀 ID
+
+| 指标 | 结果 |
+|------|------|
+| `tsc --noEmit` | 0 错误 ✓ |
+| `vitest run` | 427/427 ✓ |
+| `playwright test` | 45/48 ✓（3 skip 正常） |
+
+---
+
 ## [0.2.97] - 2026-03-12
 
 ### fix: 全量 code review — AI 路由 body 大小限制 + 文档同步
