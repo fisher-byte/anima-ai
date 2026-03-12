@@ -733,7 +733,7 @@ export function AnswerModal() {
               ? `[API错误: ${t.error}]`
               : (t.assistant || (isLastTurn && stillStreaming ? '[正在生成中...]' : '[无回复]'))
             const reasoning = t.reasoning ? `思考：${t.reasoning}\n\n[/THINKING]\n\n` : ''
-            return `#${idx + 1}\n用户：${t.user}\nAI：\n${reasoning}${a}`
+            return `#${idx + 1}\n用户：${t.user || ''}\nAI：\n${reasoning}${a}`
           })
           .join('\n\n')
       : (errorMessage ? `[API错误: ${errorMessage}]` : '[无回复]')
@@ -803,12 +803,20 @@ export function AnswerModal() {
       } else if (wasLennyMode) {
         // P0-1: Space 模式（Lenny/PG）：先 await endConversation 写入 space 文件，再 closeModal
         // 这样 SpaceCanvas 的节点重载 effect 触发时文件已经写完，新节点可以出现
-        // P0-2: 用最后一轮的干净 assistant 内容，不用多轮拼接格式
         // P5-1: 用 wasPGMode 快照恢复 isPGMode，防止 250ms 内其他操作提前修改 store 状态导致写错文件
         useCanvasStore.setState({ isLennyMode: wasLennyMode, isPGMode: wasPGMode })
         if (shouldSave && conversationSnapshot && conversationSnapshot.userMessage) {
-          const lastAssistant = savedTurns.length > 0 ? (savedTurns[savedTurns.length - 1].assistant || '') : ''
-          await endConversation(lastAssistant, [], lastReasoning, conversationSnapshot)
+          // 多轮对话序列化：用与普通模式相同的 #N\n用户：...\nAI：... 格式，保证回放时能还原所有轮次
+          const realTurns = savedTurns.filter(t => t.user?.trim() || t.assistant?.trim())
+          let serializedAssistant: string
+          if (realTurns.length <= 1) {
+            serializedAssistant = realTurns[0]?.assistant || ''
+          } else {
+            serializedAssistant = realTurns.map((t, i) =>
+              `#${i + 1}\n用户：${t.user || ''}\nAI：${t.assistant || ''}`
+            ).join('\n\n')
+          }
+          await endConversation(serializedAssistant, [], lastReasoning, conversationSnapshot)
             .catch(err => console.error('Failed to save Space conversation:', err))
         }
         closeModal()

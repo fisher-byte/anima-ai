@@ -2,15 +2,16 @@
  * canvasStore — Paul Graham Space 模式单元测试
  *
  * 验证 PG Space 使用与 Lenny Space 相同的 isLennyMode 机制，
- * 但写入独立的 pg-*.json 存储文件（不污染用户数据或 lenny 数据）。
+ * 但写入独立的 pg-*.json 存储文件（不污染用户 conversations.jsonl 或 lenny 数据）。
  *
  * 覆盖：
  * 1. openLennyMode（PG Space 复用）→ isLennyMode: true
  * 2. closeLennyMode（PG Space 关闭）→ isLennyMode: false
  * 3. endConversation PG 模式：写 pg-conversations.jsonl + pg-nodes.json
  * 4. appendConversation PG 模式：写 pg-conversations.jsonl
- * 5. 不污染 nodes.json / conversations.jsonl / lenny-*.json
+ * 5. 不污染 conversations.jsonl / lenny-*.json
  * 6. 不调 /api/memory/classify 或 /api/memory/index
+ * 7. P0-1 fix: addNode early-returns in Lenny mode → nodes.json NOT written (no main space pollution)
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -62,6 +63,7 @@ function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
 describe('canvasStore — PG Space uses openLennyMode / closeLennyMode', () => {
   beforeEach(() => {
     mockFetch.mockReset()
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({}) })
     mockStorageRead.mockReset()
     mockStorageWrite.mockReset()
     mockStorageAppend.mockReset()
@@ -98,6 +100,7 @@ describe('canvasStore — PG Space uses openLennyMode / closeLennyMode', () => {
 describe('canvasStore — endConversation in PG mode (writes pg-* files)', () => {
   beforeEach(() => {
     mockFetch.mockReset()
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({}) })
     mockStorageRead.mockResolvedValue(null)
     mockStorageWrite.mockResolvedValue(true)
     mockStorageAppend.mockResolvedValue(true)
@@ -123,13 +126,15 @@ describe('canvasStore — endConversation in PG mode (writes pg-* files)', () =>
     expect(userConvCall).toBeUndefined()
   })
 
-  it('does NOT write to nodes.json when in lenny mode', async () => {
+  it('does NOT write to nodes.json when in lenny mode (addNode early return prevents main space pollution)', async () => {
     const { useCanvasStore } = await import('../canvasStore')
     const conv = makeConversation()
     useCanvasStore.setState({ isLennyMode: true, currentConversation: conv })
 
     await useCanvasStore.getState().endConversation('PG answer')
 
+    // P0-1 fix: addNode early-returns when isLennyMode is true, so nodes.json must NOT be written.
+    // PG conversation nodes are written to pg-nodes.json in the endConversation Lenny branch.
     const writeCalls = mockStorageWrite.mock.calls
     const userNodesCall = writeCalls.find((call) => call[0] === 'nodes.json')
     expect(userNodesCall).toBeUndefined()
@@ -251,6 +256,7 @@ describe('PG seed data integrity', () => {
 describe('canvasStore — appendConversation in PG mode', () => {
   beforeEach(() => {
     mockFetch.mockReset()
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({}) })
     mockStorageAppend.mockResolvedValue(true)
   })
 

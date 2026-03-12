@@ -24,12 +24,10 @@ import { useCanvasStore } from '../stores/canvasStore'
 import { useT } from '../i18n'
 import type { Node, Edge as EdgeType } from '@shared/types'
 
-// ─── 物理力常量（与 LennySpaceCanvas 相同）──────────────────────────────────
-const NODE_REPEL          = 8000
-const NODE_REPEL_MAX_DIST = 500
-const SAME_ATTRACT        = 0.0015
-const SAME_IDEAL_DIST     = 260
-const SAME_MAX_DIST       = 650
+// ─── 物理力常量 ──────────────────────────────────────────────────────────────
+// noSameAttract: PG 空间同类节点众多，禁用同类引力防止节点聚堆
+const NODE_REPEL          = 18000   // 增强斥力，保证节点间距
+const NODE_REPEL_MAX_DIST = 700     // 扩大斥力作用范围
 const CENTER_GRAVITY      = 0.00006
 const DAMPING             = 0.80
 const MAX_VELOCITY        = 2.0
@@ -305,11 +303,7 @@ export function PGSpaceCanvas({ isOpen, onClose }: PGSpaceCanvasProps) {
             fy -= (dy / dist) * repel
           }
 
-          if (a.category === b.category && dist < SAME_MAX_DIST) {
-            const spring = (dist - SAME_IDEAL_DIST) * SAME_ATTRACT
-            fx += (dx / dist) * spring
-            fy += (dy / dist) * spring
-          }
+          // 同类引力已禁用（noSameAttract）：PG/Lenny 空间多数节点同类，引力会导致聚堆
         }
 
         a.vx = (a.vx + fx) * DAMPING
