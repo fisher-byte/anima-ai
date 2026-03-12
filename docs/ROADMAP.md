@@ -2,6 +2,20 @@
 
 ## 已完成版本
 
+#### v0.2.99 - useForceSimulation CENTER_GRAVITY 根因修复（已完成）
+- [x] CENTER_GRAVITY 指向几何重心而非坐标原点，Lenny/PG 节点不再飞向左上角堆叠
+- [x] vitest 427/427 | tsc 0 errors | E2E 45/48
+
+#### v0.2.98 - Lenny/PG 空间全面修复（已完成）
+- [x] useForceSimulation：noSameAttract / noClusterForce / noStoreSync 选项
+- [x] LennySpaceCanvas 使用 noSameAttract+noClusterForce+noStoreSync
+- [x] PGSpaceCanvas 增强斥力参数，移除同类弹簧力
+- [x] 多轮对话历史序列化修复（AnswerModal handleClose）
+- [x] 记忆管道任务类型修复（extract_profile / extract_preference）
+- [x] P0：addNode 在 Lenny 模式提前 return，杜绝主空间污染
+- [x] P0：/memory/search 过滤 lenny-* / pg-* 前缀
+- [x] vitest 427/427 | tsc 0 errors | E2E 45/48
+
 #### v0.2.97 - 全量 code review + AI 路由 body 限制（已完成）
 - [x] 全量 code review：db.ts / agentWorker.ts / memory.ts / ai.ts / canvasStore.ts 无 P0 问题
 - [x] `ai.ts POST /stream` 新增 20MB body 上限（防超大图片 base64 消息）
