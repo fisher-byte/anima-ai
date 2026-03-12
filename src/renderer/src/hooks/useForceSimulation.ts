@@ -162,8 +162,11 @@ export function useForceSimulation(options: ForceSimulationOptions = {}): ForceS
       if (a.isCapability || a.id === dragId) continue
 
       // 全局中心引力（指向所有节点的几何重心，而非坐标原点）
-      a.fx += (gcx - a.x) * CENTER_GRAVITY
-      a.fy += (gcy - a.y) * CENTER_GRAVITY
+      // gcCount === 0 时跳过（全为 capability 节点，无重心可算）
+      if (gcCount > 0) {
+        a.fx += (gcx - a.x) * CENTER_GRAVITY
+        a.fy += (gcy - a.y) * CENTER_GRAVITY
+      }
 
       // 公转切向力现在在速度积分阶段直接加到位移上（不受温度衰减），此处不再重复
 

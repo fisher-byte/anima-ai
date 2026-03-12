@@ -2,6 +2,17 @@
 
 ## 已完成版本
 
+#### v0.3.1 - code review P1/P2 修复（已完成）
+- [x] sync-lenny-conv 幂等检查改用 JSON 精确匹配（防止前缀误判）
+- [x] useForceSimulation CENTER_GRAVITY 全 capability 节点时跳过（防反向引力）
+- [x] vitest 427/427 | tsc 0 errors | E2E 45/48
+
+#### v0.3.0 - sync-lenny-conv 补生成主空间节点（已完成）
+- [x] sync-lenny-conv 写完对话后同步写 nodes.json，画布可见 Lenny/PG 节点
+- [x] source 字段区分 lenny/pg，节点 id 前缀正确
+- [x] 服务器补偿：9 条历史对话生成节点（15→23）
+- [x] vitest 427/427 | tsc 0 errors | E2E 45/48
+
 #### v0.2.99 - useForceSimulation CENTER_GRAVITY 根因修复（已完成）
 - [x] CENTER_GRAVITY 指向几何重心而非坐标原点，Lenny/PG 节点不再飞向左上角堆叠
 - [x] vitest 427/427 | tsc 0 errors | E2E 45/48
