@@ -1010,16 +1010,18 @@ memoryRoutes.post('/sync-lenny-conv', async (c) => {
     assistantMessage: string
   }>()
 
-  if (!conversationId || !userMessage || !assistantMessage) {
+  if (!conversationId || !userMessage) {
     return c.json({ ok: false, error: 'missing fields' }, 400)
   }
+  // assistantMessage 可为空（AI 未响应时跳过记忆提取，但仍写入对话记录）
+  const safeAssistant = assistantMessage?.trim() ?? ''
 
   const now = new Date().toISOString()
   const conv = {
     id: `lenny-${conversationId}`,
     createdAt: now,
     userMessage,
-    assistantMessage,
+    assistantMessage: safeAssistant,
     source: 'lenny',
     images: [],
     files: [],
@@ -1036,11 +1038,13 @@ memoryRoutes.post('/sync-lenny-conv', async (c) => {
     return c.json({ ok: false }, 500)
   }
 
-  // Enqueue memory extraction for this conversation
-  try {
-    enqueueTask(db, 'extract_memory', { conversationId: conv.id, userMessage, assistantMessage })
-    enqueueTask(db, 'extract_preferences', { conversationId: conv.id, userMessage, assistantMessage })
-  } catch { /* non-fatal */ }
+  // Enqueue memory extraction only when there is actual assistant content
+  if (safeAssistant) {
+    try {
+      enqueueTask(db, 'extract_memory', { conversationId: conv.id, userMessage, assistantMessage: safeAssistant })
+      enqueueTask(db, 'extract_preferences', { conversationId: conv.id, userMessage, assistantMessage: safeAssistant })
+    } catch { /* non-fatal */ }
+  }
 
   return c.json({ ok: true })
 })

@@ -1,5 +1,19 @@
 # Anima 变更日志
 
+## [0.2.89] - 2026-03-12
+
+### fix: Lenny Space 关闭时 sync-lenny-conv 400 bug
+
+**根因：** Lenny 对话关闭时，若 AI 尚未回复（`savedTurns` 为空），`lastAssistant` 为空字符串，后端 `!assistantMessage` 判断触发 400。
+
+**修复：**
+- `canvasStore.ts`：发送前检查 `assistantMessage.trim()`，为空跳过请求
+- `memory.ts`：后端放宽校验，仅 `conversationId + userMessage` 必需；`assistantMessage` 为空时跳过记忆提取任务（enqueueTask），但仍写入对话记录
+
+**说明：** `required_field_warning` 控制台警告来自浏览器扩展（contentScript.bundle.js），非本项目代码，不影响功能。
+
+---
+
 ## [0.2.88] - 2026-03-12
 
 ### fix: 全量英文化 — 清除所有残留中文调试/错误信息

@@ -1415,17 +1415,19 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       await storageService.write(STORAGE_FILES.LENNY_NODES, JSON.stringify(lennyNodes, null, 2))
 
       // P4: 把 Lenny 对话同步写入用户的 conversations.jsonl，触发记忆提取 pipeline
-      // 后台静默，不阻断主流程
-      try {
-        await authFetch('/api/memory/sync-lenny-conv', {
-          method: 'POST',
-          body: JSON.stringify({
-            conversationId: conv.id,
-            userMessage: conv.userMessage,
-            assistantMessage,
-          }),
-        })
-      } catch { /* 静默失败，不影响 Lenny 空间体验 */ }
+      // 只在有实际对话内容时才同步（assistantMessage 为空说明 AI 未响应，跳过）
+      if (assistantMessage.trim()) {
+        try {
+          await authFetch('/api/memory/sync-lenny-conv', {
+            method: 'POST',
+            body: JSON.stringify({
+              conversationId: conv.id,
+              userMessage: conv.userMessage,
+              assistantMessage,
+            }),
+          })
+        } catch { /* 静默失败，不影响 Lenny 空间体验 */ }
+      }
 
       return
     }
