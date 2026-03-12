@@ -1035,8 +1035,13 @@ memoryRoutes.post('/sync-lenny-conv', async (c) => {
   // 1. Append to user's conversations.jsonl
   try {
     const existing = (db.prepare("SELECT content FROM storage WHERE filename = 'conversations.jsonl'").get() as { content: string } | undefined)?.content ?? ''
-    // 幂等：如果此对话已存在则跳过（重复调用保护）
-    if (!existing.includes(`"id":"${conv.id}"`)) {
+    // 幂等：JSON 解析后精确匹配 id，避免 string.includes 的前缀误判（如 lenny-123 误匹配 lenny-1234）
+    const existingIds = new Set(
+      existing.trim().split('\n').filter(Boolean).map(line => {
+        try { return (JSON.parse(line) as { id?: string }).id ?? '' } catch { return '' }
+      })
+    )
+    if (!existingIds.has(conv.id)) {
       const updated = existing ? `${existing}\n${JSON.stringify(conv)}` : JSON.stringify(conv)
       db.prepare("INSERT INTO storage (filename, content, updated_at) VALUES (?, ?, ?) ON CONFLICT(filename) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at")
         .run('conversations.jsonl', updated, now)

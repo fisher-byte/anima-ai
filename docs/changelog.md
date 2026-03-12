@@ -1,5 +1,44 @@
 # Anima 变更日志
 
+## [0.3.1] - 2026-03-12
+
+### fix: code review P1/P2 修复
+
+**P1 — sync-lenny-conv 幂等检查改用 JSON 精确匹配：**
+- 原：`existing.includes('"id":"lenny-xxx"')` — 字符串前缀误判（lenny-123 匹配 lenny-1234）
+- 改：JSON 解析 conversations.jsonl 每行，用 `Set<id>` 精确判重
+
+**P2 — useForceSimulation CENTER_GRAVITY 全 capability 节点保护：**
+- `gcCount === 0` 时跳过中心引力计算，防止 gcx/gcy=0 时施加反向引力
+
+| 指标 | 结果 |
+|------|------|
+| `tsc --noEmit` | 0 错误 ✓ |
+| `vitest run` | 427/427 ✓ |
+| `playwright test` | 45/48 ✓（3 skip 正常） |
+
+---
+
+## [0.3.0] - 2026-03-12
+
+### fix: sync-lenny-conv 补生成主空间节点 + source 字段支持
+
+**根本原因：** sync-lenny-conv 只写 conversations.jsonl，不写 nodes.json，导致画布上看不到 Lenny/PG 对话节点。
+
+**修复：**
+- `memory.ts sync-lenny-conv`：写完对话记录后同步写入 nodes.json（幂等，去重保护）
+- 新增 `source` 字段（'lenny'|'pg'），节点 id 使用正确前缀
+- `canvasStore.endConversation`：isPGMode 时传 `source:'pg'`
+- 服务器直接补偿：9 条 lenny-/pg- 对话补生成节点（15→23 节点），去除 1 条重复
+
+| 指标 | 结果 |
+|------|------|
+| `tsc --noEmit` | 0 错误 ✓ |
+| `vitest run` | 427/427 ✓ |
+| `playwright test` | 45/48 ✓（3 skip 正常） |
+
+---
+
 ## [0.2.99] - 2026-03-12
 
 ### fix: useForceSimulation CENTER_GRAVITY 指向重心而非坐标原点
