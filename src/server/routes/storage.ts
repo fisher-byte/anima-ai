@@ -25,8 +25,12 @@ function userDb(c: { get: (key: string) => unknown }): InstanceType<typeof Datab
   return c.get('db') as InstanceType<typeof Database>
 }
 
-// 文件大小上限：50 MB
+// 文件大小上限：50 MB（二进制上传）
 const MAX_FILE_SIZE = 50 * 1024 * 1024
+// 文本存储上限：10 MB（PUT /:filename 纯文本，防止 DoS）
+const MAX_TEXT_SIZE = 10 * 1024 * 1024
+// 追加行上限：1 MB（POST /:filename/append，防止单行过大）
+const MAX_APPEND_SIZE = 1 * 1024 * 1024
 
 // 允许的 MIME 类型白名单（魔数校验的辅助）
 const ALLOWED_MIME_PREFIXES = [
@@ -118,11 +122,13 @@ storageRoutes.get('/file/:id', (c) => {
   if (!row || !row.content) return c.json({ error: 'not found' }, 404)
 
   const safeFilename = encodeURIComponent(row.filename.replace(/[^\w.\-]/g, '_'))
+  // ASCII fallback（兼容旧版客户端）+ RFC 5987 encoded filename
+  const asciiFallback = row.filename.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_')
   return new Response(new Uint8Array(row.content), {
     status: 200,
     headers: {
       'Content-Type': row.mimetype || 'application/octet-stream',
-      'Content-Disposition': `attachment; filename*=UTF-8''${safeFilename}`
+      'Content-Disposition': `attachment; filename="${asciiFallback}"; filename*=UTF-8''${safeFilename}`
     }
   })
 })
@@ -276,6 +282,10 @@ storageRoutes.put('/:filename', async (c) => {
   }
 
   const content = await c.req.text()
+  // P0-2: 防止超大 payload 写入（10 MB 限制）
+  if (Buffer.byteLength(content, 'utf8') > MAX_TEXT_SIZE) {
+    return c.json({ error: '内容过大，最大支持 10MB' }, 413)
+  }
   const now = new Date().toISOString()
 
   db.prepare(`
@@ -297,6 +307,10 @@ storageRoutes.post('/:filename/append', async (c) => {
   }
 
   const line = await c.req.text()
+  // P0-2: 单次追加上限 1 MB，防止超大行写入
+  if (Buffer.byteLength(line, 'utf8') > MAX_APPEND_SIZE) {
+    return c.json({ error: '单次追加内容过大，最大支持 1MB' }, 413)
+  }
   const now = new Date().toISOString()
 
   db.prepare(`
