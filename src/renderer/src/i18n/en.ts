@@ -37,6 +37,8 @@ export const en: Translations = {
     pgSubtitle: 'Startup · Thinking',
     zhangSubtitle: 'Product · WeChat',
     wangSubtitle: 'Product · Meituan',
+    fileLibrary: 'File Library',
+    skills: 'Skills',
   },
 
   // ── InputBox ─────────────────────────────────────────────────────────────
@@ -68,6 +70,19 @@ export const en: Translations = {
     atSpaces: 'Spaces',
     atFiles: 'Files',
     noSpaceMatch: 'No matching spaces',
+    skillsLabel: 'Skills',
+    skillsPolish: 'Polish Writing',
+    skillsPolishDesc: 'Refine and improve your text',
+    skillsAnalyze: 'Deep Analysis',
+    skillsAnalyzeDesc: 'Multi-angle problem analysis',
+    skillsSummarize: 'Summarize',
+    skillsSummarizeDesc: 'Extract key points',
+    skillsTranslate: 'Translate',
+    skillsTranslateDesc: 'Chinese ↔ English',
+    skillsBrainstorm: 'Brainstorm',
+    skillsBrainstormDesc: 'Generate creative ideas',
+    skillsCodeReview: 'Code Review',
+    skillsCodeReviewDesc: 'Check code quality & issues',
   },
 
   // ── SettingsModal ─────────────────────────────────────────────────────────

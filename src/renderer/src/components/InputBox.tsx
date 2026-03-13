@@ -16,7 +16,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCanvasStore } from '../stores/canvasStore'
-import { X, Paperclip, FileText, FileCode, File as FileIcon, Loader2, ArrowUp, Sparkles, Quote, ChevronDown, ChevronUp, AtSign, LayoutGrid } from 'lucide-react'
+import { X, Paperclip, FileText, FileCode, File as FileIcon, Loader2, ArrowUp, Sparkles, Quote, ChevronDown, ChevronUp, AtSign, LayoutGrid, Zap } from 'lucide-react'
 import { formatFilesForAI, FilePreview, getFileType, readImageAsBase64, formatFileSize } from '../../../services/fileParsing'
 import type { FileAttachment } from '@shared/types'
 import { getAuthToken, configService } from '../services/storageService'
@@ -28,6 +28,16 @@ const PUBLIC_SPACES = [
   { id: 'pg',     name: 'Paul Graham',     initials: 'PG', persona: 'Paul Graham（Startup · Thinking）',    storagePrefix: 'pg' },
   { id: 'zhang',  name: '张小龙',           initials: '张', persona: '张小龙（Product · WeChat）',           storagePrefix: 'zhang' },
   { id: 'wang',   name: '王慧文',           initials: '王', persona: '王慧文（Startup · Product）',          storagePrefix: 'wang' },
+] as const
+
+// Skills 定义 — key 对应 i18n，prompt 是注入 AI 的指令前缀
+const SKILLS = [
+  { key: 'polish',      icon: '✍️',  prompt: '请帮我润色以下内容，使其表达更清晰、流畅、有力：\n\n' },
+  { key: 'analyze',     icon: '🔍',  prompt: '请从多个角度深入分析以下内容，给出结构化的见解：\n\n' },
+  { key: 'summarize',   icon: '📝',  prompt: '请提炼以下内容的核心要点，简明扼要地总结：\n\n' },
+  { key: 'translate',   icon: '🌐',  prompt: '请将以下内容翻译为英文（若为英文则翻译为中文）：\n\n' },
+  { key: 'brainstorm',  icon: '💡',  prompt: '请围绕以下话题进行头脑风暴，给出尽可能多的创意和角度：\n\n' },
+  { key: 'codeReview',  icon: '🔧',  prompt: '请对以下代码进行审查，指出潜在问题、改进建议和最佳实践：\n\n' },
 ] as const
 
 /** 引用块胶囊：折叠展示粘贴的长文本，保留在输入框上方 */
@@ -85,6 +95,9 @@ export function InputBox() {
   const [atSelectedIndex, setAtSelectedIndex] = useState(0)
   const [historicFiles, setHistoricFiles] = useState<{ id: string; filename: string; embed_status: string; created_at: string }[]>([])
   const historicFilesCacheRef = useRef<{ id: string; filename: string; embed_status: string; created_at: string }[] | null>(null)
+
+  // Skills 面板状态
+  const [isSkillsOpen, setIsSkillsOpen] = useState(false)
 
   // API Key 内联输入状态
   const [isApiKeyMode, setIsApiKeyMode] = useState(false)
@@ -501,14 +514,21 @@ export function InputBox() {
         e.preventDefault()
         setAtQuery(null)
         setAtSelectedIndex(0)
+        setIsSkillsOpen(false)
         return
       }
+    }
+    // Escape outside @ panel: close skills
+    if (e.key === 'Escape' && isSkillsOpen) {
+      e.preventDefault()
+      setIsSkillsOpen(false)
+      return
     }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSubmit()
     }
-  }, [handleSubmit, atQuery, historicFiles, customSpaces, atSelectedIndex, handleAtSelect])
+  }, [handleSubmit, atQuery, historicFiles, customSpaces, atSelectedIndex, handleAtSelect, isSkillsOpen])
 
   // 自动调整高度 + 输入时防抖检索记忆（badge 反馈）+ @ 文件联想
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -528,6 +548,7 @@ export function InputBox() {
       if (!/[\s\n]/.test(afterAt)) {
         setAtQuery(afterAt)
         setAtSelectedIndex(0)
+        setIsSkillsOpen(false)  // 打开 @ 面板时关闭 Skills 面板
         // 懒加载历史文件（有缓存则不重新请求）
         if (!historicFilesCacheRef.current) {
           const token = getAuthToken()
@@ -824,6 +845,55 @@ export function InputBox() {
           })()}
         </AnimatePresence>
 
+        {/* Skills 面板 */}
+        <AnimatePresence>
+          {isSkillsOpen && (
+            <motion.div
+              key="skills-panel"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 6 }}
+              className="mb-2 bg-white rounded-2xl border border-gray-100 shadow-xl overflow-hidden"
+            >
+              <div className="px-3 py-1.5 text-[10px] text-gray-400 font-medium border-b border-gray-50 flex items-center gap-1.5">
+                <Zap className="w-3 h-3" />
+                {t.input.skillsLabel}
+              </div>
+              <div className="grid grid-cols-2 gap-0">
+                {SKILLS.map(skill => {
+                  const nameKey = `skills${skill.key.charAt(0).toUpperCase() + skill.key.slice(1)}` as keyof typeof t.input
+                  const descKey = `${nameKey}Desc` as keyof typeof t.input
+                  return (
+                    <button
+                      key={skill.key}
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        setMessage(prev => skill.prompt + prev)
+                        setIsSkillsOpen(false)
+                        requestAnimationFrame(() => {
+                          const textarea = textareaRef.current
+                          if (textarea) {
+                            textarea.focus()
+                            const newCursor = skill.prompt.length + (message?.length ?? 0)
+                            textarea.setSelectionRange(newCursor, newCursor)
+                          }
+                        })
+                      }}
+                      className="flex items-start gap-2.5 px-4 py-3 text-left hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
+                    >
+                      <span className="text-base leading-none mt-0.5">{skill.icon}</span>
+                      <div>
+                        <div className="text-[13px] font-medium text-gray-800">{String(t.input[nameKey] ?? skill.key)}</div>
+                        <div className="text-[11px] text-gray-400 mt-0.5">{String(t.input[descKey] ?? '')}</div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <motion.div
             layout
             className={`
@@ -858,6 +928,14 @@ export function InputBox() {
             title={t.input.fileSearch}
             >
             <AtSign className="w-5 h-5" />
+            </button>
+            {/* Skills 按钮 */}
+            <button
+            onClick={() => { setIsSkillsOpen(v => !v); setAtQuery(null) }}
+            className={`mb-1.5 p-2 hover:bg-gray-100 rounded-xl transition-all ${isSkillsOpen ? 'text-indigo-500 bg-indigo-50' : 'text-gray-400 hover:text-gray-700'}`}
+            title={t.input.skillsLabel}
+            >
+            <Zap className="w-5 h-5" />
             </button>
             <input
             type="file"
