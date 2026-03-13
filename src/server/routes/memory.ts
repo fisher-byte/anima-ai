@@ -1035,3 +1035,70 @@ memoryRoutes.post('/sync-lenny-conv', async (c) => {
 
   return c.json({ ok: true })
 })
+
+/**
+ * POST /api/memory/bootstrap-facts
+ *
+ * 历史对话补全：扫描 conversations.jsonl，对尚未提取过记忆事实的对话
+ * 逐条入队 extract_profile + extract_preference 任务。
+ * 每次最多处理 200 条，防止队列膨胀。
+ * 幂等：已有 memory_facts.source_conv_id 记录的对话直接跳过。
+ */
+memoryRoutes.post('/bootstrap-facts', async (c) => {
+  const db = userDb(c)
+
+  // 读取 conversations.jsonl
+  const row = db.prepare("SELECT content FROM storage WHERE filename = 'conversations.jsonl'").get() as
+    { content: string } | undefined
+  if (!row?.content) return c.json({ ok: true, queued: 0, reason: 'no conversations' })
+
+  const lines = row.content.trim().split('\n').filter(Boolean)
+
+  // 已提取过记忆的 conv id 集合
+  const extracted = new Set(
+    (db.prepare('SELECT DISTINCT source_conv_id FROM memory_facts WHERE source_conv_id IS NOT NULL').all() as
+      { source_conv_id: string }[]).map(r => r.source_conv_id)
+  )
+
+  // 解析并去重（同 id 取最后一条）
+  const convMap = new Map<string, { id: string; userMessage: string; assistantMessage: string }>()
+  for (const line of lines) {
+    try {
+      const conv = JSON.parse(line) as { id: string; userMessage?: string; assistantMessage?: string }
+      if (conv.id && conv.userMessage?.trim()) convMap.set(conv.id, {
+        id: conv.id,
+        userMessage: conv.userMessage,
+        assistantMessage: conv.assistantMessage ?? '',
+      })
+    } catch { /* ignore */ }
+  }
+
+  // 过滤出未提取的
+  const toProcess = [...convMap.values()].filter(cv => !extracted.has(cv.id)).slice(0, 200)
+  if (toProcess.length === 0) return c.json({ ok: true, queued: 0, reason: 'all already extracted' })
+
+  let queued = 0
+  for (const conv of toProcess) {
+    const cleanMsg = conv.userMessage
+      .replace(/\[REFERENCE_START\][\s\S]*?\[REFERENCE_END\]/g, '')
+      .trim()
+    if (cleanMsg.length <= 5) continue
+
+    // 入队 extract_profile（画像提取）
+    enqueueTask(db, 'extract_profile', {
+      userMessage: cleanMsg,
+      assistantMessage: conv.assistantMessage.slice(0, 600),
+    })
+
+    // 入队 extract_preference（偏好规则提取）
+    enqueueTask(db, 'extract_preference', {
+      userMessage: cleanMsg,
+      assistantMessage: conv.assistantMessage.slice(0, 600),
+    })
+
+    queued++
+  }
+
+  console.log(`[bootstrap-facts] queued ${queued} conversations for profile+preference extraction`)
+  return c.json({ ok: true, queued, total: convMap.size, alreadyExtracted: extracted.size })
+})

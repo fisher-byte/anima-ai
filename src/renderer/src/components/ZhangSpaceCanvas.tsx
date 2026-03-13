@@ -18,7 +18,7 @@ const ZHANG_CONFIG: SpaceConfig = {
   nodeIdPrefix: 'zhang-node-',
   gridClass: 'zhang-dot-grid',
   avatarText: '张',
-  avatarBg: 'bg-blue-600',
+  avatarBg: 'bg-gray-900',
   displayName: '张小龙',
   hoverHasHistory: 'View history →',
   hoverNoHistory: 'Ask →',
