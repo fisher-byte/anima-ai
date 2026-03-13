@@ -16,7 +16,7 @@
  */
 import { useState, useRef, useCallback, useMemo, useEffect, createContext } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit, Sparkles, Clock, GitMerge, Github } from 'lucide-react'
+import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit, Sparkles, Clock, GitMerge, Github, PlusCircle, Trash2 } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useForceSimulation, type ForceSimulationAPI } from '../hooks/useForceSimulation'
 import { NodeCard } from './NodeCard'
@@ -30,6 +30,8 @@ import { LennySpaceCanvas } from './LennySpaceCanvas'
 import { PGSpaceCanvas } from './PGSpaceCanvas'
 import { ZhangSpaceCanvas } from './ZhangSpaceCanvas'
 import { WangSpaceCanvas } from './WangSpaceCanvas'
+import { CustomSpaceCanvas } from './CustomSpaceCanvas'
+import { CreateCustomSpaceModal } from './CreateCustomSpaceModal'
 
 import { AmbientBackground } from './AmbientBackground'
 import { ClusterLabel } from './ClusterLabel'
@@ -168,6 +170,7 @@ export function Canvas() {
   const rebuildNodeGraph = useCanvasStore(state => state.rebuildNodeGraph)
   // 订阅 profile.rules 长度，用于进化基因红点（不用节点数量，避免虚触发）
   const profileRulesCount = useCanvasStore(state => state.profile?.rules?.length ?? 0)
+  const customSpaces = useCanvasStore(state => state.customSpaces)
 
   // 空画布欢迎语（个性化，当天缓存）
   const [welcomeText, setWelcomeText] = useState<string | null>(null)
@@ -357,6 +360,9 @@ export function Canvas() {
   const [isPGSpaceOpen, setIsPGSpaceOpen] = useState(false)
   const [isZhangSpaceOpen, setIsZhangSpaceOpen] = useState(false)
   const [isWangSpaceOpen, setIsWangSpaceOpen] = useState(false)
+  const [isCreateSpaceOpen, setIsCreateSpaceOpen] = useState(false)
+  const [openCustomSpaceId, setOpenCustomSpaceId] = useState<string | null>(null)
+  const [deleteConfirmSpaceId, setDeleteConfirmSpaceId] = useState<string | null>(null)
   const prevNodeCountRef = useRef(0)
   const prevRulesCountRef = useRef(profileRulesCount)
 
@@ -1018,6 +1024,110 @@ export function Canvas() {
         </motion.button>
       </div>
 
+      {/* My Spaces (user-created custom spaces) */}
+      <div className="fixed left-4 bottom-4 z-30 flex flex-col gap-1.5" style={{ bottom: customSpaces.length > 0 ? '8.5rem' : '8.5rem' }}>
+        <div className="px-1 mb-1 flex items-center justify-between w-[168px]">
+          <span className="text-[10px] text-gray-400/70 font-medium tracking-widest uppercase">{t.space.mySpaces}</span>
+          {customSpaces.length < 5 && (
+            <button
+              onClick={() => setIsCreateSpaceOpen(true)}
+              className="p-0.5 text-gray-400 hover:text-gray-600 transition-colors"
+              title={t.space.addSpace}
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {customSpaces.map(space => {
+          const COLOR_ACCENT: Record<string, string> = {
+            indigo: 'bg-indigo-100 border-indigo-200/80 text-indigo-700',
+            violet: 'bg-violet-100 border-violet-200/80 text-violet-700',
+            emerald: 'bg-emerald-100 border-emerald-200/80 text-emerald-700',
+            amber: 'bg-amber-100 border-amber-200/80 text-amber-700',
+            rose: 'bg-rose-100 border-rose-200/80 text-rose-700',
+            sky: 'bg-sky-100 border-sky-200/80 text-sky-700',
+          }
+          const avatarClass = COLOR_ACCENT[space.colorKey] ?? 'bg-gray-100 border-gray-200/80 text-gray-700'
+          return (
+            <div key={space.id} className="relative group/space">
+              <motion.button
+                onClick={() => setOpenCustomSpaceId(space.id)}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="flex items-center gap-2.5 pl-2.5 pr-3 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[168px]"
+              >
+                <div className={`w-7 h-7 rounded-full border flex items-center justify-center font-semibold text-[11px] shrink-0 ${avatarClass}`}>
+                  {space.avatarInitials}
+                </div>
+                <div className="text-left flex-1 min-w-0">
+                  <div className="text-[11px] font-semibold text-gray-700 leading-tight truncate">{space.name}</div>
+                  {space.topic && <div className="text-[9px] text-gray-400 leading-tight mt-0.5 truncate">{space.topic}</div>}
+                </div>
+                <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                </svg>
+              </motion.button>
+              {/* Delete button — hover overlay */}
+              <button
+                onClick={e => { e.stopPropagation(); setDeleteConfirmSpaceId(space.id) }}
+                className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/space:opacity-100 p-1 text-gray-300 hover:text-red-400 transition-all rounded-lg"
+                title={t.space.deleteSpaceTitle}
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            </div>
+          )
+        })}
+
+        {customSpaces.length === 0 && (
+          <motion.button
+            onClick={() => setIsCreateSpaceOpen(true)}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="flex items-center gap-2 pl-2.5 pr-3 py-2 bg-white/60 backdrop-blur-md rounded-2xl border border-dashed border-gray-200 hover:bg-white/90 hover:border-gray-300 transition-all cursor-pointer w-[168px] text-gray-400 hover:text-gray-600"
+          >
+            <Plus className="w-4 h-4 shrink-0" />
+            <span className="text-[11px] font-medium">{t.space.addSpace}</span>
+          </motion.button>
+        )}
+      </div>
+
+      {/* Delete Custom Space confirm dialog */}
+      <AnimatePresence>
+        {deleteConfirmSpaceId && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50"
+              onClick={() => setDeleteConfirmSpaceId(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
+            >
+              <div className="bg-white rounded-2xl shadow-xl p-6 max-w-xs w-full mx-4 pointer-events-auto">
+                <h3 className="text-sm font-semibold text-gray-900 mb-1">{t.space.deleteSpaceTitle}</h3>
+                <p className="text-xs text-gray-500 mb-4">{t.space.deleteSpaceWarning}</p>
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => setDeleteConfirmSpaceId(null)}
+                    className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
+                  >{t.space.deleteCancel}</button>
+                  <button
+                    onClick={async () => {
+                      await useCanvasStore.getState().deleteCustomSpace(deleteConfirmSpaceId)
+                      setDeleteConfirmSpaceId(null)
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-all"
+                  >{t.space.deleteSpaceConfirm}</button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       <AmbientBackground />
 
       {/* 画布：外层做模糊/缩放效果，纯 CSS transition，不用 Framer Motion 避免持续动画上下文 */}
@@ -1154,6 +1264,21 @@ export function Canvas() {
       <WangSpaceCanvas
         isOpen={isWangSpaceOpen}
         onClose={() => setIsWangSpaceOpen(false)}
+      />
+
+      {/* Custom Spaces — one instance per space, rendered only when open */}
+      {customSpaces.map(space => (
+        <CustomSpaceCanvas
+          key={space.id}
+          config={space}
+          isOpen={openCustomSpaceId === space.id}
+          onClose={() => setOpenCustomSpaceId(null)}
+        />
+      ))}
+
+      <CreateCustomSpaceModal
+        isOpen={isCreateSpaceOpen}
+        onClose={() => setIsCreateSpaceOpen(false)}
       />
 
       {/* 记忆引用连线 overlay：高亮节点 → 输入框 */}

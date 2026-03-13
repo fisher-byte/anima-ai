@@ -1,6 +1,6 @@
 # Anima 发版 SOP
 
-*最后更新: 2026-03-13 | 版本: v0.4.1*
+*最后更新: 2026-03-13 | 版本: v0.4.2*
 
 每次发版（无论 patch / minor / major）按此流程执行，确保代码、文档、服务器三端一致。
 
@@ -11,7 +11,7 @@
 ### 1. 测试 & 类型检查
 
 ```bash
-npm test          # 必须全部通过（当前基线：475 / 475，18 个文件）
+npm test          # 必须全部通过（当前基线：493 / 493，19 个文件）
 npx tsc --noEmit  # 必须零错误
 npm run build     # 构建验证（前端产物生成到 dist/）
 ```
@@ -103,7 +103,7 @@ ssh evocanvas-prod "cd /opt/evocanvas && git checkout <hash> && npm install --om
 ## 三、完整发版检查清单（按顺序执行）
 
 ```
-[ ] 1. npm test              → 475/475 通过
+[ ] 1. npm test              → 493/493 通过
 [ ] 2. npx tsc --noEmit      → 零错误
 [ ] 3. npm run build         → 构建成功
 [ ] 4. npm run test:e2e      → 26/27 通过（1 skip 正常）

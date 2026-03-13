@@ -17,7 +17,7 @@
 
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import type { Node, Edge, Conversation, Profile, PreferenceRule, NodePosition } from '@shared/types'
+import type { Node, Edge, Conversation, Profile, PreferenceRule, NodePosition, CustomSpaceConfig } from '@shared/types'
 import { STORAGE_FILES, FEEDBACK_TRIGGERS, CONFIDENCE_CONFIG, UI_CONFIG } from '@shared/constants'
 import { storageService, historyService } from '../services/storageService'
 import { getAuthToken } from '../services/storageService'
@@ -127,6 +127,26 @@ interface CanvasState {
   isPGMode: boolean
   openPGMode: () => void
   closePGMode: () => void
+
+  // Zhang Xiaolong Space 模式
+  isZhangMode: boolean
+  openZhangMode: () => void
+  closeZhangMode: () => void
+
+  // Wang Huiwen Space 模式
+  isWangMode: boolean
+  openWangMode: () => void
+  closeWangMode: () => void
+
+  // 自定义 Space 模式
+  isCustomSpaceMode: boolean
+  activeCustomSpaceId: string | null
+  customSpaces: CustomSpaceConfig[]
+  loadCustomSpaces: () => Promise<void>
+  openCustomSpaceMode: (id: string) => void
+  closeCustomSpaceMode: () => void
+  createCustomSpace: (config: Omit<CustomSpaceConfig, 'id' | 'createdAt'>) => Promise<CustomSpaceConfig>
+  deleteCustomSpace: (id: string) => Promise<void>
 
   // 新增：移除偏好规则
   removePreference: (index: number) => Promise<void>
@@ -284,6 +304,15 @@ export const useCanvasStore = create<CanvasState>()(
   isLennyMode: false,
   // Paul Graham Space 模式
   isPGMode: false,
+  // Zhang Xiaolong Space 模式
+  isZhangMode: false,
+  // Wang Huiwen Space 模式
+  isWangMode: false,
+
+  // 自定义 Space 模式
+  isCustomSpaceMode: false,
+  activeCustomSpaceId: null,
+  customSpaces: [],
 
   // 引导完成后进化基因轮询标志
   pendingProfileRefresh: false,
@@ -343,10 +372,46 @@ export const useCanvasStore = create<CanvasState>()(
     } catch { /* ignore */ }
   },
   setOnboardingPhase: (phase) => set({ onboardingPhase: phase }),
-  openLennyMode: () => set({ isLennyMode: true, isPGMode: false }),
-  closeLennyMode: () => set({ isLennyMode: false, isPGMode: false, isModalOpen: false, currentConversation: null, conversationHistory: [] }),
-  openPGMode: () => set({ isLennyMode: true, isPGMode: true }),
-  closePGMode: () => set({ isLennyMode: false, isPGMode: false, isModalOpen: false, currentConversation: null, conversationHistory: [] }),
+  openLennyMode: () => set({ isLennyMode: true, isPGMode: false, isZhangMode: false, isWangMode: false }),
+  closeLennyMode: () => set({ isLennyMode: false, isPGMode: false, isZhangMode: false, isWangMode: false, isModalOpen: false, currentConversation: null, conversationHistory: [] }),
+  openPGMode: () => set({ isLennyMode: true, isPGMode: true, isZhangMode: false, isWangMode: false }),
+  closePGMode: () => set({ isLennyMode: false, isPGMode: false, isZhangMode: false, isWangMode: false, isModalOpen: false, currentConversation: null, conversationHistory: [] }),
+  openZhangMode: () => set({ isLennyMode: true, isPGMode: false, isZhangMode: true, isWangMode: false }),
+  closeZhangMode: () => set({ isLennyMode: false, isPGMode: false, isZhangMode: false, isWangMode: false, isModalOpen: false, currentConversation: null, conversationHistory: [] }),
+  openWangMode: () => set({ isLennyMode: true, isPGMode: false, isZhangMode: false, isWangMode: true }),
+  closeWangMode: () => set({ isLennyMode: false, isPGMode: false, isZhangMode: false, isWangMode: false, isModalOpen: false, currentConversation: null, conversationHistory: [] }),
+
+  openCustomSpaceMode: (id: string) => set({ isCustomSpaceMode: true, activeCustomSpaceId: id, isLennyMode: false, isPGMode: false, isZhangMode: false, isWangMode: false }),
+  closeCustomSpaceMode: () => set({ isCustomSpaceMode: false, activeCustomSpaceId: null, isModalOpen: false, currentConversation: null, conversationHistory: [] }),
+
+  loadCustomSpaces: async () => {
+    try {
+      const raw = await storageService.read('custom-spaces.json')
+      if (raw) {
+        const spaces = JSON.parse(raw) as CustomSpaceConfig[]
+        if (Array.isArray(spaces)) set({ customSpaces: spaces })
+      }
+    } catch { /* first run, file doesn't exist yet */ }
+  },
+
+  createCustomSpace: async (config) => {
+    const { customSpaces } = get()
+    if (customSpaces.length >= 5) throw new Error('Maximum 5 custom spaces')
+    const id = crypto.randomUUID().replace(/-/g, '').slice(0, 8).toLowerCase()
+    const newSpace: CustomSpaceConfig = { ...config, id, createdAt: new Date().toISOString() }
+    const updated = [...customSpaces, newSpace]
+    await storageService.write('custom-spaces.json', JSON.stringify(updated, null, 2))
+    set({ customSpaces: updated })
+    return newSpace
+  },
+
+  deleteCustomSpace: async (id: string) => {
+    const { customSpaces } = get()
+    const updated = customSpaces.filter(s => s.id !== id)
+    await storageService.write('custom-spaces.json', JSON.stringify(updated, null, 2))
+    set({ customSpaces: updated })
+  },
+
   setPendingProfileRefresh: (val) => set({ pendingProfileRefresh: val }),
   setPendingMemoryRefresh: (val) => set({ pendingMemoryRefresh: val }),
   completeOnboarding: async () => {
@@ -759,13 +824,21 @@ export const useCanvasStore = create<CanvasState>()(
     } catch (error) {
       console.error('Failed to load profile:', error)
     }
+    // 同步加载自定义 Space 配置（piggyback on loadProfile to avoid extra mount calls）
+    try {
+      const raw = await storageService.read('custom-spaces.json')
+      if (raw) {
+        const spaces = JSON.parse(raw) as CustomSpaceConfig[]
+        if (Array.isArray(spaces)) set({ customSpaces: spaces })
+      }
+    } catch { /* first run */ }
   },
 
   // 添加节点（explicitCategory 由 endConversation 传入时优先使用，保证话题拆分分类正确）
   addNode: async (conversation: Conversation, position?: NodePosition, explicitCategory?: string, memoryCount?: number, topicLabel?: string) => {
-    // Lenny/PG 模式：对话节点已由 endConversation space 分支单独写入 space 文件，
+    // Lenny/PG/Custom 模式：对话节点已由 endConversation space 分支单独写入 space 文件，
     // addNode 不应写主空间 nodes.json，否则会污染主空间画布。
-    if (get().isLennyMode) return
+    if (get().isLennyMode || get().isCustomSpaceMode) return
 
     const { nodes } = get()
 
@@ -1205,12 +1278,40 @@ export const useCanvasStore = create<CanvasState>()(
 
   // 删除节点
   removeNode: async (id: string) => {
-    const { isLennyMode, isPGMode } = get()
+    const { isLennyMode, isPGMode, isZhangMode, isWangMode, isCustomSpaceMode, activeCustomSpaceId } = get()
 
-    // Space 模式（Lenny 或 PG）：只操作对应 space 的 json 文件，不影响用户数据
+    // Custom Space 模式：只操作对应 space 的 json 文件
+    if (isCustomSpaceMode && activeCustomSpaceId) {
+      const nodesFile = `custom-${activeCustomSpaceId}-nodes.json`
+      const convsFile = `custom-${activeCustomSpaceId}-conversations.jsonl`
+      const nodesRaw = await storageService.read(nodesFile)
+      let spaceNodes: Node[] = []
+      try { if (nodesRaw) spaceNodes = JSON.parse(nodesRaw) } catch { /* use empty */ }
+      const nodeToRemove = spaceNodes.find(n => n.id === id)
+      const updatedNodes = spaceNodes.filter(n => n.id !== id)
+      await storageService.write(nodesFile, JSON.stringify(updatedNodes, null, 2))
+      if (nodeToRemove) {
+        try {
+          const content = await storageService.read(convsFile)
+          if (content) {
+            const lines = content.trim().split('\n').filter(Boolean)
+            const filteredLines = lines.filter(line => {
+              try {
+                const conv = JSON.parse(line) as Conversation
+                return conv.id !== nodeToRemove.conversationId
+              } catch { return true }
+            })
+            await storageService.write(convsFile, filteredLines.join('\n') + (filteredLines.length > 0 ? '\n' : ''))
+          }
+        } catch { /* ignore */ }
+      }
+      return
+    }
+
+    // Space 模式（Lenny / PG / Zhang / Wang）：只操作对应 space 的 json 文件，不影响用户数据
     if (isLennyMode) {
-      const nodesFile = isPGMode ? STORAGE_FILES.PG_NODES : STORAGE_FILES.LENNY_NODES
-      const convsFile = isPGMode ? STORAGE_FILES.PG_CONVERSATIONS : STORAGE_FILES.LENNY_CONVERSATIONS
+      const nodesFile = isPGMode ? STORAGE_FILES.PG_NODES : isZhangMode ? STORAGE_FILES.ZHANG_NODES : isWangMode ? STORAGE_FILES.WANG_NODES : STORAGE_FILES.LENNY_NODES
+      const convsFile = isPGMode ? STORAGE_FILES.PG_CONVERSATIONS : isZhangMode ? STORAGE_FILES.ZHANG_CONVERSATIONS : isWangMode ? STORAGE_FILES.WANG_CONVERSATIONS : STORAGE_FILES.LENNY_CONVERSATIONS
       const nodesRaw = await storageService.read(nodesFile)
       let lennyNodes: Node[] = []
       try { if (nodesRaw) lennyNodes = JSON.parse(nodesRaw) } catch { /* use empty */ }
@@ -1365,14 +1466,76 @@ export const useCanvasStore = create<CanvasState>()(
 
   // 结束对话 (增强：支持基于意图的话题拆分；explicitConversation 用于 handleClose 后台保存时传入快照)
   endConversation: async (assistantMessage: string, appliedPreferences?: string[], reasoning_content?: string, explicitConversation?: Conversation) => {
-    const { addNode, appendConversation, detectIntent, isLennyMode, isPGMode } = get()
+    const { addNode, appendConversation, detectIntent, isLennyMode, isPGMode, isZhangMode, isWangMode, isCustomSpaceMode, activeCustomSpaceId } = get()
     const currentConversation = explicitConversation ?? get().currentConversation
     if (!currentConversation) return
 
+    // Custom Space 模式：简化保存逻辑，写自定义 space 文件，不污染用户数据，不触发 sync-lenny-conv
+    if (isCustomSpaceMode && activeCustomSpaceId) {
+      const nodesFile = `custom-${activeCustomSpaceId}-nodes.json`
+      const convsFile = `custom-${activeCustomSpaceId}-conversations.jsonl`
+      const conv: Conversation = {
+        id: currentConversation.id,
+        createdAt: new Date().toISOString(),
+        userMessage: currentConversation.userMessage,
+        assistantMessage,
+        images: [],
+        files: [],
+      }
+      const nodeTitle = currentConversation.userMessage.slice(0, 30) || 'Conversation'
+      const stopWords = new Set(['their', 'about', 'which', 'would', 'could', 'there', 'other',
+        'where', 'should', 'these', 'those', 'being', 'after', 'while', 'between', 'through', 'before',
+        'under', 'think', 'right', 'every', 'start', 'point', 'might', 'often', 'first', 'since'])
+      const keywords = assistantMessage
+        .replace(/[#*`>\[\]()]/g, ' ')
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(w => w.length > 4 && !stopWords.has(w))
+        .slice(0, 3)
+      let category = '工作事业'
+      const lower = assistantMessage.toLowerCase()
+      if (/relationship|team|culture|management|feedback/.test(lower)) category = '关系情感'
+      else if (/think|philosophy|framework|belief|mindset/.test(lower)) category = '思考世界'
+      else if (/health|workout|sleep|energy/.test(lower)) category = '健康身体'
+      else if (/design|creative|writing|art|music/.test(lower)) category = '创意表达'
+      await storageService.append(convsFile, JSON.stringify(conv))
+      const nodesRaw = await storageService.read(nodesFile)
+      let spaceNodes: Node[] = []
+      try { if (nodesRaw) spaceNodes = JSON.parse(nodesRaw) } catch { /* use empty */ }
+      const centerX = spaceNodes.length > 0 ? spaceNodes.reduce((s, n) => s + n.x, 0) / spaceNodes.length : 1920
+      const centerY = spaceNodes.length > 0 ? spaceNodes.reduce((s, n) => s + n.y, 0) / spaceNodes.length : 1200
+      const minDist = 300
+      let nx = centerX + 300, ny = centerY
+      {
+        const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+        for (let i = 0; i < 200; i++) {
+          const r = minDist * Math.sqrt(i + 1)
+          const theta = i * goldenAngle
+          const cx = centerX + r * Math.cos(theta)
+          const cy = centerY + r * Math.sin(theta)
+          if (!spaceNodes.some(n => Math.hypot(n.x - cx, n.y - cy) < minDist)) { nx = cx; ny = cy; break }
+        }
+      }
+      const newNode: Node = {
+        id: conv.id,
+        title: nodeTitle,
+        keywords,
+        date: conv.createdAt.split('T')[0],
+        conversationId: conv.id,
+        category,
+        nodeType: 'memory',
+        x: Math.round(nx),
+        y: Math.round(ny),
+      }
+      spaceNodes.push(newNode)
+      await storageService.write(nodesFile, JSON.stringify(spaceNodes, null, 2))
+      return
+    }
+
     // Space 模式（Lenny 或 PG）：简化保存逻辑——直接写对应 space 文件，跳过分类/合并/向量索引/画像提取
     if (isLennyMode) {
-      const nodesFile = isPGMode ? STORAGE_FILES.PG_NODES : STORAGE_FILES.LENNY_NODES
-      const convsFile = isPGMode ? STORAGE_FILES.PG_CONVERSATIONS : STORAGE_FILES.LENNY_CONVERSATIONS
+      const nodesFile = isPGMode ? STORAGE_FILES.PG_NODES : isZhangMode ? STORAGE_FILES.ZHANG_NODES : isWangMode ? STORAGE_FILES.WANG_NODES : STORAGE_FILES.LENNY_NODES
+      const convsFile = isPGMode ? STORAGE_FILES.PG_CONVERSATIONS : isZhangMode ? STORAGE_FILES.ZHANG_CONVERSATIONS : isWangMode ? STORAGE_FILES.WANG_CONVERSATIONS : STORAGE_FILES.LENNY_CONVERSATIONS
       const conv: Conversation = {
         id: currentConversation.id,
         createdAt: new Date().toISOString(),
@@ -1443,7 +1606,7 @@ export const useCanvasStore = create<CanvasState>()(
               conversationId: conv.id,
               userMessage: conv.userMessage,
               assistantMessage,
-              source: isPGMode ? 'pg' : 'lenny',
+              source: isPGMode ? 'pg' : isZhangMode ? 'zhang' : isWangMode ? 'wang' : 'lenny',
             }),
           })
         } catch { /* 静默失败，不影响 Lenny 空间体验 */ }
@@ -1610,9 +1773,9 @@ export const useCanvasStore = create<CanvasState>()(
   // 关闭模态框
   closeModal: () => {
     // 持久化当前对话历史到服务器（fire-and-forget）
-    // P1-3: Lenny 模式下不写用户历史（lenny 对话不属于用户的 conversation_history）
-    const { currentConversation, conversationHistory, isLennyMode } = get()
-    if (!isLennyMode && currentConversation?.id && conversationHistory.length > 0) {
+    // P1-3: Lenny/Custom Space 模式下不写用户历史（space 对话不属于用户的 conversation_history）
+    const { currentConversation, conversationHistory, isLennyMode, isCustomSpaceMode } = get()
+    if (!isLennyMode && !isCustomSpaceMode && currentConversation?.id && conversationHistory.length > 0) {
       historyService.saveHistory(currentConversation.id, conversationHistory)
     }
     set({ isModalOpen: false, currentConversation: null, isLoading: false, highlightedCategory: null, highlightedNodeIds: [], focusedCategory: null, conversationHistory: [] })
@@ -1634,10 +1797,12 @@ export const useCanvasStore = create<CanvasState>()(
     const token = ++_openModalToken
     set({ isModalOpen: true, isLoading: true, conversationHistory: [] })
     try {
-      const { isLennyMode, isPGMode } = get()
-      const convFile = isLennyMode
-        ? (isPGMode ? STORAGE_FILES.PG_CONVERSATIONS : STORAGE_FILES.LENNY_CONVERSATIONS)
-        : STORAGE_FILES.CONVERSATIONS
+      const { isLennyMode, isPGMode, isZhangMode, isWangMode, isCustomSpaceMode, activeCustomSpaceId } = get()
+      const convFile = isCustomSpaceMode && activeCustomSpaceId
+        ? `custom-${activeCustomSpaceId}-conversations.jsonl`
+        : isLennyMode
+          ? (isPGMode ? STORAGE_FILES.PG_CONVERSATIONS : isZhangMode ? STORAGE_FILES.ZHANG_CONVERSATIONS : isWangMode ? STORAGE_FILES.WANG_CONVERSATIONS : STORAGE_FILES.LENNY_CONVERSATIONS)
+          : STORAGE_FILES.CONVERSATIONS
       const content = await storageService.read(convFile)
       if (token !== _openModalToken) return  // 被更新的调用抢先了，丢弃此结果
       if (!content) {
@@ -1848,12 +2013,43 @@ export const useCanvasStore = create<CanvasState>()(
   // 获取相关的历史记忆（后端向量检索，降级到关键词搜索）
   getRelevantMemories: async (query: string): Promise<{ conv: Conversation; category?: string; nodeId?: string }[]> => {
     try {
-      const { nodes, isLennyMode, isPGMode } = get()
+      const { nodes, isLennyMode, isPGMode, isZhangMode, isWangMode, isCustomSpaceMode, activeCustomSpaceId } = get()
+
+      // Custom Space 模式：从 custom space 文件中做关键词搜索
+      if (isCustomSpaceMode && activeCustomSpaceId) {
+        const convsFile = `custom-${activeCustomSpaceId}-conversations.jsonl`
+        const nodesFile = `custom-${activeCustomSpaceId}-nodes.json`
+        const content = await storageService.read(convsFile)
+        if (!content) return []
+        const spaceNodesRaw = await storageService.read(nodesFile)
+        let spaceNodes: Node[] = []
+        try { if (spaceNodesRaw) spaceNodes = JSON.parse(spaceNodesRaw) } catch { /* */ }
+        const nodeByConvId = new Map<string, Node>()
+        spaceNodes.forEach(n => nodeByConvId.set(n.conversationId, n))
+        const lines = content.trim().split('\n').filter(Boolean)
+        const convs: Conversation[] = []
+        for (const line of lines) {
+          try { const c = JSON.parse(line) as Conversation; if (c.id) convs.push(c) } catch { /* */ }
+        }
+        const stopWords = new Set(['the', 'a', 'an', 'is', 'are', 'to', 'of', 'and', 'or', 'in', 'on', 'at', 'for', 'with'])
+        const keywords = query.toLowerCase().split(/\s+/).filter(k => k.length >= 3 && !stopWords.has(k)).slice(0, 10)
+        if (keywords.length === 0) return convs.slice(-5).map(conv => ({ conv, category: nodeByConvId.get(conv.id)?.category, nodeId: nodeByConvId.get(conv.id)?.id }))
+        return convs
+          .map(conv => {
+            const text = (conv.userMessage + ' ' + conv.assistantMessage).toLowerCase()
+            const score = keywords.reduce((s, k) => s + (text.includes(k) ? 1 : 0), 0)
+            return { conv, score, node: nodeByConvId.get(conv.id) }
+          })
+          .filter(r => r.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 5)
+          .map(r => ({ conv: r.conv, category: r.node?.category, nodeId: r.node?.id }))
+      }
 
       // Space 模式：从 space-specific conversations/nodes 文件中做关键词搜索
       if (isLennyMode) {
-        const convsFile = isPGMode ? STORAGE_FILES.PG_CONVERSATIONS : STORAGE_FILES.LENNY_CONVERSATIONS
-        const nodesFile = isPGMode ? STORAGE_FILES.PG_NODES : STORAGE_FILES.LENNY_NODES
+        const convsFile = isPGMode ? STORAGE_FILES.PG_CONVERSATIONS : isZhangMode ? STORAGE_FILES.ZHANG_CONVERSATIONS : isWangMode ? STORAGE_FILES.WANG_CONVERSATIONS : STORAGE_FILES.LENNY_CONVERSATIONS
+        const nodesFile = isPGMode ? STORAGE_FILES.PG_NODES : isZhangMode ? STORAGE_FILES.ZHANG_NODES : isWangMode ? STORAGE_FILES.WANG_NODES : STORAGE_FILES.LENNY_NODES
         const content = await storageService.read(convsFile)
         if (!content) return []
         const spaceNodesRaw = await storageService.read(nodesFile)
@@ -1967,12 +2163,18 @@ export const useCanvasStore = create<CanvasState>()(
 
   // 追加对话记录（同时触发后端向量索引 + 画像提取任务）
   appendConversation: async (conversation: Conversation) => {
-    const { isLennyMode, isPGMode } = get()
+    const { isLennyMode, isPGMode, isZhangMode, isWangMode, isCustomSpaceMode, activeCustomSpaceId } = get()
+
+    // Custom Space 模式：写自定义 space 文件
+    if (isCustomSpaceMode && activeCustomSpaceId) {
+      await storageService.append(`custom-${activeCustomSpaceId}-conversations.jsonl`, JSON.stringify(conversation))
+      return
+    }
 
     // Space 模式：写 space-specific 文件，跳过向量索引和画像提取（space 记忆不污染用户数据）
     // P2-3: 当前 endConversation space 分支已直接写文件，此处为防御性保留（未来直接调用者使用）
     if (isLennyMode) {
-      const convsFile = isPGMode ? STORAGE_FILES.PG_CONVERSATIONS : STORAGE_FILES.LENNY_CONVERSATIONS
+      const convsFile = isPGMode ? STORAGE_FILES.PG_CONVERSATIONS : isZhangMode ? STORAGE_FILES.ZHANG_CONVERSATIONS : isWangMode ? STORAGE_FILES.WANG_CONVERSATIONS : STORAGE_FILES.LENNY_CONVERSATIONS
       await storageService.append(convsFile, JSON.stringify(conversation))
       return
     }
