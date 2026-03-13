@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Settings, X, Save, Shield, Cpu, Link, Copy, Check, Key, Languages } from 'lucide-react'
+import { Settings, X, Save, Shield, Cpu, Link, Copy, Check, Key, Languages, Download } from 'lucide-react'
 import { API_CONFIG, AI_CONFIG, SUPPORTED_MODELS } from '@shared/constants'
 import { configService, storageService, isElectronEnvironment } from '../services/storageService'
 import { getAuthToken, setAuthToken } from '../services/storageService'
@@ -22,6 +22,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [showSuccess, setShowSuccess] = useState(false)
   const [showError, setShowError] = useState(false)
   const [keyError, setKeyError] = useState('')
+  const [isExporting, setIsExporting] = useState(false)
 
   // 身份码相关
   const currentToken = localStorage.getItem(USER_TOKEN_KEY) ?? ''
@@ -138,7 +139,27 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   }, [apiKey, baseUrl, model])
 
-  if (!isOpen) return null
+  const handleExport = useCallback(async () => {
+    setIsExporting(true)
+    try {
+      const token = getAuthToken()
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+      const res = await fetch('/api/storage/export', { headers })
+      if (!res.ok) return
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `anima-export-${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      // silently ignore
+    } finally {
+      setIsExporting(false)
+    }
+  }, [])
 
   return (
     <AnimatePresence>
@@ -306,6 +327,22 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* 数据导出 */}
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                <Download className="w-3.5 h-3.5" />
+                {t.settings.exportDataLabel}
+              </label>
+              <button
+                onClick={handleExport}
+                disabled={isExporting}
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-50 border border-gray-100 text-gray-600 rounded-2xl text-sm hover:bg-gray-100 hover:border-gray-200 disabled:opacity-50 transition-all"
+              >
+                <Download className="w-4 h-4" />
+                {isExporting ? t.settings.exporting : t.settings.exportDataBtn}
+              </button>
             </div>
           </div>
 

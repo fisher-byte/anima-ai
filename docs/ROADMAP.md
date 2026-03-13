@@ -10,6 +10,12 @@
 
 ## 已完成版本
 
+#### v0.4.1 - 设置页数据导出 + 时间轴上传文件行（已完成）
+- [x] `SettingsModal.tsx`：新增导出区，调用 `/api/storage/export` 下载全量 JSON
+- [x] `TimelineView.tsx`：新增文件行，按日期展示历史上传文件（amber 主题卡片）
+- [x] i18n：`settings.exportDataLabel/Btn/exporting` + `timeline.filesRow/fileLabel`
+- [x] vitest 475/475 | tsc 0 errors
+
 #### v0.4.0 - 张小龙 & 王慧文 Public Space（已完成）
 - [x] `ZhangSpaceCanvas.tsx`：35 颗种子节点，蓝色主题，ZHANG_SYSTEM_PROMPT
 - [x] `WangSpaceCanvas.tsx`：30 颗种子节点，emerald 主题，WANG_SYSTEM_PROMPT
