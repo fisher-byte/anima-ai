@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/版本-0.4.2-black" alt="version"/>
+  <img src="https://img.shields.io/badge/版本-0.5.3-black" alt="version"/>
   <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js" alt="node"/>
   <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react" alt="react"/>
   <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript" alt="typescript"/>
@@ -46,7 +46,8 @@ AI 不只是在回答你的问题——它在理解你是谁。
 | **进化基因** | 你的表达偏好、思维方式、关注重点，逐步写入 AI 的行为底层 |
 | **知识图谱** | 节点按分类聚合，通过语义相似度自动连线 |
 | **节点整合** | 一键合并相似话题节点 |
-| **Lenny & PG 空间** | 内置公开记忆空间示例，可沉浸体验 |
+| **4 个公开空间 + 自定义** | 与 Lenny、Paul Graham、张小龙、王慧文对话，或创建你自己的空间 |
+| **文件库** | 任意空间上传文件；@ 引用，AI 可语义检索 |
 | **多模态感知** | 支持拖入图片、PDF、Word 文档 |
 | **记忆导入** | 将 ChatGPT、Claude、Gemini 的对话记录迁移进来 |
 | **多租户隔离** | 每个 ACCESS_TOKEN 对应独立 SQLite 数据库 |
@@ -130,7 +131,7 @@ Anima 从自然语言反馈中学习并适配：
 | 构建 | Vite 5、tsx |
 | AI | OpenAI 兼容接口（Kimi、OpenAI、本地模型） |
 | 桌面（可选） | Electron 29 |
-| 测试 | Vitest（427 单元测试）、Playwright（E2E） |
+| 测试 | Vitest（522 单元测试）、Playwright（E2E） |
 
 ---
 

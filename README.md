@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.5.0-black" alt="version"/>
+  <img src="https://img.shields.io/badge/version-0.5.3-black" alt="version"/>
   <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js" alt="node"/>
   <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react" alt="react"/>
   <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript" alt="typescript"/>
@@ -46,7 +46,8 @@ The AI doesn't just answer questions. It learns who you are.
 | **Evolution Log** | Your preferences, thinking style, and focus areas gradually shape the AI's behavior |
 | **Personal Knowledge Graph** | Nodes cluster by category, connect by semantic similarity |
 | **Node Consolidation** | One-click merge of similar nodes into topic clusters |
-| **Lenny & PG Spaces** | Explore curated public memory spaces as examples |
+| **4 Public Spaces + Custom** | Chat with Lenny, Paul Graham, 张小龙, 王慧文 or create your own Space |
+| **File Library** | Upload files to any Space; search and reference with @ |
 | **Multimodal Input** | Drag in images, PDFs, Word documents |
 | **Memory Import** | Import conversation history from ChatGPT, Claude, Gemini |
 | **Multi-tenant** | Each access token maps to a fully isolated SQLite database |
@@ -130,7 +131,7 @@ Anima picks up on natural language feedback and adapts:
 | Build | Vite 5, tsx |
 | AI | OpenAI-compatible API (Kimi, OpenAI, local models) |
 | Desktop (optional) | Electron 29 |
-| Testing | Vitest (517 unit tests), Playwright (E2E) |
+| Testing | Vitest (522 unit tests), Playwright (E2E) |
 
 ---
 
