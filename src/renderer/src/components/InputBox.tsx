@@ -96,7 +96,8 @@ export function InputBox() {
   const [historicFiles, setHistoricFiles] = useState<{ id: string; filename: string; embed_status: string; created_at: string }[]>([])
   const historicFilesCacheRef = useRef<{ id: string; filename: string; embed_status: string; created_at: string }[] | null>(null)
 
-  // 自动建议的 Skill（关键词检测到时设置，为 null 时不显示）
+  // 已确认的 @提及（选中后显示为 pill）
+  const [confirmedMentions, setConfirmedMentions] = useState<string[]>([])
   const [suggestedSkill, setSuggestedSkill] = useState<typeof SKILLS[number] | null>(null)
   const [isDismissedSkill, setIsDismissedSkill] = useState(false) // 用户 dismiss 后当次消息不再弹出
 
@@ -448,6 +449,7 @@ export function InputBox() {
     setFilePreviews([])
     setReferenceBlocks([])
     setMatchCount(0)
+    setConfirmedMentions([])
     setHighlight(null, [])
     setSuggestedSkill(null)
     setIsDismissedSkill(false)
@@ -477,6 +479,8 @@ export function InputBox() {
     setMessage(newMsg)
     setAtQuery(null)
     setAtSelectedIndex(0)
+    // 记录已确认的 mention（去重）
+    setConfirmedMentions(prev => prev.includes(displayName) ? prev : [...prev, displayName])
     requestAnimationFrame(() => {
       textarea.focus()
       const newCursor = atIdx + 1 + displayName.length
@@ -778,6 +782,41 @@ export function InputBox() {
                   content={ref}
                   onRemove={() => setReferenceBlocks(prev => prev.filter((_, j) => j !== i))}
                 />
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* 已确认的 @提及 pills */}
+        <AnimatePresence>
+          {confirmedMentions.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              className="flex flex-wrap gap-1.5 mb-2"
+            >
+              {confirmedMentions.map(name => (
+                <motion.span
+                  key={name}
+                  initial={{ opacity: 0, scale: 0.85 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.85 }}
+                  className="flex items-center gap-1 pl-2 pr-1.5 py-0.5 bg-indigo-50 border border-indigo-200 rounded-full text-[12px] text-indigo-700 font-medium"
+                >
+                  <AtSign className="w-3 h-3 shrink-0" />
+                  <span>{name}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConfirmedMentions(prev => prev.filter(m => m !== name))
+                      setMessage(prev => prev.replace(`@${name}`, '').trimStart())
+                    }}
+                    className="ml-0.5 p-0.5 rounded-full hover:bg-indigo-200 transition-colors"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </motion.span>
               ))}
             </motion.div>
           )}
