@@ -911,7 +911,9 @@ memoryRoutes.post('/sync-lenny-conv', async (c) => {
     return c.json({ ok: false, error: 'missing fields' }, 400)
   }
   const safeAssistant = assistantMessage?.trim() ?? ''
-  const convSource = source === 'pg' ? 'pg' : source === 'zhang' ? 'zhang' : source === 'wang' ? 'wang' : 'lenny'
+  // 支持 'lenny' | 'pg' | 'zhang' | 'wang' | 'custom-<id>'
+  const isCustom = source?.startsWith('custom-')
+  const convSource = isCustom ? source! : (source === 'pg' ? 'pg' : source === 'zhang' ? 'zhang' : source === 'wang' ? 'wang' : 'lenny')
 
   const now = new Date().toISOString()
   const conv = {
@@ -1040,9 +1042,10 @@ memoryRoutes.post('/sync-lenny-conv', async (c) => {
  * POST /api/memory/bootstrap-facts
  *
  * 历史对话补全：扫描 conversations.jsonl，对尚未提取过记忆事实的对话
- * 逐条入队 extract_profile + extract_preference 任务。
+ * 逐条入队 extract_profile + extract_preference 任务；同时对缺少向量的
+ * 历史对话补触发 fetchEmbedding（fire-and-forget）。
  * 每次最多处理 200 条，防止队列膨胀。
- * 幂等：已有 memory_facts.source_conv_id 记录的对话直接跳过。
+ * 幂等：已有 memory_facts.source_conv_id 或已有 embeddings 记录的跳过对应步骤。
  */
 memoryRoutes.post('/bootstrap-facts', async (c) => {
   const db = userDb(c)
@@ -1073,7 +1076,13 @@ memoryRoutes.post('/bootstrap-facts', async (c) => {
     } catch { /* ignore */ }
   }
 
-  // 过滤出未提取的
+  // 已有向量索引的 conv id 集合
+  const indexedSet = new Set(
+    (db.prepare('SELECT conversation_id FROM embeddings').all() as { conversation_id: string }[])
+      .map(r => r.conversation_id)
+  )
+
+  // 过滤出未提取的（记忆事实维度）
   const toProcess = [...convMap.values()].filter(cv => !extracted.has(cv.id)).slice(0, 200)
   if (toProcess.length === 0) return c.json({ ok: true, queued: 0, reason: 'all already extracted' })
 
@@ -1097,6 +1106,22 @@ memoryRoutes.post('/bootstrap-facts', async (c) => {
     })
 
     queued++
+
+    // 补全向量索引（如果缺失）—— fire-and-forget，不阻塞响应
+    if (!indexedSet.has(conv.id)) {
+      const indexText = conv.userMessage + ' ' + conv.assistantMessage
+      fetchEmbedding(db, indexText).then(vec => {
+        if (!vec) return
+        const ts = new Date().toISOString()
+        try {
+          db.prepare(`
+            INSERT INTO embeddings (conversation_id, vector, dim, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(conversation_id) DO UPDATE SET vector=excluded.vector, dim=excluded.dim, updated_at=excluded.updated_at
+          `).run(conv.id, vecToBuffer(vec), vec.length, ts)
+        } catch { /* non-fatal */ }
+      }).catch(() => {})
+    }
   }
 
   console.log(`[bootstrap-facts] queued ${queued} conversations for profile+preference extraction`)
