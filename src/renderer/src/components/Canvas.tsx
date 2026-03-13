@@ -28,6 +28,8 @@ import { SearchPanel } from './SearchPanel'
 import { SettingsModal } from './SettingsModal'
 import { LennySpaceCanvas } from './LennySpaceCanvas'
 import { PGSpaceCanvas } from './PGSpaceCanvas'
+import { ZhangSpaceCanvas } from './ZhangSpaceCanvas'
+import { WangSpaceCanvas } from './WangSpaceCanvas'
 
 import { AmbientBackground } from './AmbientBackground'
 import { ClusterLabel } from './ClusterLabel'
@@ -353,6 +355,8 @@ export function Canvas() {
   const [showMergeBanner, setShowMergeBanner] = useState(false)
   const [isLennySpaceOpen, setIsLennySpaceOpen] = useState(false)
   const [isPGSpaceOpen, setIsPGSpaceOpen] = useState(false)
+  const [isZhangSpaceOpen, setIsZhangSpaceOpen] = useState(false)
+  const [isWangSpaceOpen, setIsWangSpaceOpen] = useState(false)
   const prevNodeCountRef = useRef(0)
   const prevRulesCountRef = useRef(profileRulesCount)
 
@@ -974,6 +978,44 @@ export function Canvas() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
           </svg>
         </motion.button>
+
+        {/* 张小龙 */}
+        <motion.button
+          onClick={() => setIsZhangSpaceOpen(true)}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="flex items-center gap-2.5 pl-2.5 pr-3 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[168px]"
+        >
+          <div className="w-7 h-7 rounded-full bg-blue-100 border border-blue-200/80 flex items-center justify-center text-blue-700 font-semibold text-[11px] shrink-0">
+            张
+          </div>
+          <div className="text-left flex-1 min-w-0">
+            <div className="text-[11px] font-semibold text-gray-700 leading-tight truncate">张小龙</div>
+            <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{t.canvas.zhangSubtitle}</div>
+          </div>
+          <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+          </svg>
+        </motion.button>
+
+        {/* 王慧文 */}
+        <motion.button
+          onClick={() => setIsWangSpaceOpen(true)}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="flex items-center gap-2.5 pl-2.5 pr-3 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[168px]"
+        >
+          <div className="w-7 h-7 rounded-full bg-emerald-100 border border-emerald-200/80 flex items-center justify-center text-emerald-700 font-semibold text-[11px] shrink-0">
+            王
+          </div>
+          <div className="text-left flex-1 min-w-0">
+            <div className="text-[11px] font-semibold text-gray-700 leading-tight truncate">王慧文</div>
+            <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{t.canvas.wangSubtitle}</div>
+          </div>
+          <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+          </svg>
+        </motion.button>
       </div>
 
       <AmbientBackground />
@@ -1104,6 +1146,14 @@ export function Canvas() {
       <PGSpaceCanvas
         isOpen={isPGSpaceOpen}
         onClose={() => setIsPGSpaceOpen(false)}
+      />
+      <ZhangSpaceCanvas
+        isOpen={isZhangSpaceOpen}
+        onClose={() => setIsZhangSpaceOpen(false)}
+      />
+      <WangSpaceCanvas
+        isOpen={isWangSpaceOpen}
+        onClose={() => setIsWangSpaceOpen(false)}
       />
 
       {/* 记忆引用连线 overlay：高亮节点 → 输入框 */}

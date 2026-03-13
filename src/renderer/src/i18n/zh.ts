@@ -33,6 +33,8 @@ export interface Translations {
     mergeBtn: string
     lennySubtitle: string
     pgSubtitle: string
+    zhangSubtitle: string
+    wangSubtitle: string
   }
   input: {
     placeholder: string
@@ -104,6 +106,8 @@ export interface Translations {
     deleteNodeTooltip: string
     lennyPlaceholder: string
     pgPlaceholder: string
+    zhangPlaceholder: string
+    wangPlaceholder: string
     conversationCount: (n: number) => string
   }
   sidebar: {
@@ -321,6 +325,8 @@ export const zh: Translations = {
     mergeBtn: '整理',
     lennySubtitle: 'Product · Growth',
     pgSubtitle: 'Startup · Thinking',
+    zhangSubtitle: 'Product · WeChat',
+    wangSubtitle: 'Product · Meituan',
   },
 
   // ── InputBox ─────────────────────────────────────────────────────────────
@@ -454,6 +460,8 @@ export const zh: Translations = {
     deleteNodeTooltip: '删除节点',
     lennyPlaceholder: '向 Lenny 提问…',
     pgPlaceholder: '向 Paul Graham 提问…',
+    zhangPlaceholder: '向张小龙提问…',
+    wangPlaceholder: '向王慧文提问…',
     conversationCount: (n: number) => `${n} 条对话`,
   },
 

@@ -10,6 +10,14 @@
 
 ## 已完成版本
 
+#### v0.4.0 - 张小龙 & 王慧文 Public Space（已完成）
+- [x] `ZhangSpaceCanvas.tsx`：35 颗种子节点，蓝色主题，ZHANG_SYSTEM_PROMPT
+- [x] `WangSpaceCanvas.tsx`：30 颗种子节点，emerald 主题，WANG_SYSTEM_PROMPT
+- [x] canvasStore 4-way 空间模式（isZhangMode / isWangMode）
+- [x] Canvas.tsx 入口按钮（张小龙 + 王慧文）
+- [x] AnswerModal.tsx 4-way 系统 prompt 路由
+- [x] 新增 24 个单元测试 | vitest 475/475 | tsc 0 errors
+
 #### v0.3.3 - 文件检索增强（大文件分块 + 跨对话引用）（已完成）
 - [x] `search_files` tool：AI 可主动检索历史上传文件片段（语义向量检索）
 - [x] `searchFileChunks` 函数：embedding → 余弦相似度 → Top-5 片段

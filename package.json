@@ -1,6 +1,6 @@
 {
   "name": "anima",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "description": "Anima — 属于你的那部分自我",
   "main": "./out/main/index.js",
   "author": "Anima Team",

@@ -35,6 +35,8 @@ export const en: Translations = {
     mergeBtn: 'Merge',
     lennySubtitle: 'Product · Growth',
     pgSubtitle: 'Startup · Thinking',
+    zhangSubtitle: 'Product · WeChat',
+    wangSubtitle: 'Product · Meituan',
   },
 
   // ── InputBox ─────────────────────────────────────────────────────────────
@@ -168,6 +170,8 @@ export const en: Translations = {
     deleteNodeTooltip: 'Delete node',
     lennyPlaceholder: 'Ask Lenny anything…',
     pgPlaceholder: 'Ask Paul Graham anything…',
+    zhangPlaceholder: 'Ask Zhang Xiaolong anything…',
+    wangPlaceholder: 'Ask Wang Huiwen anything…',
     conversationCount: (n: number) => `${n} conversation${n === 1 ? '' : 's'}`,
   },
 

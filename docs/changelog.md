@@ -1,5 +1,31 @@
 # Anima 变更日志
 
+## [0.4.0] - 2026-03-13
+
+### feat: 张小龙 & 王慧文 Public Space
+
+**新增两个 Public Space（独立存储 + 专属系统 prompt + 35/30 颗种子节点）：**
+- `ZhangSpaceCanvas.tsx`：张小龙空间（蓝色主题，zhang-dot-grid）
+  - 35 颗种子节点：用完即走哲学、12 个好产品标准、历年微信公开课、小程序理念、内容生态、隐私伦理等
+  - 20 条种子边，从"用完即走，走了还会回来"中心节点向外辐射
+- `WangSpaceCanvas.tsx`：王慧文空间（emerald 主题，wang-dot-grid）
+  - 30 颗种子节点：核心竞争力、π 型人才、后发优势、清华创业课 7 讲、AI 时代创业、组织建设等
+  - 20 条种子边，从"真正的核心竞争力只有两个"中心节点向外辐射
+- `canvasStore.ts`：新增 `isZhangMode` / `isWangMode` 标志 + `openZhangMode` / `closeZhangMode` / `openWangMode` / `closeWangMode` 方法；5 处文件路由更新为 4-way ternary
+- `constants.ts`：新增 `ZHANG_SYSTEM_PROMPT` / `WANG_SYSTEM_PROMPT`（各 500+ 字，覆盖人物核心观点/思维框架/回复风格）
+- `STORAGE_FILES` + `ALLOWED_FILENAMES`：新增 6 个 zhang-\*/wang-\* 文件名
+- `Canvas.tsx`：左侧 Spaces 区域新增张小龙（蓝色头像）、王慧文（绿色头像）入口按钮
+- `AnswerModal.tsx`：4-way ternary 选择空间 prompt（isPGMode → isZhangMode → isWangMode → Lenny）
+- i18n：新增 `zhangSubtitle` / `wangSubtitle` / `zhangPlaceholder` / `wangPlaceholder`
+
+**新增单元测试 24 个：**
+- `canvasStore.zhangWangMode.test.ts`（18 个测试文件，475 个用例）
+- Zhang/Wang 模式标志正确性、存储文件隔离、seed data 完整性、系统 prompt 存在性
+
+**测试结果**：475/475 通过（18 个文件），`tsc --noEmit` 零错误。
+
+---
+
 ## [0.3.3] - 2026-03-13
 
 ### feat: 文件检索增强（大文件分块 + 跨对话引用）
