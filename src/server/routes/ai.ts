@@ -32,6 +32,7 @@ import {
 } from '../../shared/constants'
 import type { AIMessage } from '../../shared/types'
 import { enqueueTask } from '../agentWorker'
+import { cosineSim, embedTextWithUserKey } from '../lib/embedding'
 
 export const aiRoutes = new Hono()
 
@@ -65,15 +66,6 @@ function approxTokens(text: string): number {
   return Math.ceil(count)
 }
 
-// ── 服务端语义搜索（直接访问 DB + embedding，不走 HTTP 环回）────────────────
-function cosineSim(a: Float32Array, b: Float32Array): number {
-  let dot = 0, na = 0, nb = 0
-  const len = Math.min(a.length, b.length)
-  for (let i = 0; i < len; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i] }
-  if (na === 0 || nb === 0) return 0
-  return dot / (Math.sqrt(na) * Math.sqrt(nb))
-}
-
 // ── FTS5 BM25 fallback（embedding 不可用时） ──────────────────────────────────
 function bm25FallbackFacts(db: InstanceType<typeof Database>, query: string): string[] {
   try {
@@ -99,20 +91,8 @@ function bm25FallbackFacts(db: InstanceType<typeof Database>, query: string): st
 async function fetchRelevantFacts(db: InstanceType<typeof Database>, query: string, apiKey: string, baseUrl: string): Promise<string[]> {
   if (!query.trim() || !apiKey) return []
   try {
-    const isMoonshot = baseUrl.includes('moonshot')
-    const embModel = isMoonshot ? 'moonshot-v1-embedding' : 'text-embedding-3-small'
-    const embResp = await fetch(`${baseUrl}/embeddings`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: embModel, input: query.slice(0, 500) }),
-      signal: AbortSignal.timeout(5_000)
-    })
-    if (!embResp.ok) return bm25FallbackFacts(db, query)
-    const embData = (await embResp.json()) as { data: { embedding: number[] }[] }
-    const queryVec = embData?.data?.[0]?.embedding
-    if (!Array.isArray(queryVec) || queryVec.length === 0) return bm25FallbackFacts(db, query)
-
-    const queryF32 = new Float32Array(queryVec)
+    const queryF32 = await embedTextWithUserKey(query, apiKey, baseUrl, { maxInputLen: 500, timeoutMs: 5_000 })
+    if (!queryF32) return bm25FallbackFacts(db, query)
 
     const facts = db.prepare(
       'SELECT id, fact, source_conv_id FROM memory_facts WHERE invalid_at IS NULL ORDER BY created_at DESC LIMIT 100'
@@ -197,20 +177,8 @@ async function fetchScoredFacts(
 ): Promise<string[]> {
   if (!query.trim() || !apiKey) return []
   try {
-    const isMoonshot = baseUrl.includes('moonshot')
-    const embModel = isMoonshot ? 'moonshot-v1-embedding' : 'text-embedding-3-small'
-    const embResp = await fetch(`${baseUrl}/embeddings`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: embModel, input: query.slice(0, 500) }),
-      signal: AbortSignal.timeout(5_000)
-    })
-    if (!embResp.ok) return bm25FallbackFacts(db, query)
-    const embData = (await embResp.json()) as { data: { embedding: number[] }[] }
-    const queryVec = embData?.data?.[0]?.embedding
-    if (!Array.isArray(queryVec) || queryVec.length === 0) return bm25FallbackFacts(db, query)
-
-    const queryF32 = new Float32Array(queryVec)
+    const queryF32 = await embedTextWithUserKey(query, apiKey, baseUrl, { maxInputLen: 500, timeoutMs: 5_000 })
+    if (!queryF32) return bm25FallbackFacts(db, query)
 
     const facts = db.prepare(
       'SELECT id, fact, source_conv_id, created_at FROM memory_facts WHERE invalid_at IS NULL ORDER BY created_at DESC LIMIT 100'
@@ -434,28 +402,8 @@ async function searchFileChunks(
   baseUrl: string
 ): Promise<Array<{ filename: string; chunkIndex: number; chunkText: string; score: number }>> {
   try {
-    const BUILTIN_KEY = process.env.BUILTIN_EMBED_API_KEY || ''
-    const embKey = BUILTIN_KEY || apiKey
-    const embUrl = BUILTIN_KEY
-      ? 'https://dashscope.aliyuncs.com/compatible-mode/v1'
-      : baseUrl
-    // text-embedding-v4 (阿里云内置) 支持 dimensions 参数；其他模型不传，避免报错
-    const embModelFinal = BUILTIN_KEY ? 'text-embedding-v4' : (baseUrl.includes('moonshot') ? 'moonshot-v1-embedding' : 'text-embedding-3-small')
-    const embBody: Record<string, unknown> = { model: embModelFinal, input: query.slice(0, 1000) }
-    if (BUILTIN_KEY) embBody.dimensions = 2048
-
-    const embResp = await fetch(`${embUrl}/embeddings`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${embKey}` },
-      body: JSON.stringify(embBody),
-      signal: AbortSignal.timeout(8_000)
-    })
-    if (!embResp.ok) return []
-    const embData = (await embResp.json()) as { data: { embedding: number[] }[] }
-    const queryVec = embData?.data?.[0]?.embedding
-    if (!Array.isArray(queryVec) || queryVec.length === 0) return []
-
-    const queryF32 = new Float32Array(queryVec)
+    const queryF32 = await embedTextWithUserKey(query, apiKey, baseUrl, { maxInputLen: 1000, timeoutMs: 8_000 })
+    if (!queryF32) return []
 
     const rows = db.prepare(`
       SELECT fe.chunk_index, fe.chunk_text, fe.vector, uf.filename
