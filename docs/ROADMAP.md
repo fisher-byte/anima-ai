@@ -10,6 +10,14 @@
 
 ## 已完成版本
 
+#### v0.3.3 - 文件检索增强（大文件分块 + 跨对话引用）（已完成）
+- [x] `search_files` tool：AI 可主动检索历史上传文件片段（语义向量检索）
+- [x] `searchFileChunks` 函数：embedding → 余弦相似度 → Top-5 片段
+- [x] SSE search_round 文案区分 web/memory/file 三类
+- [x] InputBox @ 触发历史文件联想面板（懒加载 + 键盘导航）
+- [x] 发送时追加隐藏 AI 提示，AI 知道可调用 search_files 检索
+- [x] vitest 451/451 | tsc 0 errors
+
 #### v0.3.2 - AI 工具能力补全（URL读取 + 主动记忆查询）（已完成）
 - [x] URL 内容预取：检测消息里的 URL，通过 Jina Reader 抓取内容注入上下文
 - [x] search_memory 工具：AI 可主动查询记忆库（function calling）

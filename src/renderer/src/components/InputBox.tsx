@@ -16,7 +16,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCanvasStore } from '../stores/canvasStore'
-import { X, Paperclip, FileText, FileCode, File as FileIcon, Loader2, ArrowUp, Sparkles, Quote, ChevronDown, ChevronUp } from 'lucide-react'
+import { X, Paperclip, FileText, FileCode, File as FileIcon, Loader2, ArrowUp, Sparkles, Quote, ChevronDown, ChevronUp, AtSign } from 'lucide-react'
 import { formatFilesForAI, FilePreview, getFileType, readImageAsBase64, formatFileSize } from '../../../services/fileParsing'
 import type { FileAttachment } from '@shared/types'
 import { getAuthToken, configService } from '../services/storageService'
@@ -71,6 +71,12 @@ export function InputBox() {
   const [focused, setFocused] = useState(false)
   const [matchCount, setMatchCount] = useState(0)
   const [referenceBlocks, setReferenceBlocks] = useState<string[]>([])
+
+  // @ 文件联想面板状态
+  const [atQuery, setAtQuery] = useState<string | null>(null) // null = 面板关闭，string = 当前搜索词
+  const [atSelectedIndex, setAtSelectedIndex] = useState(0)
+  const [historicFiles, setHistoricFiles] = useState<{ id: string; filename: string; embed_status: string; created_at: string }[]>([])
+  const historicFilesCacheRef = useRef<{ id: string; filename: string; embed_status: string; created_at: string }[] | null>(null)
 
   // API Key 内联输入状态
   const [isApiKeyMode, setIsApiKeyMode] = useState(false)
@@ -371,6 +377,21 @@ export function InputBox() {
       fullMessage = trimmed + fileContext
     }
 
+    // 检测 @文件名 引用，追加隐藏的 AI 提示（气泡中不显示）
+    const atMentionRegex = /@([\S]+)/g
+    const mentionedNames = [...trimmed.matchAll(atMentionRegex)].map(m => m[1])
+    if (mentionedNames.length > 0) {
+      const matchedFiles = (historicFilesCacheRef.current ?? []).filter(f =>
+        mentionedNames.some(name => f.filename === name)
+      )
+      if (matchedFiles.length > 0) {
+        const hints = matchedFiles
+          .map(f => `【已关联文件：${f.filename}（id:${f.id}）—— 如需引用请调用 search_files 工具】`)
+          .join('\n')
+        fullMessage = fullMessage + '\n\n' + hints
+      }
+    }
+
     // 将引用块追加到消息体，用标记包裹（AI 可读，记忆提取时剥离）
     if (referenceBlocks.length > 0) {
       const refSection = referenceBlocks
@@ -400,21 +421,98 @@ export function InputBox() {
     })
   }, [message, images, files, referenceBlocks, isProcessing, needsApiKey, startConversation, setHighlight, t])
 
+  // @ 文件选择：将 @xxx 替换为 @文件名
+  const handleAtSelect = useCallback((file: { id: string; filename: string; embed_status: string }) => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    const cursor = textarea.selectionStart ?? message.length
+    const beforeCursor = message.slice(0, cursor)
+    const atIdx = beforeCursor.lastIndexOf('@')
+    if (atIdx < 0) return
+    const afterAt = message.slice(cursor)
+    const newMsg = message.slice(0, atIdx) + `@${file.filename}` + afterAt
+    setMessage(newMsg)
+    setAtQuery(null)
+    requestAnimationFrame(() => {
+      textarea.focus()
+      const newCursor = atIdx + 1 + file.filename.length
+      textarea.setSelectionRange(newCursor, newCursor)
+    })
+  }, [message])
+
   // 键盘处理
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // @ 面板导航
+    if (atQuery !== null) {
+      const filteredFiles = historicFiles.filter(f =>
+        f.filename.toLowerCase().includes(atQuery.toLowerCase())
+      )
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setAtSelectedIndex(i => Math.min(i + 1, filteredFiles.length - 1))
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setAtSelectedIndex(i => Math.max(i - 1, 0))
+        return
+      }
+      if (e.key === 'Enter' && filteredFiles.length > 0) {
+        e.preventDefault()
+        handleAtSelect(filteredFiles[atSelectedIndex] ?? filteredFiles[0])
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setAtQuery(null)
+        return
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSubmit()
     }
-  }, [handleSubmit])
+  }, [handleSubmit, atQuery, historicFiles, atSelectedIndex, handleAtSelect])
 
-  // 自动调整高度 + 输入时防抖检索记忆（badge 反馈）
+  // 自动调整高度 + 输入时防抖检索记忆（badge 反馈）+ @ 文件联想
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value
     setMessage(val)
     const textarea = e.target
     textarea.style.height = 'auto'
     textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`
+
+    // 检测 @ 触发：取光标前最后一个 @ 后的子串
+    const cursor = textarea.selectionStart ?? val.length
+    const beforeCursor = val.slice(0, cursor)
+    const atIdx = beforeCursor.lastIndexOf('@')
+    if (atIdx >= 0) {
+      const afterAt = beforeCursor.slice(atIdx + 1)
+      // @ 后面没有空格或换行，才触发联想
+      if (!/[\s\n]/.test(afterAt)) {
+        setAtQuery(afterAt)
+        setAtSelectedIndex(0)
+        // 懒加载历史文件（有缓存则不重新请求）
+        if (!historicFilesCacheRef.current) {
+          const token = getAuthToken()
+          const headers: Record<string, string> = {}
+          if (token) headers['Authorization'] = `Bearer ${token}`
+          fetch('/api/storage/files', { headers })
+            .then(r => r.json())
+            .then((data: { id: string; filename: string; embed_status: string; created_at: string }[]) => {
+              historicFilesCacheRef.current = data
+              setHistoricFiles(data)
+            })
+            .catch(() => { /* 静默 */ })
+        } else {
+          setHistoricFiles(historicFilesCacheRef.current)
+        }
+      } else {
+        setAtQuery(null)
+      }
+    } else {
+      setAtQuery(null)
+    }
 
     // 清空旧防抖
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -604,6 +702,53 @@ export function InputBox() {
           )}
         </AnimatePresence>
 
+        {/* @ 文件联想面板 */}
+        <AnimatePresence>
+          {atQuery !== null && (() => {
+            const filteredFiles = historicFiles.filter(f =>
+              f.filename.toLowerCase().includes(atQuery.toLowerCase())
+            )
+            if (filteredFiles.length === 0 && atQuery === '') return null
+            return (
+              <motion.div
+                key="at-panel"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 6 }}
+                className="mb-2 bg-white rounded-2xl border border-gray-100 shadow-xl overflow-hidden max-h-52 overflow-y-auto"
+              >
+                <div className="px-3 py-1.5 text-[10px] text-gray-400 font-medium border-b border-gray-50">
+                  {t.input.fileSearch}
+                </div>
+                {filteredFiles.length === 0 ? (
+                  <div className="px-4 py-3 text-[13px] text-gray-400">{t.input.fileSearch}</div>
+                ) : (
+                  filteredFiles.map((f, idx) => (
+                    <button
+                      key={f.id}
+                      onMouseDown={(e) => { e.preventDefault(); handleAtSelect(f) }}
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors ${idx === atSelectedIndex ? 'bg-gray-50' : ''}`}
+                    >
+                      <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13px] font-medium text-gray-800 truncate">{f.filename}</div>
+                        <div className="text-[10px] text-gray-400">
+                          {f.embed_status !== 'done'
+                            ? t.input.vectorizing
+                            : new Date(f.created_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                      {f.embed_status !== 'done' && (
+                        <span className="text-[10px] text-gray-400 ml-1">{t.input.vectorizing}</span>
+                      )}
+                    </button>
+                  ))
+                )}
+              </motion.div>
+            )
+          })()}
+        </AnimatePresence>
+
         <motion.div
             layout
             className={`
@@ -621,6 +766,23 @@ export function InputBox() {
             title={t.input.uploadFile}
             >
             <Paperclip className="w-5 h-5" />
+            </button>
+            <button
+            onClick={() => {
+              const textarea = textareaRef.current
+              if (!textarea) return
+              const pos = textarea.selectionStart ?? message.length
+              const newMsg = message.slice(0, pos) + '@' + message.slice(pos)
+              setMessage(newMsg)
+              requestAnimationFrame(() => {
+                textarea.focus()
+                textarea.setSelectionRange(pos + 1, pos + 1)
+              })
+            }}
+            className="mb-1.5 p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-all"
+            title={t.input.fileSearch}
+            >
+            <AtSign className="w-5 h-5" />
             </button>
             <input
             type="file"

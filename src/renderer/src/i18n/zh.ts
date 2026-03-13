@@ -56,6 +56,8 @@ export interface Translations {
     memoryBadge: (n: number) => string
     send: string
     hint: string
+    fileSearch: string
+    vectorizing: string
   }
   settings: {
     title: string
@@ -343,6 +345,8 @@ export const zh: Translations = {
     memoryBadge: (n: number) => `${n} 记忆`,
     send: '发送',
     hint: 'Enter 发送 · Shift+Enter 换行',
+    fileSearch: '@ 搜索文件',
+    vectorizing: '向量化中',
   },
 
   // ── SettingsModal ─────────────────────────────────────────────────────────

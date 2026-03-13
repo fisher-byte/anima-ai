@@ -15,6 +15,7 @@
  *   data: {"type":"error","message":"..."}
  *   data: {"type":"url_fetch","url":"...","status":"fetching"|"done"|"failed"}
  *   data: {"type":"usage","totalTokens":123,"model":"..."}
+ *   data: {"type":"search_round","round":2,"message":"正在检索文件内容…"}
  */
 
 import { Hono } from 'hono'
@@ -206,6 +207,59 @@ async function fetchUrlContent(url: string): Promise<string | null> {
 // Note: use .match() only — never .exec() loop (shared lastIndex on /g regex)
 const URL_REGEX = /https?:\/\/[^\s\]）)>】'"。，！？；：\s]{10,}/g
 
+// ── 文件语义检索（直接访问 DB + embedding，不走 HTTP 环回）────────────────────
+async function searchFileChunks(
+  db: InstanceType<typeof Database>,
+  query: string,
+  apiKey: string,
+  baseUrl: string
+): Promise<Array<{ filename: string; chunkIndex: number; chunkText: string; score: number }>> {
+  try {
+    const isMoonshot = baseUrl.includes('moonshot')
+    const embModel = isMoonshot ? 'moonshot-v1-embedding' : 'text-embedding-3-small'
+    const BUILTIN_KEY = process.env.BUILTIN_EMBED_API_KEY || ''
+    const embKey = BUILTIN_KEY || apiKey
+    const embUrl = BUILTIN_KEY
+      ? 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+      : baseUrl
+    const embModelFinal = BUILTIN_KEY ? 'text-embedding-v4' : embModel
+
+    const embResp = await fetch(`${embUrl}/embeddings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${embKey}` },
+      body: JSON.stringify({ model: embModelFinal, input: query.slice(0, 1000), dimensions: 2048 }),
+      signal: AbortSignal.timeout(8_000)
+    })
+    if (!embResp.ok) return []
+    const embData = (await embResp.json()) as { data: { embedding: number[] }[] }
+    const queryVec = embData?.data?.[0]?.embedding
+    if (!Array.isArray(queryVec) || queryVec.length === 0) return []
+
+    const queryF32 = new Float32Array(queryVec)
+
+    const rows = db.prepare(`
+      SELECT fe.chunk_index, fe.chunk_text, fe.vector, uf.filename
+      FROM file_embeddings fe
+      JOIN uploaded_files uf ON uf.id = fe.file_id
+      ORDER BY fe.created_at DESC LIMIT 500
+    `).all() as { chunk_index: number; chunk_text: string; vector: Buffer; filename: string }[]
+
+    return rows
+      .map(row => {
+        const vec = new Float32Array(row.vector.buffer, row.vector.byteOffset, row.vector.byteLength / 4)
+        let dot = 0, na = 0, nb = 0
+        for (let i = 0; i < Math.min(queryF32.length, vec.length); i++) {
+          dot += queryF32[i] * vec[i]; na += queryF32[i] ** 2; nb += vec[i] ** 2
+        }
+        const score = (na && nb) ? dot / (Math.sqrt(na) * Math.sqrt(nb)) : 0
+        return { filename: row.filename, chunkIndex: row.chunk_index, chunkText: row.chunk_text, score }
+      })
+      .filter(r => r.score > 0.3)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5)
+  } catch { return [] }
+}
+
 // ── 工具定义：$web_search（内置）+ search_memory（本地）──────────────────────
 const TOOLS_WITH_MEMORY = [
   { type: 'builtin_function', function: { name: '$web_search' } },
@@ -218,6 +272,20 @@ const TOOLS_WITH_MEMORY = [
         type: 'object',
         properties: {
           query: { type: 'string', description: '搜索关键词或问题' }
+        },
+        required: ['query']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'search_files',
+      description: '在用户上传的文件中语义搜索相关内容片段，用于回答"文件里说的X是什么"、"帮我找文件中关于Y的部分"等问题',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: '要搜索的内容关键词或问题' }
         },
         required: ['query']
       }
@@ -634,6 +702,22 @@ aiRoutes.post('/stream', async (c) => {
             } catch { /* 静默 */ }
             return { role: 'tool' as const, tool_call_id: tc.id, content: result }
           }
+          if (tc.function.name === 'search_files') {
+            let result = '未找到相关文件内容。'
+            try {
+              const args = JSON.parse(tc.function.arguments || '{}') as { query?: string }
+              const query = args.query?.trim() ?? ''
+              if (query) {
+                const chunks = await searchFileChunks(db, query, effectiveApiKey, baseUrl)
+                if (chunks.length > 0) {
+                  result = chunks
+                    .map((c, i) => `[${i + 1}] 文件《${c.filename}》第${c.chunkIndex + 1}段：\n${c.chunkText}`)
+                    .join('\n\n')
+                }
+              }
+            } catch { /* 静默 */ }
+            return { role: 'tool' as const, tool_call_id: tc.id, content: result }
+          }
           // $web_search：回传 arguments，由 Moonshot 服务端执行
           return { role: 'tool' as const, tool_call_id: tc.id, content: tc.function.arguments }
         }))
@@ -643,14 +727,17 @@ aiRoutes.post('/stream', async (c) => {
 
         if (round > MAX_SEARCH_ROUNDS) break
 
-        // 通知前端：即将进行第 N 轮搜索（区分 web 搜索 vs 记忆查询）
+        // 通知前端：即将进行第 N 轮搜索（区分 web 搜索 vs 记忆查询 vs 文件检索）
         const isMemoryRound = toolCalls.some(tc => tc.function.name === 'search_memory')
+        const isFileRound = toolCalls.some(tc => tc.function.name === 'search_files')
         await sendEvent({
           type: 'search_round',
           round,
           message: isMemoryRound
             ? '正在查询记忆库…'
-            : (round === 2 ? '你的问题有点复杂，正在进行更多搜索…' : `正在进行第 ${round} 轮搜索，请稍候…`)
+            : isFileRound
+              ? '正在检索文件内容…'
+              : (round === 2 ? '你的问题有点复杂，正在进行更多搜索…' : `正在进行第 ${round} 轮搜索，请稍候…`)
         })
 
         // 续轮请求：必须带上 tools 声明，否则模型无法继续调用搜索

@@ -422,11 +422,19 @@ describe('TOOLS_WITH_MEMORY 结构', () => {
         description: '查询用户的个人记忆库',
         parameters: { type: 'object', properties: { query: { type: 'string', description: '' } }, required: ['query'] }
       }
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'search_files',
+        description: '在用户上传的文件中语义搜索相关内容片段',
+        parameters: { type: 'object', properties: { query: { type: 'string', description: '要搜索的内容关键词或问题' } }, required: ['query'] }
+      }
     }
   ]
 
-  it('包含恰好 2 个工具', () => {
-    expect(TOOLS).toHaveLength(2)
+  it('包含恰好 3 个工具', () => {
+    expect(TOOLS).toHaveLength(3)
   })
 
   it('第一个是 $web_search（type=builtin_function）', () => {
@@ -437,5 +445,71 @@ describe('TOOLS_WITH_MEMORY 结构', () => {
   it('第二个是 search_memory（type=function）', () => {
     expect(TOOLS[1].type).toBe('function')
     expect(TOOLS[1].function.name).toBe('search_memory')
+  })
+})
+
+// ── search_files tool 结构测试 ────────────────────────────────────────────────
+
+describe('search_files tool 结构', () => {
+  const TOOLS = [
+    { type: 'builtin_function', function: { name: '$web_search' } },
+    {
+      type: 'function',
+      function: {
+        name: 'search_memory',
+        description: '查询用户的个人记忆库',
+        parameters: { type: 'object', properties: { query: { type: 'string', description: '' } }, required: ['query'] }
+      }
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'search_files',
+        description: '在用户上传的文件中语义搜索相关内容片段',
+        parameters: { type: 'object', properties: { query: { type: 'string', description: '要搜索的内容关键词或问题' } }, required: ['query'] }
+      }
+    }
+  ]
+
+  it('TOOLS_WITH_MEMORY 包含恰好 3 个工具', () => {
+    expect(TOOLS).toHaveLength(3)
+  })
+
+  it('第三个工具是 search_files（type=function）', () => {
+    const tool = TOOLS.find(t => t.function.name === 'search_files')
+    expect(tool).toBeDefined()
+    expect(tool?.type).toBe('function')
+  })
+
+  it('search_files 的 query 参数在 required 中', () => {
+    const tool = TOOLS.find(t => t.function.name === 'search_files')
+    expect((tool?.function as any).parameters.required).toContain('query')
+  })
+})
+
+// ── search_round 文件检索文案测试 ─────────────────────────────────────────────
+
+describe('search_round 文件检索文案', () => {
+  function searchRoundMsgFull(round: number, isMemoryRound: boolean, isFileRound: boolean): string {
+    return isMemoryRound
+      ? '正在查询记忆库…'
+      : isFileRound
+        ? '正在检索文件内容…'
+        : (round === 2 ? '你的问题有点复杂，正在进行更多搜索…' : `正在进行第 ${round} 轮搜索，请稍候…`)
+  }
+
+  it('toolCalls 含 search_files 时 isFileRound 为 true', () => {
+    const toolCalls = [{ id: 'tc-1', type: 'function', function: { name: 'search_files', arguments: '{"query":"test"}' } }]
+    const isFileRound = toolCalls.some(tc => tc.function.name === 'search_files')
+    expect(isFileRound).toBe(true)
+  })
+
+  it('isFileRound=true 时 message 为"正在检索文件内容…"', () => {
+    expect(searchRoundMsgFull(2, false, true)).toBe('正在检索文件内容…')
+    expect(searchRoundMsgFull(3, false, true)).toBe('正在检索文件内容…')
+  })
+
+  it('isMemoryRound 优先级高于 isFileRound（同时存在时显示记忆文案）', () => {
+    expect(searchRoundMsgFull(2, true, true)).toBe('正在查询记忆库…')
   })
 })

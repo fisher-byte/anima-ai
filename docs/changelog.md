@@ -1,5 +1,32 @@
 # Anima 变更日志
 
+## [0.3.3] - 2026-03-13
+
+### feat: 文件检索增强（大文件分块 + 跨对话引用）
+
+**`search_files` tool（后端 ai.ts）：**
+- 新增模块级 `searchFileChunks` 函数：获取 query embedding → 对 `file_embeddings` 表中向量做余弦相似度排序 → 返回最相关的 5 个文件片段
+- `TOOLS_WITH_MEMORY` 追加第三个工具 `search_files`（AI 可主动调用）
+- tool_call 处理块新增 `search_files` 分支：本地执行，不走 HTTP 环回
+- SSE `search_round` 文案区分 `isFileRound`：显示"正在检索文件内容…"
+- 复用已有内置阿里云 embedding 逻辑（BUILTIN_EMBED_API_KEY）
+
+**@ 文件联想（前端 InputBox.tsx）：**
+- 输入 `@` 时自动弹出历史文件列表（懒加载 + 本地缓存）
+- 文件名前缀过滤：`@设计` → 只显示含"设计"的文件
+- 键盘 ↑↓ 选择、Enter/点击确认、Escape 关闭面板
+- `embed_status !== 'done'` 显示"向量化中"提示
+- 选中后将 `@文件名` 插入光标处，发送时追加隐藏 AI 提示
+- 新增 @ 按钮（AtSign 图标），点击直接在光标处插入 @
+
+**i18n：**
+- zh.ts / en.ts 追加 `fileSearch`、`vectorizing` 两个 key
+
+**新增 6 个单元测试（451/451）：**
+- `TOOLS_WITH_MEMORY 结构`：工具数量从 2 改为 3（修正已有测试）
+- `search_files tool 结构`：3 个（工具数量、type=function、query 在 required）
+- `search_round 文件检索文案`：3 个（isFileRound 逻辑、文案正确性、isMemoryRound 优先级）
+
 ## [0.3.2] - 2026-03-13
 
 ### feat: AI 工具能力补全（URL 内容读取 + 主动记忆查询）+ 代码质量修复
