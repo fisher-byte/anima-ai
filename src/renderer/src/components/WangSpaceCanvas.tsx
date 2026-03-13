@@ -18,7 +18,7 @@ const WANG_CONFIG: SpaceConfig = {
   nodeIdPrefix: 'wang-node-',
   gridClass: 'wang-dot-grid',
   avatarText: '王',
-  avatarBg: 'bg-emerald-600',
+  avatarBg: 'bg-gray-900',
   displayName: '王慧文',
   hoverHasHistory: 'View history →',
   hoverNoHistory: 'Ask →',

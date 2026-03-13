@@ -11,9 +11,10 @@ import {
   useState, useRef, useEffect, useCallback, useLayoutEffect, useMemo,
 } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, ArrowUp, Trash2, Settings, History, X, ChevronRight } from 'lucide-react'
+import { ArrowLeft, ArrowUp, Trash2, Settings, History, X, ChevronRight, Paperclip } from 'lucide-react'
 import { Edge } from './Edge'
 import { SettingsModal } from './SettingsModal'
+import { FileBrowserPanel } from './FileBrowserPanel'
 import { storageService } from '../services/storageService'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useForceSimulation } from '../hooks/useForceSimulation'
@@ -279,6 +280,7 @@ export function PublicSpaceCanvas({ config, isOpen, onClose }: PublicSpaceCanvas
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+  const [isFilesOpen, setIsFilesOpen] = useState(false)
   const [historyItems, setHistoryItems] = useState<Array<{ id: string; userMessage: string; createdAt: string }>>([])
 
   const [inputValue, setInputValue] = useState('')
@@ -762,7 +764,14 @@ export function PublicSpaceCanvas({ config, isOpen, onClose }: PublicSpaceCanvas
         <div className="flex items-center gap-1 shrink-0">
           <span className="text-[11px] font-bold text-gray-300 mr-2">{Math.round(scaleDisplay * 100)}%</span>
           <button
-            onClick={() => setIsHistoryOpen(v => !v)}
+            onClick={() => { setIsFilesOpen(v => !v); setIsHistoryOpen(false) }}
+            className={`p-2 rounded-xl transition-colors ${isFilesOpen ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
+            title="文件列表"
+          >
+            <Paperclip className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => { setIsHistoryOpen(v => !v); setIsFilesOpen(false) }}
             className={`p-2 rounded-xl transition-colors ${isHistoryOpen ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
             title={t.space.conversationHistory}
           >
@@ -882,6 +891,12 @@ export function PublicSpaceCanvas({ config, isOpen, onClose }: PublicSpaceCanvas
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── 文件列表面板 ── */}
+      <FileBrowserPanel
+        isOpen={isFilesOpen}
+        onClose={() => setIsFilesOpen(false)}
+      />
 
       {/* ── 删除确认弹窗 ── */}
       {deleteConfirmId && (
