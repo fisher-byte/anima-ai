@@ -619,11 +619,13 @@ test('Canvas 汉堡菜单展开后可见"整理相似节点"按钮', async ({ pa
   await waitForBackend(page)
   await page.waitForTimeout(1000)
 
-  // 关闭可能残留的 onboarding 或 confirm 遮罩
+  // 关闭可能残留的 onboarding 或 confirm 遮罩（包括 z-40/z-50/z-[60] 各级别）
   await page.keyboard.press('Escape')
   await page.waitForTimeout(300)
-  // 等待遮罩消失
-  await page.locator('.fixed.inset-0.z-40').waitFor({ state: 'hidden', timeout: 3000 }).catch(() => {})
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
+  // 等待所有 fixed overlay 消失，超时则继续
+  await page.locator('.fixed.inset-0').waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {})
 
   // 点击汉堡菜单（LayoutGrid 按钮，用 data-testid 定位避免 i18n 影响）
   const menuBtn = page.locator('[data-testid="menu-btn"]')

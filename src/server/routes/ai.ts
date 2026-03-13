@@ -20,6 +20,7 @@
  * Memory strategy env vars (v0.4.3+):
  *   MEMORY_STRATEGY=baseline|scored  (default: baseline)
  *   MEMORY_DECAY=false|true          (default: false, 指数时间衰减 half-life ~69 days)
+ *   MEMORY_BUDGET=<number>           (default: 1500, system prompt 注入层总 token 预算)
  */
 
 import { Hono } from 'hono'

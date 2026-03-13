@@ -48,6 +48,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     window.location.reload()
   }, [migrateInput, currentToken])
 
+  // ESC 键关闭
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [isOpen, onClose])
+
   // 加载配置
   useEffect(() => {
     if (isOpen) {
@@ -163,7 +171,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      {isOpen && (
+      <div key="settings-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4">
         {/* 遮罩 */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -189,6 +198,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <h2 className="font-semibold text-lg">{t.settings.title}</h2>
             </div>
             <button
+              data-testid="settings-close-btn"
               onClick={onClose}
               className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400"
             >
@@ -385,6 +395,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </div>
         </motion.div>
       </div>
+      )}
     </AnimatePresence>
   )
 }

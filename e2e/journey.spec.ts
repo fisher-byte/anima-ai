@@ -74,6 +74,9 @@ async function waitForInputReady(page: import('@playwright/test').Page) {
     const ta = document.querySelector('textarea')
     return ta !== null && ta.offsetParent !== null  // 可见且已渲染
   }, { timeout: 15000 })
+  // 清除可能残留的任何 modal（前一个测试遗留的 AnswerModal 等）
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
 }
 
 /** mock AI SSE 流（固定回复内容） */
@@ -88,7 +91,7 @@ async function mockAIStream(page: import('@playwright/test').Page, content: stri
       },
       body: [
         `data: ${JSON.stringify({ type: 'content', content })}\n\n`,
-        `data: ${JSON.stringify({ type: 'done' })}\n\n`,
+        `data: ${JSON.stringify({ type: 'done', fullText: content })}\n\n`,
       ].join(''),
     })
   })
