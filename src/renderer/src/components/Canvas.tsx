@@ -1025,7 +1025,7 @@ export function Canvas() {
       </div>
 
       {/* My Spaces (user-created custom spaces) */}
-      <div className="fixed left-4 bottom-4 z-30 flex flex-col gap-1.5" style={{ bottom: customSpaces.length > 0 ? '8.5rem' : '8.5rem' }}>
+      <div className="fixed left-4 z-30 flex flex-col gap-1.5" style={{ bottom: '8.5rem' }}>
         <div className="px-1 mb-1 flex items-center justify-between w-[168px]">
           <span className="text-[10px] text-gray-400/70 font-medium tracking-widest uppercase">{t.space.mySpaces}</span>
           {customSpaces.length < 5 && (

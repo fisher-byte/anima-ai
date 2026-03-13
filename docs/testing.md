@@ -23,6 +23,15 @@
   - 节点合并阈值、相似度判断、聚合后数据一致性
 - ✅ `canvasStore.lennyMode.test.ts` — Lenny Space 模式（12 个用例）
   - Lenny Space 开关、节点加载、状态隔离
+- ✅ `canvasStore.customSpaceMode.test.ts` — 用户自定义 Space 模式（18 个用例）
+  - `openCustomSpaceMode` 设置标志 + 互斥清除其他 Space 标志
+  - `closeCustomSpaceMode` 重置全部状态
+  - `createCustomSpace` 生成 id + 写 custom-spaces.json + 追加到数组
+  - `createCustomSpace` max-5 限制抛出错误
+  - `deleteCustomSpace` 从数组移除 + 写 custom-spaces.json
+  - `addNode` 在 customSpaceMode=true 时不写 nodes.json（主空间隔离）
+  - `appendConversation` 写 custom-{id}-conversations.jsonl（不写 conversations.jsonl）
+  - `isValidFilename` 接受 custom-{8}-nodes/conversations/edges + 拒绝非法变体
 - ✅ `rebuild-node-graph.test.ts` — 节点图重建（7 个用例）
   - 无数据返回 reason、clusters 数组格式、边界条件
 
