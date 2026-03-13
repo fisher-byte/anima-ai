@@ -62,6 +62,7 @@ export const en: Translations = {
     hint: 'Enter to send · Shift+Enter for new line',
     fileSearch: '@ to search files',
     vectorizing: 'Indexing...',
+    noFileMatch: 'No matching files',
   },
 
   // ── SettingsModal ─────────────────────────────────────────────────────────

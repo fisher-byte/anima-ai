@@ -215,19 +215,20 @@ async function searchFileChunks(
   baseUrl: string
 ): Promise<Array<{ filename: string; chunkIndex: number; chunkText: string; score: number }>> {
   try {
-    const isMoonshot = baseUrl.includes('moonshot')
-    const embModel = isMoonshot ? 'moonshot-v1-embedding' : 'text-embedding-3-small'
     const BUILTIN_KEY = process.env.BUILTIN_EMBED_API_KEY || ''
     const embKey = BUILTIN_KEY || apiKey
     const embUrl = BUILTIN_KEY
       ? 'https://dashscope.aliyuncs.com/compatible-mode/v1'
       : baseUrl
-    const embModelFinal = BUILTIN_KEY ? 'text-embedding-v4' : embModel
+    // text-embedding-v4 (阿里云内置) 支持 dimensions 参数；其他模型不传，避免报错
+    const embModelFinal = BUILTIN_KEY ? 'text-embedding-v4' : (baseUrl.includes('moonshot') ? 'moonshot-v1-embedding' : 'text-embedding-3-small')
+    const embBody: Record<string, unknown> = { model: embModelFinal, input: query.slice(0, 1000) }
+    if (BUILTIN_KEY) embBody.dimensions = 2048
 
     const embResp = await fetch(`${embUrl}/embeddings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${embKey}` },
-      body: JSON.stringify({ model: embModelFinal, input: query.slice(0, 1000), dimensions: 2048 }),
+      body: JSON.stringify(embBody),
       signal: AbortSignal.timeout(8_000)
     })
     if (!embResp.ok) return []
@@ -241,17 +242,16 @@ async function searchFileChunks(
       SELECT fe.chunk_index, fe.chunk_text, fe.vector, uf.filename
       FROM file_embeddings fe
       JOIN uploaded_files uf ON uf.id = fe.file_id
+      WHERE uf.embed_status = 'done'
       ORDER BY fe.created_at DESC LIMIT 500
     `).all() as { chunk_index: number; chunk_text: string; vector: Buffer; filename: string }[]
 
     return rows
       .map(row => {
-        const vec = new Float32Array(row.vector.buffer, row.vector.byteOffset, row.vector.byteLength / 4)
-        let dot = 0, na = 0, nb = 0
-        for (let i = 0; i < Math.min(queryF32.length, vec.length); i++) {
-          dot += queryF32[i] * vec[i]; na += queryF32[i] ** 2; nb += vec[i] ** 2
-        }
-        const score = (na && nb) ? dot / (Math.sqrt(na) * Math.sqrt(nb)) : 0
+        // 复制 Buffer 到独立的 ArrayBuffer，避免共享 slab 的字节对齐问题
+        const copied = row.vector.buffer.slice(row.vector.byteOffset, row.vector.byteOffset + row.vector.byteLength)
+        const vec = new Float32Array(copied)
+        const score = cosineSim(queryF32, vec)
         return { filename: row.filename, chunkIndex: row.chunk_index, chunkText: row.chunk_text, score }
       })
       .filter(r => r.score > 0.3)
@@ -556,7 +556,14 @@ aiRoutes.post('/stream', async (c) => {
       temperature: AI_CONFIG.TEMPERATURE,
       stream: true
     }
-    if (!isSimpleQuery && MULTIMODAL_MODELS.includes(model as typeof MULTIMODAL_MODELS[number])) {
+    // 工具调用（search_memory + search_files + $web_search）：所有 Moonshot 模型和已知多模态模型均支持
+    // MULTIMODAL_MODELS 仅控制图片能力，工具调用不受此限制
+    const supportsTools = !isSimpleQuery && (
+      MULTIMODAL_MODELS.includes(model as typeof MULTIMODAL_MODELS[number]) ||
+      baseUrl.includes('moonshot') ||
+      model.startsWith('moonshot-')
+    )
+    if (supportsTools) {
       requestBody.tools = TOOLS_WITH_MEMORY
     }
 
