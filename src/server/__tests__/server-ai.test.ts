@@ -676,3 +676,31 @@ describe('session_memory 注入条件', () => {
     expect(all['conv-54']).toBeDefined()   // 最新的保留
   })
 })
+
+// ── v0.4.5 MEMORY_BUDGET 环境变量 ────────────────────────────────────────────
+
+describe('MEMORY_BUDGET 环境变量解析', () => {
+  function parseMemoryBudget(envVal: string | undefined): number {
+    return parseInt(envVal ?? '1500', 10) || 1500
+  }
+
+  it('未设置时默认 1500', () => {
+    expect(parseMemoryBudget(undefined)).toBe(1500)
+  })
+
+  it('设置为 2000 时返回 2000', () => {
+    expect(parseMemoryBudget('2000')).toBe(2000)
+  })
+
+  it('设置为 800 时返回 800', () => {
+    expect(parseMemoryBudget('800')).toBe(800)
+  })
+
+  it('非数字字符串降级到 1500', () => {
+    expect(parseMemoryBudget('abc')).toBe(1500)
+  })
+
+  it('空字符串降级到 1500', () => {
+    expect(parseMemoryBudget('')).toBe(1500)
+  })
+})
