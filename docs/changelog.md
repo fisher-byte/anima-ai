@@ -1,5 +1,26 @@
 # Anima 变更日志
 
+## [0.4.3] - 2026-03-13
+
+### feat: 记忆评分系统（Memory Quality v1）
+
+**新增功能：**
+- `MEMORY_STRATEGY` 环境变量：`baseline`（默认，原有行为不变）| `scored`（激活记忆评分）
+- `MEMORY_DECAY` 环境变量：`false`（默认）| `true`（启用指数时间衰减，半衰期 69 天）
+- `fetchScoredFacts()`：scored 策略实现，`finalScore = decayed * (0.7 + importance * 0.3) + accessBonus`
+  - `importance` 默认 0.5，可通过 memory_scores.json 旁路存储更新
+  - `accessBonus = min(0.15, access_count * 0.02)`，常访问 facts 权重提升
+  - `access_count` 异步递增（`setImmediate`，不阻塞主请求链路）
+- `memory_scores.json` 存储于 SQLite `storage` 表，格式：`{ "fact_id": { importance, emotion, access_count, last_accessed_at } }`
+- `loadMemoryScores()` / `saveMemoryScores()` 辅助函数（静默异常，不影响主流程）
+- `constants.ts`：`memory_scores.json` 加入 `ALLOWED_FILENAMES` 白名单
+
+**测试：** 新增 9 个单元测试（`applyDecay` 半衰期验证 / MEMORY_STRATEGY 公式权重 / accessBonus 上限）
+
+**测试结果**：502/502 通过（19 个文件），`tsc --noEmit` 零错误。
+
+---
+
 ## [0.4.2] - 2026-03-13
 
 ### feat: 用户自定义 Space（Generic Custom Spaces）

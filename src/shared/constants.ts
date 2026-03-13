@@ -519,6 +519,7 @@ export const ALLOWED_FILENAMES = [
   'wang-conversations.jsonl',
   'wang-edges.json',
   'custom-spaces.json',
+  'memory_scores.json',
 ] as const
 
 /** 自定义 Space 文件名模式：custom-{8位小写字母数字}-{nodes.json|conversations.jsonl|edges.json} */
