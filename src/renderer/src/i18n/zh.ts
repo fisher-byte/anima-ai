@@ -61,6 +61,9 @@ export interface Translations {
     fileSearch: string
     vectorizing: string
     noFileMatch: string
+    atSpaces: string
+    atFiles: string
+    noSpaceMatch: string
   }
   settings: {
     title: string
@@ -378,9 +381,12 @@ export const zh: Translations = {
     memoryBadge: (n: number) => `${n} 记忆`,
     send: '发送',
     hint: 'Enter 发送 · Shift+Enter 换行',
-    fileSearch: '@ 搜索文件',
+    fileSearch: '@ 搜索文件 / 空间',
     vectorizing: '向量化中',
     noFileMatch: '未找到匹配文件',
+    atSpaces: '空间',
+    atFiles: '文件',
+    noSpaceMatch: '未找到匹配空间',
   },
 
   // ── SettingsModal ─────────────────────────────────────────────────────────

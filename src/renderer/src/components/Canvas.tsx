@@ -941,91 +941,8 @@ export function Canvas() {
         </div>
       )}
 
-      {/* Public Spaces 入口区 */}
+      {/* Spaces 侧边栏 — My Spaces + Public Spaces 合并到同一个 fixed 容器，自底向上堆叠 */}
       <div className="fixed left-4 bottom-36 z-30 flex flex-col gap-1.5">
-        <div className="px-1 mb-1">
-          <span className="text-[10px] text-gray-400/70 font-medium tracking-widest uppercase">{t.canvas.spacesLabel}</span>
-        </div>
-
-        {/* Lenny Rachitsky */}
-        <motion.button
-          onClick={() => setIsLennySpaceOpen(true)}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="flex items-center gap-2.5 pl-2.5 pr-3 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[168px]"
-        >
-          <div className="w-7 h-7 rounded-full bg-gray-100 border border-gray-200/80 flex items-center justify-center text-gray-600 font-semibold text-[11px] shrink-0">
-            L
-          </div>
-          <div className="text-left flex-1 min-w-0">
-            <div className="text-[11px] font-semibold text-gray-700 leading-tight truncate">Lenny Rachitsky</div>
-            <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{t.canvas.lennySubtitle}</div>
-          </div>
-          <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-          </svg>
-        </motion.button>
-
-        {/* Paul Graham */}
-        <motion.button
-          onClick={() => setIsPGSpaceOpen(true)}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="flex items-center gap-2.5 pl-2.5 pr-3 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[168px]"
-        >
-          <div className="w-7 h-7 rounded-full bg-gray-100 border border-gray-200/80 flex items-center justify-center text-gray-600 font-semibold text-[11px] shrink-0">
-            PG
-          </div>
-          <div className="text-left flex-1 min-w-0">
-            <div className="text-[11px] font-semibold text-gray-700 leading-tight truncate">Paul Graham</div>
-            <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{t.canvas.pgSubtitle}</div>
-          </div>
-          <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-          </svg>
-        </motion.button>
-
-        {/* 张小龙 */}
-        <motion.button
-          onClick={() => setIsZhangSpaceOpen(true)}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="flex items-center gap-2.5 pl-2.5 pr-3 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[168px]"
-        >
-          <div className="w-7 h-7 rounded-full bg-blue-100 border border-blue-200/80 flex items-center justify-center text-blue-700 font-semibold text-[11px] shrink-0">
-            张
-          </div>
-          <div className="text-left flex-1 min-w-0">
-            <div className="text-[11px] font-semibold text-gray-700 leading-tight truncate">张小龙</div>
-            <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{t.canvas.zhangSubtitle}</div>
-          </div>
-          <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-          </svg>
-        </motion.button>
-
-        {/* 王慧文 */}
-        <motion.button
-          onClick={() => setIsWangSpaceOpen(true)}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="flex items-center gap-2.5 pl-2.5 pr-3 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[168px]"
-        >
-          <div className="w-7 h-7 rounded-full bg-emerald-100 border border-emerald-200/80 flex items-center justify-center text-emerald-700 font-semibold text-[11px] shrink-0">
-            王
-          </div>
-          <div className="text-left flex-1 min-w-0">
-            <div className="text-[11px] font-semibold text-gray-700 leading-tight truncate">王慧文</div>
-            <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{t.canvas.wangSubtitle}</div>
-          </div>
-          <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-          </svg>
-        </motion.button>
-      </div>
-
-      {/* My Spaces (user-created custom spaces) */}
-      <div className="fixed left-4 z-30 flex flex-col gap-1.5" style={{ bottom: '8.5rem' }}>
         <div className="px-1 mb-1 flex items-center justify-between w-[168px]">
           <span className="text-[10px] text-gray-400/70 font-medium tracking-widest uppercase">{t.space.mySpaces}</span>
           {customSpaces.length < 5 && (
@@ -1091,6 +1008,74 @@ export function Canvas() {
             <span className="text-[11px] font-medium">{t.space.addSpace}</span>
           </motion.button>
         )}
+
+        {/* 分隔线 */}
+        <div className="w-[168px] border-t border-gray-100/80 my-0.5" />
+
+        {/* Public Spaces */}
+        <div className="px-1 mb-1">
+          <span className="text-[10px] text-gray-400/70 font-medium tracking-widest uppercase">{t.canvas.spacesLabel}</span>
+        </div>
+
+        {/* Lenny Rachitsky */}
+        <motion.button
+          onClick={() => setIsLennySpaceOpen(true)}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="flex items-center gap-2.5 pl-2.5 pr-3 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[168px]"
+        >
+          <div className="w-7 h-7 rounded-full bg-gray-100 border border-gray-200/80 flex items-center justify-center text-gray-600 font-semibold text-[11px] shrink-0">L</div>
+          <div className="text-left flex-1 min-w-0">
+            <div className="text-[11px] font-semibold text-gray-700 leading-tight truncate">Lenny Rachitsky</div>
+            <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{t.canvas.lennySubtitle}</div>
+          </div>
+          <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+        </motion.button>
+
+        {/* Paul Graham */}
+        <motion.button
+          onClick={() => setIsPGSpaceOpen(true)}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="flex items-center gap-2.5 pl-2.5 pr-3 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[168px]"
+        >
+          <div className="w-7 h-7 rounded-full bg-gray-100 border border-gray-200/80 flex items-center justify-center text-gray-600 font-semibold text-[11px] shrink-0">PG</div>
+          <div className="text-left flex-1 min-w-0">
+            <div className="text-[11px] font-semibold text-gray-700 leading-tight truncate">Paul Graham</div>
+            <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{t.canvas.pgSubtitle}</div>
+          </div>
+          <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+        </motion.button>
+
+        {/* 张小龙 */}
+        <motion.button
+          onClick={() => setIsZhangSpaceOpen(true)}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="flex items-center gap-2.5 pl-2.5 pr-3 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[168px]"
+        >
+          <div className="w-7 h-7 rounded-full bg-gray-100 border border-gray-200/80 flex items-center justify-center text-gray-600 font-semibold text-[11px] shrink-0">张</div>
+          <div className="text-left flex-1 min-w-0">
+            <div className="text-[11px] font-semibold text-gray-700 leading-tight truncate">张小龙</div>
+            <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{t.canvas.zhangSubtitle}</div>
+          </div>
+          <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+        </motion.button>
+
+        {/* 王慧文 */}
+        <motion.button
+          onClick={() => setIsWangSpaceOpen(true)}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="flex items-center gap-2.5 pl-2.5 pr-3 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[168px]"
+        >
+          <div className="w-7 h-7 rounded-full bg-gray-100 border border-gray-200/80 flex items-center justify-center text-gray-600 font-semibold text-[11px] shrink-0">王</div>
+          <div className="text-left flex-1 min-w-0">
+            <div className="text-[11px] font-semibold text-gray-700 leading-tight truncate">王慧文</div>
+            <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{t.canvas.wangSubtitle}</div>
+          </div>
+          <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+        </motion.button>
       </div>
 
       {/* Delete Custom Space confirm dialog */}

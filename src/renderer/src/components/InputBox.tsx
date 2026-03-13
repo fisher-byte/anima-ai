@@ -16,11 +16,19 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCanvasStore } from '../stores/canvasStore'
-import { X, Paperclip, FileText, FileCode, File as FileIcon, Loader2, ArrowUp, Sparkles, Quote, ChevronDown, ChevronUp, AtSign } from 'lucide-react'
+import { X, Paperclip, FileText, FileCode, File as FileIcon, Loader2, ArrowUp, Sparkles, Quote, ChevronDown, ChevronUp, AtSign, LayoutGrid } from 'lucide-react'
 import { formatFilesForAI, FilePreview, getFileType, readImageAsBase64, formatFileSize } from '../../../services/fileParsing'
 import type { FileAttachment } from '@shared/types'
 import { getAuthToken, configService } from '../services/storageService'
 import { useT } from '../i18n'
+
+// 公共空间定义（固定 4 个）
+const PUBLIC_SPACES = [
+  { id: 'lenny',  name: 'Lenny Rachitsky', initials: 'L',  persona: 'Lenny Rachitsky（Product · Growth）', storagePrefix: 'lenny' },
+  { id: 'pg',     name: 'Paul Graham',     initials: 'PG', persona: 'Paul Graham（Startup · Thinking）',    storagePrefix: 'pg' },
+  { id: 'zhang',  name: '张小龙',           initials: '张', persona: '张小龙（Product · WeChat）',           storagePrefix: 'zhang' },
+  { id: 'wang',   name: '王慧文',           initials: '王', persona: '王慧文（Startup · Product）',          storagePrefix: 'wang' },
+] as const
 
 /** 引用块胶囊：折叠展示粘贴的长文本，保留在输入框上方 */
 function ReferenceBlockPreview({ content, onRemove }: { content: string; onRemove: () => void }) {
@@ -98,6 +106,7 @@ export function InputBox() {
   const hasApiKey = useCanvasStore(state => state.hasApiKey)
   const apiKeyChecked = useCanvasStore(state => state.apiKeyChecked)
   const checkApiKey = useCanvasStore(state => state.checkApiKey)
+  const customSpaces = useCanvasStore(state => state.customSpaces)
   const { t } = useT()
 
   // 引导完成后检测是否需要配置 API Key
@@ -390,6 +399,19 @@ export function InputBox() {
           .join('\n')
         fullMessage = fullMessage + '\n\n' + hints
       }
+
+      // 检测 @空间名 引用，追加隐藏的空间 persona 提示
+      const allSpaces: { name: string; persona: string; storagePrefix: string }[] = [
+        ...PUBLIC_SPACES,
+        ...customSpaces.map(s => ({ name: s.name, persona: `${s.name}（${s.topic}）`, storagePrefix: `custom-${s.id}` }))
+      ]
+      const matchedSpaces = allSpaces.filter(s => mentionedNames.some(n => n === s.name))
+      if (matchedSpaces.length > 0) {
+        const spaceHints = matchedSpaces
+          .map(s => `【已关联空间：${s.persona}—— 请以 ${s.name} 的视角和知识来回答，可调用 search_memory 检索相关记忆】`)
+          .join('\n')
+        fullMessage = fullMessage + '\n\n' + spaceHints
+      }
     }
 
     // 将引用块追加到消息体，用标记包裹（AI 可读，记忆提取时剥离）
@@ -421,8 +443,9 @@ export function InputBox() {
     })
   }, [message, images, files, referenceBlocks, isProcessing, needsApiKey, startConversation, setHighlight, t])
 
-  // @ 文件选择：将 @xxx 替换为 @文件名
-  const handleAtSelect = useCallback((file: { id: string; filename: string; embed_status: string }) => {
+  // @ 选择：将 @xxx 替换为 @名称（文件或空间均可）
+  const handleAtSelect = useCallback((item: { name: string } | { id: string; filename: string; embed_status: string }) => {
+    const displayName = 'filename' in item ? item.filename : item.name
     const textarea = textareaRef.current
     if (!textarea) return
     const cursor = textarea.selectionStart ?? message.length
@@ -430,27 +453,32 @@ export function InputBox() {
     const atIdx = beforeCursor.lastIndexOf('@')
     if (atIdx < 0) return
     const afterAt = message.slice(cursor)
-    const newMsg = message.slice(0, atIdx) + `@${file.filename}` + afterAt
+    const newMsg = message.slice(0, atIdx) + `@${displayName}` + afterAt
     setMessage(newMsg)
     setAtQuery(null)
     setAtSelectedIndex(0)
     requestAnimationFrame(() => {
       textarea.focus()
-      const newCursor = atIdx + 1 + file.filename.length
+      const newCursor = atIdx + 1 + displayName.length
       textarea.setSelectionRange(newCursor, newCursor)
     })
   }, [message])
 
   // 键盘处理
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // @ 面板导航
+    // @ 面板导航（空间 + 文件合并列表）
     if (atQuery !== null) {
-      const filteredFiles = historicFiles.filter(f =>
-        f.filename.toLowerCase().includes(atQuery.toLowerCase())
-      )
+      const q = atQuery.toLowerCase()
+      const allSpaces: { name: string; initials?: string }[] = [
+        ...PUBLIC_SPACES,
+        ...customSpaces.map(s => ({ name: s.name, initials: s.avatarInitials }))
+      ]
+      const filteredSpaces = allSpaces.filter(s => s.name.toLowerCase().includes(q))
+      const filteredFiles = historicFiles.filter(f => f.filename.toLowerCase().includes(q))
+      const totalCount = filteredSpaces.length + filteredFiles.length
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setAtSelectedIndex(i => Math.min(i + 1, filteredFiles.length - 1))
+        setAtSelectedIndex(i => Math.min(i + 1, totalCount - 1))
         return
       }
       if (e.key === 'ArrowUp') {
@@ -458,9 +486,15 @@ export function InputBox() {
         setAtSelectedIndex(i => Math.max(i - 1, 0))
         return
       }
-      if (e.key === 'Enter' && filteredFiles.length > 0) {
+      if (e.key === 'Enter' && totalCount > 0) {
         e.preventDefault()
-        handleAtSelect(filteredFiles[atSelectedIndex] ?? filteredFiles[0])
+        const idx = atSelectedIndex
+        if (idx < filteredSpaces.length) {
+          handleAtSelect(filteredSpaces[idx])
+        } else {
+          const fileIdx = idx - filteredSpaces.length
+          handleAtSelect(filteredFiles[fileIdx] ?? filteredFiles[0])
+        }
         return
       }
       if (e.key === 'Escape') {
@@ -474,7 +508,7 @@ export function InputBox() {
       e.preventDefault()
       handleSubmit()
     }
-  }, [handleSubmit, atQuery, historicFiles, atSelectedIndex, handleAtSelect])
+  }, [handleSubmit, atQuery, historicFiles, customSpaces, atSelectedIndex, handleAtSelect])
 
   // 自动调整高度 + 输入时防抖检索记忆（badge 反馈）+ @ 文件联想
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -705,47 +739,85 @@ export function InputBox() {
           )}
         </AnimatePresence>
 
-        {/* @ 文件联想面板 */}
+        {/* @ 联想面板（空间 + 文件） */}
         <AnimatePresence>
           {atQuery !== null && (() => {
-            const filteredFiles = historicFiles.filter(f =>
-              f.filename.toLowerCase().includes(atQuery.toLowerCase())
-            )
-            if (filteredFiles.length === 0 && atQuery === '') return null
+            const q = atQuery.toLowerCase()
+            const allSpaces = [
+              ...PUBLIC_SPACES,
+              ...customSpaces.map(s => ({ id: `custom-${s.id}`, name: s.name, initials: s.avatarInitials, persona: `${s.name}（${s.topic}）`, storagePrefix: `custom-${s.id}` }))
+            ]
+            const filteredSpaces = allSpaces.filter(s => s.name.toLowerCase().includes(q))
+            const filteredFiles = historicFiles.filter(f => f.filename.toLowerCase().includes(q))
+            if (filteredSpaces.length === 0 && filteredFiles.length === 0 && atQuery === '') return null
+            let globalIdx = 0
             return (
               <motion.div
                 key="at-panel"
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 6 }}
-                className="mb-2 bg-white rounded-2xl border border-gray-100 shadow-xl overflow-hidden max-h-52 overflow-y-auto"
+                className="mb-2 bg-white rounded-2xl border border-gray-100 shadow-xl overflow-hidden max-h-64 overflow-y-auto"
               >
                 <div className="px-3 py-1.5 text-[10px] text-gray-400 font-medium border-b border-gray-50">
                   {t.input.fileSearch}
                 </div>
-                {filteredFiles.length === 0 ? (
+
+                {/* 空间分组 */}
+                {filteredSpaces.length > 0 && (
+                  <>
+                    <div className="px-4 py-1 text-[10px] text-gray-400 font-semibold uppercase tracking-wider bg-gray-50/60">{t.input.atSpaces}</div>
+                    {filteredSpaces.map((space) => {
+                      const idx = globalIdx++
+                      return (
+                        <button
+                          key={space.id}
+                          onMouseDown={(e) => { e.preventDefault(); handleAtSelect(space) }}
+                          className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors ${idx === atSelectedIndex ? 'bg-gray-50' : ''}`}
+                        >
+                          <div className="w-6 h-6 rounded-full bg-gray-100 border border-gray-200/80 flex items-center justify-center text-gray-600 font-semibold text-[10px] shrink-0">
+                            {space.initials}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[13px] font-medium text-gray-800 truncate">{space.name}</div>
+                          </div>
+                          <LayoutGrid className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+                        </button>
+                      )
+                    })}
+                  </>
+                )}
+
+                {/* 文件分组 */}
+                {filteredFiles.length > 0 && (
+                  <>
+                    <div className="px-4 py-1 text-[10px] text-gray-400 font-semibold uppercase tracking-wider bg-gray-50/60">{t.input.atFiles}</div>
+                    {filteredFiles.map((f) => {
+                      const idx = globalIdx++
+                      return (
+                        <button
+                          key={f.id}
+                          onMouseDown={(e) => { e.preventDefault(); handleAtSelect(f) }}
+                          className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors ${idx === atSelectedIndex ? 'bg-gray-50' : ''}`}
+                        >
+                          <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[13px] font-medium text-gray-800 truncate">{f.filename}</div>
+                            <div className="text-[10px] text-gray-400">
+                              {f.embed_status !== 'done' ? t.input.vectorizing : new Date(f.created_at).toLocaleDateString()}
+                            </div>
+                          </div>
+                          {f.embed_status !== 'done' && (
+                            <span className="text-[10px] text-gray-400 ml-1">{t.input.vectorizing}</span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </>
+                )}
+
+                {filteredSpaces.length === 0 && filteredFiles.length === 0 && (
                   <div className="px-4 py-3 text-[13px] text-gray-400">{t.input.noFileMatch}</div>
-                ) : (
-                  filteredFiles.map((f, idx) => (
-                    <button
-                      key={f.id}
-                      onMouseDown={(e) => { e.preventDefault(); handleAtSelect(f) }}
-                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors ${idx === atSelectedIndex ? 'bg-gray-50' : ''}`}
-                    >
-                      <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[13px] font-medium text-gray-800 truncate">{f.filename}</div>
-                        <div className="text-[10px] text-gray-400">
-                          {f.embed_status !== 'done'
-                            ? t.input.vectorizing
-                            : new Date(f.created_at).toLocaleDateString()}
-                        </div>
-                      </div>
-                      {f.embed_status !== 'done' && (
-                        <span className="text-[10px] text-gray-400 ml-1">{t.input.vectorizing}</span>
-                      )}
-                    </button>
-                  ))
                 )}
               </motion.div>
             )

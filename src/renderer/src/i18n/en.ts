@@ -62,9 +62,12 @@ export const en: Translations = {
     memoryBadge: (n: number) => `${n} memor${n === 1 ? 'y' : 'ies'}`,
     send: 'Send',
     hint: 'Enter to send · Shift+Enter for new line',
-    fileSearch: '@ to search files',
+    fileSearch: '@ to search files / spaces',
     vectorizing: 'Indexing...',
     noFileMatch: 'No matching files',
+    atSpaces: 'Spaces',
+    atFiles: 'Files',
+    noSpaceMatch: 'No matching spaces',
   },
 
   // ── SettingsModal ─────────────────────────────────────────────────────────
