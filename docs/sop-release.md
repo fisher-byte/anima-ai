@@ -11,7 +11,7 @@
 ### 1. 测试 & 类型检查
 
 ```bash
-npm test          # 必须全部通过（当前基线：502 / 502，19 个文件）
+npm test          # 必须全部通过（当前基线：512 / 512，19 个文件）
 npx tsc --noEmit  # 必须零错误
 npm run build     # 构建验证（前端产物生成到 dist/）
 ```
@@ -103,7 +103,7 @@ ssh evocanvas-prod "cd /opt/evocanvas && git checkout <hash> && npm install --om
 ## 三、完整发版检查清单（按顺序执行）
 
 ```
-[ ] 1. npm test              → 502/502 通过
+[ ] 1. npm test              → 512/512 通过
 [ ] 2. npx tsc --noEmit      → 零错误
 [ ] 3. npm run build         → 构建成功
 [ ] 4. npm run test:e2e      → 26/27 通过（1 skip 正常）

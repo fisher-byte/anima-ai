@@ -8,7 +8,7 @@
  * 应用信息
  */
 export const APP_NAME = 'Anima'
-export const APP_VERSION = '0.4.2'
+export const APP_VERSION = '0.4.4'
 
 /**
  * 存储文件名
@@ -520,6 +520,7 @@ export const ALLOWED_FILENAMES = [
   'wang-edges.json',
   'custom-spaces.json',
   'memory_scores.json',
+  'session_memory.json',
 ] as const
 
 /** 自定义 Space 文件名模式：custom-{8位小写字母数字}-{nodes.json|conversations.jsonl|edges.json} */

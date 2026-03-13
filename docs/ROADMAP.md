@@ -3,10 +3,16 @@
 ## 计划中版本
 
 ### v0.4.x - 记忆质量提升（参见 docs/memory-strategy.md）
-- [ ] session_memory.json：会话级记忆摘要（长对话 10+ 轮压缩）
 - [ ] MEMORY_BUDGET 环境变量（当前硬编码 CONTEXT_BUDGET = 1500）
 
 ## 已完成版本
+
+#### v0.4.4 - 会话级记忆摘要（Session Memory）（已完成）
+- [x] `session_memory.json`：长对话（≥10 轮）自动生成摘要，存于 SQLite storage 表
+- [x] `generateSessionSummary`：AI 轻量摘要 + setImmediate 异步生成，不阻塞响应
+- [x] 系统提示层 3.5 注入（CONTEXT_BUDGET 之外）
+- [x] 自动清理：保留最近 50 条，防止无限增长
+- [x] 新增 10 个单元测试 | vitest 512/512 | tsc 0 errors
 
 #### v0.4.3 - 记忆评分系统（Memory Quality v1）（已完成）
 - [x] `MEMORY_STRATEGY` 环境变量：baseline / scored 策略切换
