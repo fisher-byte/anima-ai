@@ -16,7 +16,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCanvasStore } from '../stores/canvasStore'
-import { X, Paperclip, FileText, FileCode, File as FileIcon, Loader2, ArrowUp, Sparkles, Quote, ChevronDown, ChevronUp, AtSign, LayoutGrid, Zap } from 'lucide-react'
+import { X, Paperclip, FileText, FileCode, File as FileIcon, Loader2, ArrowUp, Sparkles, Quote, ChevronDown, ChevronUp, AtSign, LayoutGrid, Plus } from 'lucide-react'
 import { formatFilesForAI, FilePreview, getFileType, readImageAsBase64, formatFileSize } from '../../../services/fileParsing'
 import type { FileAttachment } from '@shared/types'
 import { getAuthToken, configService } from '../services/storageService'
@@ -30,14 +30,14 @@ const PUBLIC_SPACES = [
   { id: 'wang',   name: '王慧文',           initials: '王', persona: '王慧文（Startup · Product）',          storagePrefix: 'wang' },
 ] as const
 
-// Skills 定义 — key 对应 i18n，prompt 是注入 AI 的指令前缀
+// Skills 定义 — key 对应 i18n，prompt 是注入 AI 的指令前缀，keywords 用于自动场景检测
 const SKILLS = [
-  { key: 'polish',      icon: '✍️',  prompt: '请帮我润色以下内容，使其表达更清晰、流畅、有力：\n\n' },
-  { key: 'analyze',     icon: '🔍',  prompt: '请从多个角度深入分析以下内容，给出结构化的见解：\n\n' },
-  { key: 'summarize',   icon: '📝',  prompt: '请提炼以下内容的核心要点，简明扼要地总结：\n\n' },
-  { key: 'translate',   icon: '🌐',  prompt: '请将以下内容翻译为英文（若为英文则翻译为中文）：\n\n' },
-  { key: 'brainstorm',  icon: '💡',  prompt: '请围绕以下话题进行头脑风暴，给出尽可能多的创意和角度：\n\n' },
-  { key: 'codeReview',  icon: '🔧',  prompt: '请对以下代码进行审查，指出潜在问题、改进建议和最佳实践：\n\n' },
+  { key: 'polish',      icon: '✍️',  prompt: '请帮我润色以下内容，使其表达更清晰、流畅、有力：\n\n',                              keywords: ['润色', '修改文字', '帮我改', '改得', '写得更好', 'polish', 'rewrite'] },
+  { key: 'analyze',     icon: '🔍',  prompt: '请从多个角度深入分析以下内容，给出结构化的见解：\n\n',                              keywords: ['分析', '帮我看', '有什么问题', '评估', '研究一下', 'analyze', 'review this'] },
+  { key: 'summarize',   icon: '📝',  prompt: '请提炼以下内容的核心要点，简明扼要地总结：\n\n',                                    keywords: ['总结', '概括', '提炼', '摘要', '要点', 'summarize', 'summary'] },
+  { key: 'translate',   icon: '🌐',  prompt: '请将以下内容翻译为英文（若为英文则翻译为中文）：\n\n',                              keywords: ['翻译', '译成', '中译英', '英译中', 'translate', 'translation'] },
+  { key: 'brainstorm',  icon: '💡',  prompt: '请围绕以下话题进行头脑风暴，给出尽可能多的创意和角度：\n\n',                        keywords: ['头脑风暴', '想法', '创意', '灵感', '给我一些', 'brainstorm', 'ideas'] },
+  { key: 'codeReview',  icon: '🔧',  prompt: '请对以下代码进行审查，指出潜在问题、改进建议和最佳实践：\n\n',                      keywords: ['代码审查', 'code review', '看看代码', '检查代码', '这段代码', 'bug'] },
 ] as const
 
 /** 引用块胶囊：折叠展示粘贴的长文本，保留在输入框上方 */
@@ -96,8 +96,12 @@ export function InputBox() {
   const [historicFiles, setHistoricFiles] = useState<{ id: string; filename: string; embed_status: string; created_at: string }[]>([])
   const historicFilesCacheRef = useRef<{ id: string; filename: string; embed_status: string; created_at: string }[] | null>(null)
 
-  // Skills 面板状态
-  const [isSkillsOpen, setIsSkillsOpen] = useState(false)
+  // 自动建议的 Skill（关键词检测到时设置，为 null 时不显示）
+  const [suggestedSkill, setSuggestedSkill] = useState<typeof SKILLS[number] | null>(null)
+  const [isDismissedSkill, setIsDismissedSkill] = useState(false) // 用户 dismiss 后当次消息不再弹出
+
+  // + 操作菜单展开状态（上传/@ 两个功能）
+  const [isActionsOpen, setIsActionsOpen] = useState(false)
 
   // API Key 内联输入状态
   const [isApiKeyMode, setIsApiKeyMode] = useState(false)
@@ -445,6 +449,9 @@ export function InputBox() {
     setReferenceBlocks([])
     setMatchCount(0)
     setHighlight(null, [])
+    setSuggestedSkill(null)
+    setIsDismissedSkill(false)
+    setIsActionsOpen(false)
     setIsProcessing(false)
 
     // 重置textarea高度
@@ -514,21 +521,20 @@ export function InputBox() {
         e.preventDefault()
         setAtQuery(null)
         setAtSelectedIndex(0)
-        setIsSkillsOpen(false)
         return
       }
     }
-    // Escape outside @ panel: close skills
-    if (e.key === 'Escape' && isSkillsOpen) {
-      e.preventDefault()
-      setIsSkillsOpen(false)
+    // Escape: dismiss suggested skill or close actions menu
+    if (e.key === 'Escape') {
+      if (suggestedSkill) { setIsDismissedSkill(true); setSuggestedSkill(null) }
+      if (isActionsOpen) setIsActionsOpen(false)
       return
     }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSubmit()
     }
-  }, [handleSubmit, atQuery, historicFiles, customSpaces, atSelectedIndex, handleAtSelect, isSkillsOpen])
+  }, [handleSubmit, atQuery, historicFiles, customSpaces, atSelectedIndex, handleAtSelect, suggestedSkill, isActionsOpen])
 
   // 自动调整高度 + 输入时防抖检索记忆（badge 反馈）+ @ 文件联想
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -548,7 +554,6 @@ export function InputBox() {
       if (!/[\s\n]/.test(afterAt)) {
         setAtQuery(afterAt)
         setAtSelectedIndex(0)
-        setIsSkillsOpen(false)  // 打开 @ 面板时关闭 Skills 面板
         // 懒加载历史文件（有缓存则不重新请求）
         if (!historicFilesCacheRef.current) {
           const token = getAuthToken()
@@ -570,6 +575,18 @@ export function InputBox() {
       }
     } else {
       setAtQuery(null)
+    }
+
+    // 技能关键词自动检测（message 变化时，且用户未 dismiss）
+    if (!isDismissedSkill) {
+      const lower = val.toLowerCase()
+      const matched = SKILLS.find(s => s.keywords.some(kw => lower.includes(kw)))
+      setSuggestedSkill(matched ?? null)
+    }
+    // 清空时重置 dismiss 状态
+    if (!val.trim()) {
+      setIsDismissedSkill(false)
+      setSuggestedSkill(null)
     }
 
     // 清空旧防抖
@@ -594,7 +611,7 @@ export function InputBox() {
         setHighlight(category, highlightedIds)
       } catch { /* ignore */ }
     }, 600)
-  }, [detectIntent, getRelevantMemories, setHighlight])
+  }, [detectIntent, getRelevantMemories, setHighlight, isDismissedSkill])
 
   // 获取文件图标
   const getFileIcon = (type: FilePreview['type']) => {
@@ -845,53 +862,48 @@ export function InputBox() {
           })()}
         </AnimatePresence>
 
-        {/* Skills 面板 */}
+        {/* 技能自动建议 chip（关键词检测到时出现，不出现面板）*/}
         <AnimatePresence>
-          {isSkillsOpen && (
-            <motion.div
-              key="skills-panel"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 6 }}
-              className="mb-2 bg-white rounded-2xl border border-gray-100 shadow-xl overflow-hidden"
-            >
-              <div className="px-3 py-1.5 text-[10px] text-gray-400 font-medium border-b border-gray-50 flex items-center gap-1.5">
-                <Zap className="w-3 h-3" />
-                {t.input.skillsLabel}
-              </div>
-              <div className="grid grid-cols-2 gap-0">
-                {SKILLS.map(skill => {
-                  const nameKey = `skills${skill.key.charAt(0).toUpperCase() + skill.key.slice(1)}` as keyof typeof t.input
-                  const descKey = `${nameKey}Desc` as keyof typeof t.input
-                  return (
-                    <button
-                      key={skill.key}
-                      onMouseDown={(e) => {
-                        e.preventDefault()
-                        setMessage(prev => skill.prompt + prev)
-                        setIsSkillsOpen(false)
-                        requestAnimationFrame(() => {
-                          const textarea = textareaRef.current
-                          if (textarea) {
-                            textarea.focus()
-                            const newCursor = skill.prompt.length + (message?.length ?? 0)
-                            textarea.setSelectionRange(newCursor, newCursor)
-                          }
-                        })
-                      }}
-                      className="flex items-start gap-2.5 px-4 py-3 text-left hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
-                    >
-                      <span className="text-base leading-none mt-0.5">{skill.icon}</span>
-                      <div>
-                        <div className="text-[13px] font-medium text-gray-800">{String(t.input[nameKey] ?? skill.key)}</div>
-                        <div className="text-[11px] text-gray-400 mt-0.5">{String(t.input[descKey] ?? '')}</div>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            </motion.div>
-          )}
+          {suggestedSkill && atQuery === null && (() => {
+            const nameKey = `skills${suggestedSkill.key.charAt(0).toUpperCase() + suggestedSkill.key.slice(1)}` as keyof typeof t.input
+            return (
+              <motion.div
+                key="skill-chip"
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 4 }}
+                className="mb-2 flex items-center gap-2 px-3 py-1.5 bg-white rounded-2xl border border-gray-100 shadow-sm w-fit"
+              >
+                <span className="text-sm leading-none">{suggestedSkill.icon}</span>
+                <span className="text-[12px] text-gray-600 font-medium">{String(t.input[nameKey] ?? suggestedSkill.key)}</span>
+                <button
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    setMessage(prev => suggestedSkill.prompt + prev)
+                    setSuggestedSkill(null)
+                    setIsDismissedSkill(true)
+                    requestAnimationFrame(() => {
+                      const textarea = textareaRef.current
+                      if (textarea) {
+                        textarea.focus()
+                        const newCursor = suggestedSkill.prompt.length + message.length
+                        textarea.setSelectionRange(newCursor, newCursor)
+                      }
+                    })
+                  }}
+                  className="text-[11px] text-indigo-500 hover:text-indigo-700 font-medium transition-colors"
+                >
+                  {t.input.skillsApply}
+                </button>
+                <button
+                  onMouseDown={(e) => { e.preventDefault(); setIsDismissedSkill(true); setSuggestedSkill(null) }}
+                  className="p-0.5 text-gray-300 hover:text-gray-500 transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </motion.div>
+            )
+          })()}
         </AnimatePresence>
 
         <motion.div
@@ -904,39 +916,55 @@ export function InputBox() {
             ${focused ? 'border-gray-900 shadow-[0_8px_30px_rgba(0,0,0,0.12)]' : 'border-gray-200'}
             `}
         >
-            <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isProcessing}
-            className="mb-1.5 p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-all disabled:opacity-50"
-            title={t.input.uploadFile}
-            >
-            <Paperclip className="w-5 h-5" />
-            </button>
-            <button
-            onClick={() => {
-              const textarea = textareaRef.current
-              if (!textarea) return
-              const pos = textarea.selectionStart ?? message.length
-              const newMsg = message.slice(0, pos) + '@' + message.slice(pos)
-              setMessage(newMsg)
-              requestAnimationFrame(() => {
-                textarea.focus()
-                textarea.setSelectionRange(pos + 1, pos + 1)
-              })
-            }}
-            className="mb-1.5 p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-all"
-            title={t.input.fileSearch}
-            >
-            <AtSign className="w-5 h-5" />
-            </button>
-            {/* Skills 按钮 */}
-            <button
-            onClick={() => { setIsSkillsOpen(v => !v); setAtQuery(null) }}
-            className={`mb-1.5 p-2 hover:bg-gray-100 rounded-xl transition-all ${isSkillsOpen ? 'text-indigo-500 bg-indigo-50' : 'text-gray-400 hover:text-gray-700'}`}
-            title={t.input.skillsLabel}
-            >
-            <Zap className="w-5 h-5" />
-            </button>
+            {/* + 操作菜单：上传文件 + @ 提及，hover/click 展开 */}
+            <div className="relative mb-1.5 flex items-center">
+              <button
+                onClick={() => setIsActionsOpen(v => !v)}
+                className={`p-2 rounded-xl transition-all ${isActionsOpen ? 'text-gray-700 bg-gray-100' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
+                title="附件与提及"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+              <AnimatePresence>
+                {isActionsOpen && (
+                  <motion.div
+                    key="actions-menu"
+                    initial={{ opacity: 0, scale: 0.92, x: -4 }}
+                    animate={{ opacity: 1, scale: 1, x: 0 }}
+                    exit={{ opacity: 0, scale: 0.92, x: -4 }}
+                    transition={{ duration: 0.12 }}
+                    className="absolute bottom-full left-0 mb-1 flex flex-col gap-0.5 bg-white border border-gray-100 rounded-2xl shadow-xl p-1 z-10"
+                  >
+                    <button
+                      onClick={() => { fileInputRef.current?.click(); setIsActionsOpen(false) }}
+                      disabled={isProcessing}
+                      className="flex items-center gap-2 px-3 py-2 text-[13px] text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all disabled:opacity-50 whitespace-nowrap"
+                    >
+                      <Paperclip className="w-4 h-4 shrink-0" />
+                      {t.input.uploadFile}
+                    </button>
+                    <button
+                      onClick={() => {
+                        const textarea = textareaRef.current
+                        if (!textarea) return
+                        const pos = textarea.selectionStart ?? message.length
+                        const newMsg = message.slice(0, pos) + '@' + message.slice(pos)
+                        setMessage(newMsg)
+                        setIsActionsOpen(false)
+                        requestAnimationFrame(() => {
+                          textarea.focus()
+                          textarea.setSelectionRange(pos + 1, pos + 1)
+                        })
+                      }}
+                      className="flex items-center gap-2 px-3 py-2 text-[13px] text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all whitespace-nowrap"
+                    >
+                      <AtSign className="w-4 h-4 shrink-0" />
+                      {t.input.fileSearch}
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
             <input
             type="file"
             ref={fileInputRef}

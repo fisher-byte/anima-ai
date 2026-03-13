@@ -1,5 +1,18 @@
 # Anima 变更日志
 
+## [0.4.8] - 2026-03-13
+
+### feat: Skills 自动触发 + 工具栏重设计 + Spaces 侧边栏折叠
+
+**UX 优化：**
+- `InputBox.tsx`：移除 ⚡ Zap 按钮，改为关键词自动场景检测——输入包含「润色」「分析」「总结」「翻译」「头脑风暴」「code review」等关键词时，自动在输入框上方弹出对应技能建议 chip，点击「应用」插入 prompt 前缀，✕ 按钮关闭当次提示
+- `InputBox.tsx`：将 Paperclip + AtSign 两个并列按钮合并为单一 `+` 按钮，点击后在上方弹出操作菜单（上传文件 / @ 提及），视觉更简洁
+- `Canvas.tsx`：Spaces 侧边栏新增折叠/展开切换（`‹ ›` 按钮），折叠状态持久化到 localStorage（`evo_spaces_sidebar_visible`），折叠时以动画隐藏所有空间卡片
+
+**测试结果**：517/517 通过，`tsc --noEmit` 零错误。
+
+---
+
 ## [0.4.7] - 2026-03-13
 
 ### feat: 文件库面板 + Skills 面板 + 创建空间弹窗修复

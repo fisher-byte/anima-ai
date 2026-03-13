@@ -39,6 +39,8 @@ export const en: Translations = {
     wangSubtitle: 'Product · Meituan',
     fileLibrary: 'File Library',
     skills: 'Skills',
+    hideSpaces: 'Hide spaces',
+    showSpaces: 'Show spaces',
   },
 
   // ── InputBox ─────────────────────────────────────────────────────────────
@@ -83,6 +85,7 @@ export const en: Translations = {
     skillsBrainstormDesc: 'Generate creative ideas',
     skillsCodeReview: 'Code Review',
     skillsCodeReviewDesc: 'Check code quality & issues',
+    skillsApply: 'Apply',
   },
 
   // ── SettingsModal ─────────────────────────────────────────────────────────

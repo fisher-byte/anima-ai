@@ -37,6 +37,8 @@ export interface Translations {
     wangSubtitle: string
     fileLibrary: string
     skills: string
+    hideSpaces: string
+    showSpaces: string
   }
   input: {
     placeholder: string
@@ -79,6 +81,7 @@ export interface Translations {
     skillsBrainstormDesc: string
     skillsCodeReview: string
     skillsCodeReviewDesc: string
+    skillsApply: string
   }
   settings: {
     title: string
@@ -373,6 +376,8 @@ export const zh: Translations = {
     wangSubtitle: 'Product · Meituan',
     fileLibrary: '文件库',
     skills: '技能',
+    hideSpaces: '收起空间列',
+    showSpaces: '展开空间列',
   },
 
   // ── InputBox ─────────────────────────────────────────────────────────────
@@ -417,6 +422,7 @@ export const zh: Translations = {
     skillsBrainstormDesc: '发散思维，生成创意',
     skillsCodeReview: '代码审查',
     skillsCodeReviewDesc: '检查代码质量与问题',
+    skillsApply: '应用',
   },
 
   // ── SettingsModal ─────────────────────────────────────────────────────────
