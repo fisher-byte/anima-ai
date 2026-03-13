@@ -266,6 +266,21 @@ storageRoutes.get('/:filename', (c) => {
     if (filename === 'lenny-conversations.jsonl' || filename === 'conversations.jsonl') {
       return c.text('')
     }
+    // PG / Zhang / Wang Space 文件首次访问降级（同 Lenny）
+    if (filename === 'pg-nodes.json' || filename === 'pg-edges.json' ||
+        filename === 'zhang-nodes.json' || filename === 'zhang-edges.json' ||
+        filename === 'wang-nodes.json' || filename === 'wang-edges.json') {
+      return c.text('[]')
+    }
+    if (filename === 'pg-conversations.jsonl' ||
+        filename === 'zhang-conversations.jsonl' ||
+        filename === 'wang-conversations.jsonl') {
+      return c.text('')
+    }
+    // custom-spaces.json 首次访问返回空数组（新用户无创建过任何自定义空间）
+    if (filename === 'custom-spaces.json') {
+      return c.text('[]')
+    }
     return c.text('', 404)
   }
 
