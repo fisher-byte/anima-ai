@@ -1,5 +1,22 @@
 # Anima 变更日志
 
+## [0.4.6] - 2026-03-13
+
+### feat: @ 空间联想 + Sidebar 布局修复 + 张/王颜色统一
+
+**新功能：**
+- `InputBox.tsx`：`@` 联想面板新增「空间」分组，支持 `@Lenny`、`@Paul Graham`、`@张小龙`、`@王慧文` 及用户自定义空间
+- 选中 `@空间名` 后自动追加隐藏 persona 提示，AI 以该空间视角回答并可调用 `search_memory`
+- 面板同时显示空间（上）+ 文件（下）两个分组，键盘 ↑↓/Enter/Esc 导航
+
+**Bug 修复：**
+- `Canvas.tsx`：修复 Public Spaces 和 My Spaces 两个 `fixed left-4` div `bottom` 值几乎相同导致重叠的布局 bug，合并为单一容器
+- `Canvas.tsx`：张小龙头像 `bg-blue-100` → `bg-gray-100`，王慧文头像 `bg-emerald-100` → `bg-gray-100`，与 Lenny/PG 风格统一
+
+**测试结果**：517/517 通过，`tsc --noEmit` 零错误。
+
+---
+
 ## [0.4.5] - 2026-03-13
 
 ### fix: SettingsModal 始终渲染 bug + E2E 测试修复 + 文档同步
