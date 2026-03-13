@@ -265,7 +265,46 @@ Space 内的对话使用人物专属 System Prompt，完全绕过用户私有 pr
 
 **安全**：所有 Space 文件名均在 `ALLOWED_FILENAMES` 白名单中，文件路径防护机制与主空间一致。
 
-### 8. 状态管理（Zustand）
+### 8. 用户自定义 Space 架构（v0.4.2+）
+
+除内置 Public Space 外，用户可自行创建最多 5 个私有 Space（存储 `custom-spaces.json`）。
+
+**核心设计**：
+
+| 概念 | 说明 |
+|------|------|
+| `CustomSpaceConfig` | `{id(8位lowercase), name, topic, colorKey, systemPrompt, avatarInitials, createdAt}` |
+| 文件命名 | `custom-{8}-nodes.json` / `custom-{8}-conversations.jsonl` / `custom-{8}-edges.json` |
+| 安全验证 | `CUSTOM_SPACE_FILE_RE = /^custom-[a-z0-9]{8}-(nodes\.json|conversations\.jsonl|edges\.json)$/` 动态正则，作为 `ALLOWED_FILENAMES` 静态白名单的补充 |
+| 颜色主题 | 6 种：indigo / violet / emerald / amber / rose / sky（`SpaceColorKey`） |
+| 对话隔离 | Custom Space 对话**不**调用 `/api/memory/sync-lenny-conv`，不流入用户主空间记忆 |
+| 无种子节点 | 画布从空白开始，每次对话后 `endConversation` 写入 `custom-{id}-nodes.json` |
+
+**模式切换**（`canvasStore.ts`）：
+```typescript
+// isCustomSpaceMode 与 isLennyMode 互斥，openCustomSpaceMode 会清除所有其他 Space 标志
+openCustomSpaceMode(id) → set({ isCustomSpaceMode: true, activeCustomSpaceId: id, isLennyMode: false, ... })
+closeCustomSpaceMode()  → set({ isCustomSpaceMode: false, activeCustomSpaceId: null })
+```
+
+**文件路由（6 处）**：
+```typescript
+// addNode / removeNode / endConversation / appendConversation / openModalById / getRelevantMemories
+// 均优先检查 isCustomSpaceMode，使用 custom-{activeCustomSpaceId}-* 文件名
+```
+
+**System Prompt 路由**（`AnswerModal.tsx`）：
+```typescript
+if (isCustomSpaceMode) {
+  const activeSpace = customSpaces.find(s => s.id === activeCustomSpaceId)
+  const spacePrompt = activeSpace?.systemPrompt ?? LENNY_SYSTEM_PROMPT
+  // 完全绕过 preference_rules / memory_facts 注入
+}
+```
+
+**存储管理**：`createCustomSpace` 生成 8 位随机 id（`crypto.randomUUID().replace(/-/g,'').slice(0,8)`），列表存储在 `custom-spaces.json`；`deleteCustomSpace` 更新列表（不删除对话文件，保留历史数据）。
+
+### 9. 状态管理（Zustand）
 
 **文件**: `src/renderer/src/stores/canvasStore.ts`
 
@@ -280,7 +319,7 @@ Space 内的对话使用人物专属 System Prompt，完全绕过用户私有 pr
 | 引导 | `onboardingState`, `capabilityNodes` |
 | 视口 | `offset`, `scale` |
 | 交互 | `selectedNodeId`, `highlightedNodeIds`, `searchQuery` |
-| Space 模式 | `isLennyMode`, `isPGMode`, `isZhangMode`, `isWangMode` |
+| Space 模式 | `isLennyMode`, `isPGMode`, `isZhangMode`, `isWangMode`, `isCustomSpaceMode`, `activeCustomSpaceId`, `customSpaces` |
 
 ---
 

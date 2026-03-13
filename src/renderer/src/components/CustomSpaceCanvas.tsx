@@ -181,7 +181,7 @@ function CustomNodeCard({
         </div>
       </motion.div>
 
-      {isHovered && node.nodeType === 'memory' && (
+      {isHovered && node.nodeType !== 'capability' && (
         <motion.button
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
