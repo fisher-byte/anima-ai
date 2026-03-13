@@ -3,12 +3,18 @@
 ## 计划中版本
 
 ### v0.4.x - 记忆质量提升（参见 docs/memory-strategy.md）
-- [ ] memory_scores.json：facts 重要性/情绪评分旁路存储
-- [ ] MEMORY_STRATEGY 环境变量：baseline/scored 策略切换
-- [ ] session_memory.json：会话级记忆摘要
-- [ ] 渐进式遗忘：冷门 facts 降权，向量时间衰减因子
+- [ ] session_memory.json：会话级记忆摘要（长对话 10+ 轮压缩）
+- [ ] MEMORY_BUDGET 环境变量（当前硬编码 CONTEXT_BUDGET = 1500）
 
 ## 已完成版本
+
+#### v0.4.3 - 记忆评分系统（Memory Quality v1）（已完成）
+- [x] `MEMORY_STRATEGY` 环境变量：baseline / scored 策略切换
+- [x] `MEMORY_DECAY` 环境变量：指数时间衰减（半衰期 69 天）
+- [x] `fetchScoredFacts`：importance + decay + accessBonus 综合评分
+- [x] `memory_scores.json`：旁路评分存储（storage 表，不修改主数据结构）
+- [x] `loadMemoryScores` / `saveMemoryScores`：异步非阻塞写回
+- [x] 新增 9 个单元测试 | vitest 502/502 | tsc 0 errors
 
 #### v0.4.2 - 用户自定义 Space（已完成）
 - [x] `CustomSpaceCanvas.tsx`：通用参数化画布，6 色主题，动态 CSS 点阵，无种子节点

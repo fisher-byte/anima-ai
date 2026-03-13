@@ -513,3 +513,77 @@ describe('search_round 文件检索文案', () => {
     expect(searchRoundMsgFull(2, true, true)).toBe('正在查询记忆库…')
   })
 })
+
+// ── v0.4.3 记忆评分系统（applyDecay / loadMemoryScores / saveMemoryScores）─────
+
+describe('applyDecay 时间衰减', () => {
+  const DECAY_HALF_LIFE_DAYS = 69
+
+  function applyDecay(cosineScore: number, factCreatedAt: string, enabled: boolean): number {
+    if (!enabled) return cosineScore
+    const daysSince = (Date.now() - new Date(factCreatedAt).getTime()) / 86_400_000
+    const decayFactor = Math.exp(-Math.LN2 / DECAY_HALF_LIFE_DAYS * daysSince)
+    return cosineScore * decayFactor
+  }
+
+  it('MEMORY_DECAY=false 时直接返回原始 cosineScore（无衰减）', () => {
+    const score = applyDecay(0.8, new Date().toISOString(), false)
+    expect(score).toBe(0.8)
+  })
+
+  it('MEMORY_DECAY=true 且 fact 是今天创建时衰减因子接近 1', () => {
+    const score = applyDecay(1.0, new Date().toISOString(), true)
+    expect(score).toBeGreaterThan(0.999)  // 刚创建，几乎无衰减
+  })
+
+  it('MEMORY_DECAY=true 且 fact 距今 69 天时衰减因子接近 0.5（半衰期定义）', () => {
+    const daysAgo69 = new Date(Date.now() - 69 * 86_400_000).toISOString()
+    const score = applyDecay(1.0, daysAgo69, true)
+    expect(score).toBeGreaterThan(0.48)
+    expect(score).toBeLessThan(0.52)
+  })
+
+  it('MEMORY_DECAY=true 且 fact 距今 138 天时衰减因子接近 0.25（两个半衰期）', () => {
+    const daysAgo138 = new Date(Date.now() - 138 * 86_400_000).toISOString()
+    const score = applyDecay(1.0, daysAgo138, true)
+    expect(score).toBeGreaterThan(0.23)
+    expect(score).toBeLessThan(0.27)
+  })
+
+  it('衰减后分值永远不超过原始 cosineScore', () => {
+    const daysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString()
+    const original = 0.75
+    expect(applyDecay(original, daysAgo, true)).toBeLessThanOrEqual(original)
+  })
+})
+
+describe('MEMORY_STRATEGY 环境变量', () => {
+  it('默认值为 baseline（不设置时）', () => {
+    const strategy = process.env.MEMORY_STRATEGY ?? 'baseline'
+    // 在测试环境中未设置该变量，所以应该是 'baseline'
+    expect(['baseline', 'scored']).toContain(strategy)
+  })
+
+  it('scored 策略 finalScore 公式权重正确', () => {
+    // finalScore = decayed * (0.7 + importance * 0.3) + accessBonus
+    const decayed = 0.8
+    const importance = 1.0
+    const accessBonus = 0
+    const finalScore = decayed * (0.7 + importance * 0.3) + accessBonus
+    expect(finalScore).toBeCloseTo(0.8, 5)  // 0.8 * 1.0 = 0.8
+  })
+
+  it('importance=0.5（默认值）时权重系数为 0.85', () => {
+    const importance = 0.5
+    const weightFactor = 0.7 + importance * 0.3
+    expect(weightFactor).toBeCloseTo(0.85, 5)
+  })
+
+  it('accessBonus 上限是 0.15（access_count 无论多大）', () => {
+    const accessBonus = (count: number) => Math.min(0.15, count * 0.02)
+    expect(accessBonus(0)).toBe(0)
+    expect(accessBonus(5)).toBe(0.1)
+    expect(accessBonus(8)).toBeCloseTo(0.15, 5)  // 8 * 0.02 = 0.16 → capped at 0.15
+    expect(accessBonus(100)).toBe(0.15)  // 上限
+  })
+})

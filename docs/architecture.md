@@ -1,6 +1,6 @@
 # Anima 架构文档
 
-*最后更新: 2026-03-13 | 版本: v0.4.2*
+*最后更新: 2026-03-13 | 版本: v0.4.3*
 
 ---
 
@@ -228,6 +228,15 @@ index.ts 中间件: c.set('db', getDb('a1b2c3d4e5f6'))
 - **search_memory function calling**：AI 可主动调用 `search_memory` 工具查询用户记忆库，服务端本地拦截执行 `fetchRelevantFacts`；续轮请求统一使用 `TOOLS_WITH_MEMORY`（含 `$web_search` + `search_memory`）
 - **search_files function calling**：AI 可主动调用 `search_files` 工具检索历史上传文件内容，`searchFileChunks` 函数通过 embedding 余弦相似度从 `file_embeddings` 表返回最相关的 5 个文件片段；支持跨对话引用历史文件
 - **usage SSE 事件**：流式响应结束后发送 token 用量反馈（`totalTokens`, `model`），供前端展示消耗
+
+**v0.4.3 记忆评分系统（Memory Quality v1）：**
+
+- **MEMORY_STRATEGY 环境变量**：`baseline`（默认，原有行为）| `scored`（激活评分策略）
+- **MEMORY_DECAY 环境变量**：`false`（默认）| `true`（指数时间衰减，半衰期 69 天）
+- **fetchScoredFacts**：在 `baseline` 的语义检索基础上，叠加 importance + decay + accessBonus 综合评分
+  - `finalScore = applyDecay(cosine, created_at) * (0.7 + importance * 0.3) + accessBonus`
+  - `accessBonus = min(0.15, access_count * 0.02)`
+- **memory_scores.json**：存于 SQLite `storage` 表（`filename='memory_scores.json'`），格式 `{ fact_id: { importance, emotion, access_count, last_accessed_at } }`；access_count 在每次检索后通过 `setImmediate` 异步写回，不阻塞响应
 
 ### 7. Public Space 架构（v0.4.0+）
 

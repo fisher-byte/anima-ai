@@ -16,6 +16,10 @@
  *   data: {"type":"url_fetch","url":"...","status":"fetching"|"done"|"failed"}
  *   data: {"type":"usage","totalTokens":123,"model":"..."}
  *   data: {"type":"search_round","round":2,"message":"正在检索文件内容…"}
+ *
+ * Memory strategy env vars (v0.4.3+):
+ *   MEMORY_STRATEGY=baseline|scored  (default: baseline)
+ *   MEMORY_DECAY=false|true          (default: false, 指数时间衰减 half-life ~69 days)
  */
 
 import { Hono } from 'hono'
@@ -140,6 +144,125 @@ async function fetchRelevantFacts(db: InstanceType<typeof Database>, query: stri
     return bm25FallbackFacts(db, query)
   }
 }
+
+// ── 记忆评分系统（v0.4.3+）────────────────────────────────────────────────────
+// memory_scores.json 格式（存在 storage 表，字段 filename='memory_scores.json'）：
+// { "fact_id": { "importance": 0.9, "emotion": "positive", "access_count": 5, "last_accessed_at": "ISO" } }
+
+interface MemoryScore {
+  importance: number        // 0~1，AI 提取时打分（暂时由 scored 策略自动推断）
+  emotion: 'positive' | 'negative' | 'neutral' | 'mixed'
+  access_count: number
+  last_accessed_at: string  // ISO timestamp
+}
+
+function loadMemoryScores(db: InstanceType<typeof Database>): Map<string, MemoryScore> {
+  try {
+    const row = db.prepare("SELECT content FROM storage WHERE filename = 'memory_scores.json'").get() as { content: string } | undefined
+    if (!row?.content) return new Map()
+    const raw = JSON.parse(row.content) as Record<string, MemoryScore>
+    return new Map(Object.entries(raw))
+  } catch { return new Map() }
+}
+
+function saveMemoryScores(db: InstanceType<typeof Database>, scores: Map<string, MemoryScore>): void {
+  try {
+    const content = JSON.stringify(Object.fromEntries(scores))
+    const now = new Date().toISOString()
+    db.prepare(`
+      INSERT INTO storage (filename, content, updated_at) VALUES ('memory_scores.json', ?, ?)
+      ON CONFLICT(filename) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at
+    `).run(content, now)
+  } catch { /* 评分写入失败不阻塞主流程 */ }
+}
+
+// MEMORY_DECAY=true 时使用指数时间衰减因子（半衰期 ~69 天）
+const MEMORY_DECAY_ENABLED = (process.env.MEMORY_DECAY ?? 'false') === 'true'
+const DECAY_HALF_LIFE_DAYS = 69
+
+function applyDecay(cosineScore: number, factCreatedAt: string): number {
+  if (!MEMORY_DECAY_ENABLED) return cosineScore
+  const daysSince = (Date.now() - new Date(factCreatedAt).getTime()) / 86_400_000
+  const decayFactor = Math.exp(-Math.LN2 / DECAY_HALF_LIFE_DAYS * daysSince)
+  return cosineScore * decayFactor
+}
+
+// scored 策略：与 baseline 相同的语义检索，额外叠加 importance + 时间衰减
+async function fetchScoredFacts(
+  db: InstanceType<typeof Database>,
+  query: string,
+  apiKey: string,
+  baseUrl: string
+): Promise<string[]> {
+  if (!query.trim() || !apiKey) return []
+  try {
+    const isMoonshot = baseUrl.includes('moonshot')
+    const embModel = isMoonshot ? 'moonshot-v1-embedding' : 'text-embedding-3-small'
+    const embResp = await fetch(`${baseUrl}/embeddings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: embModel, input: query.slice(0, 500) }),
+      signal: AbortSignal.timeout(5_000)
+    })
+    if (!embResp.ok) return bm25FallbackFacts(db, query)
+    const embData = (await embResp.json()) as { data: { embedding: number[] }[] }
+    const queryVec = embData?.data?.[0]?.embedding
+    if (!Array.isArray(queryVec) || queryVec.length === 0) return bm25FallbackFacts(db, query)
+
+    const queryF32 = new Float32Array(queryVec)
+
+    const facts = db.prepare(
+      'SELECT id, fact, source_conv_id, created_at FROM memory_facts WHERE invalid_at IS NULL ORDER BY created_at DESC LIMIT 100'
+    ).all() as { id: string; fact: string; source_conv_id: string | null; created_at: string }[]
+    if (facts.length === 0) return []
+
+    const embRows = db.prepare(
+      'SELECT conversation_id, vector FROM embeddings ORDER BY updated_at DESC LIMIT 500'
+    ).all() as { conversation_id: string; vector: Buffer }[]
+    const embMap = new Map(embRows.map(r => [r.conversation_id, r.vector]))
+
+    const scores = loadMemoryScores(db)
+
+    const now = new Date().toISOString()
+    const selectedIds: string[] = []
+
+    const ranked = facts
+      .map(f => {
+        const vecBuf = f.source_conv_id ? embMap.get(f.source_conv_id) : undefined
+        let cosine = 0
+        if (vecBuf) {
+          const vec = new Float32Array(vecBuf.buffer, vecBuf.byteOffset, vecBuf.byteLength / 4)
+          cosine = cosineSim(queryF32, vec)
+        }
+        const decayed = applyDecay(cosine, f.created_at)
+        const meta = scores.get(f.id)
+        const importance = meta?.importance ?? 0.5  // 新 fact 默认 0.5
+        const accessBonus = Math.min(0.15, (meta?.access_count ?? 0) * 0.02)
+        const finalScore = decayed * (0.7 + importance * 0.3) + accessBonus
+        return { id: f.id, fact: f.fact, finalScore }
+      })
+      .filter(r => r.finalScore > 0.15)
+      .sort((a, b) => b.finalScore - a.finalScore)
+      .slice(0, 10)
+
+    // 更新 access_count + last_accessed_at
+    for (const r of ranked) {
+      const meta = scores.get(r.id) ?? { importance: 0.5, emotion: 'neutral' as const, access_count: 0, last_accessed_at: now }
+      scores.set(r.id, { ...meta, access_count: meta.access_count + 1, last_accessed_at: now })
+      selectedIds.push(r.id)
+    }
+    if (selectedIds.length > 0) {
+      // 异步写回评分（不阻塞当前请求）
+      setImmediate(() => saveMemoryScores(db, scores))
+    }
+
+    return ranked.map(r => r.fact)
+  } catch {
+    return bm25FallbackFacts(db, query)
+  }
+}
+
+const MEMORY_STRATEGY = process.env.MEMORY_STRATEGY ?? 'baseline'  // baseline | scored
 
 interface AIRequestBody {
   messages: AIMessage[]
@@ -433,7 +556,9 @@ aiRoutes.post('/stream', async (c) => {
     try {
       let relevantFacts: string[] = []
       if (trimmedText.length > 5) {
-        relevantFacts = await fetchRelevantFacts(db, trimmedText, effectiveApiKey, baseUrl)
+        relevantFacts = MEMORY_STRATEGY === 'scored'
+          ? await fetchScoredFacts(db, trimmedText, effectiveApiKey, baseUrl)
+          : await fetchRelevantFacts(db, trimmedText, effectiveApiKey, baseUrl)
       }
       // 语义检索无结果时降级：BM25 FTS5
       if (relevantFacts.length === 0 && trimmedText.length > 5) {
