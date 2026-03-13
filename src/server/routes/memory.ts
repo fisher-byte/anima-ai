@@ -1057,11 +1057,20 @@ memoryRoutes.post('/bootstrap-facts', async (c) => {
 
   const lines = row.content.trim().split('\n').filter(Boolean)
 
-  // 已提取过记忆的 conv id 集合
-  const extracted = new Set(
-    (db.prepare('SELECT DISTINCT source_conv_id FROM memory_facts WHERE source_conv_id IS NOT NULL').all() as
+  // 已入队过 extract_profile / extract_preference 的 conv id 集合（判断幂等）
+  // 用 agent_tasks payload 中的 conversationId 字段；同时也检查 memory_facts.source_conv_id
+  const enqueuedRaw = (db.prepare(
+    "SELECT payload FROM agent_tasks WHERE type IN ('extract_profile','extract_preference')"
+  ).all() as { payload: string }[])
+  const enqueued = new Set<string>()
+  for (const r of enqueuedRaw) {
+    try { const p = JSON.parse(r.payload) as { conversationId?: string }; if (p.conversationId) enqueued.add(p.conversationId) } catch {}
+  }
+  const extracted = new Set([
+    ...enqueued,
+    ...(db.prepare('SELECT DISTINCT source_conv_id FROM memory_facts WHERE source_conv_id IS NOT NULL').all() as
       { source_conv_id: string }[]).map(r => r.source_conv_id)
-  )
+  ])
 
   // 解析并去重（同 id 取最后一条）
   const convMap = new Map<string, { id: string; userMessage: string; assistantMessage: string }>()
@@ -1095,12 +1104,14 @@ memoryRoutes.post('/bootstrap-facts', async (c) => {
 
     // 入队 extract_profile（画像提取）
     enqueueTask(db, 'extract_profile', {
+      conversationId: conv.id,
       userMessage: cleanMsg,
       assistantMessage: conv.assistantMessage.slice(0, 600),
     })
 
     // 入队 extract_preference（偏好规则提取）
     enqueueTask(db, 'extract_preference', {
+      conversationId: conv.id,
       userMessage: cleanMsg,
       assistantMessage: conv.assistantMessage.slice(0, 600),
     })
