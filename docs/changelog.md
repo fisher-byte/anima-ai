@@ -1,5 +1,34 @@
 # Anima 变更日志
 
+## [0.4.2] - 2026-03-13
+
+### feat: 用户自定义 Space（Generic Custom Spaces）
+
+**核心功能：**
+- 用户可在左侧边栏"My Spaces"区域创建最多 5 个完全自定义的 AI 角色空间
+- 每个空间支持：名称、主题描述、6 种颜色主题（indigo/violet/emerald/amber/rose/sky）、system prompt、2 字符头像缩写
+- 空间完全隔离：各自使用独立的 `custom-{8-char-id}-{nodes/conversations/edges}` 文件
+- 对话不流入主空间记忆（不调 `/api/memory/sync-lenny-conv`）
+
+**新增文件：**
+- `CustomSpaceCanvas.tsx`：通用参数化画布（接受 `CustomSpaceConfig`），动态 CSS 点阵 + 动态 DOM id，物理力模拟与 PGSpaceCanvas 一致，无种子节点
+- `CreateCustomSpaceModal.tsx`：创建弹窗（name/topic/color/prompt/avatarInitials），可选 system prompt（留空自动生成）
+
+**架构改动：**
+- `canvasStore.ts`：新增 `isCustomSpaceMode` / `activeCustomSpaceId` / `customSpaces[]` 状态 + 5 个 action（`openCustomSpaceMode` / `closeCustomSpaceMode` / `loadCustomSpaces` / `createCustomSpace` / `deleteCustomSpace`）；6 处文件路由分支更新
+- `constants.ts`：新增 `CUSTOM_SPACE_FILE_RE` 正则、`buildCustomSpacePrompt()` 辅助函数；`isValidFilename()` 重构为静态列表 + 动态正则双重验证；`custom-spaces.json` 加入 `ALLOWED_FILENAMES`
+- `types.ts`：新增 `SpaceColorKey` union type + `CustomSpaceConfig` interface
+- `Canvas.tsx`：左侧新增"My Spaces"区域，支持"新建空间"按钮 + 已有空间列表 + hover 删除
+- `AnswerModal.tsx`：`isCustomSpaceMode` 检查优先于 Lenny/PG/Zhang/Wang，使用对应 `systemPrompt`
+
+**i18n：** 新增 `space.customPlaceholder` + 12 个 `createSpace*` / `mySpaces` / `addSpace` / `deleteSpace*` 键值
+
+**测试：** 新增 `canvasStore.customSpaceMode.test.ts`（18 个测试：openCustomSpaceMode / closeCustomSpaceMode / createCustomSpace max-5 / deleteCustomSpace / addNode 隔离 / appendConversation 隔离 / isValidFilename 自定义文件名）
+
+**测试结果**：493/493 通过（19 个文件），`tsc --noEmit` 零错误。
+
+---
+
 ## [0.4.1] - 2026-03-13
 
 ### feat: 设置页数据导出 + 时间轴上传文件行

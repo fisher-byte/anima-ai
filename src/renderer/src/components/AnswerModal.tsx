@@ -48,7 +48,7 @@ import {
   buildAIHistory,
 } from '../utils/conversationUtils'
 import { getAuthToken } from '../services/storageService'
-import { FEEDBACK_TRIGGERS, LENNY_SYSTEM_PROMPT, PG_SYSTEM_PROMPT } from '@shared/constants'
+import { FEEDBACK_TRIGGERS, LENNY_SYSTEM_PROMPT, PG_SYSTEM_PROMPT, ZHANG_SYSTEM_PROMPT, WANG_SYSTEM_PROMPT } from '@shared/constants'
 import {
   UserMessageContent,
   ClosingAnimation,
@@ -98,6 +98,11 @@ export function AnswerModal() {
   const saveOnboardingTurns = useCanvasStore(state => state.saveOnboardingTurns)
   const isLennyMode = useCanvasStore(state => state.isLennyMode)
   const isPGMode = useCanvasStore(state => state.isPGMode)
+  const isZhangMode = useCanvasStore(state => state.isZhangMode)
+  const isWangMode = useCanvasStore(state => state.isWangMode)
+  const isCustomSpaceMode = useCanvasStore(state => state.isCustomSpaceMode)
+  const activeCustomSpaceId = useCanvasStore(state => state.activeCustomSpaceId)
+  const customSpaces = useCanvasStore(state => state.customSpaces)
 
   const [turns, setTurns] = useState<Turn[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
@@ -438,10 +443,14 @@ export function AnswerModal() {
       setAppliedPreferences([])
       setFeedbackMessage('')
 
-      const preferences = isLennyMode ? [] : getPreferencesForPrompt()
-      // Lenny/PG 模式：不传 conversationId（避免持久化到用户 conversation_history），使用对应 persona 的 system prompt
-      if (isLennyMode) {
-        const spacePrompt = isPGMode ? PG_SYSTEM_PROMPT : LENNY_SYSTEM_PROMPT
+      const preferences = (isLennyMode || isCustomSpaceMode) ? [] : getPreferencesForPrompt()
+      // Lenny/PG/Custom Space 模式：不传 conversationId（避免持久化到用户 conversation_history），使用对应 persona 的 system prompt
+      if (isCustomSpaceMode) {
+        const activeSpace = customSpaces.find(s => s.id === activeCustomSpaceId)
+        const spacePrompt = activeSpace?.systemPrompt ?? LENNY_SYSTEM_PROMPT
+        sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false, undefined, spacePrompt)
+      } else if (isLennyMode) {
+        const spacePrompt = isPGMode ? PG_SYSTEM_PROMPT : isZhangMode ? ZHANG_SYSTEM_PROMPT : isWangMode ? WANG_SYSTEM_PROMPT : LENNY_SYSTEM_PROMPT
         sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false, undefined, spacePrompt)
       } else {
         sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false, currentConversation.id)
@@ -449,7 +458,7 @@ export function AnswerModal() {
     }
 
     prepareConversation()
-  }, [isModalOpen, currentConversation, isOnboardingMode, isLoading, resetHistory, sendMessage, getPreferencesForPrompt, getRelevantMemories, isLennyMode, isPGMode])
+  }, [isModalOpen, currentConversation, isOnboardingMode, isLoading, resetHistory, sendMessage, getPreferencesForPrompt, getRelevantMemories, isLennyMode, isPGMode, isZhangMode, isWangMode])
 
   // ── 编辑 / 重生成 / 复制 ────────────────────────────────────────────────────
   const handleStartEdit = (index: number, content: string) => {
@@ -698,16 +707,21 @@ export function AnswerModal() {
     }
     setTurns(prev => [...prev, currentTurn])
 
-    const preferences = isLennyMode ? [] : getPreferencesForPrompt()
+    const preferences = (isLennyMode || isCustomSpaceMode) ? [] : getPreferencesForPrompt()
     didMutateRef.current = true
-    // Lenny/PG 模式：传 systemPromptOverride + 历史记忆压缩，不传 conversationId（避免写用户历史）
-    if (isLennyMode) {
-      const spacePrompt = isPGMode ? PG_SYSTEM_PROMPT : LENNY_SYSTEM_PROMPT
+    // Custom Space / Lenny/PG 模式：传 systemPromptOverride + 历史记忆压缩，不传 conversationId（避免写用户历史）
+    if (isCustomSpaceMode) {
+      const activeSpace = customSpaces.find(s => s.id === activeCustomSpaceId)
+      const spacePrompt = activeSpace?.systemPrompt ?? LENNY_SYSTEM_PROMPT
+      sendMessage(fullMessage, preferences, history, pendingImages, compressed, false, undefined, spacePrompt)
+    } else if (isLennyMode) {
+      const spacePrompt = isPGMode ? PG_SYSTEM_PROMPT : isZhangMode ? ZHANG_SYSTEM_PROMPT : isWangMode ? WANG_SYSTEM_PROMPT : LENNY_SYSTEM_PROMPT
       sendMessage(fullMessage, preferences, history, pendingImages, compressed, false, undefined, spacePrompt)
     } else {
       sendMessage(fullMessage, preferences, history, pendingImages, compressed, isOnboardingMode, isOnboardingMode ? undefined : currentConversation?.id)
     }
-  }, [feedbackMessage, pendingImages, pendingFiles, pendingReferenceBlocks, isStreaming, isOnboardingMode, isLennyMode, isPGMode,
+  }, [feedbackMessage, pendingImages, pendingFiles, pendingReferenceBlocks, isStreaming, isOnboardingMode, isLennyMode, isPGMode, isZhangMode, isWangMode,
+      isCustomSpaceMode, activeCustomSpaceId, customSpaces,
       getPreferencesForPrompt, sendMessage, turns, getRelevantMemories, setHighlight, focusNode])
 
   // ── 关闭并保存 ────────────────────────────────────────────────────────────
@@ -745,9 +759,13 @@ export function AnswerModal() {
     const onboardingInProgress = isOnboardingMode && onboardingPhaseRef.current >= 2 && !onboardingCompleted
     // 在 setTimeout 之前拍一个快照，避免被后续 setTurns([]) 影响
     const savedTurns = [...turns]
-    // P2-4: 提前捕获 isLennyMode / isPGMode，防止 closePGMode/closeLennyMode 先于 endConversation 把 flags 改为 false
+    // P2-4: 提前捕获 isLennyMode / isPGMode / isZhangMode / isWangMode / isCustomSpaceMode，防止 close 先于 endConversation 把 flags 改为 false
     const wasLennyMode = isLennyMode
     const wasPGMode = isPGMode
+    const wasZhangMode = isZhangMode
+    const wasWangMode = isWangMode
+    const wasCustomSpaceMode = isCustomSpaceMode
+    const wasActiveCustomSpaceId = activeCustomSpaceId
 
     setIsClosing(true)
     // A-5: 关闭时主动清理 onboarding 流式定时器，防止资源泄漏
@@ -800,11 +818,28 @@ export function AnswerModal() {
         if (!hasOnboarding) void addCapabilityNode('onboarding')
         const hasImportMemory = useCanvasStore.getState().nodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
         if (!hasImportMemory) void addCapabilityNode('import-memory')
+      } else if (wasCustomSpaceMode && wasActiveCustomSpaceId) {
+        // Custom Space 模式：先恢复 flags，再 await endConversation，最后 closeModal
+        useCanvasStore.setState({ isCustomSpaceMode: wasCustomSpaceMode, activeCustomSpaceId: wasActiveCustomSpaceId })
+        if (shouldSave && conversationSnapshot && conversationSnapshot.userMessage) {
+          const realTurns = savedTurns.filter(t => t.user?.trim() || t.assistant?.trim())
+          let serializedAssistant: string
+          if (realTurns.length <= 1) {
+            serializedAssistant = realTurns[0]?.assistant || ''
+          } else {
+            serializedAssistant = realTurns.map((t, i) =>
+              `#${i + 1}\n用户：${t.user || ''}\nAI：${t.assistant || ''}`
+            ).join('\n\n')
+          }
+          await endConversation(serializedAssistant, [], lastReasoning, conversationSnapshot)
+            .catch(err => console.error('Failed to save Custom Space conversation:', err))
+        }
+        closeModal()
       } else if (wasLennyMode) {
-        // P0-1: Space 模式（Lenny/PG）：先 await endConversation 写入 space 文件，再 closeModal
+        // P0-1: Space 模式（Lenny/PG/Zhang/Wang）：先 await endConversation 写入 space 文件，再 closeModal
         // 这样 SpaceCanvas 的节点重载 effect 触发时文件已经写完，新节点可以出现
-        // P5-1: 用 wasPGMode 快照恢复 isPGMode，防止 250ms 内其他操作提前修改 store 状态导致写错文件
-        useCanvasStore.setState({ isLennyMode: wasLennyMode, isPGMode: wasPGMode })
+        // P5-1: 用快照恢复 space flags，防止 250ms 内其他操作提前修改 store 状态导致写错文件
+        useCanvasStore.setState({ isLennyMode: wasLennyMode, isPGMode: wasPGMode, isZhangMode: wasZhangMode, isWangMode: wasWangMode })
         if (shouldSave && conversationSnapshot && conversationSnapshot.userMessage) {
           // 多轮对话序列化：用与普通模式相同的 #N\n用户：...\nAI：... 格式，保证回放时能还原所有轮次
           const realTurns = savedTurns.filter(t => t.user?.trim() || t.assistant?.trim())
@@ -835,7 +870,8 @@ export function AnswerModal() {
         }
       }
     }, 500)
-  }, [isClosing, turns, errorMessage, isStreaming, currentConversation, isOnboardingMode, isLennyMode, isPGMode,
+  }, [isClosing, turns, errorMessage, isStreaming, currentConversation, isOnboardingMode, isLennyMode, isPGMode, isZhangMode, isWangMode,
+      isCustomSpaceMode, activeCustomSpaceId,
       endConversation, closeModal, appliedPreferences, completeOnboarding, addCapabilityNode, saveOnboardingTurns])
 
   // ESC 关闭

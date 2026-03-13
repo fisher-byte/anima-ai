@@ -147,3 +147,21 @@ export interface AppState {
   isModalOpen: boolean
   profile: Profile
 }
+
+/**
+ * 自定义 Space 颜色主题
+ */
+export type SpaceColorKey = 'indigo' | 'violet' | 'emerald' | 'amber' | 'rose' | 'sky'
+
+/**
+ * 用户创建的自定义 Space 配置
+ */
+export interface CustomSpaceConfig {
+  id: string             // 8位小写字母数字，URL-safe
+  name: string           // 人物/主题名称，如 "Steve Jobs"
+  topic: string          // 副标题描述，如 "Startup philosophy"
+  colorKey: SpaceColorKey
+  systemPrompt: string   // 完整 persona prompt
+  avatarInitials: string // 最多2字符，如 "SJ"
+  createdAt: string      // ISO date string
+}

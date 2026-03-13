@@ -10,6 +10,15 @@
 
 ## 已完成版本
 
+#### v0.4.2 - 用户自定义 Space（已完成）
+- [x] `CustomSpaceCanvas.tsx`：通用参数化画布，6 色主题，动态 CSS 点阵，无种子节点
+- [x] `CreateCustomSpaceModal.tsx`：name/topic/color/prompt/avatar 创建弹窗
+- [x] `canvasStore.ts`：isCustomSpaceMode + 5 actions + 6 处文件路由隔离
+- [x] `constants.ts`：CUSTOM_SPACE_FILE_RE + isValidFilename 双重验证 + buildCustomSpacePrompt
+- [x] `Canvas.tsx`：My Spaces 区域 + 新建/删除入口
+- [x] i18n：18 个新 key（customPlaceholder + createSpace* + mySpaces + deleteSpace*）
+- [x] 新增 18 个单元测试 | vitest 493/493 | tsc 0 errors
+
 #### v0.4.1 - 设置页数据导出 + 时间轴上传文件行（已完成）
 - [x] `SettingsModal.tsx`：新增导出区，调用 `/api/storage/export` 下载全量 JSON
 - [x] `TimelineView.tsx`：新增文件行，按日期展示历史上传文件（amber 主题卡片）

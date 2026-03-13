@@ -111,7 +111,28 @@ export interface Translations {
     pgPlaceholder: string
     zhangPlaceholder: string
     wangPlaceholder: string
+    customPlaceholder: (name: string) => string
     conversationCount: (n: number) => string
+    createSpaceTitle: string
+    createSpaceName: string
+    createSpaceNamePlaceholder: string
+    createSpaceTopic: string
+    createSpaceTopicPlaceholder: string
+    createSpaceColor: string
+    createSpacePrompt: string
+    createSpacePromptPlaceholder: string
+    createSpaceAvatar: string
+    createSpaceAvatarPlaceholder: string
+    createSpaceCreate: string
+    createSpaceCancel: string
+    createSpaceCreating: string
+    createSpaceMaxReached: string
+    createSpaceNameRequired: string
+    mySpaces: string
+    addSpace: string
+    deleteSpaceTitle: string
+    deleteSpaceWarning: string
+    deleteSpaceConfirm: string
   }
   sidebar: {
     historyTab: string
@@ -470,7 +491,28 @@ export const zh: Translations = {
     pgPlaceholder: '向 Paul Graham 提问…',
     zhangPlaceholder: '向张小龙提问…',
     wangPlaceholder: '向王慧文提问…',
+    customPlaceholder: (name: string) => `向 ${name} 提问…`,
     conversationCount: (n: number) => `${n} 条对话`,
+    createSpaceTitle: '创建自定义空间',
+    createSpaceName: '名称',
+    createSpaceNamePlaceholder: '如：Steve Jobs',
+    createSpaceTopic: '主题描述',
+    createSpaceTopicPlaceholder: '如：Startup philosophy',
+    createSpaceColor: '颜色',
+    createSpacePrompt: 'System Prompt',
+    createSpacePromptPlaceholder: '描述这个 AI 角色的背景和风格…',
+    createSpaceAvatar: '头像缩写',
+    createSpaceAvatarPlaceholder: '如：SJ',
+    createSpaceCreate: '创建',
+    createSpaceCancel: '取消',
+    createSpaceCreating: '创建中…',
+    createSpaceMaxReached: '最多创建 5 个自定义空间',
+    createSpaceNameRequired: '请填写名称',
+    mySpaces: '我的空间',
+    addSpace: '新建空间',
+    deleteSpaceTitle: '删除这个空间？',
+    deleteSpaceWarning: '此操作将删除所有对话记录，不可恢复。',
+    deleteSpaceConfirm: '删除',
   },
 
   // ── Feedback ──────────────────────────────────────────────────────────────

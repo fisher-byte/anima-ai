@@ -8,7 +8,7 @@
  * 应用信息
  */
 export const APP_NAME = 'Anima'
-export const APP_VERSION = '0.4.1'
+export const APP_VERSION = '0.4.2'
 
 /**
  * 存储文件名
@@ -518,21 +518,37 @@ export const ALLOWED_FILENAMES = [
   'wang-nodes.json',
   'wang-conversations.jsonl',
   'wang-edges.json',
+  'custom-spaces.json',
 ] as const
+
+/** 自定义 Space 文件名模式：custom-{8位小写字母数字}-{nodes.json|conversations.jsonl|edges.json} */
+const CUSTOM_SPACE_FILE_RE = /^custom-[a-z0-9]{8}-(nodes\.json|conversations\.jsonl|edges\.json)$/
 
 /**
  * 验证文件名是否合法
  */
 export function isValidFilename(filename: string): boolean {
-  // 检查是否在允许列表中
-  if (!ALLOWED_FILENAMES.includes(filename as any)) {
-    return false
-  }
-  
-  // 检查是否包含路径遍历字符
+  // 路径遍历防御优先
   if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
     return false
   }
-  
-  return true
+  // 静态白名单
+  if (ALLOWED_FILENAMES.includes(filename as any)) return true
+  // 动态自定义 Space 文件
+  if (CUSTOM_SPACE_FILE_RE.test(filename)) return true
+  return false
+}
+
+/**
+ * 生成自定义 Space 默认系统 prompt 模板
+ */
+export function buildCustomSpacePrompt(name: string, topic: string): string {
+  return `You are ${name} — an AI persona focused on ${topic}.
+
+Respond in a direct, thoughtful style. Draw from your expertise in ${topic}.
+Share concrete insights, examples, and frameworks. Be concise but substantive.
+
+Today's date: {{DATE}}
+
+Respond in the same language the user writes in.`
 }
