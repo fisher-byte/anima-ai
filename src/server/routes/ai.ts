@@ -141,7 +141,7 @@ async function fetchRelevantFacts(db: InstanceType<typeof Database>, query: stri
     .map(r => r.fact)
 
     return scored
-  } catch {
+  } catch { /* embedding 失败时降级到 BM25 关键词匹配 */
     return bm25FallbackFacts(db, query)
   }
 }
@@ -389,7 +389,7 @@ function checkDailyBudget(db: InstanceType<typeof Database>): { allowed: boolean
     const usedTokens = row ? parseInt(row.value, 10) : 0
     const usedYuan = parseFloat(((usedTokens / 1000) * PRICE_PER_1K_TOKENS).toFixed(4))
     return { allowed: usedTokens < limitTokens, usedYuan, limitYuan }
-  } catch {
+  } catch { /* DB 读取失败时允许通过，避免 budget 检查阻断正常对话 */
     return { allowed: true, usedYuan: 0, limitYuan }
   }
 }
