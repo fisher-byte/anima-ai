@@ -1,11 +1,13 @@
 # Anima — 项目计划
 
 > 唯一入口：每次发版、每次决策都在这里留记录。
-> 最后更新：2026-03-09 | 当前版本：v0.2.74
+> 最后更新：2026-03-14 | 当前版本：v0.5.3
 
 ---
 
 ## 当前冲刺
+
+*v0.5.3 所有计划任务均已完成，暂无进行中冲刺。*
 
 | # | 任务 | 状态 | 说明 |
 |---|------|------|------|
@@ -18,6 +20,9 @@
 | 7 | C1 时间轴视图 | ✅ 完成 | 工具栏 Clock 按钮切换；X轴=日期升序，Y轴=分类；contentLayer display:none 保留 force sim |
 | 8 | C2 话题聚焦模式 | ✅ 完成 | 点击 ClusterLabel 聚焦分类，其余节点淡出；再次点击退出；复用 highlightedNodeIds 机制 |
 | 9 | C3 主动对话 | ✅ 完成 | 距上次对话 >24h 时弹出个性化 Toast；基于心智模型长期目标生成提示语；sessionStorage 防重 |
+| 10 | Embedding 共享库 | ✅ 完成 | `src/server/lib/embedding.ts` 统一 cosineSim/fetchEmbedding/embedTextWithUserKey，消除三处重复 |
+| 11 | 全空间记忆同步 | ✅ 完成 | 4 个 Public Space + Custom Space 对话均同步到主空间向量索引，bootstrap-facts 补齐历史数据 |
+| 12 | UI/UX polish | ✅ 完成 | 悬浮 pill 侧边栏、@mention pill、文件下载、头像统一、菜单名称修正 |
 
 ---
 
@@ -87,6 +92,10 @@
 
 | 版本 | 日期 | 核心内容 |
 |------|------|----------|
+| v0.5.3 | 2026-03-14 | UI/UX polish：悬浮 pill 侧边栏、@mention pill chip、文件下载、头像统一、设置菜单重命名 |
+| v0.5.2 | 2026-03-14 | Space 向量索引全量补全；custom space convSource 修复；bootstrap-facts API |
+| v0.5.1 | 2026-03-14 | embedding 共享库提取（消除三处重复）；Space 文件列表；张/王头像统一；+5 embedding 单元测试 |
+| v0.5.0 | 2026-03-13 | 代码 AI 友好重构：intentDetector 提取 + PublicSpaceCanvas 统一四个 Space 组件 |
 | v0.2.74 | 2026-03-09 | 多 token 登录 403 修复：鉴权对 token 做 trim；部署脚本支持 SYNC_ENV=1 同步 .env；服务器多 token 须配置 ACCESS_TOKENS |
 | v0.2.71 | 2026-03-08 | Code Review 修复：C3 token/TimelineView碰撞/focusedCategory重置/B2防卫；新增 46 测试（共 345） |
 | v0.2.70 | 2026-03-08 | C3 主动对话 — 距上次对话 >24h 时主动弹出 Toast 提醒 |

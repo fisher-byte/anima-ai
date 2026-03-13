@@ -1,5 +1,61 @@
 # Anima 变更日志
 
+## [0.5.3] - 2026-03-14
+
+### feat: UI/UX polish batch — sidebar pill, @mention pills, file download, avatar fix, settings rename
+
+**UX 优化：**
+- `Canvas.tsx`：Spaces 侧边栏折叠后，从单一小图标改为悬浮 pill 卡片（含 L/PG 头像圆圈 + "Spaces" 文字 + ChevronRight），视觉上更易发现
+- `Canvas.tsx`：张小龙和王慧文侧边栏头像统一为 `bg-gray-900 text-white`（原为 bg-blue-600 / bg-emerald-600），与 Lenny/PG 风格一致
+- `InputBox.tsx`：`@` 选择后，所选名称以 indigo 色 pill chip 形式显示在 textarea 上方；pill 含 AtSign 图标 + 名称 + ✕ 删除按钮；删除同步清除消息中的 `@名称` 文本
+- `FileBrowserPanel.tsx`：文件列表每项新增下载按钮（hover 出现），通过 `fetch()` + blob + `URL.createObjectURL` 实现鉴权下载，适配 `/api/storage/file/:id` 需要 Authorization 头的场景
+- `i18n zh.ts`：`preferences: '偏好设置'` → `'设置'`
+- `i18n en.ts`：`preferences: 'Preferences'` → `'Settings'`
+
+**测试结果**：522/522 通过，`tsc --noEmit` 零错误。
+
+---
+
+## [0.5.2] - 2026-03-14
+
+### fix: Space 向量索引全量补全 + custom space convSource 修复 + bootstrap-facts API
+
+**Bug 修复：**
+- `memory.ts` `sync-lenny-conv`：custom space source（`custom-${id}`）被错误降级为 `lenny`；修复 `isCustom` 检测，确保 `convSource` 正确保留 `custom-{id}` 前缀
+- `memory.ts` `bootstrap-facts`：历史 Space 对话缺失向量，补齐 `fetchEmbedding` 调用（`ON CONFLICT DO UPDATE` 幂等），同时针对未提取记忆事实的对话入队 `extract_profile` + `extract_preference`
+
+**新接口：**
+- `POST /api/memory/bootstrap-facts`：历史对话补全接口，全量扫描 `conversations.jsonl`（最多 200 条），同时补齐记忆提取和向量索引；返回 `{ ok, queued, total, alreadyExtracted }`
+
+**测试结果**：522/522 通过，`tsc --noEmit` 零错误。
+
+---
+
+## [0.5.1] - 2026-03-14
+
+### refactor: 提取 embedding 共享库 + Space 文件列表 + 头像统一 + 历史记忆补全
+
+**后端重构：**
+- 新建 `src/server/lib/embedding.ts`（~180 行）：将 `cosineSim`、`fetchEmbedding`、`fetchMultimodalEmbedding`、`embedTextWithUserKey`、`vecToBuffer`、`bufferToVec`、`BUILTIN_EMBED` 常量统一提取；原 `memory.ts` 和 `ai.ts` 中 3 处重复实现全部删除
+- `memory.ts`：删减 ~80 行重复代码，保留 `re-export { fetchEmbedding, vecToBuffer }` 维持 `agentWorker.ts` 动态 import 兼容
+- `ai.ts`：删减 ~60 行内联 embedding 逻辑（`fetchRelevantFacts` / `fetchScoredFacts` / `searchFileChunks` 三处），改用 `embedTextWithUserKey`
+
+**前端功能：**
+- `PublicSpaceCanvas.tsx`：顶部新增文件库（📎）按钮，点击展开 `FileBrowserPanel`，Space 内可直接查看历史上传文件列表并引用
+- `ZhangSpaceCanvas.tsx`：`avatarBg` `bg-blue-600` → `bg-gray-900`
+- `WangSpaceCanvas.tsx`：`avatarBg` `bg-emerald-600` → `bg-gray-900`
+
+**新增单元测试**（`src/server/__tests__/embedding.test.ts`，5 条）：
+1. `cosineSim` 正交向量 → 0
+2. `cosineSim` 同向量 → 1.0
+3. `cosineSim` 零向量 → 0（不 NaN 不抛异常）
+4. `vecToBuffer` + `bufferToVec` 往返精度
+5. `embedTextWithUserKey` apiKey 为空 → null（不发网络请求）
+
+**测试结果**：522/522 通过（+5），`tsc --noEmit` 零错误。
+
+---
+
 ## [0.5.0] - 2026-03-13
 
 ### refactor: 代码 AI 友好重构 + detectIntent 提取 + SpaceCanvas 统一组件

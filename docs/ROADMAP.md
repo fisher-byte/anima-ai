@@ -2,9 +2,30 @@
 
 ## 计划中版本
 
-*暂无计划中版本——v0.5.0 代码重构全部完成。*
+*暂无计划中版本——v0.5.3 UI/UX polish 全部完成。*
 
 ## 已完成版本
+
+#### v0.5.3 - UI/UX polish batch（已完成）
+- [x] `Canvas.tsx`：侧边栏折叠后改为悬浮 pill 卡片（L/PG 头像 + Spaces 文字 + chevron）
+- [x] `Canvas.tsx`：张/王侧边栏头像统一为 bg-gray-900（原为蓝/绿）
+- [x] `InputBox.tsx`：@mention 选中后显示 indigo pill chip，含删除按钮
+- [x] `FileBrowserPanel.tsx`：文件下载按钮（auth-aware fetch+blob 方式）
+- [x] i18n：'偏好设置'→'设置' / 'Preferences'→'Settings'
+- [x] vitest 522/522 | tsc 0 errors
+
+#### v0.5.2 - Space 向量索引全量补全（已完成）
+- [x] `memory.ts`：custom space convSource 修复（`custom-{id}` 不再降级为 `lenny`）
+- [x] `POST /api/memory/bootstrap-facts`：历史对话记忆提取 + 向量索引幂等补全
+- [x] vitest 522/522 | tsc 0 errors
+
+#### v0.5.1 - embedding 共享库 + Space 文件列表 + 头像统一（已完成）
+- [x] 新建 `src/server/lib/embedding.ts`：cosineSim / fetchEmbedding / embedTextWithUserKey 等共享函数
+- [x] `memory.ts` / `ai.ts`：删除 ~140 行重复实现，从 lib import
+- [x] `PublicSpaceCanvas.tsx`：新增文件库 FileBrowserPanel 入口
+- [x] 张/王 SpaceCanvas：avatarBg 统一为 gray-900
+- [x] 新增 5 个 embedding 单元测试
+- [x] vitest 522/522 (+5) | tsc 0 errors
 
 #### v0.5.0 - 代码 AI 友好重构 + SpaceCanvas 统一组件（已完成）
 - [x] 新建 `intentDetector.ts`：从 canvasStore 提取 detectIntent 六类关键词体系为独立纯函数
