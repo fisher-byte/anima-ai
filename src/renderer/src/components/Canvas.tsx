@@ -16,7 +16,7 @@
  */
 import { useState, useRef, useCallback, useMemo, useEffect, createContext } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit, Sparkles, Clock, GitMerge, Github, PlusCircle, Trash2, FolderOpen } from 'lucide-react'
+import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit, Sparkles, Clock, GitMerge, Github, PlusCircle, Trash2, FolderOpen, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useForceSimulation, type ForceSimulationAPI } from '../hooks/useForceSimulation'
 import { NodeCard } from './NodeCard'
@@ -365,6 +365,10 @@ export function Canvas() {
   const [openCustomSpaceId, setOpenCustomSpaceId] = useState<string | null>(null)
   const [deleteConfirmSpaceId, setDeleteConfirmSpaceId] = useState<string | null>(null)
   const [isFileBrowserOpen, setIsFileBrowserOpen] = useState(false)
+  // 左侧 Spaces 侧边栏折叠状态（localStorage 持久化）
+  const [isSpacesSidebarVisible, setIsSpacesSidebarVisible] = useState(() => {
+    return localStorage.getItem('evo_spaces_sidebar_visible') !== 'false'
+  })
   const prevNodeCountRef = useRef(0)
   const prevRulesCountRef = useRef(profileRulesCount)
 
@@ -952,18 +956,45 @@ export function Canvas() {
 
       {/* Spaces 侧边栏 — My Spaces + Public Spaces 合并到同一个 fixed 容器，自底向上堆叠 */}
       <div className="fixed left-4 bottom-36 z-30 flex flex-col gap-1.5">
-        <div className="px-1 mb-1 flex items-center justify-between w-[168px]">
-          <span className="text-[10px] text-gray-400/70 font-medium tracking-widest uppercase">{t.space.mySpaces}</span>
-          {customSpaces.length < 5 && (
-            <button
-              onClick={() => setIsCreateSpaceOpen(true)}
-              className="p-0.5 text-gray-400 hover:text-gray-600 transition-colors"
-              title={t.space.addSpace}
-            >
-              <PlusCircle className="w-3.5 h-3.5" />
-            </button>
+        {/* 折叠/展开切换按钮 */}
+        <div className={`flex items-center mb-0.5 ${isSpacesSidebarVisible ? 'justify-between w-[168px]' : 'justify-start'}`}>
+          {isSpacesSidebarVisible && (
+            <span className="px-1 text-[10px] text-gray-400/70 font-medium tracking-widest uppercase">{t.space.mySpaces}</span>
           )}
+          <div className={isSpacesSidebarVisible ? 'flex items-center gap-0.5' : ''}>
+            {isSpacesSidebarVisible && customSpaces.length < 5 && (
+              <button
+                onClick={() => setIsCreateSpaceOpen(true)}
+                className="p-0.5 text-gray-400 hover:text-gray-600 transition-colors"
+                title={t.space.addSpace}
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button
+              onClick={() => {
+                const next = !isSpacesSidebarVisible
+                setIsSpacesSidebarVisible(next)
+                localStorage.setItem('evo_spaces_sidebar_visible', String(next))
+              }}
+              className="p-0.5 text-gray-300 hover:text-gray-600 transition-colors"
+              title={isSpacesSidebarVisible ? t.canvas.hideSpaces : t.canvas.showSpaces}
+            >
+              {isSpacesSidebarVisible ? <ChevronLeft className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+            </button>
+          </div>
         </div>
+
+        <AnimatePresence initial={false}>
+          {isSpacesSidebarVisible && (
+            <motion.div
+              key="spaces-sidebar-content"
+              initial={{ opacity: 0, x: -16 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -16 }}
+              transition={{ duration: 0.18 }}
+              className="flex flex-col gap-1.5"
+            >
 
         {customSpaces.map(space => {
           const COLOR_ACCENT: Record<string, string> = {
@@ -1085,6 +1116,9 @@ export function Canvas() {
           </div>
           <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
         </motion.button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Delete Custom Space confirm dialog */}

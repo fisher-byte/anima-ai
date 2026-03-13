@@ -6,6 +6,12 @@
 
 ## 已完成版本
 
+#### v0.4.8 - Skills 自动触发 + 工具栏重设计 + Spaces 折叠（已完成）
+- [x] `InputBox.tsx`：移除 ⚡ Zap 按钮，改为关键词自动场景检测，触发技能建议 chip（可应用/关闭）
+- [x] `InputBox.tsx`：Paperclip + AtSign 合并为 `+` 操作菜单按钮
+- [x] `Canvas.tsx`：Spaces 侧边栏折叠/展开，状态 localStorage 持久化
+- [x] i18n 新增 `skillsApply` / `hideSpaces` / `showSpaces` 键
+
 #### v0.4.5 - MEMORY_BUDGET 环境变量 + SettingsModal 修复（已完成）
 - [x] `MEMORY_BUDGET` env var：控制 system prompt 注入层 token 预算（默认 1500，支持动态调整）
 - [x] 非数字/空值降级到 1500
