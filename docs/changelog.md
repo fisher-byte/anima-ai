@@ -2,16 +2,25 @@
 
 ## [0.4.5] - 2026-03-13
 
-### feat: MEMORY_BUDGET 环境变量
+### fix: SettingsModal 始终渲染 bug + E2E 测试修复 + 文档同步
 
-**新增功能：**
-- `MEMORY_BUDGET` 环境变量：控制 system prompt 注入层总 token 预算（默认 1500）
-- 解析逻辑：`parseInt(MEMORY_BUDGET ?? '1500', 10) || 1500`（非数字/空字符串降级至 1500）
-- 可通过 `.env` 调大（如 `MEMORY_BUDGET=2000` 允许更多记忆注入）或调小（节约 context）
+**Bug 修复：**
+- `SettingsModal.tsx`：修复 `isOpen` prop 未被 `AnimatePresence` 条件渲染，导致 `z-[60]` overlay 始终存在、遮挡整个页面的严重 bug；添加 `{isOpen && <div key="settings-modal" ...>}` 条件渲染
+- `SettingsModal.tsx`：新增 ESC 键关闭支持（`document.addEventListener('keydown', handleKey)`）
+- `SettingsModal.tsx`：为关闭按钮添加 `data-testid="settings-close-btn"` 便于测试
 
-**测试：** 新增 5 个单元测试（默认值/正常值/非数字降级/空字符串降级）
+**E2E 测试修复：**
+- `e2e/journey.spec.ts`：`mockAIStream` done 帧补充 `fullText` 字段（`{ type: 'done', fullText: content }`）
+- `e2e/journey.spec.ts`：`waitForInputReady` 加入 ESC 清除残留 modal
+- `e2e/features.spec.ts`：汉堡菜单测试加强 overlay 清除（2 次 ESC + `waitFor hidden`）
 
-**测试结果**：517/517 通过（19 个文件），`tsc --noEmit` 零错误。
+**文档同步（v0.4.5 遗漏补全）：**
+- `docs/dev-guide.md`、`docs/sop-release.md`：版本号修正为 v0.4.5（原为 v0.4.2）
+- `docs/architecture.md`：补充 MEMORY_BUDGET 环境变量说明，版本号更新
+- `src/server/routes/ai.ts`：JSDoc 补充 MEMORY_BUDGET env var 说明
+- `docs/ROADMAP.md`：修正 v0.4.4 测试数（512→517），远期版本改为 v0.5.0+
+
+**测试结果**：517/517 通过（19 个文件），E2E 44/48 通过、3 skip（3 skip 为无测试数据条件跳过，正常），`tsc --noEmit` 零错误。
 
 ---
 

@@ -245,6 +245,10 @@ index.ts 中间件: c.set('db', getDb('a1b2c3d4e5f6'))
 - **注入位置**：系统提示层 3.5（在动态事实层 3 之后、压缩记忆层 4 之前），置于 CONTEXT_BUDGET 之外（始终注入，不受 token 预算截断）
 - **自动清理**：`saveSessionMemory` 保留最近 50 条会话摘要，按 `updated_at` 淘汰最旧
 
+**v0.4.5 MEMORY_BUDGET 环境变量：**
+
+- **MEMORY_BUDGET**：控制 system prompt 注入层总 token 预算（默认 1500）；`parseInt(MEMORY_BUDGET ?? '1500') || 1500`，非数字/空值安全降级
+
 ### 7. Public Space 架构（v0.4.0+）
 
 Anima 支持多个「Public Space」：可与知名人物的思维模型对话，每个 Space 完全独立于用户私有记忆。

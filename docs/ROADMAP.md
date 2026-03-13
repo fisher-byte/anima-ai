@@ -6,17 +6,21 @@
 
 ## 已完成版本
 
-#### v0.4.5 - MEMORY_BUDGET 环境变量（已完成）
+#### v0.4.5 - MEMORY_BUDGET 环境变量 + SettingsModal 修复（已完成）
 - [x] `MEMORY_BUDGET` env var：控制 system prompt 注入层 token 预算（默认 1500，支持动态调整）
 - [x] 非数字/空值降级到 1500
-- [x] 新增 5 个单元测试 | vitest 517/517 | tsc 0 errors
+- [x] `SettingsModal.tsx`：修复 `isOpen` 未条件渲染导致 z-[60] overlay 始终遮挡页面的严重 bug
+- [x] `SettingsModal.tsx`：添加 ESC 键关闭支持 + `data-testid="settings-close-btn"`
+- [x] E2E 测试修复：mockAIStream done 帧补充 fullText、汉堡菜单/J-3/J-4 overlay 处理
+- [x] 文档同步：dev-guide/sop/architecture/ROADMAP/ai.ts JSDoc 版本号与内容更新
+- [x] vitest 517/517 | E2E 44/48 通过 3 skip | tsc 0 errors
 
 #### v0.4.4 - 会话级记忆摘要（Session Memory）（已完成）
 - [x] `session_memory.json`：长对话（≥10 轮）自动生成摘要，存于 SQLite storage 表
 - [x] `generateSessionSummary`：AI 轻量摘要 + setImmediate 异步生成，不阻塞响应
 - [x] 系统提示层 3.5 注入（CONTEXT_BUDGET 之外）
 - [x] 自动清理：保留最近 50 条，防止无限增长
-- [x] 新增 10 个单元测试 | vitest 512/512 | tsc 0 errors
+- [x] 新增 10 个单元测试 | vitest 517/517 | tsc 0 errors
 
 #### v0.4.3 - 记忆评分系统（Memory Quality v1）（已完成）
 - [x] `MEMORY_STRATEGY` 环境变量：baseline / scored 策略切换
@@ -395,15 +399,15 @@
 
 ---
 
-### 🔮 远期（v0.4.0+）
+### 🔮 远期（v0.5.0+）
 
-#### v0.4.0 — 导入 / 导出生态
+#### v0.5.0 — 导入 / 导出生态
 
 - [ ] 导出完整画布为 `.anima` 文件（含节点、对话、记忆事实）
 - [ ] 导入并合并（不覆盖）已有数据
 - [ ] 数据加密导出
 
-#### v0.5.0 — 平台化
+#### v0.5.1 — 平台化
 
 - [ ] 插件 API（自定义工具集成）
 - [ ] 自定义意图分类词典
