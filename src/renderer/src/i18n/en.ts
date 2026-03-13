@@ -18,7 +18,7 @@ export const en: Translations = {
     aboutMemory: 'About your memory',
     evolutionLog: 'Evolution log',
     newBadge: 'New',
-    preferences: 'Preferences',
+    preferences: 'Settings',
     githubLink: 'Open Source on GitHub',
     mergeNodes: 'Merge similar nodes',
     analyzing: 'Analyzing…',

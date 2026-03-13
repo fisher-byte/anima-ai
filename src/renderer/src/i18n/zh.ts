@@ -355,7 +355,7 @@ export const zh: Translations = {
     aboutMemory: '关于你的记忆',
     evolutionLog: '进化日志',
     newBadge: '新',
-    preferences: '偏好设置',
+    preferences: '设置',
     githubLink: '开源项目 GitHub',
     mergeNodes: '整理相似节点',
     analyzing: '分析中…',

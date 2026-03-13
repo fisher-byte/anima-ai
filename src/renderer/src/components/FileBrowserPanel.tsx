@@ -8,7 +8,7 @@
  */
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, FileText, FileCode, File as FileIcon, Image, Loader2, AtSign, RefreshCw } from 'lucide-react'
+import { X, FileText, FileCode, File as FileIcon, Image, Loader2, AtSign, RefreshCw, Download } from 'lucide-react'
 import { getAuthToken } from '../services/storageService'
 import { useT } from '../i18n'
 
@@ -66,6 +66,25 @@ export function FileBrowserPanel({ isOpen, onClose, onInsertMention }: FileBrows
   useEffect(() => {
     if (isOpen) loadFiles()
   }, [isOpen, loadFiles])
+
+  const handleDownload = useCallback(async (file: FileItem) => {
+    try {
+      const token = getAuthToken()
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+      const res = await fetch(`/api/storage/file/${file.id}`, { headers })
+      if (!res.ok) return
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = file.filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch { /* 静默 */ }
+  }, [])
 
   return (
     <AnimatePresence>
@@ -170,7 +189,14 @@ export function FileBrowserPanel({ isOpen, onClose, onInsertMention }: FileBrows
                       引用
                     </button>
                   )}
-                </div>
+                  <button
+                    onClick={() => handleDownload(file)}
+                    className="opacity-0 group-hover:opacity-100 shrink-0 flex items-center gap-1 px-2 py-1 text-[11px] text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all"
+                    title="下载文件"
+                  >
+                    <Download className="w-3 h-3" />
+                    下载
+                  </button>                </div>
               ))}
             </div>
           </motion.div>
