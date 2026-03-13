@@ -1,6 +1,6 @@
 # Anima 测试手册
 
-*最后更新: 2026-03-13 | 版本: v0.4.4*
+*最后更新: 2026-03-13 | 版本: v0.4.5*
 
 ## 测试策略
 
@@ -80,6 +80,7 @@ npm run test:watch    # 监听模式（开发时用）
   - `MEMORY_STRATEGY`：finalScore 公式权重、importance=0.5 系数、accessBonus 上限
   - `session_memory` 触发条件：轮数阈值、已有摘要跳过、onboarding 守卫、无 convId 守卫
   - `session_memory` 注入条件：有摘要+轮数、轮数不足不注入、无摘要不注入、50 条上限清理
+  - `MEMORY_BUDGET` 解析：默认值、正常值、非数字降级、空字符串降级
 
 - ✅ `ai-onboarding.test.ts` — AI 引导模式测试（6 个用例）
   - onboarding 标志正确路由到轻量 system prompt
@@ -87,7 +88,7 @@ npm run test:watch    # 监听模式（开发时用）
 
 - ✅ `memory.test.ts` — 记忆路由集成测试（含 FTS5 trigger、引用块过滤、decayPreferences、语义边 by-id）
 
-**总测试数**: **512 个用例，19 个测试文件，全部通过**
+**总测试数**: **517 个用例，19 个测试文件，全部通过**
 
 ---
 

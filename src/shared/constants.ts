@@ -8,7 +8,7 @@
  * 应用信息
  */
 export const APP_NAME = 'Anima'
-export const APP_VERSION = '0.4.4'
+export const APP_VERSION = '0.4.5'
 
 /**
  * 存储文件名

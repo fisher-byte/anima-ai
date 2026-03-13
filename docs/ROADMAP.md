@@ -2,10 +2,14 @@
 
 ## 计划中版本
 
-### v0.4.x - 记忆质量提升（参见 docs/memory-strategy.md）
-- [ ] MEMORY_BUDGET 环境变量（当前硬编码 CONTEXT_BUDGET = 1500）
+*暂无计划中版本——v0.4.x 记忆质量提升全部完成。*
 
 ## 已完成版本
+
+#### v0.4.5 - MEMORY_BUDGET 环境变量（已完成）
+- [x] `MEMORY_BUDGET` env var：控制 system prompt 注入层 token 预算（默认 1500，支持动态调整）
+- [x] 非数字/空值降级到 1500
+- [x] 新增 5 个单元测试 | vitest 517/517 | tsc 0 errors
 
 #### v0.4.4 - 会话级记忆摘要（Session Memory）（已完成）
 - [x] `session_memory.json`：长对话（≥10 轮）自动生成摘要，存于 SQLite storage 表

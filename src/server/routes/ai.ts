@@ -40,7 +40,7 @@ function userDb(c: { get: (key: string) => unknown }): InstanceType<typeof Datab
 }
 
 // ── Token 预算工具 ───────────────────────────────────────────────────────────
-const CONTEXT_BUDGET = 1500  // system prompt 注入层总 token 预算
+const CONTEXT_BUDGET = parseInt(process.env.MEMORY_BUDGET ?? '1500', 10) || 1500  // system prompt 注入层总 token 预算
 /**
  * 近似 token 数：区分 CJK（每字 ≈2 token）与拉丁字符（4字符 ≈1 token）
  * 比纯 chars/4 对中文文本误差从 8x 降至 <1.5x
