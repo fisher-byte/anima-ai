@@ -1019,7 +1019,7 @@ memoryRoutes.post('/sync-lenny-conv', async (c) => {
     return c.json({ ok: false, error: 'missing fields' }, 400)
   }
   const safeAssistant = assistantMessage?.trim() ?? ''
-  const convSource = source === 'pg' ? 'pg' : 'lenny'
+  const convSource = source === 'pg' ? 'pg' : source === 'zhang' ? 'zhang' : source === 'wang' ? 'wang' : 'lenny'
 
   const now = new Date().toISOString()
   const conv = {

@@ -1,5 +1,25 @@
 # Anima 变更日志
 
+## [0.4.9] - 2026-03-13
+
+### fix: 跨空间记忆同步全覆盖 + Skills 加权打分 + 文档补全
+
+**Bug 修复（P0）：**
+- `memory.ts` `sync-lenny-conv`：`convSource` 只认 `lenny`/`pg`，`zhang`/`wang` 来源一律被记为 `lenny`；修复为正确识别所有 4 个 source，`id` 和 `source` 字段不再错误
+
+**功能补全（P1）：**
+- `canvasStore.ts`：自定义空间（Custom Space）对话结束后增加 `sync-lenny-conv` + `memory/extract` 调用，与 Lenny/PG/Zhang/Wang 行为对齐——自定义空间的对话现在也会写入主空间 `conversations.jsonl`、触发进化基因（`extract_profile`）和记忆事实（`extract_preference`）更新
+- `InputBox.tsx`：Skills 自动检测从「第一个匹配」改为「加权打分，取最高分」，多关键词命中的技能优先弹出，更准确
+
+**文档（P2）：**
+- `README.md`：版本号 0.4.2 → 0.4.9，测试数 427 → 517，重新梳理 Features 表格
+- `docs/architecture.md`：版本号更新至 v0.4.9
+- `docs/ROADMAP.md`：追加 v0.4.9 完成条目
+
+**测试结果**：517/517 通过，`tsc --noEmit` 零错误。
+
+---
+
 ## [0.4.8] - 2026-03-13
 
 ### feat: Skills 自动触发 + 工具栏重设计 + Spaces 侧边栏折叠

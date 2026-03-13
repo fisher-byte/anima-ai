@@ -1529,6 +1529,35 @@ export const useCanvasStore = create<CanvasState>()(
       }
       spaceNodes.push(newNode)
       await storageService.write(nodesFile, JSON.stringify(spaceNodes, null, 2))
+
+      // P4: 自定义 Space 对话也同步到主空间触发记忆提取 + 进化基因更新
+      if (assistantMessage.trim()) {
+        try {
+          await authFetch('/api/memory/sync-lenny-conv', {
+            method: 'POST',
+            body: JSON.stringify({
+              conversationId: conv.id,
+              userMessage: conv.userMessage,
+              assistantMessage,
+              source: `custom-${activeCustomSpaceId}`,
+            }),
+          })
+        } catch { /* 静默失败，不影响 Custom Space 体验 */ }
+
+        // 记忆事实提取（fire-and-forget）
+        const cleanUserMsg = conv.userMessage.replace(/\[REFERENCE_START\][\s\S]*?\[REFERENCE_END\]/g, '[引用内容已省略]').trim()
+        if (cleanUserMsg.length > 5) {
+          authFetch('/api/memory/extract', {
+            method: 'POST',
+            body: JSON.stringify({
+              conversationId: conv.id,
+              userMessage: cleanUserMsg,
+              assistantMessage: assistantMessage.slice(0, 400),
+            }),
+          }).catch(() => {})
+        }
+      }
+
       return
     }
 

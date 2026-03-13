@@ -577,11 +577,17 @@ export function InputBox() {
       setAtQuery(null)
     }
 
-    // 技能关键词自动检测（message 变化时，且用户未 dismiss）
+    // 技能加权打分检测（消息变化时，且用户未 dismiss）
+    // 每个 Skill 计算命中关键词数，取得分最高且 >0 的那个
     if (!isDismissedSkill) {
       const lower = val.toLowerCase()
-      const matched = SKILLS.find(s => s.keywords.some(kw => lower.includes(kw)))
-      setSuggestedSkill(matched ?? null)
+      let bestSkill: typeof SKILLS[number] | null = null
+      let bestScore = 0
+      for (const s of SKILLS) {
+        const score = s.keywords.reduce((acc, kw) => acc + (lower.includes(kw) ? 1 : 0), 0)
+        if (score > bestScore) { bestScore = score; bestSkill = s }
+      }
+      setSuggestedSkill(bestScore > 0 ? bestSkill : null)
     }
     // 清空时重置 dismiss 状态
     if (!val.trim()) {

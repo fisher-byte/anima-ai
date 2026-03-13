@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.4.2-black" alt="version"/>
+  <img src="https://img.shields.io/badge/version-0.4.9-black" alt="version"/>
   <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js" alt="node"/>
   <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react" alt="react"/>
   <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript" alt="typescript"/>
@@ -130,7 +130,7 @@ Anima picks up on natural language feedback and adapts:
 | Build | Vite 5, tsx |
 | AI | OpenAI-compatible API (Kimi, OpenAI, local models) |
 | Desktop (optional) | Electron 29 |
-| Testing | Vitest (427 unit tests), Playwright (E2E) |
+| Testing | Vitest (517 unit tests), Playwright (E2E) |
 
 ---
 
@@ -175,7 +175,7 @@ Multi-tenant: each `ACCESS_TOKEN` maps to a completely isolated SQLite database.
 ## Running Tests
 
 ```bash
-npm test           # Unit tests (427 tests)
+npm test           # Unit tests (517 tests)
 npm run typecheck  # TypeScript type check
 npm run test:e2e   # E2E tests (requires dev server running)
 ```
