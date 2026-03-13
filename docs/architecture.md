@@ -1,6 +1,6 @@
 # Anima 架构文档
 
-*最后更新: 2026-03-13 | 版本: v0.3.2*
+*最后更新: 2026-03-13 | 版本: v0.4.0*
 
 ---
 
@@ -72,7 +72,10 @@ evocanvas/
 │   │
 │   └── shared/                    # 共享类型和常量
 │       ├── types.ts               # StorageService 接口、Node / Conversation 类型
-│       └── constants.ts           # 文件名白名单、分类常量
+│       ├── constants.ts           # 文件名白名单、分类常量、Space system prompts
+│       ├── pgData.ts              # Paul Graham Space 种子节点 / 边数据（35 nodes）
+│       ├── zhangData.ts           # 张小龙 Space 种子节点 / 边数据（35 nodes）
+│       └── wangData.ts            # 王慧文 Space 种子节点 / 边数据（30 nodes）
 │
 ├── e2e/                           # Playwright E2E 测试
 ├── data/                          # 用户数据（不进 git）
@@ -205,7 +208,64 @@ index.ts 中间件: c.set('db', getDb('a1b2c3d4e5f6'))
 - **search_files function calling**：AI 可主动调用 `search_files` 工具检索历史上传文件内容，`searchFileChunks` 函数通过 embedding 余弦相似度从 `file_embeddings` 表返回最相关的 5 个文件片段；支持跨对话引用历史文件
 - **usage SSE 事件**：流式响应结束后发送 token 用量反馈（`totalTokens`, `model`），供前端展示消耗
 
-### 7. 状态管理（Zustand）
+### 6. AI 代理（SSE 流式）
+
+`POST /api/ai/stream` 的 System Prompt 分层注入（优先级从高到低）：
+
+```
+1. 进化基因（preference_rules）— 用户习得的行为偏好
+2. 用户画像（user_profile）— AI 后台提炼的结构化画像
+3. 记忆事实（memory_facts）— 记忆碎片，语义检索最相关的
+4. 压缩记忆（前端传入）— 本次对话相关的历史对话摘要
+```
+
+支持工具调用（`$web_search`，Kimi 2.5 原生联网），工具结果自动进入第二轮请求。
+
+**v0.3.2 新增能力：**
+
+- **URL 内容预取**：在 `streamSSE` 回调内检测 `trimmedText` 中的 URL（最多 2 个），通过 Jina Reader 抓取 Markdown 内容（≤8000 字符），作为额外 system 消息注入上下文，在 CONTEXT_BUDGET 之外
+- **url_fetch SSE 事件**：URL 预取时发送进度事件（`status: "fetching" | "done" | "failed"`），前端可展示实时进度
+- **search_memory function calling**：AI 可主动调用 `search_memory` 工具查询用户记忆库，服务端本地拦截执行 `fetchRelevantFacts`；续轮请求统一使用 `TOOLS_WITH_MEMORY`（含 `$web_search` + `search_memory`）
+- **search_files function calling**：AI 可主动调用 `search_files` 工具检索历史上传文件内容，`searchFileChunks` 函数通过 embedding 余弦相似度从 `file_embeddings` 表返回最相关的 5 个文件片段；支持跨对话引用历史文件
+- **usage SSE 事件**：流式响应结束后发送 token 用量反馈（`totalTokens`, `model`），供前端展示消耗
+
+### 7. Public Space 架构（v0.4.0+）
+
+Anima 支持多个「Public Space」：可与知名人物的思维模型对话，每个 Space 完全独立于用户私有记忆。
+
+**已内置 Space**：
+
+| Space | 文件前缀 | 种子节点数 | 主题色 | 数据来源 |
+|-------|---------|---------|-------|---------|
+| Lenny Rachitsky | `lenny-` | ~40 | gray | anima-base/people/product/lenny |
+| Paul Graham | `pg-` | ~35 | indigo/violet | anima-base/people/startup/paul-graham |
+| 张小龙 | `zhang-` | 35 | blue | anima-base/people/product/zhang-xiaolong |
+| 王慧文 | `wang-` | 30 | emerald | anima-base/people/product/wang-huiwen |
+
+**存储隔离**：每个 Space 有独立的 `{prefix}-nodes.json` / `{prefix}-conversations.jsonl` / `{prefix}-edges.json`，与用户主空间（`nodes.json` / `conversations.jsonl`）完全隔离，互不污染。
+
+**模式切换机制**（`canvasStore.ts`）：
+```typescript
+// isLennyMode=true 是"在某个 Space 中"的总开关
+// isPGMode / isZhangMode / isWangMode 区分具体 Space
+openZhangMode() → set({ isLennyMode: true, isZhangMode: true, isPGMode: false, isWangMode: false })
+```
+
+所有文件路由（5 处）均使用 4-way ternary：
+```typescript
+isPGMode ? PG_NODES : isZhangMode ? ZHANG_NODES : isWangMode ? WANG_NODES : LENNY_NODES
+```
+
+**System Prompt 路由**（`AnswerModal.tsx`）：
+```typescript
+const spacePrompt = isPGMode ? PG_SYSTEM_PROMPT : isZhangMode ? ZHANG_SYSTEM_PROMPT
+  : isWangMode ? WANG_SYSTEM_PROMPT : LENNY_SYSTEM_PROMPT
+```
+Space 内的对话使用人物专属 System Prompt，完全绕过用户私有 preference_rules / memory_facts 注入。
+
+**安全**：所有 Space 文件名均在 `ALLOWED_FILENAMES` 白名单中，文件路径防护机制与主空间一致。
+
+### 8. 状态管理（Zustand）
 
 **文件**: `src/renderer/src/stores/canvasStore.ts`
 
@@ -220,6 +280,7 @@ index.ts 中间件: c.set('db', getDb('a1b2c3d4e5f6'))
 | 引导 | `onboardingState`, `capabilityNodes` |
 | 视口 | `offset`, `scale` |
 | 交互 | `selectedNodeId`, `highlightedNodeIds`, `searchQuery` |
+| Space 模式 | `isLennyMode`, `isPGMode`, `isZhangMode`, `isWangMode` |
 
 ---
 
