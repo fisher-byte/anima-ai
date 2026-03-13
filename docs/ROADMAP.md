@@ -6,6 +6,12 @@
 
 ## 已完成版本
 
+#### v0.4.9 - 跨空间记忆同步全覆盖 + Skills 加权打分（已完成）
+- [x] `memory.ts`：`sync-lenny-conv` 支持 zhang/wang source，修复历史 id/source 错误问题
+- [x] `canvasStore.ts`：自定义空间（Custom Space）对话结束后同步到主空间，触发记忆提取和进化基因更新
+- [x] `InputBox.tsx`：Skills 意图检测改为加权打分，多命中关键词的技能优先弹出
+- [x] README.md 版本号 + 测试数更新；architecture.md 版本号同步
+
 #### v0.4.8 - Skills 自动触发 + 工具栏重设计 + Spaces 折叠（已完成）
 - [x] `InputBox.tsx`：移除 ⚡ Zap 按钮，改为关键词自动场景检测，触发技能建议 chip（可应用/关闭）
 - [x] `InputBox.tsx`：Paperclip + AtSign 合并为 `+` 操作菜单按钮
