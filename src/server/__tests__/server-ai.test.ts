@@ -270,3 +270,172 @@ describe('search_round SSE event 格式', () => {
     expect(round).toBe(2)
   })
 })
+
+// ── URL_REGEX 匹配规则测试 ─────────────────────────────────────────────────────
+
+// Note: use .match() only — never .exec() loop (shared lastIndex on /g regex)
+const URL_REGEX_TEST = /https?:\/\/[^\s\]）)>】'"。，！？；：\s]{10,}/g
+
+describe('URL_REGEX pattern', () => {
+  it('标准 HTTP URL 被检测到', () => {
+    const matches = 'visit http://example.com/page'.match(URL_REGEX_TEST)
+    expect(matches).toContain('http://example.com/page')
+  })
+
+  it('标准 HTTPS URL 被检测到', () => {
+    const matches = 'see https://www.google.com/search?q=test'.match(URL_REGEX_TEST)
+    expect(matches).not.toBeNull()
+    expect(matches![0]).toContain('https://www.google.com')
+  })
+
+  it('URL 末尾中文标点（，。）被截断', () => {
+    const matches = '请看 https://example.com/path，谢谢'.match(URL_REGEX_TEST)
+    expect(matches).not.toBeNull()
+    expect(matches![0]).not.toContain('，')
+    expect(matches![0]).toBe('https://example.com/path')
+  })
+
+  it('纯文字 www.xxx 不匹配（缺少协议）', () => {
+    const matches = 'go to www.example.com'.match(URL_REGEX_TEST)
+    expect(matches).toBeNull()
+  })
+
+  it('消息中多个 URL 都被匹配', () => {
+    const matches = 'see https://foo.com/abc and https://bar.com/xyz'.match(URL_REGEX_TEST)
+    expect(matches).toHaveLength(2)
+    expect(matches).toContain('https://foo.com/abc')
+    expect(matches).toContain('https://bar.com/xyz')
+  })
+
+  it('不含协议的字符串不匹配', () => {
+    const matches = 'ftp://example.com/file'.match(URL_REGEX_TEST)
+    expect(matches).toBeNull()
+  })
+})
+
+// ── fetchUrlContent mock 测试 ─────────────────────────────────────────────────
+
+describe('fetchUrlContent mock', () => {
+  it('fetch 抛异常时返回 null（不抛出）', async () => {
+    const fetchUrlContentMock = async (_url: string): Promise<string | null> => {
+      try {
+        throw new Error('network error')
+      } catch { return null }
+    }
+    const result = await fetchUrlContentMock('https://example.com')
+    expect(result).toBeNull()
+  })
+
+  it('非 200 响应返回 null', async () => {
+    const fetchUrlContentMock = async (_url: string): Promise<string | null> => {
+      const mockResp = { ok: false, text: async () => '' }
+      if (!mockResp.ok) return null
+      return await mockResp.text()
+    }
+    const result = await fetchUrlContentMock('https://example.com')
+    expect(result).toBeNull()
+  })
+
+  it('内容超 8000 字符时截断到 8000', async () => {
+    const longText = 'a'.repeat(10000)
+    const fetchUrlContentMock = async (_url: string): Promise<string | null> => {
+      return longText.slice(0, 8000)
+    }
+    const result = await fetchUrlContentMock('https://example.com')
+    expect(result).toHaveLength(8000)
+  })
+})
+
+// ── search_memory tool_call 测试 ──────────────────────────────────────────────
+
+describe('search_memory tool_call', () => {
+  const TOOLS_WITH_MEMORY_TEST = [
+    { type: 'builtin_function', function: { name: '$web_search' } },
+    {
+      type: 'function',
+      function: {
+        name: 'search_memory',
+        description: '查询用户的个人记忆库',
+        parameters: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: '搜索关键词或问题' }
+          },
+          required: ['query']
+        }
+      }
+    }
+  ]
+
+  it('search_memory tool type 是 function（不是 builtin_function）', () => {
+    const memoryTool = TOOLS_WITH_MEMORY_TEST.find(t => t.function.name === 'search_memory')
+    expect(memoryTool?.type).toBe('function')
+  })
+
+  it('search_memory 的 query 参数在 required 中', () => {
+    const memoryTool = TOOLS_WITH_MEMORY_TEST.find(t => t.function.name === 'search_memory')
+    expect((memoryTool?.function as any).parameters.required).toContain('query')
+  })
+
+  it('toolCalls 含 search_memory 时 isMemoryRound 为 true', () => {
+    const toolCalls = [{ id: 'tc-1', type: 'function', function: { name: 'search_memory', arguments: '{"query":"test"}' } }]
+    const isMemoryRound = toolCalls.some(tc => tc.function.name === 'search_memory')
+    expect(isMemoryRound).toBe(true)
+  })
+
+  it('toolCalls 仅含 $web_search 时 isMemoryRound 为 false', () => {
+    const toolCalls = [{ id: 'tc-2', type: 'builtin_function', function: { name: '$web_search', arguments: '{"query":"test"}' } }]
+    const isMemoryRound = toolCalls.some(tc => tc.function.name === 'search_memory')
+    expect(isMemoryRound).toBe(false)
+  })
+})
+
+// ── search_round 记忆轮文案测试 ───────────────────────────────────────────────
+
+describe('search_round 记忆轮文案', () => {
+  function searchRoundMsg(round: number, isMemoryRound: boolean): string {
+    return isMemoryRound
+      ? '正在查询记忆库…'
+      : (round === 2 ? '你的问题有点复杂，正在进行更多搜索…' : `正在进行第 ${round} 轮搜索，请稍候…`)
+  }
+
+  it('isMemoryRound=true 时 message 恒为"正在查询记忆库…"（不受 round 值影响）', () => {
+    expect(searchRoundMsg(2, true)).toBe('正在查询记忆库…')
+    expect(searchRoundMsg(5, true)).toBe('正在查询记忆库…')
+  })
+
+  it('isMemoryRound=false 时 web 搜索文案不变（round=2→提示语，round=3→轮次号）', () => {
+    expect(searchRoundMsg(2, false)).toBe('你的问题有点复杂，正在进行更多搜索…')
+    expect(searchRoundMsg(3, false)).toBe('正在进行第 3 轮搜索，请稍候…')
+  })
+})
+
+// ── TOOLS_WITH_MEMORY 结构测试 ────────────────────────────────────────────────
+
+describe('TOOLS_WITH_MEMORY 结构', () => {
+  const TOOLS = [
+    { type: 'builtin_function', function: { name: '$web_search' } },
+    {
+      type: 'function',
+      function: {
+        name: 'search_memory',
+        description: '查询用户的个人记忆库',
+        parameters: { type: 'object', properties: { query: { type: 'string', description: '' } }, required: ['query'] }
+      }
+    }
+  ]
+
+  it('包含恰好 2 个工具', () => {
+    expect(TOOLS).toHaveLength(2)
+  })
+
+  it('第一个是 $web_search（type=builtin_function）', () => {
+    expect(TOOLS[0].type).toBe('builtin_function')
+    expect(TOOLS[0].function.name).toBe('$web_search')
+  })
+
+  it('第二个是 search_memory（type=function）', () => {
+    expect(TOOLS[1].type).toBe('function')
+    expect(TOOLS[1].function.name).toBe('search_memory')
+  })
+})

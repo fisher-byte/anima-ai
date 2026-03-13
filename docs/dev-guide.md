@@ -1,6 +1,6 @@
 # Anima 开发指南
 
-*最后更新: 2026-03-12 | 版本: v0.2.99*
+*最后更新: 2026-03-13 | 版本: v0.3.2*
 
 ## 环境准备
 
@@ -36,7 +36,7 @@ cp .env.example .env
 | `npm run dev:server` | 仅启动后端（tsx watch 热重载） |
 | `npm run build` | 构建前端到 `dist/` |
 | `npm start` | 生产模式启动（同时服务 API + 静态文件，端口 3000） |
-| `npm test` | 运行所有测试（单元 + 集成，当前 299 个用例，11 个文件） |
+| `npm test` | 运行所有测试（单元 + 集成，当前 445 个用例，17 个文件） |
 | `npm run test:watch` | 监听模式（开发时用） |
 | `npm run typecheck` | TypeScript 类型检查 |
 | `npm run lint` | ESLint 检查 |

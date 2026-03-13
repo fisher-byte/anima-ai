@@ -1,6 +1,22 @@
 # Anima 更新路线图
 
+## 计划中版本
+
+### v0.4.x - 记忆质量提升（参见 docs/memory-strategy.md）
+- [ ] memory_scores.json：facts 重要性/情绪评分旁路存储
+- [ ] MEMORY_STRATEGY 环境变量：baseline/scored 策略切换
+- [ ] session_memory.json：会话级记忆摘要
+- [ ] 渐进式遗忘：冷门 facts 降权，向量时间衰减因子
+
 ## 已完成版本
+
+#### v0.3.2 - AI 工具能力补全（URL读取 + 主动记忆查询）（已完成）
+- [x] URL 内容预取：检测消息里的 URL，通过 Jina Reader 抓取内容注入上下文
+- [x] search_memory 工具：AI 可主动查询记忆库（function calling）
+- [x] SSE 消息区分 search_round 类型（web/memory）
+- [x] 代码质量修复：fetchUrlContent/URL_REGEX/TOOLS_WITH_MEMORY 提升到模块级，消除 lastMsgText 重复
+- [x] 新增 url_fetch SSE 事件（fetching/done/failed 进度反馈）+ usage SSE 事件（token 用量）
+- [x] vitest 445/445 | tsc 0 errors | E2E 45/48
 
 #### v0.3.1 - code review P1/P2 修复（已完成）
 - [x] sync-lenny-conv 幂等检查改用 JSON 精确匹配（防止前缀误判）

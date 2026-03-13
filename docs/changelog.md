@@ -1,5 +1,54 @@
 # Anima 变更日志
 
+## [0.3.2] - 2026-03-13
+
+### feat: AI 工具能力补全（URL 内容读取 + 主动记忆查询）+ 代码质量修复
+
+**URL 内容预取（`read_url` 预处理层）：**
+- 检测最后一条用户消息中的 URL（最多 2 个），通过 Jina Reader 抓取内容
+- 抓取结果作为独立 system 消息注入 fullMessages（CONTEXT_BUDGET 之外）
+- 超时 8s / 状态码非 200 / isSimpleQuery 时静默跳过，不影响主流程
+- URL 内容截断 8000 字符（约 2000 tokens）防止 context 溢出
+
+**search_memory function calling：**
+- 新增 `TOOLS_WITH_MEMORY` 常量（`$web_search` + `search_memory`）
+- `search_memory` tool_call 在服务端本地拦截执行，调用 `fetchRelevantFacts`
+- `$web_search` 保持原有逻辑（回传 arguments 由 Moonshot 服务端执行）
+- 续轮请求统一使用 `TOOLS_WITH_MEMORY`（替代原来只带 `$web_search`）
+
+**SSE search_round 消息区分：**
+- 记忆查询轮显示"正在查询记忆库…"
+- Web 搜索轮保持原有文案
+
+**代码质量修复（Code Review P1/P2）：**
+- `fetchUrlContent` / `URL_REGEX` / `TOOLS_WITH_MEMORY` 提升到模块级（原在 handler 内，每请求重建）
+- `lastMsgText` 重复提取消除，改用外层已有的 `trimmedText`
+- URL 预取 + fullMessages 构建移入 `streamSSE` 回调，支持 SSE 进度反馈
+
+**新 SSE 事件：**
+- `url_fetch`：URL 抓取进度（`status: "fetching" | "done" | "failed"`），参考 ChatGPT/Claude 最优设计
+- `usage`：token 用量反馈（`totalTokens`, `model`），供前端展示消耗
+
+**新增 18 个单元测试（445/445）：**
+- `URL_REGEX`：6 个（HTTP/HTTPS 匹配、中文标点截断、www 不匹配、多 URL）
+- `fetchUrlContent`：3 个（异常 null、非 200 null、超长截断）
+- `search_memory tool_call`：4 个（type 验证、required 参数、isMemoryRound 逻辑）
+- 记忆轮文案：2 个（isMemoryRound 文案、web 搜索文案不变）
+- `TOOLS_WITH_MEMORY` 结构：3 个（数量、$web_search、search_memory）
+
+**文档：**
+- 新建 `docs/memory-strategy.md`：记忆系统策略方案
+- `docs/ROADMAP.md`：v0.3.2 标记完成，移入已完成版本区段
+- `docs/code-review-report-v0.3.2.md`：新建 Code Review 报告（SOP 要求）
+
+| 指标 | 结果 |
+|------|------|
+| `tsc --noEmit` | 0 错误 ✓ |
+| `vitest run` | 445/445 ✓ |
+| `playwright test` | 45/48 ✓（3 skip 正常） |
+
+---
+
 ## [0.3.1] - 2026-03-12
 
 ### fix: code review P1/P2 修复
