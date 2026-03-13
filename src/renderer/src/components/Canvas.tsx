@@ -16,7 +16,7 @@
  */
 import { useState, useRef, useCallback, useMemo, useEffect, createContext } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit, Sparkles, Clock, GitMerge, Github, PlusCircle, Trash2 } from 'lucide-react'
+import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit, Sparkles, Clock, GitMerge, Github, PlusCircle, Trash2, FolderOpen } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useForceSimulation, type ForceSimulationAPI } from '../hooks/useForceSimulation'
 import { NodeCard } from './NodeCard'
@@ -32,6 +32,7 @@ import { ZhangSpaceCanvas } from './ZhangSpaceCanvas'
 import { WangSpaceCanvas } from './WangSpaceCanvas'
 import { CustomSpaceCanvas } from './CustomSpaceCanvas'
 import { CreateCustomSpaceModal } from './CreateCustomSpaceModal'
+import { FileBrowserPanel } from './FileBrowserPanel'
 
 import { AmbientBackground } from './AmbientBackground'
 import { ClusterLabel } from './ClusterLabel'
@@ -363,6 +364,7 @@ export function Canvas() {
   const [isCreateSpaceOpen, setIsCreateSpaceOpen] = useState(false)
   const [openCustomSpaceId, setOpenCustomSpaceId] = useState<string | null>(null)
   const [deleteConfirmSpaceId, setDeleteConfirmSpaceId] = useState<string | null>(null)
+  const [isFileBrowserOpen, setIsFileBrowserOpen] = useState(false)
   const prevNodeCountRef = useRef(0)
   const prevRulesCountRef = useRef(profileRulesCount)
 
@@ -880,6 +882,13 @@ export function Canvas() {
                   <span className="font-medium whitespace-nowrap">{t.canvas.aboutMemory}</span>
                 </button>
                 <button
+                  onClick={() => { setIsFileBrowserOpen(true); setIsMenuOpen(false); }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
+                >
+                  <FolderOpen className="w-4 h-4 shrink-0" />
+                  <span className="font-medium whitespace-nowrap">{t.canvas.fileLibrary}</span>
+                </button>
+                <button
                   onClick={() => { setSidebarTab('evolution'); setIsSidebarOpen(true); setIsMenuOpen(false); setHasNewEvolution(false) }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
                 >
@@ -1309,6 +1318,11 @@ export function Canvas() {
       </AnimatePresence>
 
       <ImportMemoryModal />
+
+      <FileBrowserPanel
+        isOpen={isFileBrowserOpen}
+        onClose={() => setIsFileBrowserOpen(false)}
+      />
     </>
     </ForceSimContext.Provider>
   )

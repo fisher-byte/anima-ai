@@ -98,14 +98,14 @@ export function CreateCustomSpaceModal({ isOpen, onClose, onCreated }: Props) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 8 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
           >
             <div
-              className="bg-white rounded-3xl shadow-2xl w-full max-w-md mx-4 pointer-events-auto overflow-hidden"
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md pointer-events-auto flex flex-col max-h-[min(90vh,calc(100vh-8rem))]"
               onClick={e => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
+              <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100 shrink-0">
                 <h2 className="text-base font-semibold text-gray-900">{t.space.createSpaceTitle}</h2>
                 <button
                   onClick={handleClose}
@@ -116,7 +116,7 @@ export function CreateCustomSpaceModal({ isOpen, onClose, onCreated }: Props) {
               </div>
 
               {/* Body */}
-              <div className="px-6 py-4 flex flex-col gap-4 max-h-[60vh] overflow-y-auto">
+              <div className="px-6 py-4 flex flex-col gap-4 overflow-y-auto flex-1 min-h-0">
 
                 {/* Name */}
                 <div>
@@ -194,7 +194,7 @@ export function CreateCustomSpaceModal({ isOpen, onClose, onCreated }: Props) {
               </div>
 
               {/* Footer */}
-              <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-gray-100">
+              <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-gray-100 shrink-0">
                 <button
                   onClick={handleClose}
                   disabled={isCreating}

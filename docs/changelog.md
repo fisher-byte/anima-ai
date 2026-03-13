@@ -1,5 +1,20 @@
 # Anima 变更日志
 
+## [0.4.7] - 2026-03-13
+
+### feat: 文件库面板 + Skills 面板 + 创建空间弹窗修复
+
+**Bug 修复：**
+- `CreateCustomSpaceModal.tsx`：弹窗整体无高度约束导致底部「创建」按钮被 InputBox 遮挡；改为 `flex flex-col max-h-[min(90vh,calc(100vh-8rem))]`，Header/Footer `shrink-0`，Body `overflow-y-auto flex-1`
+
+**新功能：**
+- `FileBrowserPanel.tsx`：全新文件库侧面板，从右侧滑入，展示历史上传文件列表（文件名、类型图标、上传日期、向量化状态），点击「引用」插入 @文件名；入口在汉堡菜单「文件库」
+- `InputBox.tsx`：Skills 面板（⚡ 按钮），6 个预设技能：写作润色 / 深度分析 / 总结提炼 / 翻译 / 头脑风暴 / 代码审查；点击自动在消息前插入对应 prompt 前缀，Esc 关闭
+
+**测试结果**：517/517 通过，`tsc --noEmit` 零错误。
+
+---
+
 ## [0.4.6] - 2026-03-13
 
 ### feat: @ 空间联想 + Sidebar 布局修复 + 张/王颜色统一

@@ -35,6 +35,8 @@ export interface Translations {
     pgSubtitle: string
     zhangSubtitle: string
     wangSubtitle: string
+    fileLibrary: string
+    skills: string
   }
   input: {
     placeholder: string
@@ -64,6 +66,19 @@ export interface Translations {
     atSpaces: string
     atFiles: string
     noSpaceMatch: string
+    skillsLabel: string
+    skillsPolish: string
+    skillsPolishDesc: string
+    skillsAnalyze: string
+    skillsAnalyzeDesc: string
+    skillsSummarize: string
+    skillsSummarizeDesc: string
+    skillsTranslate: string
+    skillsTranslateDesc: string
+    skillsBrainstorm: string
+    skillsBrainstormDesc: string
+    skillsCodeReview: string
+    skillsCodeReviewDesc: string
   }
   settings: {
     title: string
@@ -356,6 +371,8 @@ export const zh: Translations = {
     pgSubtitle: 'Startup · Thinking',
     zhangSubtitle: 'Product · WeChat',
     wangSubtitle: 'Product · Meituan',
+    fileLibrary: '文件库',
+    skills: '技能',
   },
 
   // ── InputBox ─────────────────────────────────────────────────────────────
@@ -387,6 +404,19 @@ export const zh: Translations = {
     atSpaces: '空间',
     atFiles: '文件',
     noSpaceMatch: '未找到匹配空间',
+    skillsLabel: '技能',
+    skillsPolish: '写作润色',
+    skillsPolishDesc: '润色并优化文字表达',
+    skillsAnalyze: '深度分析',
+    skillsAnalyzeDesc: '多角度分析问题',
+    skillsSummarize: '总结提炼',
+    skillsSummarizeDesc: '提炼核心要点',
+    skillsTranslate: '翻译',
+    skillsTranslateDesc: '中英互译',
+    skillsBrainstorm: '头脑风暴',
+    skillsBrainstormDesc: '发散思维，生成创意',
+    skillsCodeReview: '代码审查',
+    skillsCodeReviewDesc: '检查代码质量与问题',
   },
 
   // ── SettingsModal ─────────────────────────────────────────────────────────
