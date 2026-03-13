@@ -1,5 +1,29 @@
 # Anima 变更日志
 
+## [0.5.0] - 2026-03-13
+
+### refactor: 代码 AI 友好重构 + detectIntent 提取 + SpaceCanvas 统一组件
+
+**代码重构（减少文件行数，提升 AI 可读性）：**
+- 新建 `src/renderer/src/utils/intentDetector.ts`（~130 行）：将 `detectIntent` 六类关键词体系从 `canvasStore.ts` 提取为独立纯函数，并附 `INTENT_CATEGORIES` 导出
+- `canvasStore.ts`：导入 `detectIntent` + `CATEGORY_COLOR_MAP`，内联 100 行分类逻辑缩减为 3 行委托调用；文件从 2357 行降至 2245 行
+- 新建 `src/renderer/src/components/PublicSpaceCanvas.tsx`（978 行）：统一 Lenny / PG / Zhang / Wang 四个画布组件，差异通过 `SpaceConfig` interface 配置
+- `LennySpaceCanvas.tsx` 从 830 行 → 46 行薄包装
+- `PGSpaceCanvas.tsx` 从 890 行 → 45 行薄包装
+- `ZhangSpaceCanvas.tsx` 从 888 行 → 46 行薄包装
+- `WangSpaceCanvas.tsx` 从 888 行 → 46 行薄包装
+
+**文档同步（P2）：**
+- `docs/testing.md`：版本号 v0.4.5 → v0.5.0
+- `docs/dev-guide.md`：版本号 v0.4.5 → v0.5.0
+- `README.md`：版本号更新至 v0.5.0
+- `docs/architecture.md`：版本号更新至 v0.5.0
+- `docs/ROADMAP.md`：追加 v0.5.0 完成条目
+
+**测试结果**：517/517 通过，`tsc --noEmit` 零错误。
+
+---
+
 ## [0.4.9] - 2026-03-13
 
 ### fix: 跨空间记忆同步全覆盖 + Skills 加权打分 + 文档补全

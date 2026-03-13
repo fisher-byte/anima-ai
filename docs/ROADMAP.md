@@ -2,9 +2,16 @@
 
 ## 计划中版本
 
-*暂无计划中版本——v0.4.x 记忆质量提升全部完成。*
+*暂无计划中版本——v0.5.0 代码重构全部完成。*
 
 ## 已完成版本
+
+#### v0.5.0 - 代码 AI 友好重构 + SpaceCanvas 统一组件（已完成）
+- [x] 新建 `intentDetector.ts`：从 canvasStore 提取 detectIntent 六类关键词体系为独立纯函数
+- [x] `canvasStore.ts`：内联 100 行分类逻辑缩减为 3 行委托调用，文件从 2357 行降至 2245 行
+- [x] 新建 `PublicSpaceCanvas.tsx`（978 行）：统一 Lenny/PG/Zhang/Wang 四个画布，差异由 SpaceConfig 配置
+- [x] Lenny/PG/Zhang/WangSpaceCanvas.tsx：从 ~880 行降至 45 行薄包装
+- [x] docs：testing.md/dev-guide.md/architecture.md/README.md/changelog.md 版本号同步 v0.5.0
 
 #### v0.4.9 - 跨空间记忆同步全覆盖 + Skills 加权打分（已完成）
 - [x] `memory.ts`：`sync-lenny-conv` 支持 zhang/wang source，修复历史 id/source 错误问题

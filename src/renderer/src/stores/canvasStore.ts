@@ -22,6 +22,19 @@ import { STORAGE_FILES, FEEDBACK_TRIGGERS, CONFIDENCE_CONFIG, UI_CONFIG } from '
 import { storageService, historyService } from '../services/storageService'
 import { getAuthToken } from '../services/storageService'
 import { FILE_BLOCK_PREFIX } from '../utils/conversationUtils'
+import { detectIntent as _detectIntent } from '../utils/intentDetector'
+
+// ── 分类色板（分类名 → CSS color，用于节点染色）────────────────────────────
+const CATEGORY_COLOR_MAP: Record<string, string> = {
+  '日常生活': 'rgba(220, 252, 231, 0.9)',   // 绿
+  '日常事务': 'rgba(254, 249, 195, 0.9)',   // 黄
+  '学习成长': 'rgba(219, 234, 254, 0.9)',   // 蓝
+  '工作事业': 'rgba(224, 242, 254, 0.9)',   // 青蓝
+  '情感关系': 'rgba(255, 228, 230, 0.9)',   // 粉
+  '思考世界': 'rgba(243, 232, 255, 0.9)',   // 紫
+  '其他':     'rgba(243, 244, 246, 0.9)',   // 灰
+}
+const DEFAULT_CATEGORY_COLOR = CATEGORY_COLOR_MAP['其他']
 
 /** Internal helper: attach auth + JSON headers to all /api/* fetch calls */
 function authFetch(url: string, init?: RequestInit): Promise<Response> {
@@ -691,24 +704,15 @@ export const useCanvasStore = create<CanvasState>()(
               } catch { /* ignore */ }
             }
           }
-          const detectIntent = get().detectIntent
-          const CATEGORIES: { name: string; color: string }[] = [
-            { name: '日常生活', color: 'rgba(220, 252, 231, 0.9)' },
-            { name: '日常事务', color: 'rgba(254, 249, 195, 0.9)' },
-            { name: '学习成长', color: 'rgba(219, 234, 254, 0.9)' },
-            { name: '工作事业', color: 'rgba(224, 242, 254, 0.9)' },
-            { name: '情感关系', color: 'rgba(255, 228, 230, 0.9)' },
-            { name: '思考世界', color: 'rgba(243, 232, 255, 0.9)' },
-            { name: '其他', color: 'rgba(243, 244, 246, 0.9)' }
-          ]
+          // 使用模块级 CATEGORY_COLOR_MAP 替代内联数组
           let updated = false
           nodes = nodes.map(n => {
             const userMessage = conversationsById.get(n.conversationId)
             if (!userMessage) return n
-            const newCategory = detectIntent(userMessage)
+            const newCategory = _detectIntent(userMessage)
             if (newCategory === n.category) return n
             updated = true
-            const color = CATEGORIES.find(c => c.name === newCategory)?.color ?? CATEGORIES[3].color
+            const color = CATEGORY_COLOR_MAP[newCategory] ?? DEFAULT_CATEGORY_COLOR
             return { ...n, category: newCategory, color }
           })
           if (updated) {
@@ -866,33 +870,15 @@ export const useCanvasStore = create<CanvasState>()(
       .slice(0, UI_CONFIG.NODE_KEYWORDS_COUNT)
 
     // --- 增强分类与染色逻辑：优先使用 explicitCategory，否则按全文关键词匹配 ---
-    const CATEGORIES = [
-      { name: '日常生活', keywords: ['美食', '餐厅', '好吃', '旅游', '电影', '游戏', '购物', '运动', '周末'], color: 'rgba(220, 252, 231, 0.9)' },   // 绿
-      { name: '日常事务', keywords: ['医疗', '健康', '法律', '政策', '出行', '租房', '合同', '感冒', '生病'], color: 'rgba(254, 249, 195, 0.9)' },   // 黄
-      { name: '学习成长', keywords: ['学习', '编程', '代码', '论文', '作文', '语言', '考试', '读书', '知识'], color: 'rgba(219, 234, 254, 0.9)' },   // 蓝
-      { name: '工作事业', keywords: ['工作', '职场', '离职', '跳槽', '创业', '产品', '项目', '方案', '职业'], color: 'rgba(224, 242, 254, 0.9)' },   // 青蓝
-      { name: '情感关系', keywords: ['恋爱', '感情', '婚姻', '家人', '朋友', '焦虑', '情绪', '心理', '压力'], color: 'rgba(255, 228, 230, 0.9)' },   // 粉
-      { name: '思考世界', keywords: ['哲学', '人生', '意义', '社会', '未来', '科技', '价值观', '世界', '思考'], color: 'rgba(243, 232, 255, 0.9)' }, // 紫
-      { name: '其他', keywords: [], color: 'rgba(243, 244, 246, 0.9)' }
-    ]
-
     let category: string
     let color: string
     if (explicitCategory) {
-      const found = CATEGORIES.find(c => c.name === explicitCategory)
-      category = found ? found.name : explicitCategory
-      color = found ? found.color : CATEGORIES[CATEGORIES.length - 1].color
+      category = explicitCategory
+      color = CATEGORY_COLOR_MAP[explicitCategory] ?? DEFAULT_CATEGORY_COLOR
     } else {
-      let matchedCat = CATEGORIES[CATEGORIES.length - 1]
       const fullContent = (conversation.userMessage + conversation.assistantMessage).toLowerCase()
-      for (const cat of CATEGORIES) {
-        if (cat.keywords.some(k => fullContent.includes(k.toLowerCase()))) {
-          matchedCat = cat
-          break
-        }
-      }
-      category = matchedCat.name
-      color = matchedCat.color
+      category = _detectIntent(fullContent) || '其他'
+      color = CATEGORY_COLOR_MAP[category] ?? DEFAULT_CATEGORY_COLOR
     }
 
     // --- 聚类布局优化 (Category Island) ---
@@ -1936,107 +1922,9 @@ export const useCanvasStore = create<CanvasState>()(
       .map(r => r.preference)
   },
 
-  // 检测查询意图（六类体系）
+  // 检测查询意图（六类体系）——委托给 utils/intentDetector.ts，保持接口兼容
   detectIntent: (query: string): string => {
-    // 去除空格后匹配，兼容"思 考 离 职"这类带空格输入
-    const text = query.toLowerCase().replace(/\s+/g, '')
-    const CATEGORIES = [
-      {
-        name: '日常生活',
-        // 吃喝玩乐、娱乐休闲、生活方式
-        keywords: [
-          '美食', '餐厅', '好吃', '好喝', '火锅', '咖啡', '奶茶', '烤肉', '寿司', '探店',
-          '旅游', '旅行', '出游', '度假', '景点', '酒店', '民宿', '打卡', '攻略',
-          '电影', '电视剧', '追剧', '综艺', '动漫', '游戏', '手游', '单机', '剧情',
-          '购物', '买', '种草', '好用', '推荐', '测评', '比较', '哪款',
-          '运动', '健身', '跑步', '瑜伽', '骑行', '游泳', '爬山',
-          '周末', '玩', '逛', '闲逛', '生活方式', '日常'
-        ]
-      },
-      {
-        name: '日常事务',
-        // 生活中需要处理的具体事项：健康、法律、行政、财务
-        keywords: [
-          '医疗', '医院', '看病', '药', '感冒', '发烧', '生病', '症状', '治疗', '体检',
-          '健康', '保险', '社保', '医保', '理赔',
-          '法律', '合同', '纠纷', '诉讼', '维权', '律师',
-          '政策', '规定', '手续', '证件', '证明', '公证',
-          '签证', '护照', '入境', '海关', '税务', '退税', '报税',
-          '租房', '买房', '装修', '物业', '搬家', '水电',
-          '出行', '路线', '导航', '打车', '高铁', '机票', '行程',
-          '费用', '报销', '发票', '预算', '花费', '怎么办', '如何办理'
-        ]
-      },
-      {
-        name: '学习成长',
-        // 知识获取、技能学习、自我提升
-        keywords: [
-          '学习', '学', '读书', '看书', '书单', '课程', '培训', '考试', '备考', '复习',
-          '编程', '代码', '程序', '开发', '算法', '数据结构', '数据库', '架构',
-          'python', 'javascript', 'typescript', 'java', 'golang', 'rust', 'sql',
-          '论文', '作文', '写作', '语法', '语言', '英语', '日语', '法语', '口语',
-          '数学', '物理', '化学', '生物', '历史', '地理', '政治',
-          '原理', '概念', '理解', '解释', '知识', '定义', '推导',
-          '技能', '能力', '成长', '进步', '提升', '突破', '练习', '训练',
-          '考研', '考公', '资格证', '认证', '雅思', '托福', '四级', '六级'
-        ]
-      },
-      {
-        name: '工作事业',
-        // 职场、创业、商业、职业发展
-        keywords: [
-          '工作', '职场', '职业', '上班', '下班', '加班', '打工', '公司',
-          '离职', '跳槽', '辞职', '换工作', '找工作', '求职', '简历', '面试', '招聘',
-          '薪资', '工资', '涨薪', '晋升', '绩效', '考核', '升职',
-          '老板', '领导', '同事', '汇报', '开会', '会议', '沟通协作',
-          '创业', '融资', '商业', '商业模式', '市场', '竞争', '行业', '赛道',
-          '产品', '需求', '方案', '项目', '规划', '策略', '执行', '落地',
-          '运营', '营销', '推广', '增长', '转化', '用户', '客户', '销售',
-          '技术', 'ai', '模型', '算法', '系统', '架构', '部署', '文档'
-        ]
-      },
-      {
-        name: '情感关系',
-        // 人际关系、情绪、心理健康、自我认知
-        keywords: [
-          '恋爱', '感情', '喜欢', '爱', '表白', '分手', '失恋', '暗恋', '约会', '谈恋爱',
-          '婚姻', '结婚', '离婚', '出轨', '伴侣', '对象',
-          '家人', '父母', '妈妈', '爸爸', '爷爷', '奶奶', '兄弟', '姐妹', '子女',
-          '朋友', '友情', '闺蜜', '兄弟', '社交', '人际', '相处', '陌生人',
-          '焦虑', '抑郁', '情绪', '心理', '压力', '崩溃', '内耗', '躺平',
-          '难过', '孤独', '迷茫', '委屈', '愤怒', '后悔', '羞耻', '嫉妒',
-          '沟通', '争吵', '误解', '边界', '依赖', '控制',
-          '幸福', '快乐', '开心', '高兴', '满足', '感动', '温暖', '感激', '感恩',
-          '陪伴', '珍惜', '喜悦', '幸福感', '情感', '内心', '自我', '成长感',
-          '感受', '体验'
-        ]
-      },
-      {
-        name: '思考世界',
-        // 观点、哲学、社会议题、认知、价值观
-        keywords: [
-          '哲学', '人生', '意义', '价值', '价值观', '观念', '信念', '道德', '伦理',
-          '社会', '政治', '经济', '文化', '教育', '阶层', '贫富', '公平', '正义',
-          '未来', '趋势', '预测', '变化', '时代', '科技', '人工智能', 'ai会', '取代',
-          '世界', '宇宙', '生命', '存在', '本质', '规律', '底层', '逻辑',
-          '思考', '认知', '观点', '判断', '理性', '批判', '质疑', '论证',
-          '为什么', '探讨', '讨论', '聊聊', '想法', '感悟', '体会',
-          '反思', '审视', '觉得', '觉察', '意识', '自省',
-          '看法', '分析', '理解', '解读', '评价', '辩证'
-        ]
-      }
-    ]
-
-    let bestName = '其他'
-    let bestScore = 0
-    for (const cat of CATEGORIES) {
-      const score = cat.keywords.filter(k => text.includes(k)).length
-      if (score > bestScore) {
-        bestScore = score
-        bestName = cat.name
-      }
-    }
-    return bestName
+    return _detectIntent(query)
   },
 
   // 获取相关的历史记忆（后端向量检索，降级到关键词搜索）
