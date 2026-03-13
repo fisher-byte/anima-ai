@@ -1,6 +1,6 @@
 # Anima 架构文档
 
-*最后更新: 2026-03-12 | 版本: v0.2.99*
+*最后更新: 2026-03-13 | 版本: v0.3.2*
 
 ---
 
@@ -196,6 +196,13 @@ index.ts 中间件: c.set('db', getDb('a1b2c3d4e5f6'))
 ```
 
 支持工具调用（`$web_search`，Kimi 2.5 原生联网），工具结果自动进入第二轮请求。
+
+**v0.3.2 新增能力：**
+
+- **URL 内容预取**：在 `streamSSE` 回调内检测 `trimmedText` 中的 URL（最多 2 个），通过 Jina Reader 抓取 Markdown 内容（≤8000 字符），作为额外 system 消息注入上下文，在 CONTEXT_BUDGET 之外
+- **url_fetch SSE 事件**：URL 预取时发送进度事件（`status: "fetching" | "done" | "failed"`），前端可展示实时进度
+- **search_memory function calling**：AI 可主动调用 `search_memory` 工具查询用户记忆库，服务端本地拦截执行 `fetchRelevantFacts`；续轮请求统一使用 `TOOLS_WITH_MEMORY`（含 `$web_search` + `search_memory`）
+- **usage SSE 事件**：流式响应结束后发送 token 用量反馈（`totalTokens`, `model`），供前端展示消耗
 
 ### 7. 状态管理（Zustand）
 

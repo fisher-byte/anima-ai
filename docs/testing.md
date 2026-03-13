@@ -1,6 +1,6 @@
 # Anima 测试手册
 
-*最后更新: 2026-03-12 | 版本: v0.3.1*
+*最后更新: 2026-03-13 | 版本: v0.3.2*
 
 ## 测试策略
 
@@ -57,10 +57,15 @@ npm run test:watch    # 监听模式（开发时用）
   - 文件上传 + Magic Byte 校验 + file_embeddings 隔离
   - 逻辑边 API（GET / GET:id / DELETE:id）
   - AgentWorker 多租户隔离（4 个用例）
-- ✅ `server-ai.test.ts` — AI 功能纯逻辑测试（20 个用例）
+- ✅ `server-ai.test.ts` — AI 功能纯逻辑测试（38 个用例）
   - `readRound`：content 流、tool_call 累积、reader.releaseLock、[DONE] 跳过
   - 澄清层触发规则：关键词/引号/年份/长度/onboarding 守卫/重复触发
   - `search_round` SSE：round 消息、MAX_SEARCH_ROUNDS 边界、finishReason 退出
+  - `URL_REGEX`：HTTP/HTTPS 检测、中文标点截断、www 不匹配、多 URL 提取
+  - `fetchUrlContent`：异常返回 null、非 200 返回 null、超长内容截断
+  - `search_memory`：tool type 验证、required 参数检查、isMemoryRound 逻辑
+  - 记忆轮文案：isMemoryRound=true 时文案固定、web 搜索文案不变
+  - `TOOLS_WITH_MEMORY` 结构：2 个工具、$web_search type、search_memory type
 
 - ✅ `ai-onboarding.test.ts` — AI 引导模式测试（6 个用例）
   - onboarding 标志正确路由到轻量 system prompt
@@ -68,7 +73,7 @@ npm run test:watch    # 监听模式（开发时用）
 
 - ✅ `memory.test.ts` — 记忆路由集成测试（含 FTS5 trigger、引用块过滤、decayPreferences、语义边 by-id）
 
-**总测试数**: **404 个用例，15 个测试文件，全部通过**
+**总测试数**: **445 个用例，17 个测试文件，全部通过**
 
 ---
 

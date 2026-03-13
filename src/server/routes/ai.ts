@@ -13,6 +13,8 @@
  *   data: {"type":"reasoning","content":"..."}
  *   data: {"type":"done","fullText":"..."}
  *   data: {"type":"error","message":"..."}
+ *   data: {"type":"url_fetch","url":"...","status":"fetching"|"done"|"failed"}
+ *   data: {"type":"usage","totalTokens":123,"model":"..."}
  */
 
 import { Hono } from 'hono'
@@ -187,6 +189,41 @@ function addDailyTokens(db: InstanceType<typeof Database>, tokens: number): void
     }
   } catch { /* 失败时静默，不阻断 */ }
 }
+
+// ── URL 内容预取（Jina Reader）────────────────────────────────────────────────
+async function fetchUrlContent(url: string): Promise<string | null> {
+  try {
+    const resp = await fetch(`https://r.jina.ai/${url}`, {
+      headers: { 'Accept': 'text/markdown' },
+      signal: AbortSignal.timeout(8_000)
+    })
+    if (!resp.ok) return null
+    const text = await resp.text()
+    return text.slice(0, 8000) // max 8000 chars ≈ 2000 tokens
+  } catch { return null }
+}
+
+// Note: use .match() only — never .exec() loop (shared lastIndex on /g regex)
+const URL_REGEX = /https?:\/\/[^\s\]）)>】'"。，！？；：\s]{10,}/g
+
+// ── 工具定义：$web_search（内置）+ search_memory（本地）──────────────────────
+const TOOLS_WITH_MEMORY = [
+  { type: 'builtin_function', function: { name: '$web_search' } },
+  {
+    type: 'function',
+    function: {
+      name: 'search_memory',
+      description: '查询用户的个人记忆库，用于回答"我之前说过什么关于X"、"我的Y是什么"等需要检索个人历史的问题',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: '搜索关键词或问题' }
+        },
+        required: ['query']
+      }
+    }
+  }
+]
 
 // POST /stream body 上限：20MB（含图片 base64，单张图片约 5~8MB）
 const MAX_STREAM_BODY = 20 * 1024 * 1024
@@ -412,30 +449,47 @@ aiRoutes.post('/stream', async (c) => {
     }
   }
 
-  const fullMessages: AIMessage[] = [
-    { role: 'system', content: systemPrompt },
-    ...messages
-  ]
-
-  const requestBody: Record<string, unknown> = {
-    model,
-    messages: fullMessages,
-    max_tokens: maxTokens,
-    temperature: AI_CONFIG.TEMPERATURE,
-    stream: true
-  }
-
-  // Enable web search for capable models (only non-simple queries)
-  if (!isSimpleQuery && MULTIMODAL_MODELS.includes(model as typeof MULTIMODAL_MODELS[number])) {
-    requestBody.tools = [{ type: 'builtin_function', function: { name: '$web_search' } }]
-  }
-
   return streamSSE(c, async (stream) => {
     let fullContent = ''
     let reasoningContent = ''
 
     const sendEvent = async (data: Record<string, unknown>) => {
       await stream.writeSSE({ data: JSON.stringify(data) })
+    }
+
+    // ── URL 内容预取（带进度 SSE 反馈）─────────────────────────────────────
+    const urlContents: string[] = []
+    if (!isSimpleQuery) {
+      const urls = trimmedText.match(URL_REGEX) ?? []
+      for (const url of urls.slice(0, 2)) {
+        await sendEvent({ type: 'url_fetch', url, status: 'fetching' })
+        const content = await fetchUrlContent(url)
+        if (content) {
+          urlContents.push(`## 网页内容 [${url}]\n\n${content}`)
+          await sendEvent({ type: 'url_fetch', url, status: 'done' })
+        } else {
+          await sendEvent({ type: 'url_fetch', url, status: 'failed' })
+        }
+      }
+    }
+
+    // ── fullMessages + requestBody（依赖 urlContents）────────────────────────
+    const fullMessages: AIMessage[] = [
+      { role: 'system', content: systemPrompt },
+      ...(urlContents.length > 0
+        ? [{ role: 'system' as const, content: '\n\n【用户分享的网页内容】\n' + urlContents.join('\n\n---\n\n') }]
+        : []),
+      ...messages
+    ]
+    const requestBody: Record<string, unknown> = {
+      model,
+      messages: fullMessages,
+      max_tokens: maxTokens,
+      temperature: AI_CONFIG.TEMPERATURE,
+      stream: true
+    }
+    if (!isSimpleQuery && MULTIMODAL_MODELS.includes(model as typeof MULTIMODAL_MODELS[number])) {
+      requestBody.tools = TOOLS_WITH_MEMORY
     }
 
     const fetchCompletionStream = async (body: Record<string, unknown>) => {
@@ -564,10 +618,24 @@ aiRoutes.post('/stream', async (c) => {
           tool_calls: toolCalls,
           reasoning_content: reasoningContent || undefined
         }
-        const toolMessages: AIMessage[] = toolCalls.map((tc) => ({
-          role: 'tool' as const,
-          tool_call_id: tc.id,
-          content: tc.function.arguments  // $web_search 内置搜索：回传 arguments，由 Moonshot 服务端执行
+        const toolMessages: AIMessage[] = await Promise.all(toolCalls.map(async (tc) => {
+          if (tc.function.name === 'search_memory') {
+            // 本地执行：查询记忆库
+            let result = '未找到相关记忆。'
+            try {
+              const args = JSON.parse(tc.function.arguments || '{}') as { query?: string }
+              const query = args.query?.trim() ?? ''
+              if (query) {
+                const facts = await fetchRelevantFacts(db, query, effectiveApiKey, baseUrl)
+                if (facts.length > 0) {
+                  result = facts.map((f, i) => `${i + 1}. ${f}`).join('\n')
+                }
+              }
+            } catch { /* 静默 */ }
+            return { role: 'tool' as const, tool_call_id: tc.id, content: result }
+          }
+          // $web_search：回传 arguments，由 Moonshot 服务端执行
+          return { role: 'tool' as const, tool_call_id: tc.id, content: tc.function.arguments }
         }))
 
         currentMessages = [...currentMessages, assistantMsg, ...toolMessages]
@@ -575,13 +643,14 @@ aiRoutes.post('/stream', async (c) => {
 
         if (round > MAX_SEARCH_ROUNDS) break
 
-        // 通知前端：即将进行第 N 轮搜索
+        // 通知前端：即将进行第 N 轮搜索（区分 web 搜索 vs 记忆查询）
+        const isMemoryRound = toolCalls.some(tc => tc.function.name === 'search_memory')
         await sendEvent({
           type: 'search_round',
           round,
-          message: round === 2
-            ? '你的问题有点复杂，正在进行更多搜索…'
-            : `正在进行第 ${round} 轮搜索，请稍候…`
+          message: isMemoryRound
+            ? '正在查询记忆库…'
+            : (round === 2 ? '你的问题有点复杂，正在进行更多搜索…' : `正在进行第 ${round} 轮搜索，请稍候…`)
         })
 
         // 续轮请求：必须带上 tools 声明，否则模型无法继续调用搜索
@@ -591,7 +660,7 @@ aiRoutes.post('/stream', async (c) => {
           max_tokens: AI_CONFIG.MAX_TOKENS,
           temperature: AI_CONFIG.TEMPERATURE,
           stream: true,
-          tools: [{ type: 'builtin_function', function: { name: '$web_search' } }]
+          tools: TOOLS_WITH_MEMORY
         }
 
         const nextRes = await fetchCompletionStream(nextBody)
@@ -603,6 +672,11 @@ aiRoutes.post('/stream', async (c) => {
       }
 
       await sendEvent({ type: 'done', fullText: fullContent })
+
+      // Token 用量反馈（参考 ChatGPT token 显示，供前端展示消耗）
+      if (totalTokensUsed > 0) {
+        await sendEvent({ type: 'usage', totalTokens: totalTokensUsed, model })
+      }
 
       // 共享 key 模式：累加本轮消耗的 token 数
       if (usingSharedKey && totalTokensUsed > 0) {
