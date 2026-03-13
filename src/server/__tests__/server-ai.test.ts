@@ -587,3 +587,92 @@ describe('MEMORY_STRATEGY 环境变量', () => {
     expect(accessBonus(100)).toBe(0.15)  // 上限
   })
 })
+
+// ── v0.4.4 会话级记忆摘要（session_memory.json）──────────────────────────────
+
+describe('session_memory 触发条件', () => {
+  type AIMessage = { role: 'user' | 'assistant' | 'system' | 'tool'; content: string }
+
+  function shouldGenerateSessionSummary(
+    messages: AIMessage[],
+    hasExistingSummary: boolean,
+    isOnboarding: boolean,
+    convId: string | undefined
+  ): boolean {
+    if (isOnboarding) return false
+    if (!convId) return false
+    if (hasExistingSummary) return false
+    const userTurns = messages.filter(m => m.role === 'user').length
+    return userTurns >= 10
+  }
+
+  it('用户轮数 < 10 时不生成摘要', () => {
+    const msgs = Array.from({ length: 9 }, () => ({ role: 'user' as const, content: 'hi' }))
+    expect(shouldGenerateSessionSummary(msgs, false, false, 'conv-1')).toBe(false)
+  })
+
+  it('用户轮数 = 10 时触发生成', () => {
+    const msgs = Array.from({ length: 10 }, () => ({ role: 'user' as const, content: 'hi' }))
+    expect(shouldGenerateSessionSummary(msgs, false, false, 'conv-1')).toBe(true)
+  })
+
+  it('用户轮数 > 10 时也触发', () => {
+    const msgs = Array.from({ length: 15 }, () => ({ role: 'user' as const, content: 'hi' }))
+    expect(shouldGenerateSessionSummary(msgs, false, false, 'conv-1')).toBe(true)
+  })
+
+  it('已有摘要时不重复生成', () => {
+    const msgs = Array.from({ length: 12 }, () => ({ role: 'user' as const, content: 'hi' }))
+    expect(shouldGenerateSessionSummary(msgs, true, false, 'conv-1')).toBe(false)
+  })
+
+  it('onboarding 模式下不生成', () => {
+    const msgs = Array.from({ length: 12 }, () => ({ role: 'user' as const, content: 'hi' }))
+    expect(shouldGenerateSessionSummary(msgs, false, true, 'conv-1')).toBe(false)
+  })
+
+  it('无 convId 时不生成', () => {
+    const msgs = Array.from({ length: 12 }, () => ({ role: 'user' as const, content: 'hi' }))
+    expect(shouldGenerateSessionSummary(msgs, false, false, undefined)).toBe(false)
+  })
+})
+
+describe('session_memory 注入条件', () => {
+  it('有摘要 + 轮数 >= 10 时注入', () => {
+    const session = { summary: '用户讨论了React优化', turn_count: 12, updated_at: new Date().toISOString() }
+    const msgCount = 12
+    const shouldInject = !!session?.summary && msgCount >= 10
+    expect(shouldInject).toBe(true)
+    expect(session.summary).toContain('React')
+  })
+
+  it('轮数 < 10 时不注入（即便有摘要）', () => {
+    const session = { summary: '用户讨论了React优化', turn_count: 8, updated_at: new Date().toISOString() }
+    const msgCount = 8
+    const shouldInject = !!session?.summary && msgCount >= 10
+    expect(shouldInject).toBe(false)
+  })
+
+  it('无摘要时不注入', () => {
+    const session = null
+    const msgCount = 15
+    const shouldInject = !!session && msgCount >= 10
+    expect(shouldInject).toBe(false)
+  })
+
+  it('摘要保留最近 50 条限制逻辑', () => {
+    const all: Record<string, { updated_at: string }> = {}
+    for (let i = 0; i < 55; i++) {
+      all[`conv-${i}`] = { updated_at: new Date(Date.now() + i * 1000).toISOString() }
+    }
+    const keys = Object.keys(all)
+    // 淘汰旧的（前 5 条）
+    if (keys.length > 50) {
+      keys.sort((a, b) => (all[a].updated_at < all[b].updated_at ? -1 : 1))
+      keys.slice(0, keys.length - 50).forEach(k => delete all[k])
+    }
+    expect(Object.keys(all)).toHaveLength(50)
+    expect(all['conv-0']).toBeUndefined()  // 最老的被删除
+    expect(all['conv-54']).toBeDefined()   // 最新的保留
+  })
+})

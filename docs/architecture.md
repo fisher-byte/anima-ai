@@ -1,6 +1,6 @@
 # Anima 架构文档
 
-*最后更新: 2026-03-13 | 版本: v0.4.3*
+*最后更新: 2026-03-13 | 版本: v0.4.4*
 
 ---
 
@@ -237,6 +237,13 @@ index.ts 中间件: c.set('db', getDb('a1b2c3d4e5f6'))
   - `finalScore = applyDecay(cosine, created_at) * (0.7 + importance * 0.3) + accessBonus`
   - `accessBonus = min(0.15, access_count * 0.02)`
 - **memory_scores.json**：存于 SQLite `storage` 表（`filename='memory_scores.json'`），格式 `{ fact_id: { importance, emotion, access_count, last_accessed_at } }`；access_count 在每次检索后通过 `setImmediate` 异步写回，不阻塞响应
+
+**v0.4.4 会话级记忆摘要（Session Memory）：**
+
+- **session_memory.json**：存于 SQLite `storage` 表（`filename='session_memory.json'`），格式 `{ conv_id: { summary, turn_count, updated_at } }`
+- **触发条件**：对话结束后，用户轮数 ≥ 10 且当前 convId 无已有摘要，通过 `setImmediate` 异步调用 `generateSessionSummary`
+- **注入位置**：系统提示层 3.5（在动态事实层 3 之后、压缩记忆层 4 之前），置于 CONTEXT_BUDGET 之外（始终注入，不受 token 预算截断）
+- **自动清理**：`saveSessionMemory` 保留最近 50 条会话摘要，按 `updated_at` 淘汰最旧
 
 ### 7. Public Space 架构（v0.4.0+）
 

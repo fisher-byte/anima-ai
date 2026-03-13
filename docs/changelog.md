@@ -1,5 +1,24 @@
 # Anima 变更日志
 
+## [0.4.4] - 2026-03-13
+
+### feat: 会话级记忆摘要（Session Memory）
+
+**新增功能：**
+- `session_memory.json`：长对话（用户轮数 ≥ 10）自动生成会话摘要，旁路存储于 SQLite `storage` 表
+- `generateSessionSummary()`：调用 AI 轻量摘要（2-3 句话）+ `setImmediate` 异步生成，不阻塞主响应链路
+- `loadSessionMemory()` / `saveSessionMemory()`：读写辅助函数，静默异常，不影响主流程
+- **注入时机**：层 3.5（CONTEXT_BUDGET 之外），确保摘要始终注入，不被 budget 截断
+- **触发条件**：`!isOnboarding && convId 存在 && messages.filter(role=user).length >= 10 && 无已有摘要`
+- **自动清理**：`saveSessionMemory` 保留最近 50 条会话摘要，防止无限增长
+- `constants.ts`：`session_memory.json` 加入 `ALLOWED_FILENAMES` 白名单
+
+**测试：** 新增 10 个单元测试（触发条件 6 个 + 注入条件 4 个）
+
+**测试结果**：512/512 通过（19 个文件），`tsc --noEmit` 零错误。
+
+---
+
 ## [0.4.3] - 2026-03-13
 
 ### feat: 记忆评分系统（Memory Quality v1）

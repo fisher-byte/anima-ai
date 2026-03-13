@@ -262,6 +262,101 @@ async function fetchScoredFacts(
   }
 }
 
+// ── 会话级记忆摘要（v0.4.4+）─────────────────────────────────────────────────
+// session_memory.json 格式（存在 storage 表，key='session_memory.json'）：
+// { "conv_id": { "summary": "...", "turn_count": 15, "updated_at": "ISO" } }
+
+interface SessionMemoryEntry {
+  summary: string
+  turn_count: number
+  updated_at: string
+}
+
+function loadSessionMemory(
+  db: InstanceType<typeof Database>,
+  convId: string
+): SessionMemoryEntry | null {
+  try {
+    const row = db.prepare("SELECT content FROM storage WHERE filename = 'session_memory.json'").get() as { content: string } | undefined
+    if (!row?.content) return null
+    const raw = JSON.parse(row.content) as Record<string, SessionMemoryEntry>
+    return raw[convId] ?? null
+  } catch { return null }
+}
+
+function saveSessionMemory(
+  db: InstanceType<typeof Database>,
+  convId: string,
+  entry: SessionMemoryEntry
+): void {
+  try {
+    const existing = db.prepare("SELECT content FROM storage WHERE filename = 'session_memory.json'").get() as { content: string } | undefined
+    const all: Record<string, SessionMemoryEntry> = existing?.content ? JSON.parse(existing.content) : {}
+    all[convId] = entry
+    // 只保留最近 50 条会话摘要，防止无限增长
+    const keys = Object.keys(all)
+    if (keys.length > 50) {
+      keys.sort((a, b) => (all[a].updated_at < all[b].updated_at ? -1 : 1))
+      keys.slice(0, keys.length - 50).forEach(k => delete all[k])
+    }
+    const content = JSON.stringify(all)
+    const now = new Date().toISOString()
+    db.prepare(`
+      INSERT INTO storage (filename, content, updated_at) VALUES ('session_memory.json', ?, ?)
+      ON CONFLICT(filename) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at
+    `).run(content, now)
+  } catch { /* 写入失败不阻塞主流程 */ }
+}
+
+async function generateSessionSummary(
+  db: InstanceType<typeof Database>,
+  convId: string,
+  messages: AIMessage[],
+  apiKey: string,
+  baseUrl: string,
+  model: string
+): Promise<void> {
+  try {
+    // 取最近 20 条消息做摘要（避免过长）
+    const recent = messages.slice(-20)
+    const dialogue = recent
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .map(m => {
+        const content = typeof m.content === 'string'
+          ? m.content
+          : (m.content as any[]).find(c => c.type === 'text')?.text ?? ''
+        return `${m.role === 'user' ? '用户' : 'AI'}：${content.slice(0, 300)}`
+      })
+      .join('\n')
+
+    const summaryResp = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: '你是一个对话摘要助手。请用 2-3 句话总结以下对话的核心内容、关键决定和结论。输出纯文本，不要 markdown。' },
+          { role: 'user', content: `请总结以下对话：\n\n${dialogue}` }
+        ],
+        max_tokens: 200,
+        stream: false
+      }),
+      signal: AbortSignal.timeout(15_000)
+    })
+    if (!summaryResp.ok) return
+    const summaryData = (await summaryResp.json()) as { choices: { message: { content: string } }[] }
+    const summary = summaryData?.choices?.[0]?.message?.content?.trim()
+    if (!summary) return
+
+    saveSessionMemory(db, convId, {
+      summary,
+      turn_count: messages.filter(m => m.role === 'user').length,
+      updated_at: new Date().toISOString()
+    })
+    console.log(`[ai/stream] session summary generated for conv ${convId.slice(0, 8)}…`)
+  } catch { /* 生成失败不影响主流程 */ }
+}
+
 const MEMORY_STRATEGY = process.env.MEMORY_STRATEGY ?? 'baseline'  // baseline | scored
 
 interface AIRequestBody {
@@ -632,6 +727,16 @@ aiRoutes.post('/stream', async (c) => {
       }
     } catch { /* 静默失败 */ }
 
+    // ── 层 3.5（会话级摘要，CONTEXT_BUDGET 之外，长对话关键信息保留）──
+    if (conversationId && !isOnboarding) {
+      try {
+        const sessionEntry = loadSessionMemory(db, conversationId)
+        if (sessionEntry?.summary && messages.length >= 10) {
+          systemPrompt += `\n\n【本次对话摘要（第 ${sessionEntry.turn_count} 轮前）】\n${sessionEntry.summary}`
+        }
+      } catch { /* 静默失败 */ }
+    }
+
     // ── 层 4（最低优先级）：前端传入的压缩记忆片段 ──
     if (compressedMemory?.trim()) {
       const block = '\n\n【相关记忆片段 - 供参考】\n' + compressedMemory.trim()
@@ -920,6 +1025,16 @@ aiRoutes.post('/stream', async (c) => {
             }
           }
         } catch { /* 静默失败 */ }
+      }
+
+      // 会话摘要：轮数 >= 10 且尚无摘要时，异步生成（不阻塞响应）
+      if (!isOnboarding && conversationId && messages.filter(m => m.role === 'user').length >= 10) {
+        const existing = loadSessionMemory(db, conversationId)
+        if (!existing) {
+          setImmediate(() =>
+            generateSessionSummary(db, conversationId, messages, effectiveApiKey, baseUrl, model)
+          )
+        }
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
