@@ -58,6 +58,7 @@ export interface Translations {
     hint: string
     fileSearch: string
     vectorizing: string
+    noFileMatch: string
   }
   settings: {
     title: string
@@ -347,6 +348,7 @@ export const zh: Translations = {
     hint: 'Enter 发送 · Shift+Enter 换行',
     fileSearch: '@ 搜索文件',
     vectorizing: '向量化中',
+    noFileMatch: '未找到匹配文件',
   },
 
   // ── SettingsModal ─────────────────────────────────────────────────────────

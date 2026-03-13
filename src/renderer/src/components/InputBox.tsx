@@ -378,7 +378,7 @@ export function InputBox() {
     }
 
     // 检测 @文件名 引用，追加隐藏的 AI 提示（气泡中不显示）
-    const atMentionRegex = /@([\S]+)/g
+    const atMentionRegex = /@([^\s@，。！？、；：]+)/g
     const mentionedNames = [...trimmed.matchAll(atMentionRegex)].map(m => m[1])
     if (mentionedNames.length > 0) {
       const matchedFiles = (historicFilesCacheRef.current ?? []).filter(f =>
@@ -433,6 +433,7 @@ export function InputBox() {
     const newMsg = message.slice(0, atIdx) + `@${file.filename}` + afterAt
     setMessage(newMsg)
     setAtQuery(null)
+    setAtSelectedIndex(0)
     requestAnimationFrame(() => {
       textarea.focus()
       const newCursor = atIdx + 1 + file.filename.length
@@ -465,6 +466,7 @@ export function InputBox() {
       if (e.key === 'Escape') {
         e.preventDefault()
         setAtQuery(null)
+        setAtSelectedIndex(0)
         return
       }
     }
@@ -499,9 +501,10 @@ export function InputBox() {
           if (token) headers['Authorization'] = `Bearer ${token}`
           fetch('/api/storage/files', { headers })
             .then(r => r.json())
-            .then((data: { id: string; filename: string; embed_status: string; created_at: string }[]) => {
-              historicFilesCacheRef.current = data
-              setHistoricFiles(data)
+            .then((data: { files: { id: string; filename: string; embed_status: string; created_at: string }[] }) => {
+              const list = data.files ?? []
+              historicFilesCacheRef.current = list
+              setHistoricFiles(list)
             })
             .catch(() => { /* 静默 */ })
         } else {
@@ -721,7 +724,7 @@ export function InputBox() {
                   {t.input.fileSearch}
                 </div>
                 {filteredFiles.length === 0 ? (
-                  <div className="px-4 py-3 text-[13px] text-gray-400">{t.input.fileSearch}</div>
+                  <div className="px-4 py-3 text-[13px] text-gray-400">{t.input.noFileMatch}</div>
                 ) : (
                   filteredFiles.map((f, idx) => (
                     <button
@@ -797,7 +800,7 @@ export function InputBox() {
             value={message}
             onChange={handleChange}
             onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
+            onBlur={() => { setFocused(false); setAtQuery(null); setAtSelectedIndex(0) }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             placeholder={t.input.placeholder}
