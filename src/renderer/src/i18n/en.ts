@@ -93,6 +93,9 @@ export const en: Translations = {
     saving: 'Saving…',
     saveBtn: 'Save settings',
     language: 'Language',
+    exportDataLabel: 'Export data',
+    exportDataBtn: 'Export all data (JSON)',
+    exporting: 'Exporting…',
   },
 
   // ── ConversationSidebar ──────────────────────────────────────────────────
@@ -249,6 +252,8 @@ export const en: Translations = {
   timeline: {
     noNodes: 'No nodes yet',
     noTitle: 'Untitled',
+    filesRow: 'Uploaded files',
+    fileLabel: (name: string) => name,
   },
 
   // ── NodeTimelinePanel ─────────────────────────────────────────────────────

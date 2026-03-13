@@ -2,16 +2,29 @@
  * TimelineView — 时间轴视图
  *
  * 按日期（X 轴，左→右）和分类（Y 轴，各分类独立行）展示节点。
+ * 底部额外追加一行：已上传的文件，按上传日期定位。
  * 点击节点卡片打开对话详情。
  *
  * 碰撞处理：同日期同分类有多个节点时，按卡片高度垂直堆叠，行高动态扩展。
  */
+import { useEffect, useState } from 'react'
+import { FileText } from 'lucide-react'
 import type { Node as CanvasNode } from '@shared/types'
 import { useT } from '../i18n'
+import { getAuthToken } from '../services/storageService'
 
 interface TimelineViewProps {
   nodes: CanvasNode[]
   openModalById: (convId: string) => void
+}
+
+interface UploadedFileMeta {
+  id: string
+  filename: string
+  mimetype: string
+  size: number
+  conv_id: string | null
+  created_at: string
 }
 
 /** 分类色条颜色（与 NodeCard 保持一致） */
@@ -45,6 +58,18 @@ const ROW_PAD = 16   // 行上下 padding
 
 export function TimelineView({ nodes, openModalById }: TimelineViewProps) {
   const { t } = useT()
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFileMeta[]>([])
+
+  useEffect(() => {
+    const token = getAuthToken()
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    fetch('/api/storage/files', { headers })
+      .then(r => r.ok ? r.json() : { files: [] })
+      .then((data: { files: UploadedFileMeta[] }) => setUploadedFiles(data.files ?? []))
+      .catch(() => {})
+  }, [])
+
   // 过滤掉 capability 节点
   const memoryNodes = nodes.filter(n => n.nodeType !== 'capability')
 
@@ -53,12 +78,13 @@ export function TimelineView({ nodes, openModalById }: TimelineViewProps) {
     new Set(memoryNodes.map(n => n.category ?? '其他'))
   )
 
-  // 收集所有不重复的日期，按升序排列（最早→最晚）
+  // 收集所有不重复的日期（含节点日期 + 文件日期），按升序排列
+  const fileDates = uploadedFiles.map(f => f.created_at.slice(0, 10))
   const dates = Array.from(
-    new Set(memoryNodes.map(n => n.date).filter(Boolean).sort())
+    new Set([...memoryNodes.map(n => n.date).filter(Boolean), ...fileDates].sort())
   )
 
-  if (memoryNodes.length === 0) {
+  if (memoryNodes.length === 0 && uploadedFiles.length === 0) {
     return (
       <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-sm pointer-events-none select-none">
         {t.timeline.noNodes}
@@ -77,11 +103,20 @@ export function TimelineView({ nodes, openModalById }: TimelineViewProps) {
     return Math.max(CARD_H + ROW_PAD * 2, maxInCol * CARD_H + ROW_PAD * 2)
   })
 
+  // 文件行高度
+  const maxFilesInCol = uploadedFiles.length > 0
+    ? Math.max(...dates.map(d => uploadedFiles.filter(f => f.created_at.slice(0, 10) === d).length), 1)
+    : 0
+  const fileRowH = uploadedFiles.length > 0
+    ? Math.max(CARD_H + ROW_PAD * 2, maxFilesInCol * CARD_H + ROW_PAD * 2)
+    : 0
+
   const totalHeight = rowHeights.reduce((a, b) => a + b, 0)
   const rowOffsets: number[] = rowHeights.reduce<number[]>((acc, _h, i) => {
     acc.push(i === 0 ? 0 : acc[i - 1] + rowHeights[i - 1])
     return acc
   }, [])
+  const fileRowTop = HEADER_H + totalHeight
 
   return (
     <div
@@ -92,7 +127,7 @@ export function TimelineView({ nodes, openModalById }: TimelineViewProps) {
         style={{
           position: 'relative',
           minWidth: LABEL_W + dates.length * COL_W + 40,
-          minHeight: HEADER_H + totalHeight + 40,
+          minHeight: HEADER_H + totalHeight + fileRowH + 40,
           paddingBottom: 40,
         }}
       >
@@ -182,6 +217,63 @@ export function TimelineView({ nodes, openModalById }: TimelineViewProps) {
             </div>
           )
         })}
+
+        {/* 文件行 */}
+        {uploadedFiles.length > 0 && (
+          <div
+            style={{
+              position: 'absolute',
+              top: fileRowTop,
+              left: 0,
+              right: 0,
+              height: fileRowH,
+              borderBottom: '1px solid rgba(229,231,235,0.6)',
+              display: 'flex',
+              alignItems: 'flex-start',
+            }}
+          >
+            {/* 行标签 */}
+            <div
+              style={{ width: LABEL_W, flexShrink: 0, paddingLeft: 16, paddingTop: fileRowH / 2 - 20 }}
+              className="flex items-center gap-2"
+            >
+              <div className="w-2 h-10 rounded-full bg-amber-400" />
+              <span className="text-sm font-semibold text-gray-600 truncate" style={{ maxWidth: 80 }}>
+                {t.timeline.filesRow}
+              </span>
+            </div>
+
+            {/* 文件卡片 */}
+            <div style={{ position: 'relative', flex: 1, height: '100%' }}>
+              {dates.map((date, colIdx) => {
+                const colFiles = uploadedFiles.filter(f => f.created_at.slice(0, 10) === date)
+                if (colFiles.length === 0) return null
+                return colFiles.map((file, fileIdx) => (
+                  <div
+                    key={file.id}
+                    style={{
+                      position: 'absolute',
+                      left: colIdx * COL_W + (COL_W / 2) - CARD_W / 2,
+                      top: ROW_PAD + fileIdx * CARD_H,
+                      width: CARD_W,
+                    }}
+                    className="bg-amber-50 border border-amber-200 rounded-xl shadow-sm p-3"
+                  >
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <FileText className="w-3 h-3 text-amber-500 shrink-0" />
+                      <span className="text-[10px] text-amber-600 font-medium uppercase">
+                        {file.mimetype?.split('/')[1]?.toUpperCase() ?? 'FILE'}
+                      </span>
+                    </div>
+                    <p className="text-xs font-medium text-gray-700 line-clamp-2 leading-snug">
+                      {t.timeline.fileLabel(file.filename)}
+                    </p>
+                  </div>
+                ))
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

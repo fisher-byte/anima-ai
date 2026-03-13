@@ -1,5 +1,27 @@
 # Anima 变更日志
 
+## [0.4.1] - 2026-03-13
+
+### feat: 设置页数据导出 + 时间轴上传文件行
+
+**SettingsModal 数据导出：**
+- 新增"导出数据"区（Download 图标 + `导出全量数据 (JSON)` 按钮）
+- 调用 `GET /api/storage/export`，自动下载 `anima-export-YYYY-MM-DD.json`
+- 下载中显示 `导出中…` 禁用状态，防止重复点击
+- i18n：新增 `settings.exportDataLabel` / `settings.exportDataBtn` / `settings.exporting`
+
+**TimelineView 上传文件行：**
+- 时间轴底部新增"上传文件"行（amber 色条），与分类节点行并排按日期展示
+- 组件挂载时调用 `GET /api/storage/files` 拉取元数据，不影响节点渲染性能
+- 文件卡片：amber 底色 + `FileText` 图标 + MIME 类型标签 + 文件名
+- 日期列与节点列完全对齐，支持同日多文件垂直堆叠
+- 节点 + 文件均有数据时才显示；均为空时显示 `暂无节点数据`
+- i18n：新增 `timeline.filesRow` / `timeline.fileLabel`
+
+**测试结果**：475/475 通过（18 个文件，无新增测试），`tsc --noEmit` 零错误。
+
+---
+
 ## [0.4.0] - 2026-03-13
 
 ### feat: 张小龙 & 王慧文 Public Space

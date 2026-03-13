@@ -87,6 +87,9 @@ export interface Translations {
     saving: string
     saveBtn: string
     language: string
+    exportDataLabel: string
+    exportDataBtn: string
+    exporting: string
   }
   space: {
     backToMySpace: string
@@ -229,6 +232,8 @@ export interface Translations {
   timeline: {
     noNodes: string
     noTitle: string
+    filesRow: string
+    fileLabel: (name: string) => string
   }
   nodeTimeline: {
     conversations: (n: number) => string
@@ -383,6 +388,9 @@ export const zh: Translations = {
     saving: '保存中…',
     saveBtn: '保存设置',
     language: '语言',
+    exportDataLabel: '导出数据',
+    exportDataBtn: '导出全量数据 (JSON)',
+    exporting: '导出中…',
   },
 
   // ── ConversationSidebar ──────────────────────────────────────────────────
@@ -539,6 +547,8 @@ export const zh: Translations = {
   timeline: {
     noNodes: '暂无节点数据',
     noTitle: '无标题',
+    filesRow: '上传文件',
+    fileLabel: (name: string) => name,
   },
 
   // ── NodeTimelinePanel ─────────────────────────────────────────────────────
