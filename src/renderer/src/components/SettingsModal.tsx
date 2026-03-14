@@ -262,6 +262,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <Shield className="w-3.5 h-3.5" />
                 {t.settings.apiKeyLabel}
               </label>
+              <div className="bg-green-50 border border-green-100 rounded-2xl px-4 py-2.5">
+                <p className="text-[11px] text-green-700 font-medium">{t.settings.sharedKeyNotice}</p>
+              </div>
               <input
                 type="password"
                 value={apiKey}

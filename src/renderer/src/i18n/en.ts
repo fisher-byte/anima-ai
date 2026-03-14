@@ -100,6 +100,7 @@ export const en: Translations = {
     identityCodePlaceholder: 'Paste identity code…',
     migrateBtn: 'Switch identity & load memories',
     apiKeyLabel: 'API Key (stored securely)',
+    sharedKeyNotice: '✓ A shared API key is configured on the server — free to use. You may optionally enter your own key for a higher quota.',
     apiKeySavedPlaceholder: 'Saved — enter a new value to overwrite',
     apiKeyDefaultPlaceholder: 'sk-...',
     apiKeySavedHelper: 'API Key saved. Leave blank to keep it, or enter a new value to overwrite.',
