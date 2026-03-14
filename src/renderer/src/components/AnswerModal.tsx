@@ -489,6 +489,12 @@ export function AnswerModal() {
       const currentPrefs = getPreferencesForPrompt()
       if (currentPrefs.length > 0) setAppliedPreferences(currentPrefs)
       if (currentConversation.assistantMessage) {
+        uiDbg('H11', 'prepareConversation replay', {
+          convId: currentConversation.id,
+          assistantLen: (currentConversation.assistantMessage || '').length,
+          hasMultiTurn: (currentConversation.assistantMessage || '').includes('#1\n') || (currentConversation.assistantMessage || '').includes('# 1\n'),
+          hasUserMsg: !!currentConversation.userMessage,
+        })
         isReplayRef.current = true
         didMutateRef.current = false
         const parsedTurns = parseTurnsFromAssistantMessage(
@@ -504,6 +510,12 @@ export function AnswerModal() {
           images: currentConversation.images,
           files: currentConversation.files
         }]
+        uiDbg('H11', 'prepareConversation parsed turns', {
+          convId: currentConversation.id,
+          turnsCount: finalTurns.length,
+          firstUserLen: (finalTurns[0]?.user || '').length,
+          firstAssistantLen: (finalTurns[0]?.assistant || '').length,
+        })
         if (finalTurns.length === 1 && !finalTurns[0].user && currentConversation.userMessage) {
           finalTurns = [{ ...finalTurns[0], user: currentConversation.userMessage }]
         }
