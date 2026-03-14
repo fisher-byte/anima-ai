@@ -71,7 +71,6 @@ function initSchema(database: InstanceType<typeof Database>) {
       result      TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_agent_tasks_status ON agent_tasks(status);
-    CREATE INDEX IF NOT EXISTS idx_agent_tasks_ref ON agent_tasks(type, ref_id, status, id DESC);
 
     CREATE TABLE IF NOT EXISTS memory_facts (
       id             TEXT NOT NULL,
