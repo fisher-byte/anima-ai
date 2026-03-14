@@ -262,6 +262,21 @@ export function Canvas() {
     return () => window.removeEventListener('resize', onResize)
   }, [applyTransform])
 
+  // ⌘K / Ctrl+K 全局快捷键：打开搜索面板
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        // 输入框有焦点时不拦截（让浏览器或输入框自己处理）
+        const tag = (document.activeElement as HTMLElement)?.tagName
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return
+        e.preventDefault()
+        setIsSearchOpen(prev => !prev)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
   // MemoryLines 用：读取 viewRef 实时值（避免 debounce 期间的 stale store 值）
   const getViewState = useCallback(() => viewRef.current, [])
 
