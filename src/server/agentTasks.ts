@@ -380,6 +380,58 @@ function saveConversationHistory(db: InstanceType<typeof Database>, conversation
   `).run(conversationId, JSON.stringify(trimmed), now)
 }
 
+function formatAssistantForTranscript(answer: string, reasoning?: string | null): string {
+  const a = (answer ?? '').trim()
+  const r = (reasoning ?? '').trim()
+  if (!r) return a
+  // 与前端 Turn 序列化格式保持一致，便于 parseTurnsFromAssistantMessage 解析
+  return `思考：${r}\n\n[/THINKING]\n\n${a}`
+}
+
+function mergeTranscriptWithDeepSearchAnswer(baseAssistant: string, lastUser: string, assistantForTranscript: string) {
+  const base = (baseAssistant ?? '').trim()
+  const u = (lastUser ?? '').trim()
+  const ai = (assistantForTranscript ?? '').trim()
+  if (!base) return { merged: ai, mode: 'plain_replace' as const }
+  const hasMulti = base.includes('#1\n') || base.includes('# 1\n')
+  if (!hasMulti) return { merged: ai, mode: 'plain_replace' as const }
+
+  // 解析多轮格式：#N\n用户：...\nAI：...
+  const sectionRegex = /#\s*(\d+)\s*\n+用户[：:]\s*([\s\S]*?)\nAI[：:]\s*([\s\S]*?)(?=\n+#\s*\d+\s*\n|$)/g
+  const matches: Array<{ idx: number; start: number; end: number; user: string; ai: string }> = []
+  let m: RegExpExecArray | null
+  while ((m = sectionRegex.exec(base)) !== null) {
+    const idx = Number(m[1])
+    if (!Number.isFinite(idx)) continue
+    matches.push({ idx, start: m.index, end: sectionRegex.lastIndex, user: (m[2] ?? ''), ai: (m[3] ?? '') })
+  }
+
+  if (matches.length === 0) {
+    // 兜底：直接追加为新一轮
+    const nextIdx = 1
+    const appended = `${base}\n\n#${nextIdx}\n用户：${u}\nAI：\n${ai}`.trim()
+    return { merged: appended, mode: 'append_fallback' as const }
+  }
+
+  const last = matches[matches.length - 1]
+  const nextIdx = Math.max(...matches.map(x => x.idx)) + 1
+
+  // 如果最后一轮 user 为空或与 lastUser 相近，优先“替换最后一轮 AI 内容”
+  const lastUserTrim = (last.user ?? '').trim()
+  const shouldReplaceLast = !lastUserTrim || (u && lastUserTrim.includes(u.slice(0, Math.min(20, u.length))))
+  if (shouldReplaceLast) {
+    const before = base.slice(0, last.start)
+    const after = base.slice(last.end)
+    const rebuilt = `#${last.idx}\n用户：${lastUserTrim || u}\nAI：\n${ai}`.trim()
+    const merged = `${before}${before && !before.endsWith('\n') ? '\n' : ''}${rebuilt}${after ? '\n' + after.trimStart() : ''}`.trim()
+    return { merged, mode: 'replace_last' as const }
+  }
+
+  // 否则：追加新一轮
+  const appended = `${base}\n\n#${nextIdx}\n用户：${u}\nAI：\n${ai}`.trim()
+  return { merged: appended, mode: 'append_new' as const }
+}
+
 /**
  * Deep Search — 后台长任务：
  * - 支持工具调用（search_memory / search_files / $web_search）
@@ -687,9 +739,19 @@ export async function deepSearchAnswer(
     userMessage: lastUser || '',
     assistantMessage: '',
   }
+  const assistantForTranscript = formatAssistantForTranscript(answer || base.assistantMessage || '[无回复]', finalReasoning || null)
+  const mergedInfo = mergeTranscriptWithDeepSearchAnswer(base.assistantMessage || '', lastUser || base.userMessage || '', assistantForTranscript)
+  dbg('H10', 'deep_search: merge transcript', {
+    taskId,
+    conversationId,
+    baseAssistantLen: (base.assistantMessage || '').length,
+    baseHasMultiTurn: (base.assistantMessage || '').includes('#1\n') || (base.assistantMessage || '').includes('# 1\n'),
+    mode: mergedInfo.mode,
+    mergedLen: mergedInfo.merged.length,
+  })
   const updated: Conversation = {
     ...base,
-    assistantMessage: answer || base.assistantMessage || '[无回复]',
+    assistantMessage: mergedInfo.merged,
     reasoning_content: finalReasoning || base.reasoning_content,
     // 标记深度搜索完成（前端用它来展示“已完成”提示）
     deepSearch: {
@@ -703,7 +765,8 @@ export async function deepSearchAnswer(
   // 同步 conversation_history，保证后续连续对话上下文可用
   const historyToSave: AIMessage[] = [
     ...messages,
-    { role: 'assistant', content: updated.assistantMessage, reasoning_content: finalReasoning || undefined }
+    // 注意：conversation_history 用于上下文，不应写入“多轮 transcript”，只写本轮最终答案
+    { role: 'assistant', content: answer || '[无回复]', reasoning_content: finalReasoning || undefined }
   ]
   saveConversationHistory(db, conversationId, historyToSave)
 }
