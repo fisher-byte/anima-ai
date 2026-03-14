@@ -149,6 +149,7 @@ export function AnswerModal() {
     systemPromptOverride?: string
     isOnboarding?: boolean
   } | null>(null)
+  const networkHandoffOnceRef = useRef<string | null>(null) // 避免同一 convId 重复转后台
 
   // #region agent debug log
   const uiDbg = useCallback((hypothesisId: string, message: string, data: Record<string, unknown>) => {
@@ -315,8 +316,57 @@ export function AnswerModal() {
     },
     onError: (error) => {
       setIsStreaming(false)
-      setErrorMessage(error)
+      uiDbg('H9', 'onError', { err: error, convId: currentConversation?.id ?? null })
       didMutateRef.current = true
+
+      // 网络型失败：自动转后台 deep_search（不要求用户手动重发）
+      const isNetworkErr =
+        typeof error === 'string' && (
+          error.includes('网络连接中断') ||
+          error.toLowerCase().includes('fetch') ||
+          error.toLowerCase().includes('network')
+        )
+      const convId = currentConversation?.id
+      const ctx = lastDeepSearchContextRef.current
+
+      if (isNetworkErr && convId && ctx && ctx.conversationId === convId && networkHandoffOnceRef.current !== convId) {
+        networkHandoffOnceRef.current = convId
+        uiDbg('H9', 'network error -> start deep_search', { convId, hasCtx: true, messagesCount: ctx.messages.length })
+        authFetch('/api/ai/deep-search', {
+          method: 'POST',
+          body: JSON.stringify({
+            conversationId: convId,
+            messages: ctx.messages,
+            preferences: ctx.preferences,
+            compressedMemory: ctx.compressedMemory,
+            isOnboarding: ctx.isOnboarding ?? false,
+            systemPromptOverride: ctx.systemPromptOverride,
+          })
+        }).then(async (r) => {
+          if (!r.ok) {
+            uiDbg('H9', 'deep_search start failed', { convId, status: r.status })
+            return
+          }
+          const data = await r.json() as { ok: boolean; taskId?: number; status?: string }
+          uiDbg('H9', 'deep_search start ok', { convId, taskId: data.taskId ?? null, status: data.status ?? null })
+          setErrorMessage(null)
+          setDeepSearchState({ taskId: data.taskId ?? null, status: (data.status as any) ?? 'pending', message: '网络中断，已转入后台深度搜索继续运行…' })
+          setSearchRoundMsg('网络中断，已转入后台深度搜索继续运行…（无需重发）')
+          showToast('已转后台继续', '网络恢复后会自动回写结果', 3500)
+          // 清掉 turn.error，避免整屏红字覆盖
+          setTurns(prev => {
+            if (!prev.length) return prev
+            const next = [...prev]
+            const last = next[next.length - 1]
+            next[next.length - 1] = { ...last, error: undefined }
+            return next
+          })
+        }).catch(() => {})
+        return
+      }
+
+      // 非网络错误：保持原逻辑
+      setErrorMessage(error)
       setDeepSearchState(null)
       setTurns(prev => {
         if (!prev.length) return prev
