@@ -266,6 +266,7 @@ export const en: Translations = {
     edit: 'Edit',
     copy: 'Copy',
     regenerate: 'Regenerate',
+    retry: 'Retry',
     stopGeneration: 'Stop',
     clarifyTitle: 'Let me confirm the direction first for better results ✦',
     clarifyOpt1: 'Industry & market data (size, trends, funding)',

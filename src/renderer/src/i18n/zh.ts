@@ -248,6 +248,7 @@ export interface Translations {
     edit: string
     copy: string
     regenerate: string
+    retry: string
     stopGeneration: string
     clarifyTitle: string
     clarifyOpt1: string
@@ -603,6 +604,7 @@ export const zh: Translations = {
     edit: '编辑',
     copy: '复制',
     regenerate: '重新生成',
+    retry: '重试',
     stopGeneration: '停止生成',
     clarifyTitle: '想先确认一下方向，这样调研结果更准 ✦',
     clarifyOpt1: '行业与市场数据（规模、趋势、融资）',
