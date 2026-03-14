@@ -37,24 +37,6 @@ export async function* streamAI(
   conversationId?: string,
   systemPromptOverride?: string
 ): AsyncGenerator<AIStreamChunk, AIResponse, unknown> {
-  // #region agent debug log
-  const dbg = (hypothesisId: string, message: string, data: Record<string, unknown>) => {
-    fetch('http://127.0.0.1:7468/ingest/718d2469-93f0-4b41-8aec-cb23950c51fd', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '20f00c' },
-      body: JSON.stringify({
-        sessionId: '20f00c',
-        runId: 'pre-fix',
-        hypothesisId,
-        location: 'src/renderer/src/services/ai.ts:streamAI',
-        message,
-        data,
-        timestamp: Date.now()
-      })
-    }).catch(() => {})
-  }
-  // #endregion
-
   const controller = new AbortController()
   let abortListener: (() => void) | null = null
   if (signal) {
@@ -74,23 +56,12 @@ export async function* streamAI(
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (token) headers['Authorization'] = `Bearer ${token}`
 
-    dbg('H6', 'fetch /api/ai/stream start', {
-      hasConversationId: !!conversationId,
-      hasToken: !!token,
-      messagesCount: messages.length,
-      prefsCount: preferences.length,
-      hasCompressedMemory: !!compressedMemory,
-      isOnboarding: !!isOnboarding
-    })
-
     const res = await fetch('/api/ai/stream', {
       method: 'POST',
       headers,
       body: JSON.stringify({ messages, preferences, compressedMemory, isOnboarding, conversationId, ...(systemPromptOverride ? { systemPromptOverride } : {}) }),
       signal: combinedSignal
     })
-
-    dbg('H7', 'fetch /api/ai/stream response', { ok: res.ok, status: res.status })
 
     if (!res.ok) {
       const friendlyMessages: Record<number, string> = {
@@ -167,13 +138,8 @@ export async function* streamAI(
     return { content: fullContent }
   } catch (error) {
     if (error instanceof Error && (error.message === '生成已停止' || error.name === 'AbortError')) {
-      dbg('H8', 'streamAI aborted', { name: error.name, msg: error.message })
       throw new Error('生成已停止')
     }
-    dbg('H6', 'streamAI catch', {
-      name: error instanceof Error ? error.name : 'non-error',
-      msg: error instanceof Error ? error.message : String(error)
-    })
     console.error('AI stream failed:', error)
     if (error instanceof Error && (
       error.message.includes('BodyStreamBuffer') ||

@@ -448,28 +448,6 @@ export async function deepSearchAnswer(
   const messages = Array.isArray(payload.messages) ? (payload.messages as AIMessage[]) : []
   if (!conversationId || messages.length === 0) return
 
-  // #region agent debug log
-  const dbg = (hypothesisId: string, message: string, data: Record<string, unknown>) => {
-    try {
-      // 不记录任何隐私/密钥/正文，只记录长度与状态
-      console.log('[deep_search_dbg]', JSON.stringify({ hypothesisId, message, data }))
-    } catch { /* ignore */ }
-    fetch('http://127.0.0.1:7468/ingest/718d2469-93f0-4b41-8aec-cb23950c51fd', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '20f00c' },
-      body: JSON.stringify({
-        sessionId: '20f00c',
-        runId: 'pre-fix',
-        hypothesisId,
-        location: 'src/server/agentTasks.ts:deepSearchAnswer',
-        message,
-        data,
-        timestamp: Date.now()
-      })
-    }).catch(() => {})
-  }
-  // #endregion
-
   const setProgress = (msg: string) => {
     try { db.prepare('UPDATE agent_tasks SET progress = ? WHERE id = ?').run(msg, taskId) } catch { /* ignore */ }
   }
@@ -480,12 +458,10 @@ export async function deepSearchAnswer(
   const { apiKey, baseUrl } = getApiConfig(db)
   if (!apiKey) {
     setProgress('缺少可用的 API Key，已跳过深度搜索。')
-    dbg('H3', 'deep_search: no apiKey', { taskId, conversationId, messagesCount: messages.length })
     return
   }
 
   const model = getChatModel(db, baseUrl)
-  dbg('H1', 'deep_search: start', { taskId, conversationId, messagesCount: messages.length, model, baseUrlHost: (() => { try { return new URL(baseUrl).host } catch { return '' } })() })
   const today = formatToday()
   const systemPrompt = payload.systemPromptOverride
     ? String(payload.systemPromptOverride).replace('{{DATE}}', today)
@@ -575,15 +551,12 @@ export async function deepSearchAnswer(
   let finalContent = ''
   let finalReasoning = ''
   let toolCallRounds = 0
-  let lastFinishReason: string | null = null
-  let lastToolCallsLen = 0
 
   for (let round = 1; round <= MAX_ROUNDS; round++) {
     setProgress(`深度搜索进行中：第 ${round}/${MAX_ROUNDS} 轮…`)
     const res = await callLLM(current)
     if (!res.ok) {
       setProgress(`深度搜索失败（上游错误 ${res.status}），将输出已有内容。`)
-      dbg('H3', 'deep_search: upstream not ok', { taskId, conversationId, round, status: res.status })
       break
     }
     const choice = res.data?.choices?.[0]
@@ -592,17 +565,6 @@ export async function deepSearchAnswer(
     const reasoning = String(msg?.reasoning_content ?? '')
     const toolCalls = Array.isArray(msg?.tool_calls) ? msg.tool_calls : []
     const finishReason = choice?.finish_reason ?? null
-    lastFinishReason = finishReason
-    lastToolCallsLen = toolCalls.length
-    dbg('H2', 'deep_search: round result', {
-      taskId,
-      conversationId,
-      round,
-      finishReason: finishReason ?? null,
-      toolCallsLen: toolCalls.length,
-      contentLen: content ? content.length : 0,
-      reasoningLen: reasoning ? reasoning.length : 0
-    })
 
     if (content) finalContent += content
     if (reasoning) finalReasoning += reasoning
@@ -657,12 +619,9 @@ export async function deepSearchAnswer(
   }
 
   // 若连续 tool_calls 轮次后仍无正文输出，强制追加一轮“最终回答（不再调用工具）”
-  let ranFinalAnswerPass = false
   if (!finalContent.trim()) {
     try {
-      ranFinalAnswerPass = true
       setProgress('深度搜索：正在生成最终答案…')
-      dbg('H1', 'deep_search: forcing final answer pass', { taskId, conversationId, toolCallRounds, lastFinishReason, lastToolCallsLen })
       const finalPrompt: AIMessage = {
         role: 'system',
         content: '现在请基于以上已获得的信息直接给出最终回答。不要再调用任何工具，不要再继续搜索。'
@@ -692,23 +651,13 @@ export async function deepSearchAnswer(
             const rText = String(m2?.reasoning_content ?? '')
             if (cText) finalContent += cText
             if (rText) finalReasoning += rText
-            dbg('H1', 'deep_search: final answer pass result', {
-              taskId,
-              conversationId,
-              attempt,
-              finishReason: c2?.finish_reason ?? null,
-              contentLen: cText ? cText.length : 0,
-              reasoningLen: rText ? rText.length : 0
-            })
             if (cText.trim().length > 0) {
               finalOk = true
               break
             }
           } else {
-            dbg('H3', 'deep_search: final answer pass upstream not ok', { taskId, conversationId, attempt, status: resp.status })
           }
         } catch (e) {
-          dbg('H3', 'deep_search: final answer pass exception', { taskId, conversationId, attempt, err: e instanceof Error ? e.message : String(e) })
         } finally {
           clearTimeout(timeout)
         }
@@ -719,7 +668,6 @@ export async function deepSearchAnswer(
         throw new Error('deep_search final answer fetch failed after retries')
       }
     } catch (e) {
-      dbg('H3', 'deep_search: final answer pass exception', { taskId, conversationId, err: e instanceof Error ? e.message : String(e) })
       // 抛出错误交给 agentWorker 做重试，而不是写入 done/空结果
       throw e
     }
@@ -728,7 +676,6 @@ export async function deepSearchAnswer(
   const answer = finalContent.trim()
   setResult({ content: answer, reasoning: finalReasoning || null })
   setProgress(answer ? '深度搜索已完成。' : '深度搜索已完成，但未生成正文输出。')
-  dbg('H4', 'deep_search: done', { taskId, conversationId, answerLen: answer.length, ranFinalAnswerPass })
 
   // 写回对话（覆盖同 id 的最新记录）
   const existing = loadLatestConversation(db, conversationId)
@@ -741,14 +688,6 @@ export async function deepSearchAnswer(
   }
   const assistantForTranscript = formatAssistantForTranscript(answer || base.assistantMessage || '[无回复]', finalReasoning || null)
   const mergedInfo = mergeTranscriptWithDeepSearchAnswer(base.assistantMessage || '', lastUser || base.userMessage || '', assistantForTranscript)
-  dbg('H10', 'deep_search: merge transcript', {
-    taskId,
-    conversationId,
-    baseAssistantLen: (base.assistantMessage || '').length,
-    baseHasMultiTurn: (base.assistantMessage || '').includes('#1\n') || (base.assistantMessage || '').includes('# 1\n'),
-    mode: mergedInfo.mode,
-    mergedLen: mergedInfo.merged.length,
-  })
   const updated: Conversation = {
     ...base,
     assistantMessage: mergedInfo.merged,

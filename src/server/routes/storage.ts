@@ -322,35 +322,6 @@ storageRoutes.post('/:filename/append', async (c) => {
   }
 
   const line = await c.req.text()
-  // #region agent debug log
-  if (filename === 'conversations.jsonl' || filename.endsWith('-conversations.jsonl')) {
-    try {
-      let convId: string | null = null
-      let assistantLen: number | null = null
-      let hasMultiTurn: boolean | null = null
-      try {
-        const parsed = JSON.parse(line) as any
-        convId = typeof parsed?.id === 'string' ? parsed.id : null
-        const a = typeof parsed?.assistantMessage === 'string' ? parsed.assistantMessage : ''
-        assistantLen = a.length
-        hasMultiTurn = a.includes('#1\n') || a.includes('# 1\n')
-      } catch { /* ignore */ }
-      fetch('http://127.0.0.1:7468/ingest/718d2469-93f0-4b41-8aec-cb23950c51fd', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '20f00c' },
-        body: JSON.stringify({
-          sessionId: '20f00c',
-          runId: 'pre-fix',
-          hypothesisId: 'H3',
-          location: 'src/server/routes/storage.ts:append',
-          message: 'append conversations',
-          data: { filename, lineLen: line.length, convId, assistantLen, hasMultiTurn },
-          timestamp: Date.now()
-        })
-      }).catch(() => {})
-    } catch { /* ignore */ }
-  }
-  // #endregion
   // P0-2: 单次追加上限 1 MB，防止超大行写入
   if (Buffer.byteLength(line, 'utf8') > MAX_APPEND_SIZE) {
     return c.json({ error: '单次追加内容过大，最大支持 1MB' }, 413)

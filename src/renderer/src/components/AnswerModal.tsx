@@ -152,24 +152,6 @@ export function AnswerModal() {
   const networkHandoffOnceRef = useRef<string | null>(null) // 避免同一 convId 重复转后台
   const autoSavedSigRef = useRef<string | null>(null)
 
-  // #region agent debug log
-  const uiDbg = useCallback((hypothesisId: string, message: string, data: Record<string, unknown>) => {
-    fetch('http://127.0.0.1:7468/ingest/718d2469-93f0-4b41-8aec-cb23950c51fd', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '20f00c' },
-      body: JSON.stringify({
-        sessionId: '20f00c',
-        runId: 'autosave-fix',
-        hypothesisId,
-        location: 'src/renderer/src/components/AnswerModal.tsx',
-        message,
-        data,
-        timestamp: Date.now()
-      })
-    }).catch(() => {})
-  }, [])
-  // #endregion
-
   const serializeTurnsForStorage = useCallback((ts: Turn[]) => {
     const stillStreaming = false
     return ts.length > 0
@@ -186,7 +168,7 @@ export function AnswerModal() {
       : '[无回复]'
   }, [])
 
-  const autoSaveIfNeeded = useCallback(async (reason: 'onComplete' | 'manual') => {
+  const autoSaveIfNeeded = useCallback(async () => {
     try {
       if (!currentConversation?.id) return
       if (isLennyMode || isCustomSpaceMode) return
@@ -201,8 +183,6 @@ export function AnswerModal() {
       if (autoSavedSigRef.current === sig) return
       autoSavedSigRef.current = sig
 
-      uiDbg('H4', 'autosave start', { reason, convId: currentConversation.id, turnsCount: turns.length, assistantLen: assistantMessage.length })
-
       // 用 store 的 appendConversation 写入 conversations.jsonl（同 id 追加覆盖），并触发索引/画像等后续任务
       const convToSave: Conversation = {
         ...currentConversation,
@@ -211,11 +191,10 @@ export function AnswerModal() {
         appliedPreferences: [...appliedPreferences],
       }
       await useCanvasStore.getState().appendConversation(convToSave)
-      uiDbg('H4', 'autosave done', { convId: currentConversation.id })
     } catch (e) {
-      uiDbg('H4', 'autosave error', { err: e instanceof Error ? e.message : String(e), convId: currentConversation?.id ?? null })
+      console.warn('autosave failed:', e)
     }
-  }, [currentConversation, isLennyMode, isCustomSpaceMode, isOnboardingMode, isStreaming, turns, appliedPreferences, serializeTurnsForStorage, uiDbg])
+  }, [currentConversation, isLennyMode, isCustomSpaceMode, isOnboardingMode, isStreaming, turns, appliedPreferences, serializeTurnsForStorage])
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const onboardingPhaseRef = useRef(0)
@@ -327,16 +306,8 @@ export function AnswerModal() {
     },
     onComplete: () => {
       setIsStreaming(false)
-      uiDbg('H1', 'onComplete', {
-        convId: currentConversation?.id ?? null,
-        turnsCount: turns.length,
-        lastAssistantLen: (turns[turns.length - 1]?.assistant || '').length,
-        didMutate: didMutateRef.current,
-        isReplay: isReplayRef.current,
-        deepSearchStatus: deepSearchStateRef.current?.status ?? null
-      })
       // 回答完成即自动保存：避免“没点×直接刷新导致消息丢失”
-      void autoSaveIfNeeded('onComplete')
+      void autoSaveIfNeeded()
       // 若深度搜索已转入后台，不清空提示条；让用户看到“仍在进行中”
       if (!deepSearchStateRef.current || (deepSearchStateRef.current.status !== 'pending' && deepSearchStateRef.current.status !== 'running')) {
         setSearchRoundMsg(null)
@@ -464,35 +435,14 @@ export function AnswerModal() {
                 body: JSON.stringify(convToSave),
                 keepalive: true
               }).catch(() => {})
-              uiDbg('H4', 'beforeunload keepalive save', { convId: currentConversation.id, turnsCount: turns.length, assistantLen: assistantMessage.length })
             }
           }
         }
       } catch { /* ignore */ }
-      fetch('http://127.0.0.1:7468/ingest/718d2469-93f0-4b41-8aec-cb23950c51fd', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '20f00c' },
-        keepalive: true,
-        body: JSON.stringify({
-          sessionId: '20f00c',
-          runId: 'autosave-fix',
-          hypothesisId: 'H1',
-          location: 'src/renderer/src/components/AnswerModal.tsx:beforeunload',
-          message: 'beforeunload',
-          data: {
-            isModalOpen,
-            convId: currentConversation?.id ?? null,
-            didMutate: didMutateRef.current,
-            isStreaming,
-            turnsCount: turns.length
-          },
-          timestamp: Date.now()
-        })
-      }).catch(() => {})
     }
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
-  }, [isModalOpen, currentConversation, isStreaming, turns, appliedPreferences, isLennyMode, isCustomSpaceMode, isOnboardingMode, serializeTurnsForStorage, uiDbg])
+  }, [isModalOpen, currentConversation, isStreaming, turns, appliedPreferences, isLennyMode, isCustomSpaceMode, isOnboardingMode, serializeTurnsForStorage])
 
   useEffect(() => {
     deepSearchStateRef.current = deepSearchState
