@@ -80,7 +80,6 @@ function initSchema(database: InstanceType<typeof Database>) {
     );
     CREATE INDEX IF NOT EXISTS idx_memory_facts_created ON memory_facts(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_memory_facts_source ON memory_facts(source_conv_id);
-    CREATE INDEX IF NOT EXISTS idx_memory_facts_type ON memory_facts(type);
 
     CREATE TABLE IF NOT EXISTS uploaded_files (
       id           TEXT NOT NULL,
