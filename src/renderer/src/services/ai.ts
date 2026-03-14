@@ -36,12 +36,16 @@ export async function* streamAI(
   systemPromptOverride?: string
 ): AsyncGenerator<AIStreamChunk, AIResponse, unknown> {
   const controller = new AbortController()
-  const combinedSignal = signal
-    ? (() => {
-        signal.addEventListener('abort', () => controller.abort())
-        return controller.signal
-      })()
-    : controller.signal
+  let abortListener: (() => void) | null = null
+  if (signal) {
+    if (signal.aborted) {
+      controller.abort()
+    } else {
+      abortListener = () => controller.abort()
+      signal.addEventListener('abort', abortListener)
+    }
+  }
+  const combinedSignal = controller.signal
 
   let fullContent = ''
 
@@ -124,8 +128,8 @@ export async function* streamAI(
 
     return { content: fullContent }
   } catch (error) {
-    if (error instanceof Error && error.message === '生成已停止') {
-      throw error
+    if (error instanceof Error && (error.message === '生成已停止' || error.name === 'AbortError')) {
+      throw new Error('生成已停止')
     }
     console.error('AI stream failed:', error)
     if (error instanceof Error && (
@@ -138,6 +142,10 @@ export async function* streamAI(
       throw new Error('网络连接中断，请检查网络后重试')
     }
     throw error instanceof Error ? error : new Error('Unknown error')
+  } finally {
+    if (signal && abortListener) {
+      signal.removeEventListener('abort', abortListener)
+    }
   }
 }
 
