@@ -1,5 +1,23 @@
 # Anima 变更日志
 
+## [0.5.6] - 2026-03-14
+
+### fix: 侧边栏动画卡顿 + 头像色彩统一 + Lenny 历史调查
+
+**Bug 修复：**
+- `Canvas.tsx`：侧边栏容器改为 `flex-col-reverse`，使折叠按钮/pill 始终锚定在 `bottom-36`，消除"先出现在顶部再滑到底部"的位置跳变
+- `Canvas.tsx`：折叠按钮 padding `p-0.5` → `p-2`，点击区域更大
+- `Canvas.tsx`：Lenny (`L`) 和 Paul Graham (`PG`) 头像由 `bg-gray-100 text-gray-600` 改为 `bg-gray-900 text-white`，与张小龙/王慧文样式一致
+
+**Lenny 历史同步诊断：**
+- 代码路径验证无 bug：`sync-lenny-conv` 在 `endConversation` 中正确触发
+- 3/12 400 错误：`!conversationId || !userMessage` 校验失败（一次性事件）
+- 3/14 静默：用户访问的是历史对话回放（`isReplayRef=true, didMutateRef=false` → `shouldSave=false`），无新消息发送故不触发保存。逻辑正确，不需修改
+
+**测试结果**：522/522 通过，`tsc --noEmit` 零错误。
+
+---
+
 ## [0.5.5] - 2026-03-14
 
 ### fix: 网络中断错误处理 + 错误气泡重试按钮

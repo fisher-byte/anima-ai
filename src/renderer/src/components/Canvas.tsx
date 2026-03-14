@@ -955,9 +955,10 @@ export function Canvas() {
       )}
 
       {/* Spaces 侧边栏 — My Spaces + Public Spaces 合并到同一个 fixed 容器，自底向上堆叠 */}
-      <div className="fixed left-4 bottom-36 z-30 flex flex-col gap-1.5">
-        {/* 折叠/展开切换按钮 */}
-        <div className={`flex items-center mb-0.5 ${isSpacesSidebarVisible ? 'justify-between w-[168px]' : 'justify-start'}`}>
+      {/* flex-col-reverse：header（折叠按钮/pill）始终锚定在 bottom-36，空间列表向上延伸 */}
+      <div className="fixed left-4 bottom-36 z-30 flex flex-col-reverse gap-1.5">
+        {/* 折叠/展开切换按钮 — 在 flex-col-reverse 中渲染顺序靠前 = 视觉上在底部 */}
+        <div className={`flex items-center mt-0.5 ${isSpacesSidebarVisible ? 'justify-between w-[168px]' : 'justify-start'}`}>
           {isSpacesSidebarVisible && (
             <span className="px-1 text-[10px] text-gray-400/70 font-medium tracking-widest uppercase">{t.space.mySpaces}</span>
           )}
@@ -965,7 +966,7 @@ export function Canvas() {
             {isSpacesSidebarVisible && customSpaces.length < 5 && (
               <button
                 onClick={() => setIsCreateSpaceOpen(true)}
-                className="p-0.5 text-gray-400 hover:text-gray-600 transition-colors"
+                className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors"
                 title={t.space.addSpace}
               >
                 <PlusCircle className="w-3.5 h-3.5" />
@@ -977,7 +978,7 @@ export function Canvas() {
                   setIsSpacesSidebarVisible(false)
                   localStorage.setItem('evo_spaces_sidebar_visible', 'false')
                 }}
-                className="p-0.5 text-gray-300 hover:text-gray-600 transition-colors"
+                className="p-2 text-gray-300 hover:text-gray-600 transition-colors"
                 title={t.canvas.hideSpaces}
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
@@ -1081,7 +1082,7 @@ export function Canvas() {
           whileTap={{ scale: 0.98 }}
           className="flex items-center gap-2.5 pl-2.5 pr-3 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[168px]"
         >
-          <div className="w-7 h-7 rounded-full bg-gray-100 border border-gray-200/80 flex items-center justify-center text-gray-600 font-semibold text-[11px] shrink-0">L</div>
+          <div className="w-7 h-7 rounded-full bg-gray-900 border border-gray-700/50 flex items-center justify-center text-white font-semibold text-[11px] shrink-0">L</div>
           <div className="text-left flex-1 min-w-0">
             <div className="text-[11px] font-semibold text-gray-700 leading-tight truncate">Lenny Rachitsky</div>
             <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{t.canvas.lennySubtitle}</div>
@@ -1096,7 +1097,7 @@ export function Canvas() {
           whileTap={{ scale: 0.98 }}
           className="flex items-center gap-2.5 pl-2.5 pr-3 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[168px]"
         >
-          <div className="w-7 h-7 rounded-full bg-gray-100 border border-gray-200/80 flex items-center justify-center text-gray-600 font-semibold text-[11px] shrink-0">PG</div>
+          <div className="w-7 h-7 rounded-full bg-gray-900 border border-gray-700/50 flex items-center justify-center text-white font-semibold text-[11px] shrink-0">PG</div>
           <div className="text-left flex-1 min-w-0">
             <div className="text-[11px] font-semibold text-gray-700 leading-tight truncate">Paul Graham</div>
             <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{t.canvas.pgSubtitle}</div>
