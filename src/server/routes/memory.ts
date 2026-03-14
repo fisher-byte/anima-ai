@@ -400,8 +400,8 @@ ${assistantMessage ? `\n（AI回复仅供理解上下文，不作为提取来源
 
     const now = new Date().toISOString()
     const insert = db.prepare(`
-      INSERT INTO memory_facts (id, fact, source_conv_id, created_at)
-      VALUES (lower(hex(randomblob(16))), ?, ?, ?)
+      INSERT INTO memory_facts (id, fact, source_conv_id, created_at, type)
+      VALUES (lower(hex(randomblob(16))), ?, ?, ?, 'semantic')
     `)
 
     const candidates = facts

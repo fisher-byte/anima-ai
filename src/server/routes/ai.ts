@@ -326,6 +326,54 @@ async function generateSessionSummary(
   } catch { /* 生成失败不影响主流程 */ }
 }
 
+// ── 记忆意图检测：判断问题需要哪类记忆 ─────────────────────────────────────────
+type MemoryIntent = 'episodic' | 'procedural' | 'profile' | 'semantic'
+
+function detectMemoryIntent(query: string): MemoryIntent {
+  const q = query.toLowerCase()
+  // episodic：询问"我之前说过什么"、"上次"、"我记得"等历史经历
+  if (/我之前|我以前|我上次|我曾经|之前说过|以前提到|我记得我|我好像说|上次聊|我有没有说/.test(q)) {
+    return 'episodic'
+  }
+  // procedural：询问回答方式、让 AI 记住某种偏好
+  if (/你以后|你下次|记住.*回答|以后.*别|以后.*要|以后.*用|记住我|你需要知道.*我|你要.*方式/.test(q)) {
+    return 'procedural'
+  }
+  // profile：询问"我是谁"、"我的XX是什么"
+  if (/我是什么人|我的职业|我的目标|我的兴趣|我的背景|你了解我|我的信息|你知道我/.test(q)) {
+    return 'profile'
+  }
+  return 'semantic'
+}
+
+/** 按记忆类型过滤（type 字段），episodic/procedural 直接走类型精确查询 */
+function fetchFactsByType(
+  db: InstanceType<typeof Database>,
+  type: 'episodic' | 'procedural',
+  limit = 8
+): string[] {
+  try {
+    return (db.prepare(
+      'SELECT fact FROM memory_facts WHERE invalid_at IS NULL AND type = ? ORDER BY created_at DESC LIMIT ?'
+    ).all(type, limit) as { fact: string }[]).map(r => r.fact)
+  } catch { return [] }
+}
+
+/** 从 user_profile 组装画像文本片段 */
+function fetchProfileSummary(db: InstanceType<typeof Database>): string[] {
+  try {
+    const profile = db.prepare('SELECT * FROM user_profile WHERE id = 1').get() as Record<string, string | null> | undefined
+    if (!profile) return []
+    const parts: string[] = []
+    if (profile.occupation) parts.push(`职业：${profile.occupation}`)
+    if (profile.location) parts.push(`所在地：${profile.location}`)
+    try { if (profile.goals) { const arr = JSON.parse(profile.goals) as string[]; if (arr.length) parts.push(`当前关注：${arr.join('、')}`) } } catch {}
+    try { if (profile.interests) { const arr = JSON.parse(profile.interests) as string[]; if (arr.length) parts.push(`兴趣：${arr.join('、')}`) } } catch {}
+    try { if (profile.tools) { const arr = JSON.parse(profile.tools) as string[]; if (arr.length) parts.push(`常用工具：${arr.join('、')}`) } } catch {}
+    return parts
+  } catch { return [] }
+}
+
 const MEMORY_STRATEGY = process.env.MEMORY_STRATEGY ?? 'baseline'  // baseline | scored
 
 interface AIRequestBody {
@@ -606,13 +654,40 @@ aiRoutes.post('/stream', async (c) => {
       }
     } catch { /* 画像注入失败不影响主流程 */ }
 
-    // ── 层 3：记忆事实（语义检索 > BM25 > 最近 N 条降级）── 动态内容优先于静态摘要
+    // ── 层 3：记忆事实（按意图路由 → 语义检索 > BM25 > 最近 N 条降级）──
     try {
       let relevantFacts: string[] = []
       if (trimmedText.length > 5) {
-        relevantFacts = MEMORY_STRATEGY === 'scored'
-          ? await fetchScoredFacts(db, trimmedText, effectiveApiKey, baseUrl)
-          : await fetchRelevantFacts(db, trimmedText, effectiveApiKey, baseUrl)
+        const memIntent = detectMemoryIntent(trimmedText)
+
+        if (memIntent === 'episodic') {
+          // 询问历史经历：优先返回带时间线的 episodic 类型，fallback 到全类型语义检索
+          const episodicFacts = fetchFactsByType(db, 'episodic', 8)
+          relevantFacts = episodicFacts.length > 0
+            ? episodicFacts
+            : await fetchRelevantFacts(db, trimmedText, effectiveApiKey, baseUrl)
+        } else if (memIntent === 'procedural') {
+          // 询问偏好规则：直接返回 procedural 类型，已经在层 1 注入过，这里追加 semantic 作补充
+          const proceduralFacts = fetchFactsByType(db, 'procedural', 5)
+          const semanticFacts = MEMORY_STRATEGY === 'scored'
+            ? await fetchScoredFacts(db, trimmedText, effectiveApiKey, baseUrl)
+            : await fetchRelevantFacts(db, trimmedText, effectiveApiKey, baseUrl)
+          relevantFacts = [...proceduralFacts, ...semanticFacts].slice(0, 10)
+        } else if (memIntent === 'profile') {
+          // 询问个人信息：优先 profile 摘要，再补 semantic facts
+          const profileParts = fetchProfileSummary(db)
+          const semanticFacts = await fetchRelevantFacts(db, trimmedText, effectiveApiKey, baseUrl)
+          // profile 已在层 2 注入，这里补充 semantic facts 即可
+          relevantFacts = semanticFacts
+          if (profileParts.length > 0 && relevantFacts.length === 0) {
+            relevantFacts = profileParts
+          }
+        } else {
+          // semantic（默认）：原有逻辑不变
+          relevantFacts = MEMORY_STRATEGY === 'scored'
+            ? await fetchScoredFacts(db, trimmedText, effectiveApiKey, baseUrl)
+            : await fetchRelevantFacts(db, trimmedText, effectiveApiKey, baseUrl)
+        }
       }
       // 语义检索无结果时降级：BM25 FTS5
       if (relevantFacts.length === 0 && trimmedText.length > 5) {

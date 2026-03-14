@@ -95,13 +95,13 @@ ${factsText}
     if (cleaned.length < Math.max(1, Math.floor(rows.length * 0.3))) return
 
     const now = new Date().toISOString()
-    // 在事务中：软删除所有旧条目，写入新条目
-    const softDelete = db.prepare('UPDATE memory_facts SET invalid_at = ? WHERE id = ?')
+    // 在事务中：软失效所有旧条目（保留历史轨迹），写入合并后的新条目
+    const softInvalidate = db.prepare('UPDATE memory_facts SET invalid_at = ? WHERE id = ?')
     const insert = db.prepare(
-      "INSERT INTO memory_facts (id, fact, source_conv_id, created_at) VALUES (lower(hex(randomblob(16))), ?, 'consolidated', ?)"
+      "INSERT INTO memory_facts (id, fact, source_conv_id, created_at, type) VALUES (lower(hex(randomblob(16))), ?, 'consolidated', ?, 'semantic')"
     )
     db.transaction(() => {
-      for (const row of rows) softDelete.run(now, row.id)
+      for (const row of rows) softInvalidate.run(now, row.id)
       for (const fact of cleaned) insert.run(fact, now)
     })()
 
@@ -244,7 +244,7 @@ ${userMessage.slice(0, 500)}
   "occupation": "职业（如程序员、设计师、学生等）",
   "interests": ["兴趣1", "兴趣2"],
   "tools": ["常用工具或技术"],
-  "goals": ["当前目标或关注点"],
+  "goals": ["当前目标——必须带场景和状态，如'正在做 GEO 小工具，处于早期探索阶段，想找到变现路径'，而不是'目标是变现'"],
   "location": "城市或地区",
   "writing_style": "用户偏好的回答风格（如简洁/详细/技术性等）"
 }
