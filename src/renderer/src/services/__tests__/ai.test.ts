@@ -161,6 +161,21 @@ describe('streamAI — SSE content streaming', () => {
     expect(chunks).toEqual(['Hello', ' World'])
   })
 
+  it('parses CRLF-separated SSE events (\\\\r\\\\n)', async () => {
+    mockFetch.mockResolvedValueOnce(mockSseResponse([
+      'data: {"type":"content","content":"Hello"}\r\n\r\n',
+      'data: {"type":"content","content":" World"}\r\n\r\n',
+      'data: {"type":"done","fullText":"Hello World"}\r\n\r\n',
+    ]))
+
+    const { streamAI } = await import('../ai')
+    const chunks: string[] = []
+    for await (const chunk of streamAI([])) {
+      if (chunk.type === 'content') chunks.push(chunk.content)
+    }
+    expect(chunks).toEqual(['Hello', ' World'])
+  })
+
   it('yields reasoning chunks separately', async () => {
     mockFetch.mockResolvedValueOnce(mockSseResponse([
       'data: {"type":"reasoning","content":"thinking..."}\n\n',
