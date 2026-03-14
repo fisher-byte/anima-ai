@@ -2,9 +2,15 @@
 
 ## 计划中版本
 
-*暂无计划中版本——v0.5.3 UI/UX polish 全部完成。*
+*暂无计划中版本——v0.5.4 全部完成。*
 
 ## 已完成版本
+
+#### v0.5.4 - bootstrap-facts 幂等修复（已完成）
+- [x] `memory.ts`：幂等判断改为基于 `agent_tasks.payload.conversationId`，不再重复入队历史对话
+- [x] `enqueueTask` 调用补充 `conversationId` 字段
+- [x] 服务器验证：queued=0，全部 23 条历史对话已处理
+- [x] vitest 522/522 | tsc 0 errors
 
 #### v0.5.3 - UI/UX polish batch（已完成）
 - [x] `Canvas.tsx`：侧边栏折叠后改为悬浮 pill 卡片（L/PG 头像 + Spaces 文字 + chevron）

@@ -1,7 +1,7 @@
 # Anima — 项目计划
 
 > 唯一入口：每次发版、每次决策都在这里留记录。
-> 最后更新：2026-03-14 | 当前版本：v0.5.3
+> 最后更新：2026-03-14 | 当前版本：v0.5.4
 
 ---
 
@@ -92,6 +92,7 @@
 
 | 版本 | 日期 | 核心内容 |
 |------|------|----------|
+| v0.5.4 | 2026-03-14 | bootstrap-facts 幂等判断修复：改用 agent_tasks.payload.conversationId，彻底消除重复入队 |
 | v0.5.3 | 2026-03-14 | UI/UX polish：悬浮 pill 侧边栏、@mention pill chip、文件下载、头像统一、设置菜单重命名 |
 | v0.5.2 | 2026-03-14 | Space 向量索引全量补全；custom space convSource 修复；bootstrap-facts API |
 | v0.5.1 | 2026-03-14 | embedding 共享库提取（消除三处重复）；Space 文件列表；张/王头像统一；+5 embedding 单元测试 |
