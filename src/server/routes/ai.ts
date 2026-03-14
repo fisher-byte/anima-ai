@@ -818,6 +818,11 @@ aiRoutes.post('/stream', async (c) => {
   return streamSSE(c, async (stream) => {
     let fullContent = ''
     let reasoningContent = ''
+    // 若触发了多轮检索但本轮流式最终没有任何正文输出，则自动转入后台深度搜索，
+    // 避免用户看到“搜索中…但一片空白”的体验。
+    let sawSearchRound = false
+    let handedOffToDeepSearch = false
+    let deepSearchTaskId: number | null = null
 
     const sendEvent = async (data: Record<string, unknown>) => {
       await stream.writeSSE({ data: JSON.stringify(data) })
@@ -1098,6 +1103,7 @@ aiRoutes.post('/stream', async (c) => {
               ? '正在检索文件内容…'
               : (round === 2 ? '你的问题有点复杂，正在进行更多搜索…' : `正在进行第 ${round} 轮搜索，请稍候…`)
         })
+        sawSearchRound = true
 
         // 续轮请求：必须带上 tools 声明，否则模型无法继续调用搜索
         const nextBody: Record<string, unknown> = {
@@ -1142,7 +1148,35 @@ aiRoutes.post('/stream', async (c) => {
             taskId,
             message: '深度搜索已转入后台继续运行（可关闭窗口，完成后会更新到该节点）。'
           })
+          handedOffToDeepSearch = true
+          deepSearchTaskId = taskId
           break
+        }
+      }
+
+      // 自动兜底：如果“多轮检索已触发”但最终内容为空，直接转入后台深度搜索继续跑
+      if (!handedOffToDeepSearch && sawSearchRound && !fullContent.trim() && conversationId) {
+        try {
+          const existing = db.prepare(
+            "SELECT id FROM agent_tasks WHERE type='deep_search' AND ref_id=? AND status IN ('pending','running') ORDER BY id DESC LIMIT 1"
+          ).get(conversationId) as { id: number } | undefined
+          deepSearchTaskId = existing?.id ?? enqueueTask(db, 'deep_search', {
+            conversationId,
+            messages,
+            preferences,
+            compressedMemory,
+            isOnboarding,
+            systemPromptOverride,
+          }, conversationId)
+          handedOffToDeepSearch = true
+        } catch { /* ignore */ }
+        if (handedOffToDeepSearch) {
+          await sendEvent({
+            type: 'deep_search',
+            status: 'running',
+            taskId: deepSearchTaskId,
+            message: '深度搜索正在后台继续运行（本次流式输出为空，稍后会自动回写到该节点）。'
+          })
         }
       }
 
