@@ -44,12 +44,14 @@ function userDb(c: { get: (key: string) => unknown }): InstanceType<typeof Datab
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-/** 从 config 表读取 apiKey / baseUrl */
+/** 从 config 表读取 apiKey / baseUrl；若用户未配置 key，fallback 到 SHARED_API_KEY */
 function getApiConfig(db: InstanceType<typeof Database>): { apiKey: string; baseUrl: string } {
   const keyRow = db.prepare('SELECT value FROM config WHERE key = ?').get('apiKey') as { value: string } | undefined
   const urlRow = db.prepare('SELECT value FROM config WHERE key = ?').get('baseUrl') as { value: string } | undefined
+  const userKey = keyRow?.value ?? ''
+  const sharedKey = process.env.SHARED_API_KEY ?? ''
   return {
-    apiKey: keyRow?.value ?? '',
+    apiKey: userKey || sharedKey,
     baseUrl: (urlRow?.value ?? 'https://api.moonshot.cn/v1').replace(/\/$/, '')
   }
 }
@@ -353,10 +355,16 @@ memoryRoutes.post('/extract', async (c) => {
   const isMoonshot = baseUrl.includes('moonshot')
   const model = isMoonshot ? 'moonshot-v1-8k' : 'gpt-4o-mini'
 
-  const prompt = `从以下对话中提取用户透露的关于自己的有价值信息（职业/习惯/偏好/目标/经历/个人信息等），以简短的事实句子列出。要求：
-- 每条不超过20字
-- 只提取用户主动透露的信息，不要推测
-- 如果没有有价值的个人信息，返回空数组
+  const prompt = `从以下对话中提取关于用户的有价值记忆，以简短的事实句子列出。提取范围包括：
+- 个人信息：职业、年龄、地点、健康状况、习惯等
+- 当前关注：正在做的事、研究的话题、遇到的问题、产品/项目想法
+- 观点偏好：对某事的看法、价值观、审美取向
+- 目标计划：短期或长期想做的事
+
+要求：
+- 每条不超过25字
+- 只提取用户实际说出来的信息，不要推测
+- 如果这段对话没有任何值得记住的信息（纯闲聊/寒暄），返回空数组
 - 只返回JSON，不要其他文字
 
 用户说：${cleanUserMessage.slice(0, 400)}
