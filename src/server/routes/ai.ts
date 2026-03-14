@@ -1162,18 +1162,27 @@ aiRoutes.post('/summarize', async (c) => {
   const db = userDb(c)
   const rawBody = await c.req.text()
   if (Buffer.byteLength(rawBody, 'utf8') > 1 * 1024 * 1024) {
-    return c.json({ title: null }, 413)
+    return c.json({ title: null })
   }
-  const { userMessage, assistantMessage } = JSON.parse(rawBody) as {
-    userMessage: string
-    assistantMessage: string
+  let userMessage = ''
+  let assistantMessage = ''
+  try {
+    const parsed = JSON.parse(rawBody) as {
+      userMessage?: string
+      assistantMessage?: string
+    }
+    userMessage = parsed.userMessage ?? ''
+    assistantMessage = parsed.assistantMessage ?? ''
+  } catch {
+    return c.json({ title: null })
   }
 
   const row = db.prepare('SELECT value FROM config WHERE key = ?').get('apiKey') as
     | { value: string }
     | undefined
   const apiKey = row?.value ?? (process.env.SHARED_API_KEY ?? process.env.ONBOARDING_API_KEY ?? '')
-  if (!apiKey) return c.json({ title: null, error: 'API Key 未配置' }, 400)
+  // 标题摘要属于非关键体验：无 key 时静默降级，不返回 4xx 干扰前端控制台
+  if (!apiKey) return c.json({ title: null })
 
   const baseUrlRow = db.prepare('SELECT value FROM config WHERE key = ?').get('baseUrl') as
     | { value: string }
