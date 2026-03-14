@@ -12,6 +12,9 @@
  */
 
 import type Database from 'better-sqlite3'
+import type { AIMessage, Conversation } from '../shared/types'
+import { AI_CONFIG, DEFAULT_SYSTEM_PROMPT, ONBOARDING_SYSTEM_PROMPT } from '../shared/constants'
+import { cosineSim, embedTextWithUserKey } from './lib/embedding'
 
 interface ExtractProfilePayload {
   userMessage: string
@@ -34,6 +37,15 @@ interface ExtractLogicalEdgesPayload {
   userMessage: string
   assistantMessage: string
   candidateNodes: Array<{ conversationId: string; title: string; userMessage: string; score: number }>
+}
+
+interface DeepSearchPayload {
+  conversationId: string
+  messages: AIMessage[]
+  preferences?: string[]
+  compressedMemory?: string
+  isOnboarding?: boolean
+  systemPromptOverride?: string
 }
 
 /** 把现有 facts 传给 LLM，合并语义重叠条目，软删除旧条目，写入合并后的新条目 */
@@ -219,6 +231,371 @@ function getApiConfig(db: InstanceType<typeof Database>): { apiKey: string; base
     baseUrl,
     model
   }
+}
+
+/** deep search 使用用户配置的主模型（可更强），fallback 到默认 */
+function getChatModel(db: InstanceType<typeof Database>, baseUrl: string): string {
+  try {
+    const row = db.prepare('SELECT value FROM config WHERE key = ?').get('model') as { value: string } | undefined
+    const configured = (row?.value ?? '').trim()
+    if (configured) return configured
+  } catch { /* ignore */ }
+  // 保底：按 provider 兜底
+  const isMoonshot = baseUrl.includes('moonshot')
+  const isOpenAI = baseUrl.includes('openai.com')
+  return isOpenAI ? 'gpt-4o-mini' : (isMoonshot ? 'kimi-k2.5' : AI_CONFIG.MODEL)
+}
+
+function formatToday(): string {
+  try {
+    return new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
+  } catch {
+    return new Date().toISOString().slice(0, 10)
+  }
+}
+
+function safeTextFromContent(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (Array.isArray(content)) {
+    const t = (content as any[]).find(c => c?.type === 'text')?.text
+    return typeof t === 'string' ? t : ''
+  }
+  return ''
+}
+
+function searchMemoryFactsFts(db: InstanceType<typeof Database>, query: string, limit = 8): string[] {
+  const q = query.trim()
+  if (!q) return []
+  // FTS5 query：用空格分词，避免特殊字符报错（过长也截断）
+  const cleaned = q
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 8)
+    .join(' ')
+  if (!cleaned) return []
+  try {
+    // memory_facts_fts 的触发器会在 invalid_at 设置后删除对应条目，因此这里只查 FTS 即可
+    const rows = db.prepare(
+      'SELECT fact FROM memory_facts_fts WHERE fact MATCH ? LIMIT ?'
+    ).all(cleaned, limit) as { fact: string }[]
+    return rows.map(r => r.fact).filter(Boolean)
+  } catch {
+    // fallback：最近 N 条（避免工具返回空导致模型死循环）
+    try {
+      const rows = db.prepare(
+        'SELECT fact FROM memory_facts WHERE invalid_at IS NULL ORDER BY created_at DESC LIMIT ?'
+      ).all(limit) as { fact: string }[]
+      return rows.map(r => r.fact).filter(Boolean)
+    } catch {
+      return []
+    }
+  }
+}
+
+async function searchFileChunks(
+  db: InstanceType<typeof Database>,
+  query: string,
+  apiKey: string,
+  baseUrl: string
+): Promise<Array<{ filename: string; chunkIndex: number; chunkText: string; score: number }>> {
+  try {
+    const queryF32 = await embedTextWithUserKey(query, apiKey, baseUrl, { maxInputLen: 1000, timeoutMs: 12_000 })
+    if (!queryF32) return []
+    const rows = db.prepare(`
+      SELECT fe.chunk_index, fe.chunk_text, fe.vector, uf.filename
+      FROM file_embeddings fe
+      JOIN uploaded_files uf ON uf.id = fe.file_id
+      WHERE uf.embed_status = 'done'
+      ORDER BY fe.created_at DESC LIMIT 500
+    `).all() as { chunk_index: number; chunk_text: string; vector: Buffer; filename: string }[]
+    return rows
+      .map(row => {
+        const copied = row.vector.buffer.slice(row.vector.byteOffset, row.vector.byteOffset + row.vector.byteLength)
+        const vec = new Float32Array(copied)
+        const score = cosineSim(queryF32, vec)
+        return { filename: row.filename, chunkIndex: row.chunk_index, chunkText: row.chunk_text, score }
+      })
+      .filter(r => r.score > 0.3)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5)
+  } catch {
+    return []
+  }
+}
+
+async function runWebSearch(query: string): Promise<string | null> {
+  const cleaned = query.trim().slice(0, 200)
+  if (!cleaned) return null
+  try {
+    const resp = await fetch(`https://s.jina.ai/${encodeURIComponent(cleaned)}`, {
+      headers: { Accept: 'text/plain' },
+      signal: AbortSignal.timeout(12_000)
+    })
+    if (!resp.ok) return null
+    const text = await resp.text()
+    return text.slice(0, 4000)
+  } catch {
+    return null
+  }
+}
+
+function upsertConversationLine(db: InstanceType<typeof Database>, conversation: Conversation) {
+  const now = new Date().toISOString()
+  const line = JSON.stringify(conversation)
+  db.prepare(`
+    INSERT INTO storage (filename, content, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(filename) DO UPDATE SET
+      content = storage.content || CASE WHEN storage.content = '' THEN '' ELSE char(10) END || excluded.content,
+      updated_at = excluded.updated_at
+  `).run('conversations.jsonl', line, now)
+}
+
+function loadLatestConversation(db: InstanceType<typeof Database>, conversationId: string): Conversation | null {
+  try {
+    const row = db.prepare('SELECT content FROM storage WHERE filename = ?').get('conversations.jsonl') as { content: string } | undefined
+    const content = row?.content ?? ''
+    if (!content.trim()) return null
+    const lines = content.trim().split('\n').filter(Boolean)
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const conv = JSON.parse(lines[i]) as Conversation
+        if (conv.id === conversationId) return conv
+      } catch { /* ignore */ }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+function saveConversationHistory(db: InstanceType<typeof Database>, conversationId: string, messages: AIMessage[]) {
+  const trimmed = messages.slice(-100)
+  const now = new Date().toISOString()
+  db.prepare(`
+    INSERT INTO conversation_history (conversation_id, messages, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(conversation_id) DO UPDATE SET messages = excluded.messages, updated_at = excluded.updated_at
+  `).run(conversationId, JSON.stringify(trimmed), now)
+}
+
+/**
+ * Deep Search — 后台长任务：
+ * - 支持工具调用（search_memory / search_files / $web_search）
+ * - 支持多轮（最多 5 轮），并把进度写入 agent_tasks.progress
+ * - 最终把答案写回 conversations.jsonl（同 id 追加覆盖）+ conversation_history
+ */
+export async function deepSearchAnswer(
+  db: InstanceType<typeof Database>,
+  taskId: number,
+  rawPayload: Record<string, unknown>
+): Promise<void> {
+  const payload = rawPayload as Partial<DeepSearchPayload>
+  const conversationId = (payload.conversationId ?? '').trim()
+  const messages = Array.isArray(payload.messages) ? (payload.messages as AIMessage[]) : []
+  if (!conversationId || messages.length === 0) return
+
+  const setProgress = (msg: string) => {
+    try { db.prepare('UPDATE agent_tasks SET progress = ? WHERE id = ?').run(msg, taskId) } catch { /* ignore */ }
+  }
+  const setResult = (result: unknown) => {
+    try { db.prepare('UPDATE agent_tasks SET result = ? WHERE id = ?').run(JSON.stringify(result), taskId) } catch { /* ignore */ }
+  }
+
+  const { apiKey, baseUrl } = getApiConfig(db)
+  if (!apiKey) {
+    setProgress('缺少可用的 API Key，已跳过深度搜索。')
+    return
+  }
+
+  const model = getChatModel(db, baseUrl)
+  const today = formatToday()
+  const systemPrompt = payload.systemPromptOverride
+    ? String(payload.systemPromptOverride).replace('{{DATE}}', today)
+    : (payload.isOnboarding ? ONBOARDING_SYSTEM_PROMPT : DEFAULT_SYSTEM_PROMPT).replace('{{DATE}}', today)
+
+  const prefs = Array.isArray(payload.preferences) ? payload.preferences.filter(Boolean).slice(0, 20) : []
+  const prefBlock = prefs.length > 0
+    ? `\n\n【用户偏好（需要遵守）】\n${prefs.map((p, i) => `${i + 1}. ${String(p).trim()}`).join('\n')}\n`
+    : ''
+  const memoryBlock = payload.compressedMemory?.trim()
+    ? `\n\n【相关记忆片段】\n${payload.compressedMemory.trim().slice(0, 6000)}\n`
+    : ''
+
+  const fullMessages: AIMessage[] = [
+    { role: 'system', content: systemPrompt + prefBlock + memoryBlock },
+    ...messages
+  ]
+
+  const tools: any[] = [
+    {
+      type: 'function',
+      function: {
+        name: 'search_memory',
+        description: '查询用户的个人记忆库（memory_facts），用于补充回答所需的用户历史事实',
+        parameters: {
+          type: 'object',
+          properties: { query: { type: 'string' } },
+          required: ['query']
+        }
+      }
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'search_files',
+        description: '在用户上传的文件中语义搜索相关内容片段',
+        parameters: {
+          type: 'object',
+          properties: { query: { type: 'string' } },
+          required: ['query']
+        }
+      }
+    },
+    {
+      type: 'function',
+      function: {
+        name: '$web_search',
+        description: '联网搜索（返回文本摘要）',
+        parameters: {
+          type: 'object',
+          properties: { query: { type: 'string' } },
+          required: ['query']
+        }
+      }
+    }
+  ]
+
+  const callLLM = async (msgs: AIMessage[]) => {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 4 * 60_000) // 单次请求最多 4 分钟，避免永久挂住
+    try {
+      const resp = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model,
+          messages: msgs,
+          tools,
+          temperature: AI_CONFIG.TEMPERATURE,
+          max_tokens: AI_CONFIG.MAX_TOKENS,
+          stream: false
+        }),
+        signal: controller.signal
+      })
+      if (!resp.ok) return { ok: false as const, status: resp.status, text: await resp.text() }
+      const data = await resp.json() as any
+      return { ok: true as const, data }
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+
+  setProgress('深度搜索已开始（可关闭窗口，后台继续）。')
+
+  const MAX_ROUNDS = 5
+  let current = [...fullMessages]
+  let finalContent = ''
+  let finalReasoning = ''
+
+  for (let round = 1; round <= MAX_ROUNDS; round++) {
+    setProgress(`深度搜索进行中：第 ${round}/${MAX_ROUNDS} 轮…`)
+    const res = await callLLM(current)
+    if (!res.ok) {
+      setProgress(`深度搜索失败（上游错误 ${res.status}），将输出已有内容。`)
+      break
+    }
+    const choice = res.data?.choices?.[0]
+    const msg = choice?.message ?? {}
+    const content = String(msg?.content ?? '')
+    const reasoning = String(msg?.reasoning_content ?? '')
+    const toolCalls = Array.isArray(msg?.tool_calls) ? msg.tool_calls : []
+    const finishReason = choice?.finish_reason ?? null
+
+    if (content) finalContent += content
+    if (reasoning) finalReasoning += reasoning
+
+    if (finishReason !== 'tool_calls' || toolCalls.length === 0) {
+      if (!finalContent && content) finalContent = content
+      break
+    }
+
+    // 生成 assistant tool_calls 消息
+    current.push({
+      role: 'assistant',
+      content: content || '',
+      reasoning_content: reasoning || undefined,
+      tool_calls: toolCalls
+    } as any)
+
+    // 执行工具并回填 tool messages
+    const toolMsgs: AIMessage[] = []
+    for (const tc of toolCalls) {
+      const name = tc?.function?.name ?? ''
+      const id = tc?.id ?? ''
+      const argsRaw = tc?.function?.arguments ?? '{}'
+      let query = ''
+      try {
+        const parsed = JSON.parse(argsRaw) as any
+        query = String(parsed?.query ?? parsed?.q ?? parsed?.keyword ?? parsed?.keywords ?? '').trim()
+      } catch { /* ignore */ }
+
+      if (name === 'search_memory') {
+        setProgress('深度搜索：正在查询记忆库…')
+        const facts = searchMemoryFactsFts(db, query, 10)
+        const result = facts.length > 0 ? facts.map((f, i) => `${i + 1}. ${f}`).join('\n') : '未找到相关记忆。'
+        toolMsgs.push({ role: 'tool', tool_call_id: id, content: result })
+      } else if (name === 'search_files') {
+        setProgress('深度搜索：正在检索文件内容…')
+        const chunks = query ? await searchFileChunks(db, query, apiKey, baseUrl) : []
+        const result = chunks.length > 0
+          ? chunks.map((c, i) => `[${i + 1}] 文件《${c.filename}》第${c.chunkIndex + 1}段：\n${c.chunkText}`).join('\n\n')
+          : '未找到相关文件内容。'
+        toolMsgs.push({ role: 'tool', tool_call_id: id, content: result })
+      } else if (name === '$web_search' || name === 'web_search') {
+        setProgress('深度搜索：正在联网检索…')
+        const fetched = query ? await runWebSearch(query) : null
+        toolMsgs.push({ role: 'tool', tool_call_id: id, content: fetched || '网页搜索暂时无结果。' })
+      } else {
+        toolMsgs.push({ role: 'tool', tool_call_id: id, content: '未知工具调用，已跳过。' })
+      }
+    }
+    current.push(...toolMsgs)
+  }
+
+  const answer = finalContent.trim()
+  setResult({ content: answer, reasoning: finalReasoning || null })
+  setProgress(answer ? '深度搜索已完成。' : '深度搜索已完成，但未生成正文输出。')
+
+  // 写回对话（覆盖同 id 的最新记录）
+  const existing = loadLatestConversation(db, conversationId)
+  const lastUser = safeTextFromContent(messages.filter(m => m.role === 'user').slice(-1)[0]?.content)
+  const base: Conversation = existing ?? {
+    id: conversationId,
+    createdAt: new Date().toISOString(),
+    userMessage: lastUser || '',
+    assistantMessage: '',
+  }
+  const updated: Conversation = {
+    ...base,
+    assistantMessage: answer || base.assistantMessage || '[无回复]',
+    reasoning_content: finalReasoning || base.reasoning_content,
+    // 标记深度搜索完成（前端用它来展示“已完成”提示）
+    deepSearch: {
+      taskId,
+      status: 'done',
+      finishedAt: new Date().toISOString(),
+    } as any
+  } as any
+  upsertConversationLine(db, updated)
+
+  // 同步 conversation_history，保证后续连续对话上下文可用
+  const historyToSave: AIMessage[] = [
+    ...messages,
+    { role: 'assistant', content: updated.assistantMessage, reasoning_content: finalReasoning || undefined }
+  ]
+  saveConversationHistory(db, conversationId, historyToSave)
 }
 
 /** AI 提取画像增量，返回 partial UserProfile JSON */

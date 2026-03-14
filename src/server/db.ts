@@ -59,15 +59,19 @@ function initSchema(database: InstanceType<typeof Database>) {
     CREATE TABLE IF NOT EXISTS agent_tasks (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       type        TEXT NOT NULL,
+      ref_id      TEXT,
       payload     TEXT NOT NULL DEFAULT '{}',
       status      TEXT NOT NULL DEFAULT 'pending',
       retries     INTEGER NOT NULL DEFAULT 0,
       created_at  TEXT NOT NULL,
       started_at  TEXT,
       finished_at TEXT,
-      error       TEXT
+      error       TEXT,
+      progress    TEXT,
+      result      TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_agent_tasks_status ON agent_tasks(status);
+    CREATE INDEX IF NOT EXISTS idx_agent_tasks_ref ON agent_tasks(type, ref_id, status, id DESC);
 
     CREATE TABLE IF NOT EXISTS memory_facts (
       id             TEXT NOT NULL,
@@ -147,6 +151,10 @@ function initSchema(database: InstanceType<typeof Database>) {
   // Incremental migrations
   const migrations = [
     'ALTER TABLE agent_tasks ADD COLUMN retries INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE agent_tasks ADD COLUMN ref_id TEXT',
+    'ALTER TABLE agent_tasks ADD COLUMN progress TEXT',
+    'ALTER TABLE agent_tasks ADD COLUMN result TEXT',
+    'CREATE INDEX IF NOT EXISTS idx_agent_tasks_ref ON agent_tasks(type, ref_id, status, id DESC)',
     'ALTER TABLE memory_facts ADD COLUMN invalid_at TEXT',
     'ALTER TABLE uploaded_files ADD COLUMN chunk_count INTEGER NOT NULL DEFAULT 0',
     "ALTER TABLE uploaded_files ADD COLUMN embed_status TEXT NOT NULL DEFAULT 'pending'",
@@ -388,7 +396,9 @@ export type UserProfileRow = {
 }
 export type AgentTaskRow = {
   id: number; type: string; payload: string; status: string; retries: number;
-  created_at: string; started_at: string | null; finished_at: string | null; error: string | null
+  ref_id?: string | null;
+  created_at: string; started_at: string | null; finished_at: string | null;
+  error: string | null; progress?: string | null; result?: string | null
 }
 export type MemoryFactRow = {
   id: string; fact: string; source_conv_id: string | null; created_at: string; invalid_at: string | null;

@@ -31,6 +31,7 @@ interface UseAIOptions {
   onError?: (error: string) => void
   onStopped?: () => void
   onSearchRound?: (round: number, message: string) => void
+  onDeepSearch?: (taskId: number | null, message: string, status?: 'pending' | 'running' | 'done' | 'failed') => void
 }
 
 export function useAI(options: UseAIOptions = {}) {
@@ -96,6 +97,7 @@ export function useAI(options: UseAIOptions = {}) {
 
     let fullText = ''
     let fullReasoning = ''
+    let handedOffToDeepSearch = false
 
     try {
       for await (const chunk of streamAI(messages, preferences, signal, compressedMemory, isOnboarding, conversationId, systemPromptOverride)) {
@@ -107,6 +109,9 @@ export function useAI(options: UseAIOptions = {}) {
           callbacksRef.current.onThinking?.(chunk.content)
         } else if (chunk.type === 'search_round') {
           callbacksRef.current.onSearchRound?.(chunk.round ?? 2, chunk.content)
+        } else if (chunk.type === 'deep_search') {
+          handedOffToDeepSearch = true
+          callbacksRef.current.onDeepSearch?.(chunk.taskId ?? null, chunk.content, chunk.status)
         }
       }
 
@@ -123,8 +128,14 @@ export function useAI(options: UseAIOptions = {}) {
         setConversationHistory(nextHistory)
         if (conversationId) persistHistory(conversationId, nextHistory)
       } else {
-        // 如果回复为空，可能需要从历史中移除这一轮的用户消息，避免下一轮出错
-        setConversationHistory(messages.slice(0, -1))
+        // 如果回复为空：
+        // - 正常失败：移除这一轮的用户消息，避免下一轮出错
+        // - 深度搜索已转入后台：保留用户消息（结果会由后台回写到节点/历史）
+        if (!handedOffToDeepSearch) {
+          setConversationHistory(messages.slice(0, -1))
+        } else {
+          setConversationHistory(messages)
+        }
       }
 
       callbacksRef.current.onComplete?.(fullText)
