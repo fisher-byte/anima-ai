@@ -29,14 +29,31 @@ echo "=== [4/5] 远程解压 + 安装依赖 + 重启 ==="
 ssh -o StrictHostKeyChecking=no "$SERVER" << 'REMOTE'
 set -e
 cd /opt/evocanvas
-echo "  → 解压..."
-tar -xzf /opt/evocanvas-deploy.tar.gz
+echo "  → 解压（staging 目录，避免打断服务）..."
+# 解压到临时目录，dist 原子替换，避免 nginx 提供残缺文件
+STAGE_DIR="/opt/evocanvas-stage"
+rm -rf "$STAGE_DIR"
+mkdir -p "$STAGE_DIR"
+tar -xzf /opt/evocanvas-deploy.tar.gz -C "$STAGE_DIR"
 rm /opt/evocanvas-deploy.tar.gz
+echo "  → 原子替换 dist（减少 nginx 服务窗口）..."
+# 只替换 dist（静态资源），其他文件原地覆盖
+if [ -d "$STAGE_DIR/dist" ]; then
+  rm -rf /opt/evocanvas/dist.old 2>/dev/null || true
+  mv /opt/evocanvas/dist /opt/evocanvas/dist.old 2>/dev/null || true
+  mv "$STAGE_DIR/dist" /opt/evocanvas/dist
+fi
+# 覆盖其余代码文件（排除 data/.env/node_modules）
+rsync -a --exclude=dist --exclude=data --exclude=.env --exclude=node_modules \
+  "$STAGE_DIR/" /opt/evocanvas/
+rm -rf "$STAGE_DIR" /opt/evocanvas/dist.old 2>/dev/null || true
 echo "  → 安装依赖..."
 npm install --omit=dev --silent
 echo "  → 重启 PM2..."
 pm2 restart evocanvas
 sleep 3
+echo "  → nginx reload（dist 已就绪）..."
+nginx -s reload
 pm2 list
 REMOTE
 
