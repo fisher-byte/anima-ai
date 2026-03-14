@@ -615,44 +615,61 @@ export async function deepSearchAnswer(
         role: 'system',
         content: '现在请基于以上已获得的信息直接给出最终回答。不要再调用任何工具，不要再继续搜索。'
       }
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 4 * 60_000)
-      try {
-        const resp = await fetch(`${baseUrl}/chat/completions`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({
-            model,
-            messages: [...current, finalPrompt],
-            temperature: AI_CONFIG.TEMPERATURE,
-            max_tokens: AI_CONFIG.MAX_TOKENS,
-            stream: false
-          }),
-          signal: controller.signal
-        })
-        if (resp.ok) {
-          const data = await resp.json() as any
-          const c2 = data?.choices?.[0]
-          const m2 = c2?.message ?? {}
-          const cText = String(m2?.content ?? '')
-          const rText = String(m2?.reasoning_content ?? '')
-          if (cText) finalContent += cText
-          if (rText) finalReasoning += rText
-          dbg('H1', 'deep_search: final answer pass result', {
-            taskId,
-            conversationId,
-            finishReason: c2?.finish_reason ?? null,
-            contentLen: cText ? cText.length : 0,
-            reasoningLen: rText ? rText.length : 0
+      let finalOk = false
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 4 * 60_000)
+        try {
+          const resp = await fetch(`${baseUrl}/chat/completions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+            body: JSON.stringify({
+              model,
+              messages: [...current, finalPrompt],
+              temperature: AI_CONFIG.TEMPERATURE,
+              max_tokens: AI_CONFIG.MAX_TOKENS,
+              stream: false
+            }),
+            signal: controller.signal
           })
-        } else {
-          dbg('H3', 'deep_search: final answer pass upstream not ok', { taskId, conversationId, status: resp.status })
+          if (resp.ok) {
+            const data = await resp.json() as any
+            const c2 = data?.choices?.[0]
+            const m2 = c2?.message ?? {}
+            const cText = String(m2?.content ?? '')
+            const rText = String(m2?.reasoning_content ?? '')
+            if (cText) finalContent += cText
+            if (rText) finalReasoning += rText
+            dbg('H1', 'deep_search: final answer pass result', {
+              taskId,
+              conversationId,
+              attempt,
+              finishReason: c2?.finish_reason ?? null,
+              contentLen: cText ? cText.length : 0,
+              reasoningLen: rText ? rText.length : 0
+            })
+            if (cText.trim().length > 0) {
+              finalOk = true
+              break
+            }
+          } else {
+            dbg('H3', 'deep_search: final answer pass upstream not ok', { taskId, conversationId, attempt, status: resp.status })
+          }
+        } catch (e) {
+          dbg('H3', 'deep_search: final answer pass exception', { taskId, conversationId, attempt, err: e instanceof Error ? e.message : String(e) })
+        } finally {
+          clearTimeout(timeout)
         }
-      } finally {
-        clearTimeout(timeout)
+      }
+
+      // 关键：最终回答都无法生成时，抛错让 worker 自动重试（最多 3 次）
+      if (!finalOk && !finalContent.trim()) {
+        throw new Error('deep_search final answer fetch failed after retries')
       }
     } catch (e) {
       dbg('H3', 'deep_search: final answer pass exception', { taskId, conversationId, err: e instanceof Error ? e.message : String(e) })
+      // 抛出错误交给 agentWorker 做重试，而不是写入 done/空结果
+      throw e
     }
   }
 
