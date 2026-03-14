@@ -94,6 +94,7 @@ export interface Translations {
     identityCodePlaceholder: string
     migrateBtn: string
     apiKeyLabel: string
+    sharedKeyNotice: string
     apiKeySavedPlaceholder: string
     apiKeyDefaultPlaceholder: string
     apiKeySavedHelper: string
@@ -438,6 +439,7 @@ export const zh: Translations = {
     identityCodePlaceholder: '粘贴身份码…',
     migrateBtn: '切换身份，加载对应记忆',
     apiKeyLabel: 'API Key (安全存储)',
+    sharedKeyNotice: '✓ 服务器已配置共享 Key，目前免费开放使用。如有自己的 Key 可填写以提升额度。',
     apiKeySavedPlaceholder: '已保存，填写新值可覆盖',
     apiKeyDefaultPlaceholder: 'sk-...',
     apiKeySavedHelper: 'API Key 已保存。留空不修改，填写新值可覆盖。',
