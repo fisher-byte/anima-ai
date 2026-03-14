@@ -150,6 +150,7 @@ export function AnswerModal() {
     isOnboarding?: boolean
   } | null>(null)
   const networkHandoffOnceRef = useRef<string | null>(null) // 避免同一 convId 重复转后台
+  const autoSavedSigRef = useRef<string | null>(null)
 
   // #region agent debug log
   const uiDbg = useCallback((hypothesisId: string, message: string, data: Record<string, unknown>) => {
@@ -158,7 +159,7 @@ export function AnswerModal() {
       headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '20f00c' },
       body: JSON.stringify({
         sessionId: '20f00c',
-        runId: 'pre-fix',
+        runId: 'autosave-fix',
         hypothesisId,
         location: 'src/renderer/src/components/AnswerModal.tsx',
         message,
@@ -168,6 +169,53 @@ export function AnswerModal() {
     }).catch(() => {})
   }, [])
   // #endregion
+
+  const serializeTurnsForStorage = useCallback((ts: Turn[]) => {
+    const stillStreaming = false
+    return ts.length > 0
+      ? ts
+          .map((t, idx) => {
+            const isLastTurn = idx === ts.length - 1
+            const a = t.error
+              ? `[API错误: ${t.error}]`
+              : (t.assistant || (isLastTurn && stillStreaming ? '[正在生成中...]' : '[无回复]'))
+            const reasoning = t.reasoning ? `思考：${t.reasoning}\n\n[/THINKING]\n\n` : ''
+            return `#${idx + 1}\n用户：${t.user || ''}\nAI：\n${reasoning}${a}`
+          })
+          .join('\n\n')
+      : '[无回复]'
+  }, [])
+
+  const autoSaveIfNeeded = useCallback(async (reason: 'onComplete' | 'manual') => {
+    try {
+      if (!currentConversation?.id) return
+      if (isLennyMode || isCustomSpaceMode) return
+      if (isOnboardingMode) return
+      if (isStreaming) return
+
+      const shouldSave = !!currentConversation && (!isReplayRef.current || didMutateRef.current)
+      if (!shouldSave) return
+
+      const assistantMessage = serializeTurnsForStorage(turns)
+      const sig = `${currentConversation.id}:${turns.length}:${assistantMessage.length}`
+      if (autoSavedSigRef.current === sig) return
+      autoSavedSigRef.current = sig
+
+      uiDbg('H4', 'autosave start', { reason, convId: currentConversation.id, turnsCount: turns.length, assistantLen: assistantMessage.length })
+
+      // 用 store 的 appendConversation 写入 conversations.jsonl（同 id 追加覆盖），并触发索引/画像等后续任务
+      const convToSave: Conversation = {
+        ...currentConversation,
+        assistantMessage,
+        reasoning_content: turns.length > 0 ? (turns[turns.length - 1].reasoning || undefined) : undefined,
+        appliedPreferences: [...appliedPreferences],
+      }
+      await useCanvasStore.getState().appendConversation(convToSave)
+      uiDbg('H4', 'autosave done', { convId: currentConversation.id })
+    } catch (e) {
+      uiDbg('H4', 'autosave error', { err: e instanceof Error ? e.message : String(e), convId: currentConversation?.id ?? null })
+    }
+  }, [currentConversation, isLennyMode, isCustomSpaceMode, isOnboardingMode, isStreaming, turns, appliedPreferences, serializeTurnsForStorage, uiDbg])
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const onboardingPhaseRef = useRef(0)
@@ -287,6 +335,8 @@ export function AnswerModal() {
         isReplay: isReplayRef.current,
         deepSearchStatus: deepSearchStateRef.current?.status ?? null
       })
+      // 回答完成即自动保存：避免“没点×直接刷新导致消息丢失”
+      void autoSaveIfNeeded('onComplete')
       // 若深度搜索已转入后台，不清空提示条；让用户看到“仍在进行中”
       if (!deepSearchStateRef.current || (deepSearchStateRef.current.status !== 'pending' && deepSearchStateRef.current.status !== 'running')) {
         setSearchRoundMsg(null)
@@ -390,13 +440,42 @@ export function AnswerModal() {
   // 刷新/关闭页面时记录（用于定位“未点关闭就刷新导致未保存”的情况）
   useEffect(() => {
     const handler = () => {
+      // 关键兜底：刷新/离开时尝试 keepalive 保存（不依赖用户点 ×）
+      try {
+        if (isModalOpen && currentConversation?.id && !isStreaming && !isLennyMode && !isCustomSpaceMode && !isOnboardingMode) {
+          const shouldSave = !!currentConversation && (!isReplayRef.current || didMutateRef.current)
+          if (shouldSave) {
+            const assistantMessage = serializeTurnsForStorage(turns)
+            const sig = `${currentConversation.id}:${turns.length}:${assistantMessage.length}`
+            if (autoSavedSigRef.current !== sig) {
+              autoSavedSigRef.current = sig
+              const token = getAuthToken()
+              const headers: Record<string, string> = { 'Content-Type': 'text/plain' }
+              if (token) headers['Authorization'] = `Bearer ${token}`
+              const convToSave: Conversation = {
+                ...currentConversation,
+                assistantMessage,
+                reasoning_content: turns.length > 0 ? (turns[turns.length - 1].reasoning || undefined) : undefined,
+                appliedPreferences: [...appliedPreferences],
+              }
+              fetch('/api/storage/conversations.jsonl/append', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(convToSave),
+                keepalive: true
+              }).catch(() => {})
+              uiDbg('H4', 'beforeunload keepalive save', { convId: currentConversation.id, turnsCount: turns.length, assistantLen: assistantMessage.length })
+            }
+          }
+        }
+      } catch { /* ignore */ }
       fetch('http://127.0.0.1:7468/ingest/718d2469-93f0-4b41-8aec-cb23950c51fd', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '20f00c' },
         keepalive: true,
         body: JSON.stringify({
           sessionId: '20f00c',
-          runId: 'pre-fix',
+          runId: 'autosave-fix',
           hypothesisId: 'H1',
           location: 'src/renderer/src/components/AnswerModal.tsx:beforeunload',
           message: 'beforeunload',
@@ -413,7 +492,7 @@ export function AnswerModal() {
     }
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
-  }, [isModalOpen, currentConversation?.id, isStreaming, turns.length])
+  }, [isModalOpen, currentConversation, isStreaming, turns, appliedPreferences, isLennyMode, isCustomSpaceMode, isOnboardingMode, serializeTurnsForStorage, uiDbg])
 
   useEffect(() => {
     deepSearchStateRef.current = deepSearchState
