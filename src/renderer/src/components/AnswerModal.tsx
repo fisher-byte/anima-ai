@@ -153,7 +153,6 @@ export function AnswerModal() {
 
   // #region agent debug log
   const uiDbg = useCallback((hypothesisId: string, message: string, data: Record<string, unknown>) => {
-    // 不记录正文内容；只记录状态/长度/对话ID等非敏感信息
     fetch('http://127.0.0.1:7468/ingest/718d2469-93f0-4b41-8aec-cb23950c51fd', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '20f00c' },
@@ -269,19 +268,25 @@ export function AnswerModal() {
     },
     onSearchRound: (_round, message) => {
       setSearchRoundMsg(message)
-      uiDbg('H4', 'onSearchRound', { hasMsg: !!message, msgLen: (message || '').length, isStreaming })
     },
     onDeepSearch: (taskId, message, status) => {
       const next = { taskId, status: status ?? 'running', message }
       deepSearchStateRef.current = next
       setDeepSearchState(next)
       setSearchRoundMsg(message || '深度搜索已转入后台继续运行…')
-      uiDbg('H4', 'onDeepSearch', { taskId: taskId ?? null, status: status ?? null, msgLen: (message || '').length, convId: currentConversation?.id ?? null })
       // 立即给用户一个“可退出”的确定反馈（不刷屏：3秒后自动消失）
       showToast('深度搜索后台继续', '你可以先关闭窗口，稍后回来查看结果', 3200)
     },
     onComplete: () => {
       setIsStreaming(false)
+      uiDbg('H1', 'onComplete', {
+        convId: currentConversation?.id ?? null,
+        turnsCount: turns.length,
+        lastAssistantLen: (turns[turns.length - 1]?.assistant || '').length,
+        didMutate: didMutateRef.current,
+        isReplay: isReplayRef.current,
+        deepSearchStatus: deepSearchStateRef.current?.status ?? null
+      })
       // 若深度搜索已转入后台，不清空提示条；让用户看到“仍在进行中”
       if (!deepSearchStateRef.current || (deepSearchStateRef.current.status !== 'pending' && deepSearchStateRef.current.status !== 'running')) {
         setSearchRoundMsg(null)
@@ -316,7 +321,6 @@ export function AnswerModal() {
     },
     onError: (error) => {
       setIsStreaming(false)
-      uiDbg('H9', 'onError', { err: error, convId: currentConversation?.id ?? null })
       didMutateRef.current = true
 
       // 网络型失败：自动转后台 deep_search（不要求用户手动重发）
@@ -331,7 +335,6 @@ export function AnswerModal() {
 
       if (isNetworkErr && convId && ctx && ctx.conversationId === convId && networkHandoffOnceRef.current !== convId) {
         networkHandoffOnceRef.current = convId
-        uiDbg('H9', 'network error -> start deep_search', { convId, hasCtx: true, messagesCount: ctx.messages.length })
         authFetch('/api/ai/deep-search', {
           method: 'POST',
           body: JSON.stringify({
@@ -344,11 +347,9 @@ export function AnswerModal() {
           })
         }).then(async (r) => {
           if (!r.ok) {
-            uiDbg('H9', 'deep_search start failed', { convId, status: r.status })
             return
           }
           const data = await r.json() as { ok: boolean; taskId?: number; status?: string }
-          uiDbg('H9', 'deep_search start ok', { convId, taskId: data.taskId ?? null, status: data.status ?? null })
           setErrorMessage(null)
           setDeepSearchState({ taskId: data.taskId ?? null, status: (data.status as any) ?? 'pending', message: '网络中断，已转入后台深度搜索继续运行…' })
           setSearchRoundMsg('网络中断，已转入后台深度搜索继续运行…（无需重发）')
@@ -385,6 +386,34 @@ export function AnswerModal() {
       didMutateRef.current = true
     }
   })
+
+  // 刷新/关闭页面时记录（用于定位“未点关闭就刷新导致未保存”的情况）
+  useEffect(() => {
+    const handler = () => {
+      fetch('http://127.0.0.1:7468/ingest/718d2469-93f0-4b41-8aec-cb23950c51fd', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '20f00c' },
+        keepalive: true,
+        body: JSON.stringify({
+          sessionId: '20f00c',
+          runId: 'pre-fix',
+          hypothesisId: 'H1',
+          location: 'src/renderer/src/components/AnswerModal.tsx:beforeunload',
+          message: 'beforeunload',
+          data: {
+            isModalOpen,
+            convId: currentConversation?.id ?? null,
+            didMutate: didMutateRef.current,
+            isStreaming,
+            turnsCount: turns.length
+          },
+          timestamp: Date.now()
+        })
+      }).catch(() => {})
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [isModalOpen, currentConversation?.id, isStreaming, turns.length])
 
   useEffect(() => {
     deepSearchStateRef.current = deepSearchState
@@ -489,12 +518,6 @@ export function AnswerModal() {
       const currentPrefs = getPreferencesForPrompt()
       if (currentPrefs.length > 0) setAppliedPreferences(currentPrefs)
       if (currentConversation.assistantMessage) {
-        uiDbg('H11', 'prepareConversation replay', {
-          convId: currentConversation.id,
-          assistantLen: (currentConversation.assistantMessage || '').length,
-          hasMultiTurn: (currentConversation.assistantMessage || '').includes('#1\n') || (currentConversation.assistantMessage || '').includes('# 1\n'),
-          hasUserMsg: !!currentConversation.userMessage,
-        })
         isReplayRef.current = true
         didMutateRef.current = false
         const parsedTurns = parseTurnsFromAssistantMessage(
@@ -510,12 +533,6 @@ export function AnswerModal() {
           images: currentConversation.images,
           files: currentConversation.files
         }]
-        uiDbg('H11', 'prepareConversation parsed turns', {
-          convId: currentConversation.id,
-          turnsCount: finalTurns.length,
-          firstUserLen: (finalTurns[0]?.user || '').length,
-          firstAssistantLen: (finalTurns[0]?.assistant || '').length,
-        })
         if (finalTurns.length === 1 && !finalTurns[0].user && currentConversation.userMessage) {
           finalTurns = [{ ...finalTurns[0], user: currentConversation.userMessage }]
         }
@@ -632,13 +649,6 @@ export function AnswerModal() {
         if (cancelled || !data.ok || !data.exists) return
 
         const status = data.status ?? 'running'
-        uiDbg('H5', 'deepSearch.poll', {
-          convId,
-          status,
-          taskId: data.taskId ?? null,
-          progressLen: (data.progress || '').length,
-          resultContentLen: (data.result?.content || '').length,
-        })
         setDeepSearchState(prev => ({
           taskId: data.taskId ?? prev?.taskId ?? null,
           status,
@@ -662,7 +672,6 @@ export function AnswerModal() {
         const content = data.result?.content?.trim() ?? ''
         const reasoning = data.result?.reasoning ?? undefined
         if (content) {
-          uiDbg('H4', 'deepSearch.done.apply', { convId, contentLen: content.length, hasReasoning: typeof reasoning === 'string' && reasoning.length > 0 })
           setTurns(prev => {
             if (!prev.length) return prev
             const next = [...prev]
@@ -678,7 +687,6 @@ export function AnswerModal() {
             deepSearch: { taskId: data.taskId ?? 0, status: 'done', finishedAt: new Date().toISOString() }
           })
         } else {
-          uiDbg('H4', 'deepSearch.done.empty', { convId, progress: data.progress || null })
           setSearchRoundMsg('深度搜索已完成，但未生成正文输出。')
         }
         setDeepSearchState(prev => prev ? { ...prev, status: 'done' } : { taskId: data.taskId ?? null, status: 'done' })
