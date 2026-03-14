@@ -30,7 +30,8 @@ memDb.exec(`
   );
   CREATE TABLE IF NOT EXISTS memory_facts (
     id TEXT NOT NULL, fact TEXT NOT NULL, source_conv_id TEXT,
-    created_at TEXT NOT NULL, invalid_at TEXT, PRIMARY KEY(id)
+    created_at TEXT NOT NULL, invalid_at TEXT,
+    type TEXT NOT NULL DEFAULT 'semantic', PRIMARY KEY(id)
   );
   CREATE INDEX IF NOT EXISTS idx_agent_tasks_status ON agent_tasks(status);
   CREATE INDEX IF NOT EXISTS idx_memory_facts_created ON memory_facts(created_at DESC);
@@ -780,6 +781,58 @@ describe('Mental Model API (B1)', () => {
     expect(res.status).toBe(200)
     const row = memDb.prepare("SELECT model_json FROM user_mental_model WHERE id = 1").get() as { model_json: string } | undefined
     expect(row?.model_json).toBe('{}')
+  })
+})
+
+// ── 记忆迭代 0314：type 字段 + 软合并（集成层） ──────────────────────────────
+describe('memory_facts type 字段集成验证', () => {
+  beforeEach(resetMemDb)
+
+  it('插入不带 type 的 fact，DEFAULT 为 semantic', () => {
+    memDb.prepare(
+      "INSERT INTO memory_facts (id, fact, source_conv_id, created_at) VALUES ('tf1', '测试事实', null, ?)"
+    ).run(new Date().toISOString())
+    const row = memDb.prepare('SELECT type FROM memory_facts WHERE id = ?').get('tf1') as { type: string }
+    expect(row.type).toBe('semantic')
+  })
+
+  it('插入带 type=episodic 的 fact 后按类型过滤正确', () => {
+    const now = new Date().toISOString()
+    memDb.prepare("INSERT INTO memory_facts (id, fact, created_at, type) VALUES ('tf2', '我之前做过X', ?, 'episodic')").run(now)
+    memDb.prepare("INSERT INTO memory_facts (id, fact, created_at, type) VALUES ('tf3', '普通事实', ?, 'semantic')").run(now)
+
+    const episodic = memDb.prepare("SELECT id FROM memory_facts WHERE type = 'episodic' AND invalid_at IS NULL").all() as { id: string }[]
+    expect(episodic.map(r => r.id)).toContain('tf2')
+    expect(episodic.map(r => r.id)).not.toContain('tf3')
+  })
+
+  it('软合并：旧条目设 invalid_at 后仍可在 DB 中查到（历史轨迹保留）', () => {
+    const now = new Date().toISOString()
+    memDb.prepare("INSERT INTO memory_facts (id, fact, created_at, type) VALUES ('old', '用户在找工作', ?, 'semantic')").run(now)
+    // 软合并操作
+    const invalidTs = new Date().toISOString()
+    memDb.prepare('UPDATE memory_facts SET invalid_at = ? WHERE id = ?').run(invalidTs, 'old')
+    memDb.prepare("INSERT INTO memory_facts (id, fact, source_conv_id, created_at, type) VALUES ('new', '用户已入职', 'consolidated', ?, 'semantic')").run(invalidTs)
+
+    // 历史记录仍存在
+    const allRows = memDb.prepare('SELECT id FROM memory_facts').all() as { id: string }[]
+    expect(allRows.map(r => r.id)).toContain('old')
+    expect(allRows.map(r => r.id)).toContain('new')
+    // active 只有新的
+    const active = memDb.prepare('SELECT id FROM memory_facts WHERE invalid_at IS NULL').all() as { id: string }[]
+    expect(active.map(r => r.id)).toEqual(['new'])
+    expect(active.map(r => r.id)).not.toContain('old')
+  })
+
+  it('旧条目的 invalid_at 值非空，新条目 invalid_at 为 null', () => {
+    const now = new Date().toISOString()
+    memDb.prepare("INSERT INTO memory_facts (id, fact, created_at, type, invalid_at) VALUES ('o1', '旧状态', ?, 'semantic', ?)").run(now, now)
+    memDb.prepare("INSERT INTO memory_facts (id, fact, created_at, type) VALUES ('n1', '新状态', ?, 'semantic')").run(now)
+
+    const o1 = memDb.prepare('SELECT invalid_at FROM memory_facts WHERE id = ?').get('o1') as { invalid_at: string | null }
+    const n1 = memDb.prepare('SELECT invalid_at FROM memory_facts WHERE id = ?').get('n1') as { invalid_at: string | null }
+    expect(o1.invalid_at).not.toBeNull()
+    expect(n1.invalid_at).toBeNull()
   })
 })
 

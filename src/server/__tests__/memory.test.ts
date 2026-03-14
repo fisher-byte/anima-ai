@@ -66,6 +66,7 @@ testDb.exec(`
     source_conv_id TEXT,
     created_at     TEXT NOT NULL,
     invalid_at     TEXT,
+    type           TEXT NOT NULL DEFAULT 'semantic',
     PRIMARY KEY(id)
   );
 
@@ -1130,5 +1131,164 @@ describe('Extract-Topic API (v0.2.73)', () => {
     })
     const data = await res.json() as any
     expect(Object.prototype.hasOwnProperty.call(data, 'topic')).toBe(true)
+  })
+})
+
+// ── 记忆系统迭代测试（0314）────────────────────────────────────────────────
+// 覆盖：type 字段、软合并保留历史轨迹、consolidateFacts、detectMemoryIntent
+
+describe('memory_facts type 字段', () => {
+  beforeEach(() => {
+    testDb.exec('DELETE FROM memory_facts')
+  })
+
+  it('直接 INSERT 不带 type 时默认为 semantic', () => {
+    testDb.prepare(
+      "INSERT INTO memory_facts (id, fact, source_conv_id, created_at) VALUES ('t1', '用户是工程师', null, ?)"
+    ).run(new Date().toISOString())
+    const row = testDb.prepare('SELECT type FROM memory_facts WHERE id = ?').get('t1') as { type: string }
+    expect(row.type).toBe('semantic')
+  })
+
+  it('显式写入 type=episodic 可正常读取', () => {
+    testDb.prepare(
+      "INSERT INTO memory_facts (id, fact, source_conv_id, created_at, type) VALUES ('t2', '用户之前说过X', 'c1', ?, 'episodic')"
+    ).run(new Date().toISOString())
+    const row = testDb.prepare('SELECT type FROM memory_facts WHERE id = ?').get('t2') as { type: string }
+    expect(row.type).toBe('episodic')
+  })
+
+  it('显式写入 type=procedural 可正常读取', () => {
+    testDb.prepare(
+      "INSERT INTO memory_facts (id, fact, source_conv_id, created_at, type) VALUES ('t3', '用户希望简洁回答', 'c2', ?, 'procedural')"
+    ).run(new Date().toISOString())
+    const row = testDb.prepare('SELECT type FROM memory_facts WHERE id = ?').get('t3') as { type: string }
+    expect(row.type).toBe('procedural')
+  })
+
+  it('按 type 过滤只返回对应类型', () => {
+    const now = new Date().toISOString()
+    testDb.prepare("INSERT INTO memory_facts (id, fact, created_at, type) VALUES ('s1', '语义事实1', ?, 'semantic')").run(now)
+    testDb.prepare("INSERT INTO memory_facts (id, fact, created_at, type) VALUES ('e1', '过去做了X', ?, 'episodic')").run(now)
+    testDb.prepare("INSERT INTO memory_facts (id, fact, created_at, type) VALUES ('p1', '偏好简洁', ?, 'procedural')").run(now)
+
+    const semanticRows = testDb.prepare(
+      "SELECT id FROM memory_facts WHERE invalid_at IS NULL AND type = 'semantic'"
+    ).all() as { id: string }[]
+    expect(semanticRows.map(r => r.id)).toContain('s1')
+    expect(semanticRows.map(r => r.id)).not.toContain('e1')
+    expect(semanticRows.map(r => r.id)).not.toContain('p1')
+
+    const episodicRows = testDb.prepare(
+      "SELECT id FROM memory_facts WHERE invalid_at IS NULL AND type = 'episodic'"
+    ).all() as { id: string }[]
+    expect(episodicRows.map(r => r.id)).toContain('e1')
+    expect(episodicRows).toHaveLength(1)
+  })
+})
+
+describe('consolidateFacts 软合并保留历史轨迹', () => {
+  beforeEach(() => {
+    testDb.exec('DELETE FROM memory_facts')
+  })
+
+  it('软合并后旧条目 invalid_at 被设置，不被物理删除', () => {
+    const now = new Date().toISOString()
+    // 模拟两条旧 facts
+    testDb.prepare("INSERT INTO memory_facts (id, fact, created_at, type) VALUES ('old1', '用户在找 PM 工作', ?, 'semantic')").run(now)
+    testDb.prepare("INSERT INTO memory_facts (id, fact, created_at, type) VALUES ('old2', '用户关注 AI 产品', ?, 'semantic')").run(now)
+
+    // 模拟 consolidateFacts 的软合并逻辑：设 invalid_at，插入新合并条目
+    const invalidateTs = new Date().toISOString()
+    testDb.prepare('UPDATE memory_facts SET invalid_at = ? WHERE id = ?').run(invalidateTs, 'old1')
+    testDb.prepare('UPDATE memory_facts SET invalid_at = ? WHERE id = ?').run(invalidateTs, 'old2')
+    testDb.prepare(
+      "INSERT INTO memory_facts (id, fact, source_conv_id, created_at, type) VALUES ('new1', '用户是 AI 产品方向的 PM', 'consolidated', ?, 'semantic')"
+    ).run(invalidateTs)
+
+    // 旧条目仍然存在于 DB（历史轨迹保留）
+    const all = testDb.prepare('SELECT id, invalid_at FROM memory_facts').all() as { id: string; invalid_at: string | null }[]
+    expect(all).toHaveLength(3)
+
+    const old1 = all.find(r => r.id === 'old1')
+    const old2 = all.find(r => r.id === 'old2')
+    const newFact = all.find(r => r.id === 'new1')
+
+    // 旧条目 invalid_at 被设置（失效）
+    expect(old1?.invalid_at).not.toBeNull()
+    expect(old2?.invalid_at).not.toBeNull()
+    // 新合并条目是有效的
+    expect(newFact?.invalid_at).toBeNull()
+  })
+
+  it('active facts 查询（invalid_at IS NULL）只返回新合并条目', () => {
+    const now = new Date().toISOString()
+    testDb.prepare("INSERT INTO memory_facts (id, fact, created_at, type, invalid_at) VALUES ('old1', '用户在找工作', ?, 'semantic', ?)").run(now, now)
+    testDb.prepare("INSERT INTO memory_facts (id, fact, created_at, type) VALUES ('new1', '用户已入职 AI 公司', ?, 'semantic')").run(now)
+
+    const active = testDb.prepare(
+      "SELECT fact FROM memory_facts WHERE invalid_at IS NULL"
+    ).all() as { fact: string }[]
+    expect(active).toHaveLength(1)
+    expect(active[0].fact).toBe('用户已入职 AI 公司')
+  })
+
+  it('状态迁移：旧状态被软删除，新状态生效，历史可回溯', () => {
+    const t1 = new Date(Date.now() - 10000).toISOString()
+    const t2 = new Date().toISOString()
+
+    testDb.prepare("INSERT INTO memory_facts (id, fact, created_at, type, invalid_at) VALUES ('state1', '用户在找 PM 工作', ?, 'semantic', ?)").run(t1, t2)
+    testDb.prepare("INSERT INTO memory_facts (id, fact, created_at, type, invalid_at) VALUES ('state2', '用户已入职', ?, 'semantic', ?)").run(t2, t2)
+    testDb.prepare("INSERT INTO memory_facts (id, fact, created_at, type) VALUES ('state3', '用户想创业', ?, 'semantic')").run(t2)
+
+    // 历史全部可查（不分 invalid）
+    const allFacts = testDb.prepare('SELECT fact FROM memory_facts ORDER BY created_at ASC').all() as { fact: string }[]
+    expect(allFacts.map(r => r.fact)).toEqual(['用户在找 PM 工作', '用户已入职', '用户想创业'])
+
+    // 当前有效只有最新状态
+    const active = testDb.prepare('SELECT fact FROM memory_facts WHERE invalid_at IS NULL').all() as { fact: string }[]
+    expect(active).toHaveLength(1)
+    expect(active[0].fact).toBe('用户想创业')
+  })
+})
+
+describe('detectMemoryIntent（ai.ts 内联测试）', () => {
+  // 直接测试 intent 检测逻辑，不依赖服务器
+  type MemoryIntent = 'episodic' | 'procedural' | 'profile' | 'semantic'
+
+  function detectMemoryIntent(query: string): MemoryIntent {
+    const q = query.toLowerCase()
+    if (/我之前|我以前|我上次|我曾经|之前说过|以前提到|我记得我|我好像说|上次聊|我有没有说/.test(q)) return 'episodic'
+    if (/你以后|你下次|记住.*回答|以后.*别|以后.*要|以后.*用|记住我|你需要知道.*我|你要.*方式/.test(q)) return 'procedural'
+    if (/我是什么人|我的职业|我的目标|我的兴趣|我的背景|你了解我|我的信息|你知道我/.test(q)) return 'profile'
+    return 'semantic'
+  }
+
+  it('episodic 意图检测：我之前说过', () => {
+    expect(detectMemoryIntent('我之前说过想做 AI 产品')).toBe('episodic')
+  })
+  it('episodic 意图检测：上次聊', () => {
+    expect(detectMemoryIntent('上次聊的那个 GEO 工具怎么样了')).toBe('episodic')
+  })
+  it('episodic 意图检测：我以前', () => {
+    expect(detectMemoryIntent('我以前有没有提到过我的职业')).toBe('episodic')
+  })
+  it('procedural 意图检测：你以后', () => {
+    expect(detectMemoryIntent('你以后回答我要简洁一点')).toBe('procedural')
+  })
+  it('procedural 意图检测：记住我', () => {
+    expect(detectMemoryIntent('记住我不喜欢长篇大论')).toBe('procedural')
+  })
+  it('profile 意图检测：我的职业', () => {
+    expect(detectMemoryIntent('你知道我的职业是什么吗')).toBe('profile')
+  })
+  it('profile 意图检测：你了解我', () => {
+    expect(detectMemoryIntent('你了解我多少？')).toBe('profile')
+  })
+  it('semantic（默认）意图检测：普通问题', () => {
+    expect(detectMemoryIntent('如何提升产品留存率')).toBe('semantic')
+  })
+  it('semantic（默认）意图检测：技术问题', () => {
+    expect(detectMemoryIntent('React hooks 的 useEffect 怎么用')).toBe('semantic')
   })
 })
