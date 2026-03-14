@@ -1,6 +1,28 @@
 # Anima 变更日志
 
-## [0.5.8] - 2026-03-14
+## [0.5.9] - 2026-03-14
+
+### fix: memory extraction SHARED_API_KEY fallback + 记忆提取范围扩大
+
+**根本原因修复：**
+- `memory.ts` / `agentTasks.ts`：`getApiConfig` 新增 `SHARED_API_KEY` fallback
+  当用户未配置个人 apiKey 时，自动使用服务器 `SHARED_API_KEY` 进行记忆提取
+  受影响操作：`/api/memory/extract`、`extract_profile`、`extract_mental_model`、`consolidate_facts`、`extract_logical_edges`
+
+**提取范围扩大：**
+- `memory.ts` extract prompt 从"仅个人信息"扩展为 4 类：
+  个人信息 / 当前关注（正在做的事/研究话题）/ 观点偏好 / 目标计划
+  解决了"用户正在研究六爻"、"在做 GEO 视频工具"等有价值信息被漏提取的问题
+
+**数据修复（生产 DB）：**
+- 账号 `8befe4143499` 补录 4 条对话的 16 条历史记忆（3月10日-3月14日）
+- 软删除 4 条重复记录，有效记忆 9 → 25 条
+
+**测试结果**：522/522 通过，`tsc --noEmit` 零错误。
+
+---
+
+
 
 ### fix: 安全加固 + code review 全量修复 (10 issues)
 

@@ -203,17 +203,19 @@ ${candidatesText}
   }
 }
 
-/** 从 config 表读取 apiKey / baseUrl（使用指定用户的 db） */
+/** 从 config 表读取 apiKey / baseUrl（使用指定用户的 db）；若用户未配置 key，fallback 到 SHARED_API_KEY */
 function getApiConfig(db: InstanceType<typeof Database>): { apiKey: string; baseUrl: string; model: string } {
   const keyRow = db.prepare('SELECT value FROM config WHERE key = ?').get('apiKey') as { value: string } | undefined
   const urlRow = db.prepare('SELECT value FROM config WHERE key = ?').get('baseUrl') as { value: string } | undefined
+  const userKey = keyRow?.value ?? ''
+  const sharedKey = process.env.SHARED_API_KEY ?? ''
   const baseUrl = (urlRow?.value ?? 'https://api.moonshot.cn/v1').replace(/\/$/, '')
   // 画像提取始终用最便宜模型，不受用户主模型配置影响；根据 provider 选择合适的 fast model
   const isMoonshot = baseUrl.includes('moonshot')
   const isOpenAI = baseUrl.includes('openai.com')
   const model = isMoonshot ? 'moonshot-v1-8k' : isOpenAI ? 'gpt-4o-mini' : 'moonshot-v1-8k'
   return {
-    apiKey: keyRow?.value ?? '',
+    apiKey: userKey || sharedKey,
     baseUrl,
     model
   }
