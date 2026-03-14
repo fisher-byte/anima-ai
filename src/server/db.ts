@@ -75,10 +75,12 @@ function initSchema(database: InstanceType<typeof Database>) {
       source_conv_id TEXT,
       created_at     TEXT NOT NULL,
       invalid_at     TEXT,
+      type           TEXT NOT NULL DEFAULT 'semantic',
       PRIMARY KEY(id)
     );
     CREATE INDEX IF NOT EXISTS idx_memory_facts_created ON memory_facts(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_memory_facts_source ON memory_facts(source_conv_id);
+    CREATE INDEX IF NOT EXISTS idx_memory_facts_type ON memory_facts(type);
 
     CREATE TABLE IF NOT EXISTS uploaded_files (
       id           TEXT NOT NULL,
@@ -193,7 +195,10 @@ function initSchema(database: InstanceType<typeof Database>) {
       image_mime  TEXT,
       created_at  TEXT NOT NULL
     )`,
-    `CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback_reports(created_at DESC)`
+    `CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback_reports(created_at DESC)`,
+    // memory_facts type 字段（semantic / episodic / procedural）
+    `ALTER TABLE memory_facts ADD COLUMN type TEXT NOT NULL DEFAULT 'semantic'`,
+    `CREATE INDEX IF NOT EXISTS idx_memory_facts_type ON memory_facts(type)`,
   ]
   for (const sql of migrations) {
     try { database.exec(sql) } catch { /* column/index already exists */ }
@@ -387,7 +392,8 @@ export type AgentTaskRow = {
   created_at: string; started_at: string | null; finished_at: string | null; error: string | null
 }
 export type MemoryFactRow = {
-  id: string; fact: string; source_conv_id: string | null; created_at: string; invalid_at: string | null
+  id: string; fact: string; source_conv_id: string | null; created_at: string; invalid_at: string | null;
+  type: string  // 'semantic' | 'episodic' | 'procedural'
 }
 export type UploadedFileRow = {
   id: string; filename: string; mimetype: string; size: number;
