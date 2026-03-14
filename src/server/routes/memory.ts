@@ -317,6 +317,11 @@ memoryRoutes.post('/queue', async (c) => {
   const db = userDb(c)
   const { type, payload } = await c.req.json<{ type: string; payload: Record<string, unknown> }>()
   if (!type) return c.json({ error: 'type required' }, 400)
+  const ALLOWED_TASK_TYPES = new Set([
+    'extract_profile', 'extract_preference', 'extract_logical_edges',
+    'consolidate_facts', 'embed_file', 'extract_mental_model'
+  ])
+  if (!ALLOWED_TASK_TYPES.has(type)) return c.json({ error: 'unknown task type' }, 400)
   enqueueTask(db, type, payload ?? {})
   return c.json({ ok: true })
 })
@@ -368,7 +373,8 @@ ${assistantMessage ? `AI回复：${assistantMessage.slice(0, 200)}` : ''}
         messages: [{ role: 'user', content: prompt }],
         temperature: 0,
         max_tokens: 300
-      })
+      }),
+      signal: AbortSignal.timeout(15_000)
     })
     if (!resp.ok) return c.json({ ok: false, reason: 'api error' })
 
@@ -389,8 +395,9 @@ ${assistantMessage ? `AI回复：${assistantMessage.slice(0, 200)}` : ''}
 
     const candidates = facts
       .slice(0, 5)
-      .map((f: string) => f?.trim())
-      .filter((f: string) => f && f.length > 2)
+      .filter((f): f is string => typeof f === 'string')
+      .map(f => f.trim())
+      .filter(f => f.length > 2)
 
     if (candidates.length === 0) return c.json({ ok: true, extracted: 0 })
 

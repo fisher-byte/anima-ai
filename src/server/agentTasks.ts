@@ -91,6 +91,8 @@ ${factsText}
     // 合并后条目数必须 <= 原来（防止模型 hallucinate 新内容），且不应超过原来数量
     const cleaned = consolidated.map(f => f?.trim()).filter(f => f && f.length > 2)
     if (cleaned.length > rows.length) return
+    // 安全底线：合并后不能少于原来的 30%，防止模型意外删除几乎所有记忆
+    if (cleaned.length < Math.max(1, Math.floor(rows.length * 0.3))) return
 
     const now = new Date().toISOString()
     // 在事务中：软删除所有旧条目，写入新条目
@@ -205,11 +207,15 @@ ${candidatesText}
 function getApiConfig(db: InstanceType<typeof Database>): { apiKey: string; baseUrl: string; model: string } {
   const keyRow = db.prepare('SELECT value FROM config WHERE key = ?').get('apiKey') as { value: string } | undefined
   const urlRow = db.prepare('SELECT value FROM config WHERE key = ?').get('baseUrl') as { value: string } | undefined
+  const baseUrl = (urlRow?.value ?? 'https://api.moonshot.cn/v1').replace(/\/$/, '')
+  // 画像提取始终用最便宜模型，不受用户主模型配置影响；根据 provider 选择合适的 fast model
+  const isMoonshot = baseUrl.includes('moonshot')
+  const isOpenAI = baseUrl.includes('openai.com')
+  const model = isMoonshot ? 'moonshot-v1-8k' : isOpenAI ? 'gpt-4o-mini' : 'moonshot-v1-8k'
   return {
     apiKey: keyRow?.value ?? '',
-    baseUrl: (urlRow?.value ?? 'https://api.moonshot.cn/v1').replace(/\/$/, ''),
-    // 画像提取始终用最便宜模型，不受用户主模型配置影响
-    model: 'moonshot-v1-8k'
+    baseUrl,
+    model
   }
 }
 
@@ -438,14 +444,14 @@ function splitTextIntoChunks(text: string, chunkSize = 800, overlap = 80): strin
 
 // 内置 embedding 配置（阿里云，不依赖用户配置）
 const BUILTIN_EMBED_WORKER = {
-  apiKey: 'sk-af1d01c2c2ff4e23baafc404b1c23c78',
+  apiKey: process.env.BUILTIN_EMBED_API_KEY ?? '',
   baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
   model: 'text-embedding-v4'
 }
 let builtinEmbedWorkerFailed = false
 
 const MULTIMODAL_EMBED_WORKER = {
-  apiKey: 'sk-af1d01c2c2ff4e23baafc404b1c23c78',
+  apiKey: process.env.BUILTIN_EMBED_API_KEY ?? '',
   baseUrl: 'https://dashscope.aliyuncs.com/api/v1/services/embeddings/multimodal-embedding',
   model: 'qwen3-vl-embedding'
 }

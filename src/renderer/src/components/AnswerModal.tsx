@@ -802,7 +802,8 @@ export function AnswerModal() {
             .catch(err => console.error('Failed to save onboarding node:', err))
         })
         localStorage.setItem('evo_onboarding_v3', 'done')
-        void completeOnboarding()
+        // completeOnboarding 在下一 tick 执行，让节点保存先 enqueue（非阻塞流程，顺序即可）
+        setTimeout(() => void completeOnboarding(), 0)
         // 延迟弹窗，让 closeModal 动画先完成，避免与 toast 同帧冲突
         setTimeout(() => setShowOnboardingComplete(true), 600)
       } else if (onboardingInProgress) {

@@ -413,7 +413,7 @@ export function InputBox() {
       )
       if (matchedFiles.length > 0) {
         const hints = matchedFiles
-          .map(f => `【已关联文件：${f.filename}（id:${f.id}）—— 如需引用请调用 search_files 工具】`)
+          .map(f => `【已关联文件：${f.filename} —— 如需引用请调用 search_files 工具】`)
           .join('\n')
         fullMessage = fullMessage + '\n\n' + hints
       }
