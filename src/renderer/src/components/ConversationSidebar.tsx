@@ -100,6 +100,8 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
   const [consolidateToast, setConsolidateToast] = useState<string | null>(null)
   const [mentalModel, setMentalModel] = useState<MentalModel | null>(null)
   const [isMentalModelRefreshing, setIsMentalModelRefreshing] = useState(false)
+  const [isEditingMentalModel, setIsEditingMentalModel] = useState(false)
+  const [mentalModelDraft, setMentalModelDraft] = useState<MentalModel>({})
 
   const [pendingMentalModelRefresh, setPendingMentalModelRefresh] = useState(false)
 
@@ -314,6 +316,78 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
 
   const parseArrField = (val: string): string[] =>
     val.split(',').map(s => s.trim()).filter(Boolean)
+
+  const parseMentalList = (val: string): string[] =>
+    val.split(/[,\n，]/).map(s => s.trim()).filter(Boolean)
+  const toDomainText = (v?: Record<string, string>): string =>
+    v ? Object.entries(v).map(([k, val]) => `${k}: ${val}`).join('\n') : ''
+  const parseDomainText = (text: string): Record<string, string> => {
+    const entries = text
+      .split('\n')
+      .map(line => line.trim())
+      .filter(Boolean)
+      .map(line => {
+        const idx = line.search(/[:：]/)
+        if (idx < 0) return null
+        const key = line.slice(0, idx).trim()
+        const val = line.slice(idx + 1).trim()
+        if (!key || !val) return null
+        return [key, val] as const
+      })
+      .filter((e): e is readonly [string, string] => e !== null)
+    return Object.fromEntries(entries)
+  }
+
+  const handleStartEditMentalModel = useCallback(() => {
+    if (!mentalModel) return
+    setMentalModelDraft({
+      认知框架: [...(mentalModel.认知框架 ?? [])],
+      长期目标: [...(mentalModel.长期目标 ?? [])],
+      思维偏好: [...(mentalModel.思维偏好 ?? [])],
+      领域知识: { ...(mentalModel.领域知识 ?? {}) },
+      情绪模式: [...(mentalModel.情绪模式 ?? [])],
+    })
+    setIsEditingMentalModel(true)
+  }, [mentalModel])
+
+  const handleSaveMentalModel = useCallback(async () => {
+    try {
+      const payload: MentalModel = {
+        认知框架: (mentalModelDraft.认知框架 ?? []).map(s => s.trim()).filter(Boolean),
+        长期目标: (mentalModelDraft.长期目标 ?? []).map(s => s.trim()).filter(Boolean),
+        思维偏好: (mentalModelDraft.思维偏好 ?? []).map(s => s.trim()).filter(Boolean),
+        领域知识: Object.fromEntries(
+          Object.entries(mentalModelDraft.领域知识 ?? {})
+            .map(([k, v]) => [k.trim(), v.trim()])
+            .filter(([k, v]) => k.length > 0 && v.length > 0)
+        ),
+        情绪模式: (mentalModelDraft.情绪模式 ?? []).map(s => s.trim()).filter(Boolean),
+      }
+
+      const resp = await authFetch('/api/memory/mental-model', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: payload }),
+      })
+      if (resp.ok) {
+        const data = await resp.json() as { model?: MentalModel }
+        setMentalModel(data.model ?? payload)
+        setConsolidateToast(t.sidebar.mentalModelSaved)
+      } else {
+        setConsolidateToast(t.sidebar.refreshError)
+      }
+    } catch {
+      setConsolidateToast(t.sidebar.refreshError)
+    } finally {
+      setTimeout(() => setConsolidateToast(null), 3000)
+      setIsEditingMentalModel(false)
+    }
+  }, [mentalModelDraft, t.sidebar.mentalModelSaved, t.sidebar.refreshError])
+
+  const handleCancelEditMentalModel = useCallback(() => {
+    setIsEditingMentalModel(false)
+    setMentalModelDraft({})
+  }, [])
 
   if (!isOpen) return null
 
@@ -769,29 +843,57 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                         <BrainCircuit className="w-3.5 h-3.5 text-gray-500" />
                         <span className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">{t.sidebar.mentalModel}</span>
                       </div>
-                      <button
-                        onClick={async () => {
-                          if (isMentalModelRefreshing) return
-                          setIsMentalModelRefreshing(true)
-                          try {
-                            await authFetch('/api/memory/mental-model/refresh', { method: 'POST' })
-                            setConsolidateToast(t.sidebar.mentalModelQueued)
-                            setTimeout(() => setConsolidateToast(null), 4000)
-                            setPendingMentalModelRefresh(true)
-                          } catch {
-                            setConsolidateToast(t.sidebar.refreshError)
-                            setTimeout(() => setConsolidateToast(null), 3000)
-                          }
-                          setIsMentalModelRefreshing(false)
-                        }}
-                        className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-700 transition-colors"
-                        title={t.sidebar.mentalModelTooltip}
-                      >
-                        <RotateCcw className={`w-2.5 h-2.5 ${isMentalModelRefreshing ? 'animate-spin' : ''}`} />
-                        {t.sidebar.refresh}
-                      </button>
+                      {!isEditingMentalModel ? (
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handleStartEditMentalModel}
+                            className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-700 transition-colors"
+                          >
+                            <Pencil className="w-2.5 h-2.5" />
+                            {t.sidebar.edit}
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (isMentalModelRefreshing) return
+                              setIsMentalModelRefreshing(true)
+                              try {
+                                await authFetch('/api/memory/mental-model/refresh', { method: 'POST' })
+                                setConsolidateToast(t.sidebar.mentalModelQueued)
+                                setTimeout(() => setConsolidateToast(null), 4000)
+                                setPendingMentalModelRefresh(true)
+                              } catch {
+                                setConsolidateToast(t.sidebar.refreshError)
+                                setTimeout(() => setConsolidateToast(null), 3000)
+                              }
+                              setIsMentalModelRefreshing(false)
+                            }}
+                            className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-700 transition-colors"
+                            title={t.sidebar.mentalModelTooltip}
+                          >
+                            <RotateCcw className={`w-2.5 h-2.5 ${isMentalModelRefreshing ? 'animate-spin' : ''}`} />
+                            {t.sidebar.refresh}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handleSaveMentalModel}
+                            className="flex items-center gap-1 text-[10px] text-green-600 hover:text-green-700 font-medium transition-colors"
+                          >
+                            <Check className="w-2.5 h-2.5" />
+                            {t.sidebar.save}
+                          </button>
+                          <button
+                            onClick={handleCancelEditMentalModel}
+                            className="text-[10px] text-gray-400 hover:text-gray-600 transition-colors"
+                          >
+                            {t.sidebar.cancel}
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <div className="space-y-2">
+                    {!isEditingMentalModel ? (
+                      <div className="space-y-2">
                       {(mentalModel.认知框架?.length ?? 0) > 0 && (
                         <div>
                           <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-1">{t.sidebar.mentalCognition}</div>
@@ -842,7 +944,61 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                           </div>
                         </div>
                       )}
-                    </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div>
+                          <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-1">{t.sidebar.mentalCognition}</div>
+                          <textarea
+                            className="w-full bg-white border border-gray-200 rounded-md px-2 py-1 text-[11px] text-gray-700 outline-none resize-y"
+                            rows={2}
+                            placeholder={t.sidebar.mentalInputHint}
+                            value={(mentalModelDraft.认知框架 ?? []).join(', ')}
+                            onChange={e => setMentalModelDraft(d => ({ ...d, 认知框架: parseMentalList(e.target.value) }))}
+                          />
+                        </div>
+                        <div>
+                          <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-1">{t.sidebar.mentalGoals}</div>
+                          <textarea
+                            className="w-full bg-white border border-gray-200 rounded-md px-2 py-1 text-[11px] text-gray-700 outline-none resize-y"
+                            rows={2}
+                            placeholder={t.sidebar.mentalInputHint}
+                            value={(mentalModelDraft.长期目标 ?? []).join(', ')}
+                            onChange={e => setMentalModelDraft(d => ({ ...d, 长期目标: parseMentalList(e.target.value) }))}
+                          />
+                        </div>
+                        <div>
+                          <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-1">{t.sidebar.mentalThinking}</div>
+                          <textarea
+                            className="w-full bg-white border border-gray-200 rounded-md px-2 py-1 text-[11px] text-gray-700 outline-none resize-y"
+                            rows={2}
+                            placeholder={t.sidebar.mentalInputHint}
+                            value={(mentalModelDraft.思维偏好 ?? []).join(', ')}
+                            onChange={e => setMentalModelDraft(d => ({ ...d, 思维偏好: parseMentalList(e.target.value) }))}
+                          />
+                        </div>
+                        <div>
+                          <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-1">{t.sidebar.mentalDomain}</div>
+                          <textarea
+                            className="w-full bg-white border border-gray-200 rounded-md px-2 py-1 text-[11px] text-gray-700 outline-none resize-y"
+                            rows={3}
+                            placeholder={t.sidebar.mentalDomainHint}
+                            value={toDomainText(mentalModelDraft.领域知识)}
+                            onChange={e => setMentalModelDraft(d => ({ ...d, 领域知识: parseDomainText(e.target.value) }))}
+                          />
+                        </div>
+                        <div>
+                          <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-1">{t.sidebar.mentalEmotion}</div>
+                          <textarea
+                            className="w-full bg-white border border-gray-200 rounded-md px-2 py-1 text-[11px] text-gray-700 outline-none resize-y"
+                            rows={2}
+                            placeholder={t.sidebar.mentalInputHint}
+                            value={(mentalModelDraft.情绪模式 ?? []).join(', ')}
+                            onChange={e => setMentalModelDraft(d => ({ ...d, 情绪模式: parseMentalList(e.target.value) }))}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 

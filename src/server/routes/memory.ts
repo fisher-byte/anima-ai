@@ -747,6 +747,59 @@ memoryRoutes.post('/mental-model/refresh', (c) => {
   return c.json({ ok: true, queued: true })
 })
 
+/** 手动编辑心智模型（覆盖写入） */
+memoryRoutes.put('/mental-model', async (c) => {
+  const db = userDb(c)
+  const body = await c.req.json<{
+    model?: {
+      认知框架?: unknown
+      长期目标?: unknown
+      思维偏好?: unknown
+      领域知识?: unknown
+      情绪模式?: unknown
+    }
+  }>()
+
+  const input = body?.model
+  if (!input || typeof input !== 'object') {
+    return c.json({ ok: false, error: 'model required' }, 400)
+  }
+
+  const toStringArray = (v: unknown): string[] => {
+    if (!Array.isArray(v)) return []
+    return v
+      .map(item => typeof item === 'string' ? item.trim() : '')
+      .filter(Boolean)
+      .slice(0, 30)
+  }
+  const toDomainMap = (v: unknown): Record<string, string> => {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return {}
+    const obj = v as Record<string, unknown>
+    const entries = Object.entries(obj)
+      .map(([k, val]) => [k.trim(), typeof val === 'string' ? val.trim() : ''] as const)
+      .filter(([k, val]) => k.length > 0 && val.length > 0)
+      .slice(0, 30)
+    return Object.fromEntries(entries)
+  }
+
+  const sanitized = {
+    认知框架: toStringArray(input.认知框架),
+    长期目标: toStringArray(input.长期目标),
+    思维偏好: toStringArray(input.思维偏好),
+    领域知识: toDomainMap(input.领域知识),
+    情绪模式: toStringArray(input.情绪模式),
+  }
+
+  const now = new Date().toISOString()
+  db.prepare(`
+    INSERT INTO user_mental_model (id, model_json, updated_at)
+    VALUES (1, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET model_json = excluded.model_json, updated_at = excluded.updated_at
+  `).run(JSON.stringify(sanitized), now)
+
+  return c.json({ ok: true, model: sanitized, updatedAt: now })
+})
+
 /** 清空心智模型（重置/新手教程用） */
 memoryRoutes.delete('/mental-model', (c) => {
   const db = userDb(c)
