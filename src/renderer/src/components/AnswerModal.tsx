@@ -1131,7 +1131,17 @@ export function AnswerModal() {
                             />
                             <div className="text-gray-800 text-[15px] leading-7 group/aimsg">
                               {turn.error ? (
-                                <div className="text-red-500 text-sm">{turn.error}</div>
+                                <div className="text-red-500 text-sm">
+                                  {turn.error}
+                                  {!isStreaming && (
+                                    <button
+                                      onClick={() => handleRegenerate(idx)}
+                                      className="ml-2 inline-flex items-center gap-1 text-xs text-red-400 hover:text-red-600 underline underline-offset-2"
+                                    >
+                                      <RefreshCw className="w-3 h-3" />{t.modal.retry ?? '重试'}
+                                    </button>
+                                  )}
+                                </div>
                               ) : (
                                 <div className="prose prose-slate max-w-none prose-sm prose-p:my-1.5 prose-headings:my-2">
                                   <ReactMarkdown remarkPlugins={[remarkGfm]}>

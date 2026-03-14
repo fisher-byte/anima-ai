@@ -157,7 +157,9 @@ export function useAI(options: UseAIOptions = {}) {
           errorMessage.toLowerCase().includes('network') ||
           errorMessage.toLowerCase().includes('fetch') ||
           errorMessage.toLowerCase().includes('incomplete') ||
-          errorMessage.toLowerCase().includes('chunk')
+          errorMessage.toLowerCase().includes('chunk') ||
+          errorMessage.includes('网络连接中断') ||
+          errorMessage.includes('BodyStreamBuffer')
         )
 
       if (isNetworkTailFailure) {
