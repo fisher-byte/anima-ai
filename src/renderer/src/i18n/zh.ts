@@ -192,12 +192,15 @@ export interface Translations {
     consolidateQueued: string
     consolidateBusy: string
     mentalModelQueued: string
+    mentalModelSaved: string
     refreshError: string
     mentalCognition: string
     mentalGoals: string
     mentalThinking: string
     mentalDomain: string
     mentalEmotion: string
+    mentalInputHint: string
+    mentalDomainHint: string
     evolutionDesc: string
     noPreferences: string
     lastActive: (date: string) => string
@@ -496,12 +499,15 @@ export const zh: Translations = {
     consolidateQueued: '整理任务已提交，约 30 秒后完成，刷新可查看结果',
     consolidateBusy: '已有整理任务在进行中，稍后刷新查看',
     mentalModelQueued: '心智模型重建任务已提交，约 30 秒后自动刷新',
+    mentalModelSaved: '心智模型已保存',
     refreshError: '刷新失败，请检查网络后重试',
     mentalCognition: '认知框架',
     mentalGoals: '长期目标',
     mentalThinking: '思维偏好',
     mentalDomain: '领域知识',
     mentalEmotion: '情绪模式',
+    mentalInputHint: '多个条目请用逗号分隔',
+    mentalDomainHint: '每行一个领域，格式：领域: 等级',
     evolutionDesc: '每次你觉得回答不对劲，说出来，我就会记住。这里是已经记下来的规则。',
     noPreferences: '尚未习得任何偏好',
     lastActive: (date: string) => `最后活跃：${date}`,
