@@ -85,6 +85,7 @@ export function AnswerModal() {
   const currentConversation = useCanvasStore(state => state.currentConversation)
   const closeModal = useCanvasStore(state => state.closeModal)
   const endConversation = useCanvasStore(state => state.endConversation)
+  const updateConversation = useCanvasStore(state => state.updateConversation)
   const getPreferencesForPrompt = useCanvasStore(state => state.getPreferencesForPrompt)
   const getRelevantMemories = useCanvasStore(state => state.getRelevantMemories)
   const setConversationHistory = useCanvasStore(state => state.setConversationHistory)
@@ -111,6 +112,13 @@ export function AnswerModal() {
   const [evolutionToast, setEvolutionToast] = useState<{ label: string; detail: string } | null>(null)
   const [onboardingDone, setOnboardingDone] = useState(false)
   const [searchRoundMsg, setSearchRoundMsg] = useState<string | null>(null)
+  const [deepSearchState, setDeepSearchState] = useState<{
+    taskId: number | null
+    status: 'pending' | 'running' | 'done' | 'failed'
+    message?: string
+    progress?: string | null
+  } | null>(null)
+  const deepSearchStateRef = useRef<typeof deepSearchState>(null)
   // 调研前澄清层
   const [clarifyPending, setClarifyPending] = useState<string | null>(null)   // 触发澄清时暂存原始输入
   const [clarifyCustom, setClarifyCustom] = useState('')
@@ -133,6 +141,14 @@ export function AnswerModal() {
   const [editingContent, setEditingContent] = useState('')
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const lastDeepSearchContextRef = useRef<{
+    conversationId?: string
+    messages: AIMessage[]
+    preferences: string[]
+    compressedMemory?: string
+    systemPromptOverride?: string
+    isOnboarding?: boolean
+  } | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const onboardingPhaseRef = useRef(0)
@@ -234,9 +250,20 @@ export function AnswerModal() {
     onSearchRound: (_round, message) => {
       setSearchRoundMsg(message)
     },
+    onDeepSearch: (taskId, message, status) => {
+      const next = { taskId, status: status ?? 'running', message }
+      deepSearchStateRef.current = next
+      setDeepSearchState(next)
+      setSearchRoundMsg(message || '深度搜索已转入后台继续运行…')
+      // 立即给用户一个“可退出”的确定反馈（不刷屏：3秒后自动消失）
+      showToast('深度搜索后台继续', '你可以先关闭窗口，稍后回来查看结果', 3200)
+    },
     onComplete: () => {
       setIsStreaming(false)
-      setSearchRoundMsg(null)
+      // 若深度搜索已转入后台，不清空提示条；让用户看到“仍在进行中”
+      if (!deepSearchStateRef.current || (deepSearchStateRef.current.status !== 'pending' && deepSearchStateRef.current.status !== 'running')) {
+        setSearchRoundMsg(null)
+      }
       setErrorMessage(null)
       didMutateRef.current = true
       const prefs = getPreferencesForPrompt()
@@ -269,6 +296,7 @@ export function AnswerModal() {
       setIsStreaming(false)
       setErrorMessage(error)
       didMutateRef.current = true
+      setDeepSearchState(null)
       setTurns(prev => {
         if (!prev.length) return prev
         const next = [...prev]
@@ -287,6 +315,10 @@ export function AnswerModal() {
     }
   })
 
+  useEffect(() => {
+    deepSearchStateRef.current = deepSearchState
+  }, [deepSearchState])
+
   /** 澄清层确认后发送消息的统一入口 */
   const sendClarifiedMessage = useCallback(async (msg: string) => {
     setClarifyPending(null)
@@ -302,6 +334,14 @@ export function AnswerModal() {
     setTurns(prev => [...prev, { user: msg, assistant: '', images: [] }])
     const prefs = getPreferencesForPrompt()
     didMutateRef.current = true
+    // 记录本次请求上下文，便于“关闭窗口→后台继续深度搜索”
+    lastDeepSearchContextRef.current = {
+      conversationId: currentConversation?.id,
+      messages: [...history, { role: 'user', content: msg }] as any,
+      preferences: prefs,
+      compressedMemory: compressed,
+      isOnboarding: false,
+    }
     sendMessage(msg, prefs, history, [], compressed, false, currentConversation?.id)
   }, [getRelevantMemories, setHighlight, compressMemoriesForPrompt, turns, getPreferencesForPrompt, sendMessage, currentConversation])
 
@@ -417,7 +457,14 @@ export function AnswerModal() {
         setAppliedPreferences(currentConversation.appliedPreferences || [])
         startedConversationIdRef.current = currentConversation.id
 
-        if (finalTurns.length === 1 && (!finalTurns[0].assistant || finalTurns[0].assistant.includes('[正在生成中...]') || finalTurns[0].assistant.includes('[无回复]'))) {
+        const dsStatus = currentConversation.deepSearch?.status
+        const hasDeepSearchPending = dsStatus === 'pending' || dsStatus === 'running' ||
+          (currentConversation.assistantMessage || '').includes('[深度搜索进行中...]')
+        if (!hasDeepSearchPending && finalTurns.length === 1 && (
+          !finalTurns[0].assistant ||
+          finalTurns[0].assistant.includes('[正在生成中...]') ||
+          finalTurns[0].assistant.includes('[无回复]')
+        )) {
           handleRegenerate(0, finalTurns)
         }
         return
@@ -454,11 +501,103 @@ export function AnswerModal() {
         sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false, undefined, spacePrompt)
       } else {
         sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false, currentConversation.id)
+        lastDeepSearchContextRef.current = {
+          conversationId: currentConversation.id,
+          messages: [{ role: 'user', content: currentConversation.userMessage }] as any,
+          preferences,
+          compressedMemory: compressed,
+          isOnboarding: false,
+        }
       }
     }
 
     prepareConversation()
   }, [isModalOpen, currentConversation, isOnboardingMode, isLoading, resetHistory, sendMessage, getPreferencesForPrompt, getRelevantMemories, isLennyMode, isPGMode, isZhangMode, isWangMode])
+
+  // ── 深度搜索后台任务轮询：可跨页面继续，完成后回写到当前节点 ────────────────
+  useEffect(() => {
+    if (!isModalOpen) return
+    if (!currentConversation?.id) return
+    if (isLennyMode || isCustomSpaceMode) return
+
+    const convId = currentConversation.id
+    const ds = currentConversation.deepSearch
+    const shouldPoll = (deepSearchState?.status === 'pending' || deepSearchState?.status === 'running') ||
+      (ds?.status === 'pending' || ds?.status === 'running')
+    if (ds?.status === 'pending' || ds?.status === 'running') {
+      setDeepSearchState(prev => prev?.status === 'pending' || prev?.status === 'running'
+        ? prev
+        : { taskId: ds.taskId, status: ds.status, message: '深度搜索后台进行中…' })
+      setSearchRoundMsg('深度搜索后台进行中…（可关闭窗口，稍后回来查看）')
+    }
+    if (!shouldPoll) return
+
+    let cancelled = false
+    const tick = async () => {
+      try {
+        const resp = await authFetch(`/api/ai/deep-search/status/${convId}`)
+        if (!resp.ok) return
+        const data = await resp.json() as {
+          ok: boolean
+          exists?: boolean
+          status?: 'pending' | 'running' | 'done' | 'failed'
+          taskId?: number
+          progress?: string | null
+          result?: { content?: string; reasoning?: string | null } | null
+          error?: string | null
+        }
+        if (cancelled || !data.ok || !data.exists) return
+
+        const status = data.status ?? 'running'
+        setDeepSearchState(prev => ({
+          taskId: data.taskId ?? prev?.taskId ?? null,
+          status,
+          message: prev?.message,
+          progress: data.progress ?? prev?.progress ?? null
+        }))
+        if (status === 'pending' || status === 'running') {
+          const msg = data.progress || '深度搜索后台进行中…（可关闭窗口）'
+          setSearchRoundMsg(msg)
+          return
+        }
+
+        if (status === 'failed') {
+          setSearchRoundMsg(`深度搜索失败：${data.error || '未知原因'}`)
+          showToast('深度搜索失败', '你可以点击“重试”或重新生成', 4500)
+          setDeepSearchState(prev => prev ? { ...prev, status: 'failed' } : { taskId: data.taskId ?? null, status: 'failed' })
+          return
+        }
+
+        // done：回写内容到 UI
+        const content = data.result?.content?.trim() ?? ''
+        const reasoning = data.result?.reasoning ?? undefined
+        if (content) {
+          setTurns(prev => {
+            if (!prev.length) return prev
+            const next = [...prev]
+            const last = next[next.length - 1]
+            next[next.length - 1] = { ...last, assistant: content, reasoning: reasoning ?? last.reasoning, error: undefined }
+            return next
+          })
+          setSearchRoundMsg(null)
+          showToast('深度搜索完成', '结果已更新到当前节点', 3200)
+          await updateConversation(convId, {
+            assistantMessage: content,
+            reasoning_content: typeof reasoning === 'string' ? reasoning : undefined,
+            deepSearch: { taskId: data.taskId ?? 0, status: 'done', finishedAt: new Date().toISOString() }
+          })
+        } else {
+          setSearchRoundMsg('深度搜索已完成，但未生成正文输出。')
+        }
+        setDeepSearchState(prev => prev ? { ...prev, status: 'done' } : { taskId: data.taskId ?? null, status: 'done' })
+      } catch { /* ignore */ }
+    }
+
+    // 立刻 tick 一次 + 每 3 秒轮询
+    void tick()
+    const id = setInterval(() => { void tick() }, 3000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [isModalOpen, currentConversation?.id, currentConversation?.deepSearch?.status, deepSearchState?.status, isLennyMode, isCustomSpaceMode, updateConversation, showToast])
 
   // ── 编辑 / 重生成 / 复制 ────────────────────────────────────────────────────
   const handleStartEdit = (index: number, content: string) => {
@@ -718,6 +857,14 @@ export function AnswerModal() {
       const spacePrompt = isPGMode ? PG_SYSTEM_PROMPT : isZhangMode ? ZHANG_SYSTEM_PROMPT : isWangMode ? WANG_SYSTEM_PROMPT : LENNY_SYSTEM_PROMPT
       sendMessage(fullMessage, preferences, history, pendingImages, compressed, false, undefined, spacePrompt)
     } else {
+      // 记录上下文，便于“关闭窗口→后台继续深度搜索”
+      lastDeepSearchContextRef.current = {
+        conversationId: currentConversation?.id,
+        messages: [...history, { role: 'user', content: fullMessage }] as any,
+        preferences,
+        compressedMemory: compressed,
+        isOnboarding: isOnboardingMode,
+      }
       sendMessage(fullMessage, preferences, history, pendingImages, compressed, isOnboardingMode, isOnboardingMode ? undefined : currentConversation?.id)
     }
   }, [feedbackMessage, pendingImages, pendingFiles, pendingReferenceBlocks, isStreaming, isOnboardingMode, isLennyMode, isPGMode, isZhangMode, isWangMode,
@@ -725,7 +872,7 @@ export function AnswerModal() {
       getPreferencesForPrompt, sendMessage, turns, getRelevantMemories, setHighlight, focusNode])
 
   // ── 关闭并保存 ────────────────────────────────────────────────────────────
-  const handleClose = useCallback(() => {
+  const handleClose = useCallback(async () => {
     if (isClosing) return
     feedbackToastCountRef.current = 0 // 重置偏好学习 Toast 计数
     const shouldSave = !!currentConversation && (!isReplayRef.current || didMutateRef.current)
@@ -738,6 +885,35 @@ export function AnswerModal() {
       }
     }
 
+    // 若仍在生成中：将本次对话“转入后台深度搜索”，然后再关闭窗口
+    // 目标：用户退出后继续跑，完成后再回来能看到“已完成”。
+    let handedOffToDeepSearch = false
+    if (isStreaming && currentConversation?.id && !isLennyMode && !isCustomSpaceMode) {
+      try {
+        const ctx = lastDeepSearchContextRef.current
+        const fallbackHistory = buildAIHistory(turns)
+        const payload = {
+          conversationId: currentConversation.id,
+          messages: (ctx?.conversationId === currentConversation.id ? ctx.messages : [...fallbackHistory, { role: 'user', content: turns[turns.length - 1]?.user || currentConversation.userMessage }]) as any,
+          preferences: (ctx?.conversationId === currentConversation.id ? ctx.preferences : getPreferencesForPrompt()),
+          compressedMemory: (ctx?.conversationId === currentConversation.id ? ctx.compressedMemory : undefined),
+          isOnboarding: isOnboardingMode,
+          systemPromptOverride: (ctx?.conversationId === currentConversation.id ? ctx.systemPromptOverride : undefined),
+        }
+        const resp = await authFetch('/api/ai/deep-search', { method: 'POST', body: JSON.stringify(payload) })
+        if (resp.ok) {
+          const data = await resp.json() as { ok: boolean; taskId?: number; status?: string }
+          if (data.ok) {
+            handedOffToDeepSearch = true
+            setDeepSearchState({ taskId: data.taskId ?? null, status: (data.status as any) ?? 'pending', message: '深度搜索后台进行中…' })
+            setSearchRoundMsg('深度搜索后台进行中…（你已关闭窗口也会继续）')
+            // 停止前端流，避免“关窗后继续吐 token 但 UI 已清空”的浪费/丢失
+            cancel()
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
     const stillStreaming = isStreaming
     const finalResponse = turns.length > 0
       ? turns
@@ -745,7 +921,9 @@ export function AnswerModal() {
             const isLastTurn = idx === turns.length - 1
             const a = t.error
               ? `[API错误: ${t.error}]`
-              : (t.assistant || (isLastTurn && stillStreaming ? '[正在生成中...]' : '[无回复]'))
+              : (t.assistant || (isLastTurn && stillStreaming
+                  ? (handedOffToDeepSearch ? '[深度搜索进行中...]' : '[正在生成中...]')
+                  : '[无回复]'))
             const reasoning = t.reasoning ? `思考：${t.reasoning}\n\n[/THINKING]\n\n` : ''
             return `#${idx + 1}\n用户：${t.user || ''}\nAI：\n${reasoning}${a}`
           })
@@ -779,6 +957,7 @@ export function AnswerModal() {
       setErrorMessage(null)
       setFeedbackMessage('')
       setAppliedPreferences([])
+      setDeepSearchState(null)
       setShowXPulse(false)
       setOnboardingDone(false)
 
@@ -873,7 +1052,8 @@ export function AnswerModal() {
     }, 500)
   }, [isClosing, turns, errorMessage, isStreaming, currentConversation, isOnboardingMode, isLennyMode, isPGMode, isZhangMode, isWangMode,
       isCustomSpaceMode, activeCustomSpaceId,
-      endConversation, closeModal, appliedPreferences, completeOnboarding, addCapabilityNode, saveOnboardingTurns])
+      endConversation, closeModal, appliedPreferences, completeOnboarding, addCapabilityNode, saveOnboardingTurns,
+      cancel, getPreferencesForPrompt])
 
   // ESC 关闭
   useEffect(() => {
@@ -1114,7 +1294,8 @@ export function AnswerModal() {
                         <div className="flex justify-start mb-2">
                           <div className="max-w-[95%] w-full">
                             {/* 多轮搜索提示条：仅在最后一轮且正在搜索时展示 */}
-                            {isStreaming && idx === turns.length - 1 && searchRoundMsg && (
+                            {(isStreaming || deepSearchState?.status === 'pending' || deepSearchState?.status === 'running') &&
+                              idx === turns.length - 1 && searchRoundMsg && (
                               <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-xl bg-blue-50/80 border border-blue-100 text-blue-600 text-[12px]">
                                 <motion.span
                                   animate={{ opacity: [0.4, 1, 0.4] }}

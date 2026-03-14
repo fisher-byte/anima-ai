@@ -890,7 +890,8 @@ aiRoutes.post('/stream', async (c) => {
     }
 
     const fetchCompletionStream = async (body: Record<string, unknown>) => {
-      return fetchCompletionStreamWithTimeout(body, 60_000)
+      // 深度搜索可能较久：单次上游请求给更宽裕的超时（避免 60s 假死）
+      return fetchCompletionStreamWithTimeout(body, 8 * 60_000)
     }
 
     /**
@@ -1109,34 +1110,38 @@ aiRoutes.post('/stream', async (c) => {
         }
 
         try {
-          const nextRes = await fetchCompletionStreamWithTimeout(nextBody, 60_000)
+          const nextRes = await fetchCompletionStreamWithTimeout(nextBody, 8 * 60_000)
           if (!nextRes.ok) {
             // 续轮失败：直接结束，已有内容仍然返回给用户
             break
           }
           currentResponse = nextRes
         } catch (e) {
-          // 工具检索轮常见风险：上游卡住/超时。此时自动降级为“直接回答，不再继续搜索”，避免前端一直“正在思考…”
-          await sendEvent({ type: 'search_round', round, message: '检索服务超时，正在直接生成回答…' })
-          const directAnswerBody: Record<string, unknown> = {
-            model,
-            messages: [
-              ...currentMessages,
-              { role: 'system', content: '请基于已有上下文直接给出结论与建议，不要再调用任何工具或继续搜索。' }
-            ],
-            max_tokens: AI_CONFIG.MAX_TOKENS,
-            temperature: AI_CONFIG.TEMPERATURE,
-            stream: true
-          }
+          // 工具检索轮常见风险：上游卡住/超时。此时不“强行直接回答”，而是转入后台深度搜索继续跑，
+          // 前端展示进行中状态；用户可关闭窗口，稍后回来看结果。
+          let taskId: number | null = null
           try {
-            const directRes = await fetchCompletionStreamWithTimeout(directAnswerBody, 60_000)
-            if (directRes.ok) {
-              const { totalTokens, roundContent, roundReasoning } = await readRound(directRes)
-              if (roundContent) fullContent += roundContent
-              if (roundReasoning) reasoningContent += roundReasoning
-              if (totalTokens > 0) totalTokensUsed += totalTokens
+            if (conversationId) {
+              // 避免重复入队：若已有未完成的 deep_search，则复用
+              const existing = db.prepare(
+                "SELECT id FROM agent_tasks WHERE type='deep_search' AND ref_id=? AND status IN ('pending','running') ORDER BY id DESC LIMIT 1"
+              ).get(conversationId) as { id: number } | undefined
+              taskId = existing?.id ?? enqueueTask(db, 'deep_search', {
+                conversationId,
+                messages,
+                preferences,
+                compressedMemory,
+                isOnboarding,
+                systemPromptOverride,
+              }, conversationId)
             }
-          } catch { /* 若仍失败，走下方统一 done */ }
+          } catch { /* ignore */ }
+          await sendEvent({
+            type: 'deep_search',
+            status: 'running',
+            taskId,
+            message: '深度搜索已转入后台继续运行（可关闭窗口，完成后会更新到该节点）。'
+          })
           break
         }
       }
@@ -1193,6 +1198,117 @@ aiRoutes.post('/stream', async (c) => {
       })
     }
   })
+})
+
+/**
+ * POST /api/ai/deep-search
+ * 启动一个“深度搜索”后台任务（可跨页面继续）。
+ * Body: { conversationId, messages, preferences?, compressedMemory?, isOnboarding?, systemPromptOverride? }
+ * Response: { ok: true, taskId }
+ */
+aiRoutes.post('/deep-search', async (c) => {
+  const db = userDb(c)
+  const rawBody = await c.req.text()
+  if (Buffer.byteLength(rawBody, 'utf8') > 2 * 1024 * 1024) {
+    return c.json({ ok: false, error: 'payload too large' }, 413)
+  }
+  let body: Partial<AIRequestBody> & { conversationId?: string; messages?: unknown }
+  try { body = JSON.parse(rawBody) } catch { return c.json({ ok: false, error: 'invalid json' }, 400) }
+  const conversationId = (body.conversationId ?? '').trim()
+  const messages = Array.isArray(body.messages) ? (body.messages as AIMessage[]) : []
+  if (!conversationId || messages.length === 0) {
+    return c.json({ ok: false, error: 'conversationId and messages required' }, 400)
+  }
+
+  // 若已有未完成的 deep_search，直接复用，避免重复跑
+  try {
+    const existing = db.prepare(
+      "SELECT id, status FROM agent_tasks WHERE type='deep_search' AND ref_id=? AND status IN ('pending','running') ORDER BY id DESC LIMIT 1"
+    ).get(conversationId) as { id: number; status: string } | undefined
+    if (existing) {
+      return c.json({ ok: true, taskId: existing.id, status: existing.status })
+    }
+  } catch { /* ignore */ }
+
+  const taskId = enqueueTask(db, 'deep_search', {
+    conversationId,
+    messages,
+    preferences: body.preferences ?? [],
+    compressedMemory: body.compressedMemory ?? '',
+    isOnboarding: body.isOnboarding ?? false,
+    systemPromptOverride: body.systemPromptOverride ?? undefined,
+  }, conversationId)
+
+  // 把“深度搜索进行中”标记写回 conversations.jsonl（同 id 追加覆盖），供前端回放时识别并轮询
+  try {
+    const row = db.prepare('SELECT content FROM storage WHERE filename = ?').get('conversations.jsonl') as { content: string } | undefined
+    const content = row?.content ?? ''
+    let base: any = null
+    if (content.trim()) {
+      const lines = content.trim().split('\n').filter(Boolean)
+      for (let i = lines.length - 1; i >= 0; i--) {
+        try {
+          const conv = JSON.parse(lines[i]) as any
+          if (conv?.id === conversationId) { base = conv; break }
+        } catch { /* ignore */ }
+      }
+    }
+    if (base) {
+      const now = new Date().toISOString()
+      const updated = {
+        ...base,
+        deepSearch: { taskId, status: 'pending', startedAt: now }
+      }
+      db.prepare(`
+        INSERT INTO storage (filename, content, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(filename) DO UPDATE SET
+          content = storage.content || CASE WHEN storage.content = '' THEN '' ELSE char(10) END || excluded.content,
+          updated_at = excluded.updated_at
+      `).run('conversations.jsonl', JSON.stringify(updated), now)
+    }
+  } catch { /* ignore */ }
+
+  return c.json({ ok: true, taskId })
+})
+
+/**
+ * GET /api/ai/deep-search/status/:conversationId
+ * 返回某个对话的深度搜索后台任务状态与进度（若有结果会带上 result）。
+ */
+aiRoutes.get('/deep-search/status/:conversationId', (c) => {
+  const db = userDb(c)
+  const conversationId = (c.req.param('conversationId') ?? '').trim()
+  if (!conversationId) return c.json({ ok: false, error: 'conversationId required' }, 400)
+  try {
+    const row = db.prepare(
+      "SELECT id, status, progress, result, error, started_at, finished_at FROM agent_tasks WHERE type='deep_search' AND ref_id=? ORDER BY id DESC LIMIT 1"
+    ).get(conversationId) as {
+      id: number
+      status: string
+      progress: string | null
+      result: string | null
+      error: string | null
+      started_at: string | null
+      finished_at: string | null
+    } | undefined
+    if (!row) return c.json({ ok: true, exists: false })
+    let parsedResult: unknown = null
+    if (row.result) { try { parsedResult = JSON.parse(row.result) } catch { parsedResult = row.result } }
+    return c.json({
+      ok: true,
+      exists: true,
+      taskId: row.id,
+      status: row.status,
+      progress: row.progress,
+      result: parsedResult,
+      error: row.error,
+      startedAt: row.started_at,
+      finishedAt: row.finished_at,
+    })
+  } catch (e) {
+    return c.json({ ok: false, error: 'query failed' }, 500)
+  }
 })
 
 /**

@@ -82,6 +82,13 @@ export interface Conversation {
   negativeFeedback?: string
   appliedPreferences?: string[]
   appliedMemoryIds?: string[]   // 本次对话引用的 conversationId 列表
+  /** 深度搜索后台任务状态（可跨页面继续） */
+  deepSearch?: {
+    taskId: number
+    status: 'pending' | 'running' | 'done' | 'failed'
+    startedAt?: string
+    finishedAt?: string
+  }
 }
 
 /**

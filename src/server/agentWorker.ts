@@ -21,6 +21,7 @@ import {
   embedFileContent,
   maybeDecayPreferences,
   extractMentalModel,
+  deepSearchAnswer,
 } from './agentTasks'
 import type {
   ExtractProfilePayload,
@@ -37,9 +38,11 @@ async function processTask(
   const now = new Date().toISOString()
   db.prepare('UPDATE agent_tasks SET status = ?, started_at = ? WHERE id = ?').run('running', now, task.id)
 
-  // 每个任务最多 30 秒，防止单个 LLM 挂起阻塞整个 tick
+  // 默认每个任务最多 30 秒，防止单个 LLM 挂起阻塞整个 tick
+  // deep_search 允许更长时间（后台任务，可跨页面继续）
+  const timeoutMs = task.type === 'deep_search' ? 20 * 60_000 : 30_000
   const timeout = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error('task timeout (30s)')), 30_000)
+    setTimeout(() => reject(new Error(`task timeout (${timeoutMs}ms)`)), timeoutMs)
   )
 
   try {
@@ -61,6 +64,9 @@ async function processTask(
         await extractLogicalEdges(db, payload)
       } else if (task.type === 'extract_mental_model') {
         await extractMentalModel(db)
+      } else if (task.type === 'deep_search') {
+        const payload = JSON.parse(task.payload) as Record<string, unknown>
+        await deepSearchAnswer(db, task.id, payload)
       }
     })()
 
@@ -87,15 +93,30 @@ async function tick() {
   const userDbs = getAllUserDbs()
 
   for (const { userId, db } of userDbs) {
+    // deep_search 任务可能耗时很长：单用户同一时间只跑 1 个，且不阻塞其他用户的 tick
+    const hasRunningDeepSearch = !!db.prepare(
+      "SELECT id FROM agent_tasks WHERE type = 'deep_search' AND status = 'running' LIMIT 1"
+    ).get()
+    if (!hasRunningDeepSearch) {
+      const ds = db.prepare(
+        "SELECT id, type, payload, retries FROM agent_tasks WHERE status = 'pending' AND type = 'deep_search' ORDER BY id ASC LIMIT 1"
+      ).get() as { id: number; type: string; payload: string; retries: number } | undefined
+      if (ds) {
+        // 后台执行，不 await，避免阻塞其他用户与其他类型任务
+        void processTask(db, ds).catch(e => console.warn('[agent] deep_search task error:', e))
+      }
+    }
+
     const tasks = db.prepare(
-      'SELECT id, type, payload, retries FROM agent_tasks WHERE status = ? ORDER BY id ASC LIMIT 5'
+      "SELECT id, type, payload, retries FROM agent_tasks WHERE status = ? AND type != 'deep_search' ORDER BY id ASC LIMIT 5"
     ).all('pending') as { id: number; type: string; payload: string; retries: number }[]
 
     for (const task of tasks) {
       await processTask(db, task)
     }
 
-    if (tasks.length > 0) {
+    const processedCount = tasks.length + (hasRunningDeepSearch ? 0 : 0) // deep_search 计数由 processTask 内日志覆盖
+    if (processedCount > 0) {
       console.log(`[agent] processed ${tasks.length} tasks for user ${userId}`)
     }
 
@@ -179,11 +200,13 @@ export function startAgentWorker() {
 export function enqueueTask(
   db: InstanceType<typeof Database>,
   type: string,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  refId?: string
 ) {
-  db.prepare(
-    'INSERT INTO agent_tasks (type, payload, status, created_at) VALUES (?, ?, ?, ?)'
-  ).run(type, JSON.stringify(payload), 'pending', new Date().toISOString())
+  const info = db.prepare(
+    'INSERT INTO agent_tasks (type, ref_id, payload, status, created_at) VALUES (?, ?, ?, ?, ?)'
+  ).run(type, refId ?? null, JSON.stringify(payload), 'pending', new Date().toISOString())
+  return Number(info.lastInsertRowid)
 }
 
 /**

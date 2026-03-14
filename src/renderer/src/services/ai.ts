@@ -12,9 +12,11 @@ import type { AIMessage } from '../../../shared/types'
 import { getAuthToken } from './storageService'
 
 export interface AIStreamChunk {
-  type: 'content' | 'reasoning' | 'search_round'
+  type: 'content' | 'reasoning' | 'search_round' | 'deep_search'
   content: string
   round?: number
+  taskId?: number | null
+  status?: 'pending' | 'running' | 'done' | 'failed'
 }
 
 interface AIResponse {
@@ -102,11 +104,13 @@ export async function* streamAI(
 
           try {
             const evt = JSON.parse(raw) as {
-              type: 'content' | 'reasoning' | 'done' | 'error' | 'search_round'
+              type: 'content' | 'reasoning' | 'done' | 'error' | 'search_round' | 'deep_search'
               content?: string
               fullText?: string
               message?: string
               round?: number
+              taskId?: number | null
+              status?: 'pending' | 'running' | 'done' | 'failed'
             }
 
             if (evt.type === 'content' && evt.content) {
@@ -116,6 +120,8 @@ export async function* streamAI(
               yield { type: 'reasoning', content: evt.content }
             } else if (evt.type === 'search_round') {
               yield { type: 'search_round', content: evt.message ?? '', round: evt.round }
+            } else if (evt.type === 'deep_search') {
+              yield { type: 'deep_search', content: evt.message ?? '', taskId: evt.taskId ?? null, status: evt.status }
             } else if (evt.type === 'done') {
               // Stream finished
             } else if (evt.type === 'error') {
