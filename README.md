@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.5.4-black" alt="version"/>
+  <img src="https://img.shields.io/badge/version-0.6.0-black" alt="version"/>
   <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js" alt="node"/>
   <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react" alt="react"/>
   <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript" alt="typescript"/>
@@ -46,7 +46,7 @@ The AI doesn't just answer questions. It learns who you are.
 | **Evolution Log** | Your preferences, thinking style, and focus areas gradually shape the AI's behavior |
 | **Personal Knowledge Graph** | Nodes cluster by category, connect by semantic similarity |
 | **Node Consolidation** | One-click merge of similar nodes into topic clusters |
-| **4 Public Spaces + Custom** | Chat with Lenny, Paul Graham, 张小龙, 王慧文 or create your own Space |
+| **4 Public Spaces + Custom** | Chat with Lenny, Paul Graham, 张小龙, 王慧文 (authentic voice styles) or create your own Space |
 | **File Library** | Upload files to any Space; search and reference with @ |
 | **Multimodal Input** | Drag in images, PDFs, Word documents |
 | **Memory Import** | Import conversation history from ChatGPT, Claude, Gemini |
@@ -54,6 +54,7 @@ The AI doesn't just answer questions. It learns who you are.
 | **Timeline View** | Date-ordered timeline view of all memories |
 | **Feedback Button** | In-app bug reports and suggestions, stored locally |
 | **OpenAI-compatible** | Works with Kimi, OpenAI, or any compatible endpoint |
+| **Shared API Key** | Works out-of-the-box — no API key required; bring your own to increase quota |
 
 ---
 
