@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/版本-0.5.4-black" alt="version"/>
+  <img src="https://img.shields.io/badge/版本-0.6.0-black" alt="version"/>
   <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js" alt="node"/>
   <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react" alt="react"/>
   <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript" alt="typescript"/>
@@ -46,7 +46,7 @@ AI 不只是在回答你的问题——它在理解你是谁。
 | **进化基因** | 你的表达偏好、思维方式、关注重点，逐步写入 AI 的行为底层 |
 | **知识图谱** | 节点按分类聚合，通过语义相似度自动连线 |
 | **节点整合** | 一键合并相似话题节点 |
-| **4 个公开空间 + 自定义** | 与 Lenny、Paul Graham、张小龙、王慧文对话，或创建你自己的空间 |
+| **4 个公开空间 + 自定义** | 与 Lenny、Paul Graham、张小龙、王慧文对话（含真实语言风格），或创建你自己的空间 |
 | **文件库** | 任意空间上传文件；@ 引用，AI 可语义检索 |
 | **多模态感知** | 支持拖入图片、PDF、Word 文档 |
 | **记忆导入** | 将 ChatGPT、Claude、Gemini 的对话记录迁移进来 |
@@ -54,6 +54,7 @@ AI 不只是在回答你的问题——它在理解你是谁。
 | **时间轴视图** | 按日期浏览所有记忆的时间线 |
 | **反馈按钮** | 内置 Bug 报告与建议收集，本地存储 |
 | **OpenAI 兼容** | 支持 Kimi、OpenAI 或任意兼容接口 |
+| **服务器共享 Key** | 开箱即用，无需自备 API Key，也可填写自己的 Key 提升额度 |
 
 ---
 
