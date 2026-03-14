@@ -1,5 +1,28 @@
 # Anima 变更日志
 
+## [0.5.7] - 2026-03-14
+
+### fix: ⌘K 搜索快捷键 + SearchPanel ESC 关闭 (E2E 全量验证)
+
+**Bug 修复：**
+- `Canvas.tsx`：新增 `keydown` 全局监听，`⌘K` / `Ctrl+K` 直接打开/关闭搜索面板（输入框聚焦时不拦截）
+- `SearchPanel.tsx`：新增 `keydown` ESC 监听，关闭搜索面板（与 UI 底部 "Press ESC to close" 提示对应）
+
+**E2E 测试全量验证结果（Playwright Chromium headless）：**
+- 主聊天：✅ 发消息 + AI 流式回复
+- 侧边栏四个 Space（Lenny/PG/张/王）：✅ 全部可见，样式统一
+- 折叠/展开：✅ 动画正常，pill 始终锚底
+- 全局搜索：✅（修复后 ⌘K 可直接触发）
+- 设置面板：✅（More 菜单下）
+- Lenny Space 进入/对话/退出：✅
+- Timeline 视图：✅
+- 对话历史 + 记忆 Tab：✅
+- Lenny 空白画布（E2E 测试账号）：属于测试账号历史遗留，真实用户数据（893718…）完整正常
+
+**测试结果**：522/522 通过，`tsc --noEmit` 零错误。
+
+---
+
 ## [0.5.6] - 2026-03-14
 
 ### fix: 侧边栏动画卡顿 + 头像色彩统一 + Lenny 历史调查

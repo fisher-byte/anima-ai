@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Hash, Calendar, ArrowRight } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
@@ -16,6 +16,14 @@ export function SearchPanel({ isOpen, onClose }: SearchPanelProps) {
   const focusNode = useCanvasStore(state => state.focusNode)
   const [query, setQuery] = useState('')
   const [activeTab, setActiveTab] = useState<'nodes' | 'content'>('nodes')
+
+  // ESC 关闭搜索面板
+  useEffect(() => {
+    if (!isOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isOpen, onClose])
 
   // 搜索节点
   const nodeResults = useMemo(() => {
