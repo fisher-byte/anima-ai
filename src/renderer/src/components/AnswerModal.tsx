@@ -150,6 +150,25 @@ export function AnswerModal() {
     isOnboarding?: boolean
   } | null>(null)
 
+  // #region agent debug log
+  const uiDbg = useCallback((hypothesisId: string, message: string, data: Record<string, unknown>) => {
+    // 不记录正文内容；只记录状态/长度/对话ID等非敏感信息
+    fetch('http://127.0.0.1:7468/ingest/718d2469-93f0-4b41-8aec-cb23950c51fd', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '20f00c' },
+      body: JSON.stringify({
+        sessionId: '20f00c',
+        runId: 'pre-fix',
+        hypothesisId,
+        location: 'src/renderer/src/components/AnswerModal.tsx',
+        message,
+        data,
+        timestamp: Date.now()
+      })
+    }).catch(() => {})
+  }, [])
+  // #endregion
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   const onboardingPhaseRef = useRef(0)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -249,12 +268,14 @@ export function AnswerModal() {
     },
     onSearchRound: (_round, message) => {
       setSearchRoundMsg(message)
+      uiDbg('H4', 'onSearchRound', { hasMsg: !!message, msgLen: (message || '').length, isStreaming })
     },
     onDeepSearch: (taskId, message, status) => {
       const next = { taskId, status: status ?? 'running', message }
       deepSearchStateRef.current = next
       setDeepSearchState(next)
       setSearchRoundMsg(message || '深度搜索已转入后台继续运行…')
+      uiDbg('H4', 'onDeepSearch', { taskId: taskId ?? null, status: status ?? null, msgLen: (message || '').length, convId: currentConversation?.id ?? null })
       // 立即给用户一个“可退出”的确定反馈（不刷屏：3秒后自动消失）
       showToast('深度搜索后台继续', '你可以先关闭窗口，稍后回来查看结果', 3200)
     },
@@ -549,6 +570,13 @@ export function AnswerModal() {
         if (cancelled || !data.ok || !data.exists) return
 
         const status = data.status ?? 'running'
+        uiDbg('H5', 'deepSearch.poll', {
+          convId,
+          status,
+          taskId: data.taskId ?? null,
+          progressLen: (data.progress || '').length,
+          resultContentLen: (data.result?.content || '').length,
+        })
         setDeepSearchState(prev => ({
           taskId: data.taskId ?? prev?.taskId ?? null,
           status,
@@ -572,6 +600,7 @@ export function AnswerModal() {
         const content = data.result?.content?.trim() ?? ''
         const reasoning = data.result?.reasoning ?? undefined
         if (content) {
+          uiDbg('H4', 'deepSearch.done.apply', { convId, contentLen: content.length, hasReasoning: typeof reasoning === 'string' && reasoning.length > 0 })
           setTurns(prev => {
             if (!prev.length) return prev
             const next = [...prev]
@@ -587,6 +616,7 @@ export function AnswerModal() {
             deepSearch: { taskId: data.taskId ?? 0, status: 'done', finishedAt: new Date().toISOString() }
           })
         } else {
+          uiDbg('H4', 'deepSearch.done.empty', { convId, progress: data.progress || null })
           setSearchRoundMsg('深度搜索已完成，但未生成正文输出。')
         }
         setDeepSearchState(prev => prev ? { ...prev, status: 'done' } : { taskId: data.taskId ?? null, status: 'done' })
