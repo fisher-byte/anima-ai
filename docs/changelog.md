@@ -1,5 +1,19 @@
 # Anima 变更日志
 
+## [0.5.4] - 2026-03-14
+
+### fix: bootstrap-facts 幂等判断修复
+
+**Bug 修复：**
+- `memory.ts` `bootstrap-facts`：原实现用 `memory_facts.source_conv_id` 判断"已处理"，但 `extract_profile` / `extract_preference` 只写 `user_profile` / `preference_rules`，不写 `memory_facts`，导致每次调用都重复入队相同对话（`queued` 永不归零）
+- 修复：改为从 `agent_tasks` 历史记录中读取已入队 `conversationId` 集合做幂等判断，同时保留 `memory_facts.source_conv_id` 作为补充来源
+- `enqueueTask` 调用新增 `conversationId` 字段，确保后续调用也能被正确识别
+- 验证结果：服务器 bootstrap-facts 返回 `{ queued: 0, total: 23, alreadyExtracted: 25 }`，全部历史对话处理完毕
+
+**测试结果**：522/522 通过，`tsc --noEmit` 零错误。
+
+---
+
 ## [0.5.3] - 2026-03-14
 
 ### feat: UI/UX polish batch — sidebar pill, @mention pills, file download, avatar fix, settings rename
