@@ -865,16 +865,32 @@ aiRoutes.post('/stream', async (c) => {
       requestBody.tools = TOOLS_WITH_MEMORY
     }
 
+    const fetchCompletionStreamWithTimeout = async (body: Record<string, unknown>, timeoutMs: number) => {
+      const ac = new AbortController()
+      const onAbort = () => ac.abort()
+      try {
+        c.req.raw.signal.addEventListener('abort', onAbort)
+        const timer = setTimeout(() => ac.abort(), timeoutMs)
+        try {
+          return await fetch(`${baseUrl}/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${effectiveApiKey}`
+            },
+            body: JSON.stringify(body),
+            signal: ac.signal
+          })
+        } finally {
+          clearTimeout(timer)
+        }
+      } finally {
+        c.req.raw.signal.removeEventListener('abort', onAbort)
+      }
+    }
+
     const fetchCompletionStream = async (body: Record<string, unknown>) => {
-      return fetch(`${baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${effectiveApiKey}`
-        },
-        body: JSON.stringify(body),
-        signal: c.req.raw.signal
-      })
+      return fetchCompletionStreamWithTimeout(body, 60_000)
     }
 
     /**
@@ -927,8 +943,11 @@ aiRoutes.post('/stream', async (c) => {
 
           for (const part of parts) {
             for (const line of part.split(/\r?\n/)) {
-              if (!line.startsWith('data: ')) continue
-              const data = line.slice(6)
+              const l = line.trimEnd()
+              if (!l.startsWith('data:')) continue
+              let data = l.slice(5)
+              if (data.startsWith(' ')) data = data.slice(1)
+              data = data.trimStart()
               if (data === '[DONE]') continue
               try {
                 const parsed = JSON.parse(data)
@@ -1089,12 +1108,37 @@ aiRoutes.post('/stream', async (c) => {
           tools: TOOLS_WITH_MEMORY
         }
 
-        const nextRes = await fetchCompletionStream(nextBody)
-        if (!nextRes.ok) {
-          // 续轮失败：直接结束，已有内容仍然返回给用户
+        try {
+          const nextRes = await fetchCompletionStreamWithTimeout(nextBody, 60_000)
+          if (!nextRes.ok) {
+            // 续轮失败：直接结束，已有内容仍然返回给用户
+            break
+          }
+          currentResponse = nextRes
+        } catch (e) {
+          // 工具检索轮常见风险：上游卡住/超时。此时自动降级为“直接回答，不再继续搜索”，避免前端一直“正在思考…”
+          await sendEvent({ type: 'search_round', round, message: '检索服务超时，正在直接生成回答…' })
+          const directAnswerBody: Record<string, unknown> = {
+            model,
+            messages: [
+              ...currentMessages,
+              { role: 'system', content: '请基于已有上下文直接给出结论与建议，不要再调用任何工具或继续搜索。' }
+            ],
+            max_tokens: AI_CONFIG.MAX_TOKENS,
+            temperature: AI_CONFIG.TEMPERATURE,
+            stream: true
+          }
+          try {
+            const directRes = await fetchCompletionStreamWithTimeout(directAnswerBody, 60_000)
+            if (directRes.ok) {
+              const { totalTokens, roundContent, roundReasoning } = await readRound(directRes)
+              if (roundContent) fullContent += roundContent
+              if (roundReasoning) reasoningContent += roundReasoning
+              if (totalTokens > 0) totalTokensUsed += totalTokens
+            }
+          } catch { /* 若仍失败，走下方统一 done */ }
           break
         }
-        currentResponse = nextRes
       }
 
       await sendEvent({ type: 'done', fullText: fullContent })
