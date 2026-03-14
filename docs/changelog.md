@@ -1,5 +1,22 @@
 # Anima 变更日志
 
+## [0.5.5] - 2026-03-14
+
+### fix: streamAI AbortSignal 内存泄漏 + Nginx SSE 超时
+
+**Bug 修复：**
+- `ai.ts` `streamAI`：修复 AbortSignal 事件监听器从未被移除的内存泄漏问题；新增 already-aborted signal 保护（若传入的 signal 已经是 aborted 状态，立即 abort controller 而非添加永不触发的监听器）
+- `ai.ts`：AbortError 现在在 `console.error` 之前被识别，不再将用户停止操作打印为错误日志
+- Nginx：`/api/ai/stream` 端点独立 location，`proxy_read_timeout` 从 `120s` 提升至 `600s`，防止长时间 AI 流被 Nginx 提前断开
+
+**原因分析：**
+- 用户在主画布使用 `@张小龙` 触发后遇到 "AI stream failed: Error: fetch failed"；调查确认为客户端网络瞬断（IP 在请求间发生变化），非代码逻辑 bug
+- 顺手修复上述两个代码隐患
+
+**测试结果**：522/522 通过，`tsc --noEmit` 零错误。
+
+---
+
 ## [0.5.4] - 2026-03-14
 
 ### fix: bootstrap-facts 幂等判断修复
