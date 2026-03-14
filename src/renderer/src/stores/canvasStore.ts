@@ -1832,25 +1832,6 @@ export const useCanvasStore = create<CanvasState>()(
           if (conv.id === conversationId) {
             if (token !== _openModalToken) return  // 再次检查，防止 JSON.parse 耗时时被抢占
             set({ currentConversation: conv, isLoading: false })
-            // #region agent debug log
-            fetch('http://127.0.0.1:7468/ingest/718d2469-93f0-4b41-8aec-cb23950c51fd', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '20f00c' },
-              body: JSON.stringify({
-                sessionId: '20f00c',
-                runId: 'pre-fix',
-                hypothesisId: 'H2',
-                location: 'src/renderer/src/stores/canvasStore.ts:openModalById',
-                message: 'loaded conversation',
-                data: {
-                  convId: conversationId,
-                  assistantLen: (conv.assistantMessage || '').length,
-                  hasMultiTurn: (conv.assistantMessage || '').includes('#1\n') || (conv.assistantMessage || '').includes('# 1\n'),
-                },
-                timestamp: Date.now()
-              })
-            }).catch(() => {})
-            // #endregion
             // 异步加载该对话的历史上下文
             historyService.getHistory(conversationId).then(messages => {
               if (token !== _openModalToken) return
