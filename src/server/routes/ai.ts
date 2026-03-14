@@ -382,6 +382,7 @@ interface AIRequestBody {
   compressedMemory?: string
   isOnboarding?: boolean
   conversationId?: string
+  searchMode?: 'forced' | 'hybrid' | 'agent'
   /** 若传入，完全覆盖默认 system prompt，不注入用户偏好/画像/记忆 */
   systemPromptOverride?: string
 }
@@ -439,6 +440,22 @@ async function fetchUrlContent(url: string): Promise<string | null> {
     const text = await resp.text()
     return text.slice(0, 8000) // max 8000 chars ≈ 2000 tokens
   } catch { return null }
+}
+
+async function runWebSearch(query: string): Promise<string | null> {
+  const cleaned = query.trim().slice(0, 200)
+  if (!cleaned) return null
+  try {
+    const resp = await fetch(`https://s.jina.ai/${encodeURIComponent(cleaned)}`, {
+      headers: { 'Accept': 'text/plain' },
+      signal: AbortSignal.timeout(8_000)
+    })
+    if (!resp.ok) return null
+    const text = await resp.text()
+    return text.slice(0, 4000)
+  } catch {
+    return null
+  }
 }
 
 // Note: use .match() only — never .exec() loop (shared lastIndex on /g regex)
@@ -529,6 +546,17 @@ aiRoutes.post('/stream', async (c) => {
   const systemPromptOverride = typeof body.systemPromptOverride === 'string'
     ? body.systemPromptOverride.slice(0, 8000)
     : undefined
+  const allowedSearchModes = new Set(['forced', 'hybrid', 'agent'])
+  const requestedMode = typeof body.searchMode === 'string' ? body.searchMode : undefined
+  let searchMode: 'forced' | 'hybrid' | 'agent' = 'hybrid'
+  if (requestedMode && allowedSearchModes.has(requestedMode)) {
+    searchMode = requestedMode as 'forced' | 'hybrid' | 'agent'
+  } else {
+    const modeRow = db.prepare('SELECT value FROM config WHERE key = ?').get('search_mode') as { value: string } | undefined
+    if (modeRow?.value && allowedSearchModes.has(modeRow.value)) {
+      searchMode = modeRow.value as 'forced' | 'hybrid' | 'agent'
+    }
+  }
 
   // ── API Key 解析：用户自己的 key → 共享 key → 报错 ──────────────────────────
   const userKeyRow = db.prepare('SELECT value FROM config WHERE key = ?').get('apiKey') as
@@ -655,60 +683,66 @@ aiRoutes.post('/stream', async (c) => {
     } catch { /* 画像注入失败不影响主流程 */ }
 
     // ── 层 3：记忆事实（按意图路由 → 语义检索 > BM25 > 最近 N 条降级）──
-    try {
-      let relevantFacts: string[] = []
-      if (trimmedText.length > 5) {
-        const memIntent = detectMemoryIntent(trimmedText)
+    if (searchMode !== 'agent') {
+      try {
+        let relevantFacts: string[] = []
+        if (trimmedText.length > 5) {
+          const memIntent = detectMemoryIntent(trimmedText)
 
-        if (memIntent === 'episodic') {
-          // 询问历史经历：优先返回带时间线的 episodic 类型，fallback 到全类型语义检索
-          const episodicFacts = fetchFactsByType(db, 'episodic', 8)
-          relevantFacts = episodicFacts.length > 0
-            ? episodicFacts
-            : await fetchRelevantFacts(db, trimmedText, effectiveApiKey, baseUrl)
-        } else if (memIntent === 'procedural') {
-          // 询问偏好规则：直接返回 procedural 类型，已经在层 1 注入过，这里追加 semantic 作补充
-          const proceduralFacts = fetchFactsByType(db, 'procedural', 5)
-          const semanticFacts = MEMORY_STRATEGY === 'scored'
-            ? await fetchScoredFacts(db, trimmedText, effectiveApiKey, baseUrl)
-            : await fetchRelevantFacts(db, trimmedText, effectiveApiKey, baseUrl)
-          relevantFacts = [...proceduralFacts, ...semanticFacts].slice(0, 10)
-        } else if (memIntent === 'profile') {
-          // 询问个人信息：优先 profile 摘要，再补 semantic facts
-          const profileParts = fetchProfileSummary(db)
-          const semanticFacts = await fetchRelevantFacts(db, trimmedText, effectiveApiKey, baseUrl)
-          // profile 已在层 2 注入，这里补充 semantic facts 即可
-          relevantFacts = semanticFacts
-          if (profileParts.length > 0 && relevantFacts.length === 0) {
-            relevantFacts = profileParts
+          if (memIntent === 'episodic') {
+            // 询问历史经历：优先返回带时间线的 episodic 类型，fallback 到全类型语义检索
+            const episodicFacts = fetchFactsByType(db, 'episodic', 8)
+            relevantFacts = episodicFacts.length > 0
+              ? episodicFacts
+              : await fetchRelevantFacts(db, trimmedText, effectiveApiKey, baseUrl)
+          } else if (memIntent === 'procedural') {
+            // 询问偏好规则：直接返回 procedural 类型，已经在层 1 注入过，这里追加 semantic 作补充
+            const proceduralFacts = fetchFactsByType(db, 'procedural', 5)
+            const semanticFacts = MEMORY_STRATEGY === 'scored'
+              ? await fetchScoredFacts(db, trimmedText, effectiveApiKey, baseUrl)
+              : await fetchRelevantFacts(db, trimmedText, effectiveApiKey, baseUrl)
+            relevantFacts = [...proceduralFacts, ...semanticFacts].slice(0, 10)
+          } else if (memIntent === 'profile') {
+            // 询问个人信息：优先 profile 摘要，再补 semantic facts
+            const profileParts = fetchProfileSummary(db)
+            const semanticFacts = await fetchRelevantFacts(db, trimmedText, effectiveApiKey, baseUrl)
+            // profile 已在层 2 注入，这里补充 semantic facts 即可
+            relevantFacts = semanticFacts
+            if (profileParts.length > 0 && relevantFacts.length === 0) {
+              relevantFacts = profileParts
+            }
+          } else {
+            // semantic（默认）：原有逻辑不变
+            relevantFacts = MEMORY_STRATEGY === 'scored'
+              ? await fetchScoredFacts(db, trimmedText, effectiveApiKey, baseUrl)
+              : await fetchRelevantFacts(db, trimmedText, effectiveApiKey, baseUrl)
           }
-        } else {
-          // semantic（默认）：原有逻辑不变
-          relevantFacts = MEMORY_STRATEGY === 'scored'
-            ? await fetchScoredFacts(db, trimmedText, effectiveApiKey, baseUrl)
-            : await fetchRelevantFacts(db, trimmedText, effectiveApiKey, baseUrl)
         }
-      }
-      // 语义检索无结果时降级：BM25 FTS5
-      if (relevantFacts.length === 0 && trimmedText.length > 5) {
-        relevantFacts = bm25FallbackFacts(db, trimmedText)
-      }
-      // 最终 fallback：最近 10 条有效事实（节省 token）
-      if (relevantFacts.length === 0) {
-        const rows = db.prepare(
-          'SELECT fact FROM memory_facts WHERE invalid_at IS NULL ORDER BY created_at DESC LIMIT 10'
-        ).all() as { fact: string }[]
-        relevantFacts = rows.map(r => r.fact)
-      }
-      if (relevantFacts.length > 0) {
-        const block = '\n\n【关于用户的记忆事实 - 请据此个性化回答】\n' + relevantFacts.map((f, i) => `${i + 1}. ${f}`).join('\n') + '\n'
-        const cost = approxTokens(block)
-        if (contextTokensUsed + cost <= CONTEXT_BUDGET) {
-          systemPrompt += block
-          contextTokensUsed += cost
+        // 语义检索无结果时降级：BM25 FTS5
+        if (relevantFacts.length === 0 && trimmedText.length > 5) {
+          relevantFacts = bm25FallbackFacts(db, trimmedText)
         }
-      }
-    } catch { /* 事实注入失败不影响主流程 */ }
+        // 最终 fallback：最近 10 条有效事实（节省 token）
+        if (relevantFacts.length === 0) {
+          const rows = db.prepare(
+            'SELECT fact FROM memory_facts WHERE invalid_at IS NULL ORDER BY created_at DESC LIMIT 10'
+          ).all() as { fact: string }[]
+          relevantFacts = rows.map(r => r.fact)
+        }
+        if (relevantFacts.length > 0) {
+          const block = '\n\n【关于用户的记忆事实 - 请据此个性化回答】\n' + relevantFacts.map((f, i) => `${i + 1}. ${f}`).join('\n') + '\n'
+          const cost = approxTokens(block)
+          if (contextTokensUsed + cost <= CONTEXT_BUDGET) {
+            systemPrompt += block
+            contextTokensUsed += cost
+          }
+        }
+      } catch { /* 事实注入失败不影响主流程 */ }
+    }
+
+    if (searchMode !== 'forced') {
+      systemPrompt += '\n\n【检索决策规则】\n- 先根据上下文判断信息缺口，再决定是否调用工具\n- 可用工具：search_memory（用户记忆）、search_files（上传文件）、$web_search（外部网页）\n- 优先少量高质量检索，不要无意义多轮搜索\n- 如果问题可直接回答，不必强行检索'
+    }
 
     // ── 层 2.5（心智模型，静态摘要）── 刻意置于层 3 动态事实之后，确保动态内容优先占用 CONTEXT_BUDGET
     try {
@@ -822,7 +856,7 @@ aiRoutes.post('/stream', async (c) => {
     }
     // 工具调用（search_memory + search_files + $web_search）：所有 Moonshot 模型和已知多模态模型均支持
     // MULTIMODAL_MODELS 仅控制图片能力，工具调用不受此限制
-    const supportsTools = !isSimpleQuery && (
+    const supportsTools = searchMode !== 'forced' && !isSimpleQuery && (
       MULTIMODAL_MODELS.includes(model as typeof MULTIMODAL_MODELS[number]) ||
       baseUrl.includes('moonshot') ||
       model.startsWith('moonshot-')
@@ -851,14 +885,37 @@ aiRoutes.post('/stream', async (c) => {
       toolCalls: Array<{ id: string; type: string; function: { name: string; arguments: string } }>
       finishReason: string | null
       totalTokens: number
+      roundContent: string
+      roundReasoning: string
     }> => {
       const toolCallMap: Record<number, { id: string; type: string; function: { name: string; arguments: string } }> = {}
       let finishReason: string | null = null
       let totalTokens = 0
+      let roundContent = ''
+      let roundReasoning = ''
       const decoder = new TextDecoder()
       let sseBuffer = ''
       const reader = res.body?.getReader()
-      if (!reader) return { toolCalls: [], finishReason: null, totalTokens: 0 }
+      if (!reader) return { toolCalls: [], finishReason: null, totalTokens: 0, roundContent: '', roundReasoning: '' }
+
+      const upsertToolCall = (tc: any, fallbackIndex: number) => {
+        const idx = Number.isInteger(tc?.index) ? Number(tc.index) : fallbackIndex
+        if (!toolCallMap[idx]) {
+          toolCallMap[idx] = {
+            id: tc?.id ?? '',
+            type: tc?.type ?? 'function',
+            function: {
+              name: tc?.function?.name ?? '',
+              arguments: tc?.function?.arguments ?? ''
+            }
+          }
+        } else {
+          if (tc?.id) toolCallMap[idx].id = tc.id
+          if (tc?.type) toolCallMap[idx].type = tc.type
+          if (tc?.function?.name) toolCallMap[idx].function.name += tc.function.name
+          if (tc?.function?.arguments) toolCallMap[idx].function.arguments += tc.function.arguments
+        }
+      }
 
       try {
         while (true) {
@@ -884,27 +941,19 @@ aiRoutes.post('/stream', async (c) => {
                 }
 
                 if (delta?.reasoning_content) {
-                  reasoningContent += delta.reasoning_content
+                  roundReasoning += delta.reasoning_content
                   await sendEvent({ type: 'reasoning', content: delta.reasoning_content })
                 }
                 if (delta?.content) {
-                  fullContent += delta.content
+                  roundContent += delta.content
                   await sendEvent({ type: 'content', content: delta.content })
                 }
                 if (delta?.tool_calls) {
-                  for (const tc of delta.tool_calls) {
-                    const idx: number = tc.index
-                    if (!toolCallMap[idx]) {
-                      toolCallMap[idx] = {
-                        id: tc.id ?? '',
-                        type: tc.type ?? 'function',
-                        function: { name: tc.function?.name ?? '', arguments: tc.function?.arguments ?? '' }
-                      }
-                    } else {
-                      if (tc.function?.name) toolCallMap[idx].function.name += tc.function.name
-                      if (tc.function?.arguments) toolCallMap[idx].function.arguments += tc.function.arguments
-                    }
-                  }
+                  delta.tool_calls.forEach((tc: any, i: number) => upsertToolCall(tc, i))
+                }
+                const msgToolCalls = parsed.choices?.[0]?.message?.tool_calls
+                if (Array.isArray(msgToolCalls) && msgToolCalls.length > 0) {
+                  msgToolCalls.forEach((tc: any, i: number) => upsertToolCall(tc, i))
                 }
               } catch {
                 // ignore JSON parse errors in stream
@@ -915,7 +964,7 @@ aiRoutes.post('/stream', async (c) => {
       } finally {
         reader.releaseLock()
       }
-      return { toolCalls: Object.values(toolCallMap), finishReason, totalTokens }
+      return { toolCalls: Object.values(toolCallMap), finishReason, totalTokens, roundContent, roundReasoning }
     }
 
     try {
@@ -944,18 +993,22 @@ aiRoutes.post('/stream', async (c) => {
       let totalTokensUsed = 0
 
       while (round <= MAX_SEARCH_ROUNDS) {
-        const { toolCalls, finishReason, totalTokens } = await readRound(currentResponse)
+        const { toolCalls, finishReason, totalTokens, roundContent, roundReasoning } = await readRound(currentResponse)
+        if (roundContent) fullContent += roundContent
+        if (roundReasoning) reasoningContent += roundReasoning
         if (totalTokens > 0) totalTokensUsed += totalTokens
 
         // 非 tool_calls 结束，或没有任何 tool call → 正常退出
         if (finishReason !== 'tool_calls' || toolCalls.length === 0) break
+        // tool call id 缺失时不能继续拼装 tool_result，直接降级结束本轮，避免 400
+        if (toolCalls.some(tc => !tc.id)) break
 
         // 构造本轮的 assistant 消息和 tool result 消息
         const assistantMsg: AIMessage = {
           role: 'assistant',
-          content: fullContent || '',
+          content: roundContent || '',
           tool_calls: toolCalls,
-          reasoning_content: reasoningContent || undefined
+          reasoning_content: roundReasoning || undefined
         }
         const toolMessages: AIMessage[] = await Promise.all(toolCalls.map(async (tc) => {
           if (tc.function.name === 'search_memory') {
@@ -990,7 +1043,22 @@ aiRoutes.post('/stream', async (c) => {
             return { role: 'tool' as const, tool_call_id: tc.id, content: result }
           }
           // $web_search：回传 arguments，由 Moonshot 服务端执行
-          return { role: 'tool' as const, tool_call_id: tc.id, content: tc.function.arguments }
+          let result = '网页搜索暂时无结果。'
+          try {
+            const args = JSON.parse(tc.function.arguments || '{}') as Record<string, string | undefined>
+            const query = (
+              args.query ??
+              args.q ??
+              args.keyword ??
+              args.keywords ??
+              ''
+            ).trim()
+            if (query) {
+              const fetched = await runWebSearch(query)
+              if (fetched) result = fetched
+            }
+          } catch { /* 静默 */ }
+          return { role: 'tool' as const, tool_call_id: tc.id, content: result }
         }))
 
         currentMessages = [...currentMessages, assistantMsg, ...toolMessages]
