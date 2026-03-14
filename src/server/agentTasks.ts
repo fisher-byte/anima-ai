@@ -396,6 +396,28 @@ export async function deepSearchAnswer(
   const messages = Array.isArray(payload.messages) ? (payload.messages as AIMessage[]) : []
   if (!conversationId || messages.length === 0) return
 
+  // #region agent debug log
+  const dbg = (hypothesisId: string, message: string, data: Record<string, unknown>) => {
+    try {
+      // 不记录任何隐私/密钥/正文，只记录长度与状态
+      console.log('[deep_search_dbg]', JSON.stringify({ hypothesisId, message, data }))
+    } catch { /* ignore */ }
+    fetch('http://127.0.0.1:7468/ingest/718d2469-93f0-4b41-8aec-cb23950c51fd', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '20f00c' },
+      body: JSON.stringify({
+        sessionId: '20f00c',
+        runId: 'pre-fix',
+        hypothesisId,
+        location: 'src/server/agentTasks.ts:deepSearchAnswer',
+        message,
+        data,
+        timestamp: Date.now()
+      })
+    }).catch(() => {})
+  }
+  // #endregion
+
   const setProgress = (msg: string) => {
     try { db.prepare('UPDATE agent_tasks SET progress = ? WHERE id = ?').run(msg, taskId) } catch { /* ignore */ }
   }
@@ -406,10 +428,12 @@ export async function deepSearchAnswer(
   const { apiKey, baseUrl } = getApiConfig(db)
   if (!apiKey) {
     setProgress('缺少可用的 API Key，已跳过深度搜索。')
+    dbg('H3', 'deep_search: no apiKey', { taskId, conversationId, messagesCount: messages.length })
     return
   }
 
   const model = getChatModel(db, baseUrl)
+  dbg('H1', 'deep_search: start', { taskId, conversationId, messagesCount: messages.length, model, baseUrlHost: (() => { try { return new URL(baseUrl).host } catch { return '' } })() })
   const today = formatToday()
   const systemPrompt = payload.systemPromptOverride
     ? String(payload.systemPromptOverride).replace('{{DATE}}', today)
@@ -498,12 +522,16 @@ export async function deepSearchAnswer(
   let current = [...fullMessages]
   let finalContent = ''
   let finalReasoning = ''
+  let toolCallRounds = 0
+  let lastFinishReason: string | null = null
+  let lastToolCallsLen = 0
 
   for (let round = 1; round <= MAX_ROUNDS; round++) {
     setProgress(`深度搜索进行中：第 ${round}/${MAX_ROUNDS} 轮…`)
     const res = await callLLM(current)
     if (!res.ok) {
       setProgress(`深度搜索失败（上游错误 ${res.status}），将输出已有内容。`)
+      dbg('H3', 'deep_search: upstream not ok', { taskId, conversationId, round, status: res.status })
       break
     }
     const choice = res.data?.choices?.[0]
@@ -512,6 +540,17 @@ export async function deepSearchAnswer(
     const reasoning = String(msg?.reasoning_content ?? '')
     const toolCalls = Array.isArray(msg?.tool_calls) ? msg.tool_calls : []
     const finishReason = choice?.finish_reason ?? null
+    lastFinishReason = finishReason
+    lastToolCallsLen = toolCalls.length
+    dbg('H2', 'deep_search: round result', {
+      taskId,
+      conversationId,
+      round,
+      finishReason: finishReason ?? null,
+      toolCallsLen: toolCalls.length,
+      contentLen: content ? content.length : 0,
+      reasoningLen: reasoning ? reasoning.length : 0
+    })
 
     if (content) finalContent += content
     if (reasoning) finalReasoning += reasoning
@@ -520,6 +559,7 @@ export async function deepSearchAnswer(
       if (!finalContent && content) finalContent = content
       break
     }
+    toolCallRounds += 1
 
     // 生成 assistant tool_calls 消息
     current.push({
@@ -564,9 +604,62 @@ export async function deepSearchAnswer(
     current.push(...toolMsgs)
   }
 
+  // 若连续 tool_calls 轮次后仍无正文输出，强制追加一轮“最终回答（不再调用工具）”
+  let ranFinalAnswerPass = false
+  if (!finalContent.trim()) {
+    try {
+      ranFinalAnswerPass = true
+      setProgress('深度搜索：正在生成最终答案…')
+      dbg('H1', 'deep_search: forcing final answer pass', { taskId, conversationId, toolCallRounds, lastFinishReason, lastToolCallsLen })
+      const finalPrompt: AIMessage = {
+        role: 'system',
+        content: '现在请基于以上已获得的信息直接给出最终回答。不要再调用任何工具，不要再继续搜索。'
+      }
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 4 * 60_000)
+      try {
+        const resp = await fetch(`${baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify({
+            model,
+            messages: [...current, finalPrompt],
+            temperature: AI_CONFIG.TEMPERATURE,
+            max_tokens: AI_CONFIG.MAX_TOKENS,
+            stream: false
+          }),
+          signal: controller.signal
+        })
+        if (resp.ok) {
+          const data = await resp.json() as any
+          const c2 = data?.choices?.[0]
+          const m2 = c2?.message ?? {}
+          const cText = String(m2?.content ?? '')
+          const rText = String(m2?.reasoning_content ?? '')
+          if (cText) finalContent += cText
+          if (rText) finalReasoning += rText
+          dbg('H1', 'deep_search: final answer pass result', {
+            taskId,
+            conversationId,
+            finishReason: c2?.finish_reason ?? null,
+            contentLen: cText ? cText.length : 0,
+            reasoningLen: rText ? rText.length : 0
+          })
+        } else {
+          dbg('H3', 'deep_search: final answer pass upstream not ok', { taskId, conversationId, status: resp.status })
+        }
+      } finally {
+        clearTimeout(timeout)
+      }
+    } catch (e) {
+      dbg('H3', 'deep_search: final answer pass exception', { taskId, conversationId, err: e instanceof Error ? e.message : String(e) })
+    }
+  }
+
   const answer = finalContent.trim()
   setResult({ content: answer, reasoning: finalReasoning || null })
   setProgress(answer ? '深度搜索已完成。' : '深度搜索已完成，但未生成正文输出。')
+  dbg('H4', 'deep_search: done', { taskId, conversationId, answerLen: answer.length, ranFinalAnswerPass })
 
   // 写回对话（覆盖同 id 的最新记录）
   const existing = loadLatestConversation(db, conversationId)
