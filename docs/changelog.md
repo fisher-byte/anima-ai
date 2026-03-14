@@ -1,5 +1,33 @@
 # Anima 变更日志
 
+## [0.5.8] - 2026-03-14
+
+### fix: 安全加固 + code review 全量修复 (10 issues)
+
+**CRITICAL 修复：**
+- `agentTasks.ts`：移除硬编码 Aliyun API key，改为读取 `BUILTIN_EMBED_API_KEY` 环境变量
+- `memory.ts`：`/api/memory/queue` 新增任务类型白名单（仅允许 6 种已知类型，拒绝未知类型）
+
+**HIGH 修复：**
+- `ai.ts`：`JSON.parse(rawBody)` 外加 try/catch，格式错误返回 400 而非崩溃
+- `ai.ts`：`systemPromptOverride` 截断至 8000 字符上限，防止超长注入
+- `memory.ts`：`/extract` 第一个 LLM 请求补加 `AbortSignal.timeout(15_000)`
+- `canvasStore.ts`：`endConversation` 正则匹配前将 `assistantMessage` 截断到 20000 字符，消除正则回溯风险
+
+**MEDIUM 修复：**
+- `ai.ts`：Jina URL 预取前校验 `https?://` 协议，拒绝非 HTTP(S) URL（防 SSRF）
+- `agentTasks.ts`：`getApiConfig` 根据 `baseUrl` provider 选择合适 fast model（OpenAI → `gpt-4o-mini`，其他 → `moonshot-v1-8k`）
+- `memory.ts`：LLM 返回的 facts 在写入 DB 前增加 `typeof f === 'string'` 类型过滤
+- `InputBox.tsx`：`@` 文件提及提示中移除文件内部 UUID（`id:xxx`），避免泄露给外部 LLM
+
+**LOW 修复：**
+- `agentTasks.ts`：`consolidateFacts` 新增安全底线 — 合并后条目数不得少于原来的 30%，防止记忆被意外清空
+- `AnswerModal.tsx`：onboarding 完成时 `completeOnboarding` 移到 `setTimeout(0)` 后执行，避免与节点保存争用
+
+**测试结果**：522/522 通过，`tsc --noEmit` 零错误。
+
+---
+
 ## [0.5.7] - 2026-03-14
 
 ### fix: ⌘K 搜索快捷键 + SearchPanel ESC 关闭 (E2E 全量验证)

@@ -380,6 +380,8 @@ function addDailyTokens(db: InstanceType<typeof Database>, tokens: number): void
 
 // ── URL 内容预取（Jina Reader）────────────────────────────────────────────────
 async function fetchUrlContent(url: string): Promise<string | null> {
+  // 只允许 http/https URL，防止 SSRF（file://、ftp:// 等）
+  if (!/^https?:\/\//i.test(url)) return null
   try {
     const resp = await fetch(`https://r.jina.ai/${url}`, {
       headers: { 'Accept': 'text/markdown' },
@@ -469,8 +471,16 @@ aiRoutes.post('/stream', async (c) => {
   if (Buffer.byteLength(rawBody, 'utf8') > MAX_STREAM_BODY) {
     return c.json({ error: '请求体过大，最大支持 20MB（单次请求图片数量过多或消息过长）' }, 413)
   }
-  const body = JSON.parse(rawBody) as AIRequestBody
-  const { messages, preferences = [], compressedMemory, isOnboarding = false, conversationId, systemPromptOverride } = body
+  let body: AIRequestBody
+  try {
+    body = JSON.parse(rawBody) as AIRequestBody
+  } catch {
+    return c.json({ error: '请求体格式错误' }, 400)
+  }
+  const { messages, preferences = [], compressedMemory, isOnboarding = false, conversationId } = body
+  const systemPromptOverride = typeof body.systemPromptOverride === 'string'
+    ? body.systemPromptOverride.slice(0, 8000)
+    : undefined
 
   // ── API Key 解析：用户自己的 key → 共享 key → 报错 ──────────────────────────
   const userKeyRow = db.prepare('SELECT value FROM config WHERE key = ?').get('apiKey') as

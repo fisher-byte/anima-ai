@@ -1664,11 +1664,11 @@ export const useCanvasStore = create<CanvasState>()(
       return detectIntent(text)
     }
 
-    // 1. 解析回复中的多轮对话
+    // 1. 解析回复中的多轮对话（截断到 20000 字符防止正则回溯超时）
     const sectionRegex = /#\s*(\d+)\s*\n+\s*用户[：:]\s*([\s\S]*?)\n+\s*AI[：:]\s*([\s\S]*?)(?=\n+\s*#\s*\d+|$)/g
     const rawTurns: { user: string; ai: string }[] = []
     let match
-    while ((match = sectionRegex.exec(assistantMessage)) !== null) {
+    while ((match = sectionRegex.exec(assistantMessage.slice(0, 20000))) !== null) {
       rawTurns.push({ user: match[2].trim(), ai: match[3].trim() })
     }
     if (rawTurns.length === 0) {
