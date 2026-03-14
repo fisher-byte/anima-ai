@@ -1180,7 +1180,9 @@ aiRoutes.post('/summarize', async (c) => {
   const row = db.prepare('SELECT value FROM config WHERE key = ?').get('apiKey') as
     | { value: string }
     | undefined
-  const apiKey = row?.value ?? (process.env.SHARED_API_KEY ?? process.env.ONBOARDING_API_KEY ?? '')
+  const userApiKey = (row?.value ?? '').trim()
+  const sharedApiKey = (process.env.SHARED_API_KEY ?? process.env.ONBOARDING_API_KEY ?? '').trim()
+  const apiKey = userApiKey || sharedApiKey
   // 标题摘要属于非关键体验：无 key 时静默降级，不返回 4xx 干扰前端控制台
   if (!apiKey) return c.json({ title: null })
 
