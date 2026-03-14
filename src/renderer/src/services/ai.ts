@@ -88,14 +88,17 @@ export async function* streamAI(
       if (done) break
 
       sseBuffer += decoder.decode(value, { stream: true })
-      // SSE 事件以 \n\n 分隔；split 后最后一段留在 buffer 等待后续 chunk 补全
-      const parts = sseBuffer.split('\n\n')
+      // SSE 事件以空行分隔（兼容 \n\n 与 \r\n\r\n）
+      const parts = sseBuffer.split(/\r?\n\r?\n/)
       sseBuffer = parts.pop() ?? ''
 
       for (const part of parts) {
-        for (const line of part.split('\n')) {
-          if (!line.startsWith('data: ')) continue
-          const raw = line.slice(6)
+        for (const line of part.split(/\r?\n/)) {
+          const l = line.trimEnd()
+          if (!l.startsWith('data:')) continue
+          let raw = l.slice(5)
+          if (raw.startsWith(' ')) raw = raw.slice(1)
+          raw = raw.trimStart()
 
           try {
             const evt = JSON.parse(raw) as {
