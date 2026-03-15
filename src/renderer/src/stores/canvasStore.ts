@@ -1831,13 +1831,47 @@ export const useCanvasStore = create<CanvasState>()(
       let bestAssistantMessage = ''
       let bestReasoning: string | undefined
       let bestScore = -1
-      const childConvs: Array<{ id: string; assistantLen: number; hasMulti: boolean }> = []
+      const childConvs: Array<{ id: string; assistantLen: number; hasMulti: boolean; createdAt?: string; userLen: number }> = []
       const scanLimit = 8000 // 防止超大文件导致卡顿；足够覆盖同一对话的多次回写
       let scanned = 0
 
       const scoreAssistant = (a: string) => {
         const hasMulti = a.includes('#1\n') || a.includes('# 1\n')
         return (hasMulti ? 1_000_000_000 : 0) + a.length
+      }
+
+      const maxTurnIndexFromTranscript = (text: string) => {
+        let maxIdx = 0
+        const re = /^#\s*(\d+)\s*$/gm
+        let m: RegExpExecArray | null
+        while ((m = re.exec(text)) !== null) {
+          const n = Number(m[1])
+          if (Number.isFinite(n)) maxIdx = Math.max(maxIdx, n)
+        }
+        // 兼容 "#1\n用户：" 这种没有独立行的情况
+        const re2 = /#\s*(\d+)\s*\n/g
+        while ((m = re2.exec(text)) !== null) {
+          const n = Number(m[1])
+          if (Number.isFinite(n)) maxIdx = Math.max(maxIdx, n)
+        }
+        return maxIdx
+      }
+
+      const ensureTranscript = (conv: Conversation) => {
+        const u = (conv.userMessage || '').trim()
+        const a = (conv.assistantMessage || '').trim()
+        const hasMulti = a.includes('#1\n') || a.includes('# 1\n')
+        if (hasMulti) return a
+        if (!u && !a) return ''
+        return `#1\n用户：${u}\nAI：\n${a}`.trim()
+      }
+
+      const appendTurnBlock = (base: string, idx: number, user: string, assistant: string) => {
+        const u = (user || '').trim()
+        const a = (assistant || '').trim()
+        if (!u && !a) return base
+        const block = `#${idx}\n用户：${u}\nAI：\n${a}`.trim()
+        return base ? `${base}\n\n${block}` : block
       }
 
       for (let i = lines.length - 1; i >= 0; i--) {
@@ -1851,10 +1885,12 @@ export const useCanvasStore = create<CanvasState>()(
               id: conv.id,
               assistantLen: a.length,
               hasMulti: a.includes('#1\n') || a.includes('# 1\n')
+              ,createdAt: (conv as any)?.createdAt
+              ,userLen: (conv.userMessage || '').length
             })
           }
           if (conv.id !== conversationId) continue
-          if (!latest) latest = conv
+          if (!latest) { latest = conv }
           const a = conv.assistantMessage || ''
           const s = scoreAssistant(a)
           if (s > bestScore) {
@@ -1874,9 +1910,33 @@ export const useCanvasStore = create<CanvasState>()(
         const diffLen = bestAssistantMessage.length - latestA.length
         const shouldPreferBest = diffLen > 80
         const shouldRepair = shouldPreferBest && (bestHasMulti || latestHasMulti || bestAssistantMessage.trim().length > 0)
-        const merged: Conversation = shouldRepair
+        const mergedBase: Conversation = shouldRepair
           ? { ...latest, assistantMessage: bestAssistantMessage, reasoning_content: bestReasoning ?? latest.reasoning_content }
           : latest
+
+        // 线程展示：把 parentId==conversationId 的子对话追加到 transcript 末尾，避免“昨晚的内容在分支里看不到”
+        let mergedAssistant = ensureTranscript(mergedBase)
+        let nextIdx = maxTurnIndexFromTranscript(mergedAssistant) + 1
+        const childFull: Conversation[] = []
+        if (childConvs.length > 0) {
+          // 再扫描一次，取出子对话正文（仅扫描窗口内，成本可控）
+          const want = new Set(childConvs.map(c => c.id))
+          scanned = 0
+          for (let i = lines.length - 1; i >= 0; i--) {
+            if (scanned++ > scanLimit) break
+            try {
+              const conv = JSON.parse(lines[i]) as Conversation
+              if (want.has(conv.id)) childFull.push(conv)
+            } catch { /* ignore */ }
+          }
+          childFull.sort((a, b) => String((a as any)?.createdAt ?? '').localeCompare(String((b as any)?.createdAt ?? '')))
+          for (const cc of childFull) {
+            mergedAssistant = appendTurnBlock(mergedAssistant, nextIdx++, cc.userMessage || '', cc.assistantMessage || '')
+          }
+        }
+        const merged: Conversation = mergedAssistant && mergedAssistant !== (mergedBase.assistantMessage || '')
+          ? { ...mergedBase, assistantMessage: mergedAssistant }
+          : mergedBase
 
         if (token !== _openModalToken) return
         set({ currentConversation: merged, isLoading: false })
@@ -1906,6 +1966,8 @@ export const useCanvasStore = create<CanvasState>()(
               childTop3: childConvs
                 .sort((a, b) => b.assistantLen - a.assistantLen)
                 .slice(0, 3),
+              mergedAssistantLen: merged.assistantMessage.length,
+              mergedAddedChildTurns: childConvs.length,
               scanned
             },
             timestamp: Date.now()
@@ -1914,7 +1976,8 @@ export const useCanvasStore = create<CanvasState>()(
         // #endregion
 
         // 若触发修复：追加写回一条“修复后的完整版”，让后续读取不再落到短版本
-        if (shouldRepair) {
+        // 注意：这里也会把子对话合并进 transcript（仅影响回放显示，不影响子节点本身）
+        if (shouldRepair || childConvs.length > 0) {
           get().appendConversation(merged).catch(() => {})
         }
 
