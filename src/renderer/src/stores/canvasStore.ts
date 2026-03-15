@@ -1825,43 +1825,85 @@ export const useCanvasStore = create<CanvasState>()(
         return
       }
       const lines = content.trim().split('\n').filter(Boolean)
-      // 找最后一次同 id 的记录（防止同 id 多次写入）
+      // 恢复策略：同一 conversationId 可能被多次 append（例如曾经被“短版本”覆盖）。
+      // 优先选择“最完整”的 assistantMessage（多轮 transcript/更长），同时保留最新记录的其他字段。
+      let latest: Conversation | null = null
+      let bestAssistantMessage = ''
+      let bestReasoning: string | undefined
+      let bestScore = -1
+      const scanLimit = 8000 // 防止超大文件导致卡顿；足够覆盖同一对话的多次回写
+      let scanned = 0
+
+      const scoreAssistant = (a: string) => {
+        const hasMulti = a.includes('#1\n') || a.includes('# 1\n')
+        return (hasMulti ? 1_000_000_000 : 0) + a.length
+      }
+
       for (let i = lines.length - 1; i >= 0; i--) {
+        if (scanned++ > scanLimit) break
         try {
           const conv = JSON.parse(lines[i]) as Conversation
-          if (conv.id === conversationId) {
-            if (token !== _openModalToken) return  // 再次检查，防止 JSON.parse 耗时时被抢占
-            set({ currentConversation: conv, isLoading: false })
-            // #region agent debug log
-            fetch('http://127.0.0.1:7468/ingest/718d2469-93f0-4b41-8aec-cb23950c51fd', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '20f00c' },
-              body: JSON.stringify({
-                sessionId: '20f00c',
-                runId: 'history-loss',
-                hypothesisId: 'H3',
-                location: 'src/renderer/src/stores/canvasStore.ts:openModalById',
-                message: 'loaded conversation',
-                data: {
-                  convId: conversationId,
-                  assistantLen: (conv.assistantMessage || '').length,
-                  hasMultiTurn: (conv.assistantMessage || '').includes('#1\n') || (conv.assistantMessage || '').includes('# 1\n'),
-                },
-                timestamp: Date.now()
-              })
-            }).catch(() => {})
-            // #endregion
-            // 异步加载该对话的历史上下文
-            historyService.getHistory(conversationId).then(messages => {
-              if (token !== _openModalToken) return
-              if (messages.length > 0) set({ conversationHistory: messages })
-            })
-            return
+          if (conv.id !== conversationId) continue
+          if (!latest) latest = conv
+          const a = conv.assistantMessage || ''
+          const s = scoreAssistant(a)
+          if (s > bestScore) {
+            bestScore = s
+            bestAssistantMessage = a
+            bestReasoning = conv.reasoning_content
           }
-        } catch {
-          // ignore invalid line
-        }
+        } catch { /* ignore invalid line */ }
       }
+
+      if (latest) {
+        const latestA = latest.assistantMessage || ''
+        const latestHasMulti = latestA.includes('#1\n') || latestA.includes('# 1\n')
+        const bestHasMulti = bestAssistantMessage.includes('#1\n') || bestAssistantMessage.includes('# 1\n')
+        const shouldRepair = !latestHasMulti && bestHasMulti && bestAssistantMessage.length > latestA.length + 100
+        const merged: Conversation = shouldRepair
+          ? { ...latest, assistantMessage: bestAssistantMessage, reasoning_content: bestReasoning ?? latest.reasoning_content }
+          : latest
+
+        if (token !== _openModalToken) return
+        set({ currentConversation: merged, isLoading: false })
+
+        // #region agent debug log
+        fetch('http://127.0.0.1:7468/ingest/718d2469-93f0-4b41-8aec-cb23950c51fd', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '20f00c' },
+          body: JSON.stringify({
+            sessionId: '20f00c',
+            runId: 'history-loss',
+            hypothesisId: 'H3',
+            location: 'src/renderer/src/stores/canvasStore.ts:openModalById',
+            message: 'loaded conversation (repair aware)',
+            data: {
+              convId: conversationId,
+              latestAssistantLen: latestA.length,
+              latestHasMulti,
+              bestAssistantLen: bestAssistantMessage.length,
+              bestHasMulti,
+              repaired: shouldRepair,
+              scanned
+            },
+            timestamp: Date.now()
+          })
+        }).catch(() => {})
+        // #endregion
+
+        // 若触发修复：追加写回一条“修复后的完整版”，让后续读取不再落到短版本
+        if (shouldRepair) {
+          get().appendConversation(merged).catch(() => {})
+        }
+
+        // 异步加载该对话的历史上下文
+        historyService.getHistory(conversationId).then(messages => {
+          if (token !== _openModalToken) return
+          if (messages.length > 0) set({ conversationHistory: messages })
+        })
+        return
+      }
+
       // 找不到对话记录，关闭 modal 避免显示空白/错误内容
       if (token === _openModalToken) set({ isLoading: false, isModalOpen: false })
     } catch (error) {
