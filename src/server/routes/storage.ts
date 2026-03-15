@@ -248,8 +248,8 @@ storageRoutes.get('/:filename', (c) => {
     return c.json({ error: 'Invalid filename' }, 400)
   }
 
-  const row = db.prepare('SELECT content, updated_at FROM storage WHERE filename = ?').get(filename) as
-    | { content: string; updated_at?: string }
+  const row = db.prepare('SELECT content FROM storage WHERE filename = ?').get(filename) as
+    | { content: string }
     | undefined
 
   if (!row) {
@@ -283,47 +283,6 @@ storageRoutes.get('/:filename', (c) => {
     }
     return c.text('', 404)
   }
-
-  // #region agent debug log
-  if (filename === 'conversations.jsonl') {
-    try {
-      const content = row.content ?? ''
-      const lines = content.trim() ? content.trim().split('\n').filter(Boolean) : []
-      let lastId: string | null = null
-      let lastAssistantLen: number | null = null
-      let lastHasMultiTurn: boolean | null = null
-      if (lines.length > 0) {
-        try {
-          const last = JSON.parse(lines[lines.length - 1]) as any
-          lastId = typeof last?.id === 'string' ? last.id : null
-          const a = typeof last?.assistantMessage === 'string' ? last.assistantMessage : ''
-          lastAssistantLen = a.length
-          lastHasMultiTurn = a.includes('#1\n') || a.includes('# 1\n')
-        } catch { /* ignore */ }
-      }
-      fetch('http://127.0.0.1:7468/ingest/718d2469-93f0-4b41-8aec-cb23950c51fd', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '20f00c' },
-        body: JSON.stringify({
-          sessionId: '20f00c',
-          runId: 'history-loss',
-          hypothesisId: 'H5',
-          location: 'src/server/routes/storage.ts:get',
-          message: 'get conversations.jsonl',
-          data: {
-            contentLen: content.length,
-            linesCount: lines.length,
-            updatedAt: row.updated_at ?? null,
-            lastId,
-            lastAssistantLen,
-            lastHasMultiTurn
-          },
-          timestamp: Date.now()
-        })
-      }).catch(() => {})
-    } catch { /* ignore */ }
-  }
-  // #endregion
 
   return c.text(row.content)
 })
@@ -363,35 +322,6 @@ storageRoutes.post('/:filename/append', async (c) => {
   }
 
   const line = await c.req.text()
-  // #region agent debug log
-  if (filename === 'conversations.jsonl') {
-    try {
-      let convId: string | null = null
-      let assistantLen: number | null = null
-      let hasMultiTurn: boolean | null = null
-      try {
-        const parsed = JSON.parse(line) as any
-        convId = typeof parsed?.id === 'string' ? parsed.id : null
-        const a = typeof parsed?.assistantMessage === 'string' ? parsed.assistantMessage : ''
-        assistantLen = a.length
-        hasMultiTurn = a.includes('#1\n') || a.includes('# 1\n')
-      } catch { /* ignore */ }
-      fetch('http://127.0.0.1:7468/ingest/718d2469-93f0-4b41-8aec-cb23950c51fd', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '20f00c' },
-        body: JSON.stringify({
-          sessionId: '20f00c',
-          runId: 'history-loss',
-          hypothesisId: 'H6',
-          location: 'src/server/routes/storage.ts:append',
-          message: 'append conversations.jsonl',
-          data: { convId, lineLen: line.length, assistantLen, hasMultiTurn },
-          timestamp: Date.now()
-        })
-      }).catch(() => {})
-    } catch { /* ignore */ }
-  }
-  // #endregion
   // P0-2: 单次追加上限 1 MB，防止超大行写入
   if (Buffer.byteLength(line, 'utf8') > MAX_APPEND_SIZE) {
     return c.json({ error: '单次追加内容过大，最大支持 1MB' }, 413)
