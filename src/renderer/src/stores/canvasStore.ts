@@ -1859,7 +1859,10 @@ export const useCanvasStore = create<CanvasState>()(
         const latestA = latest.assistantMessage || ''
         const latestHasMulti = latestA.includes('#1\n') || latestA.includes('# 1\n')
         const bestHasMulti = bestAssistantMessage.includes('#1\n') || bestAssistantMessage.includes('# 1\n')
-        const shouldRepair = !latestHasMulti && bestHasMulti && bestAssistantMessage.length > latestA.length + 100
+        // 新策略：同 id 多条记录中，优先选择“最完整”的 transcript（多轮优先，其次更长）
+        // 仅当差异明显时触发“修复回写”，避免每次打开都无限 append
+        const shouldPreferBest = bestAssistantMessage.length > latestA.length + 80
+        const shouldRepair = shouldPreferBest && (bestHasMulti || latestHasMulti || bestAssistantMessage.trim().length > 0)
         const merged: Conversation = shouldRepair
           ? { ...latest, assistantMessage: bestAssistantMessage, reasoning_content: bestReasoning ?? latest.reasoning_content }
           : latest
