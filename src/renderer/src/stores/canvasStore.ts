@@ -1831,6 +1831,7 @@ export const useCanvasStore = create<CanvasState>()(
       let bestAssistantMessage = ''
       let bestReasoning: string | undefined
       let bestScore = -1
+      const childConvs: Array<{ id: string; assistantLen: number; hasMulti: boolean }> = []
       const scanLimit = 8000 // 防止超大文件导致卡顿；足够覆盖同一对话的多次回写
       let scanned = 0
 
@@ -1843,6 +1844,15 @@ export const useCanvasStore = create<CanvasState>()(
         if (scanned++ > scanLimit) break
         try {
           const conv = JSON.parse(lines[i]) as Conversation
+          // 收集“话题拆分”产生的子对话（parentId 指向当前对话 id）
+          if (conv.parentId === conversationId && conv.id !== conversationId) {
+            const a = conv.assistantMessage || ''
+            childConvs.push({
+              id: conv.id,
+              assistantLen: a.length,
+              hasMulti: a.includes('#1\n') || a.includes('# 1\n')
+            })
+          }
           if (conv.id !== conversationId) continue
           if (!latest) latest = conv
           const a = conv.assistantMessage || ''
@@ -1891,6 +1901,11 @@ export const useCanvasStore = create<CanvasState>()(
               diffLen,
               shouldPreferBest,
               repaired: shouldRepair,
+              childCount: childConvs.length,
+              childMaxAssistantLen: childConvs.reduce((m, c) => Math.max(m, c.assistantLen), 0),
+              childTop3: childConvs
+                .sort((a, b) => b.assistantLen - a.assistantLen)
+                .slice(0, 3),
               scanned
             },
             timestamp: Date.now()
