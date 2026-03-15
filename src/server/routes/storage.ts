@@ -210,7 +210,28 @@ storageRoutes.get('/history/:conversationId', (c) => {
   const { conversationId } = c.req.param()
   const row = db.prepare('SELECT messages FROM conversation_history WHERE conversation_id = ?').get(conversationId) as
     { messages: string } | undefined
-  return c.json({ messages: row ? JSON.parse(row.messages) : [] })
+  let messages: unknown[] = []
+  try { messages = row ? JSON.parse(row.messages) : [] } catch { messages = [] }
+  // #region agent debug log
+  try {
+    const tail = Array.isArray(messages) ? messages.slice(-4) : []
+    const roles = tail.map((m: any) => String(m?.role ?? ''))
+    fetch('http://127.0.0.1:7468/ingest/718d2469-93f0-4b41-8aec-cb23950c51fd', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '20f00c' },
+      body: JSON.stringify({
+        sessionId: '20f00c',
+        runId: 'history-loss-2',
+        hypothesisId: 'H7',
+        location: 'src/server/routes/storage.ts:getHistory',
+        message: 'history loaded',
+        data: { conversationId, messagesCount: Array.isArray(messages) ? messages.length : 0, tailRoles: roles },
+        timestamp: Date.now()
+      })
+    }).catch(() => {})
+  } catch { /* ignore */ }
+  // #endregion
+  return c.json({ messages: Array.isArray(messages) ? messages : [] })
 })
 
 // PUT /api/storage/history/:conversationId — 保存对话 AI 消息历史

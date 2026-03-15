@@ -214,7 +214,25 @@ class WebHistoryService {
       })
       if (!res.ok) return []
       const data = await res.json()
-      return Array.isArray(data.messages) ? data.messages : []
+      const messages = Array.isArray(data.messages) ? data.messages : []
+      // #region agent debug log
+      try {
+        fetch('http://127.0.0.1:7468/ingest/718d2469-93f0-4b41-8aec-cb23950c51fd', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '20f00c' },
+          body: JSON.stringify({
+            sessionId: '20f00c',
+            runId: 'history-loss-2',
+            hypothesisId: 'H8',
+            location: 'src/renderer/src/services/storageService.ts:WebHistoryService.getHistory',
+            message: 'history fetched',
+            data: { conversationId, messagesCount: messages.length },
+            timestamp: Date.now()
+          })
+        }).catch(() => {})
+      } catch { /* ignore */ }
+      // #endregion
+      return messages
     } catch {
       return []
     }
