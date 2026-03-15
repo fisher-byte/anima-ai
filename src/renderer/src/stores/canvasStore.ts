@@ -1941,40 +1941,6 @@ export const useCanvasStore = create<CanvasState>()(
         if (token !== _openModalToken) return
         set({ currentConversation: merged, isLoading: false })
 
-        // #region agent debug log
-        fetch('http://127.0.0.1:7468/ingest/718d2469-93f0-4b41-8aec-cb23950c51fd', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '20f00c' },
-          body: JSON.stringify({
-            sessionId: '20f00c',
-            runId: 'history-loss',
-            hypothesisId: 'H3',
-            location: 'src/renderer/src/stores/canvasStore.ts:openModalById',
-            message: 'loaded conversation (repair aware)',
-            data: {
-              algoVersion: 'repair-v2',
-              convId: conversationId,
-              latestAssistantLen: latestA.length,
-              latestHasMulti,
-              bestAssistantLen: bestAssistantMessage.length,
-              bestHasMulti,
-              diffLen,
-              shouldPreferBest,
-              repaired: shouldRepair,
-              childCount: childConvs.length,
-              childMaxAssistantLen: childConvs.reduce((m, c) => Math.max(m, c.assistantLen), 0),
-              childTop3: childConvs
-                .sort((a, b) => b.assistantLen - a.assistantLen)
-                .slice(0, 3),
-              mergedAssistantLen: merged.assistantMessage.length,
-              mergedAddedChildTurns: childConvs.length,
-              scanned
-            },
-            timestamp: Date.now()
-          })
-        }).catch(() => {})
-        // #endregion
-
         // 若触发修复：追加写回一条“修复后的完整版”，让后续读取不再落到短版本
         // 注意：这里也会把子对话合并进 transcript（仅影响回放显示，不影响子节点本身）
         if (shouldRepair || childConvs.length > 0) {
@@ -2246,27 +2212,6 @@ export const useCanvasStore = create<CanvasState>()(
       STORAGE_FILES.CONVERSATIONS,
       JSON.stringify(conversation)
     )
-    // #region agent debug log
-    try {
-      fetch('http://127.0.0.1:7468/ingest/718d2469-93f0-4b41-8aec-cb23950c51fd', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '20f00c' },
-        body: JSON.stringify({
-          sessionId: '20f00c',
-          runId: 'history-loss',
-          hypothesisId: 'H4',
-          location: 'src/renderer/src/stores/canvasStore.ts:appendConversation',
-          message: 'appendConversation done',
-          data: {
-            convId: conversation.id,
-            assistantLen: (conversation.assistantMessage || '').length,
-            hasMultiTurn: (conversation.assistantMessage || '').includes('#1\n') || (conversation.assistantMessage || '').includes('# 1\n'),
-          },
-          timestamp: Date.now()
-        })
-      }).catch(() => {})
-    } catch { /* ignore */ }
-    // #endregion
 
     // fire-and-forget：向量索引
     const indexText = conversation.userMessage + ' ' + conversation.assistantMessage

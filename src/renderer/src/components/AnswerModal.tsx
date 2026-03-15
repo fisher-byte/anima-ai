@@ -152,24 +152,6 @@ export function AnswerModal() {
   const networkHandoffOnceRef = useRef<string | null>(null) // 避免同一 convId 重复转后台
   const autoSavedSigRef = useRef<string | null>(null)
 
-  // #region agent debug log
-  const uiDbg = useCallback((hypothesisId: string, message: string, data: Record<string, unknown>) => {
-    fetch('http://127.0.0.1:7468/ingest/718d2469-93f0-4b41-8aec-cb23950c51fd', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '20f00c' },
-      body: JSON.stringify({
-        sessionId: '20f00c',
-        runId: 'history-loss',
-        hypothesisId,
-        location: 'src/renderer/src/components/AnswerModal.tsx',
-        message,
-        data,
-        timestamp: Date.now()
-      })
-    }).catch(() => {})
-  }, [])
-  // #endregion
-
   const serializeTurnsForStorage = useCallback((ts: Turn[]) => {
     const stillStreaming = false
     return ts.length > 0
@@ -201,15 +183,6 @@ export function AnswerModal() {
       if (autoSavedSigRef.current === sig) return
       autoSavedSigRef.current = sig
 
-      uiDbg('H1', 'autosave attempt', {
-        convId: currentConversation.id,
-        turnsCount: turns.length,
-        assistantLen: assistantMessage.length,
-        hasMultiTurn: assistantMessage.includes('#1\n') || assistantMessage.includes('# 1\n'),
-        isReplay: isReplayRef.current,
-        didMutate: didMutateRef.current
-      })
-
       // 用 store 的 appendConversation 写入 conversations.jsonl（同 id 追加覆盖），并触发索引/画像等后续任务
       const convToSave: Conversation = {
         ...currentConversation,
@@ -218,12 +191,10 @@ export function AnswerModal() {
         appliedPreferences: [...appliedPreferences],
       }
       await useCanvasStore.getState().appendConversation(convToSave)
-      uiDbg('H1', 'autosave done', { convId: currentConversation.id })
     } catch (e) {
-      uiDbg('H1', 'autosave error', { err: e instanceof Error ? e.message : String(e), convId: currentConversation?.id ?? null })
       console.warn('autosave failed:', e)
     }
-  }, [currentConversation, isLennyMode, isCustomSpaceMode, isOnboardingMode, isStreaming, turns, appliedPreferences, serializeTurnsForStorage, uiDbg])
+  }, [currentConversation, isLennyMode, isCustomSpaceMode, isOnboardingMode, isStreaming, turns, appliedPreferences, serializeTurnsForStorage])
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const onboardingPhaseRef = useRef(0)
@@ -464,7 +435,6 @@ export function AnswerModal() {
                 body: JSON.stringify(convToSave),
                 keepalive: true
               }).catch(() => {})
-              uiDbg('H2', 'beforeunload keepalive save', { convId: currentConversation.id, turnsCount: turns.length, assistantLen: assistantMessage.length })
             }
           }
         }
@@ -472,7 +442,7 @@ export function AnswerModal() {
     }
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
-  }, [isModalOpen, currentConversation, isStreaming, turns, appliedPreferences, isLennyMode, isCustomSpaceMode, isOnboardingMode, serializeTurnsForStorage, uiDbg])
+  }, [isModalOpen, currentConversation, isStreaming, turns, appliedPreferences, isLennyMode, isCustomSpaceMode, isOnboardingMode, serializeTurnsForStorage])
 
   useEffect(() => {
     deepSearchStateRef.current = deepSearchState
