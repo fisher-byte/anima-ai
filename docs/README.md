@@ -12,17 +12,18 @@
 | [测试手册](./testing.md) | 测试策略、用例 | 📝 |
 | [LingSi Schema](./lingsi-data-schema.md) | 灵思决策版数据层基线 | ✅ |
 | [LingSi Eval M4](./lingsi-eval-m4.md) | 灵思决策版 15 题对照评测 | ✅ |
+| [LingSi Eval Zhang](./lingsi-eval-zhang.md) | 张小龙 persona case-based eval 基线 | ✅ |
 | [部署运维](./deployment.md) | 发布、配置 | 📝 |
 | [变更日志](./changelog.md) | 版本迭代记录 | ✅ |
 | [问题排查](./troubleshooting.md) | 常见问题解决 | 📝 |
-| [代码审查](./code-review-report-v0.5.16-home-lingsi-and-trace.md) | 最新审查报告 | ✅ |
+| [代码审查](./code-review-report-v0.5.17-lingsi-sync-and-zhang-eval.md) | 最新审查报告 | ✅ |
 | [路线图](./ROADMAP.md) | 近期/远期规划 | ✅ |
 
 ## 项目状态
 
-- **当前版本**: v0.5.16
+- **当前版本**: v0.5.17
 - **开发状态**: Active
-- **最后更新**: 2026-03-17（含主页灵思入口、结构化 @mention 与独立决策轨迹视图）
+- **最后更新**: 2026-03-17（含 latest source sync、53 条 approved units 与张小龙 case-based eval 基线）
 - **GitHub**: https://github.com/fisher-byte/anima-ai
 
 ## 核心功能
@@ -39,7 +40,8 @@
 npm run dev      # 开发模式
 npm test         # 运行测试
 npm run build    # 生产构建
-npm run lingsi:evaluate  # 跑 LingSi 15 题对照评测
+npm run lingsi:evaluate        # 跑 Lenny 15 题对照评测
+npm run lingsi:evaluate:zhang  # 跑张小龙 case-based eval 基线
 ```
 
 ---

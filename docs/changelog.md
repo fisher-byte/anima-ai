@@ -1,5 +1,29 @@
 # Anima 变更日志
 
+## [0.5.17] - 2026-03-17
+
+### feat: latest source sync + 张小龙 case-based eval
+
+**新增能力：**
+- `anima-base`：同步到 `851effb`，纳入最新 Lenny 定价 / GEM-DHM / PLG / discovery / activation / feedback 案例与张小龙小程序 / 开放平台材料
+- `scripts/extract-lingsi-seeds.ts`：新增 8 条来源、12 条 approved units，把种子库刷新为 `2 personas / 33 sources / 53 approved units`
+- `scripts/evaluate-lingsi.ts` / `package.json`：新增 `npm run lingsi:evaluate:zhang`，为张小龙 persona 生成独立 `case-based eval` 基线
+- `docs/lingsi-eval-zhang.md` / `reports/lingsi-zhang-eval.json`：沉淀张小龙评测结果，当前为 `decision 6 : normal 0 : tie 1`
+
+**测试与验证：**
+- `npm run lingsi:extract`：通过，刷新为 `2 personas / 33 sources / 53 approved units`
+- `LINGSI_EVAL_PERSONA=zhang npm run lingsi:evaluate`：通过，`decision 6 : normal 0 : tie 1`
+- `npm test`：588/588 通过
+- `npm run typecheck`：通过
+- `npm run build`：通过
+- `npm run test:e2e`：44 passed / 4 skipped
+
+**代码审查结论：**
+- 本轮 diff 已完成正式审查；新增来源、seed 数量基线与张小龙独立评测链路一致，无新增阻塞项。
+
+---
+
+
 ## [0.5.16] - 2026-03-17
 
 ### feat: 主页灵思入口 + 结构化 @mention + 独立决策轨迹视图

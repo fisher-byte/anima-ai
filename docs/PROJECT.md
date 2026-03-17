@@ -1,7 +1,7 @@
 # Anima — 项目计划
 
 > 唯一入口：每次发版、每次决策都在这里留记录。
-> 最后更新：2026-03-17 | 当前版本：v0.5.16
+> 最后更新：2026-03-17 | 当前版本：v0.5.17
 
 ---
 
@@ -13,12 +13,12 @@
 |---|------|------|------|
 | 1 | 灵思文档定稿 | 已完成 | MVP 范围、证据门槛、SOP 节奏已对齐 |
 | 2 | 真实证据层设计 | 已完成 | schema、共享类型、存储白名单、来源 manifest 已落地 |
-| 3 | 首批 DecisionUnit 基线入库 | 已完成 | 已生成 `seeds/lingsi` 基线：2 personas / 25 sources / 41 approved units，并支持写入 storage |
+| 3 | 首批 DecisionUnit 基线入库 | 已完成 | 已生成 `seeds/lingsi` 基线：2 personas / 33 sources / 53 approved units，并支持写入 storage |
 | 4 | Lenny / 张小龙 决策模式接入 | 已完成 | 已接入 `normal / 灵思` 切换、extraContext 注入、decisionTrace 持久化，并按 persona 过滤命中结果 |
 | 5 | 验证与对照 | 已完成 | 已跑 `15` 个真实问题对照，`decision` 赢 `15` 题，结果沉淀到 `docs/lingsi-eval-m4.md` |
 | 6 | 脚注展示与决策轨迹 | 已完成 | AnswerModal 已展示当前对话的 DecisionUnit 命中、来源 locator/excerpt 与灵思证据面板 |
 | 7 | 正文内脚注编号 | 已完成 | 回答正文首段已插入 `[1][2]...` 锚点，脚注面板可直接跳转到对应来源 |
-| 8 | anima-base 增量评估与导入 | 已完成 | 已同步 `anima-base@eb83d12`，新增 Lenny / 张小龙最新决策案例，并把 LingSi 扩充到 25 sources / 41 approved units |
+| 8 | anima-base 增量评估与导入 | 已完成 | 已同步 `anima-base@851effb`，新增 Lenny / 张小龙最新决策案例，并把 LingSi 扩充到 33 sources / 53 approved units |
 | 9 | SOP 闭环 | 已完成 | 本轮最新 source refresh 已完成文档同步、`npm test`、`npm run typecheck`、`npm run build`、`npm run test:e2e`、targeted `LINGSI_EVAL_CASE=pmf-before-growth` 验证、code review 与 GitHub 备份 |
 
 ---
@@ -35,16 +35,27 @@
 | 4 | 决策轨迹视图扩展 | 已完成 | `AnswerModal` evidence panel 扩成独立 trace 视图，支持 persona、mode、matched units、next actions、follow-up questions 回放 |
 | 5 | SOP 闭环 | 已完成 | 已完成文档同步、code review、`npm test`、`npm run typecheck`、`npm run build`、`npm run test:e2e` 与 GitHub 备份 |
 
-## 下一阶段（v0.5.17 计划）
+## 当前冲刺（v0.5.17 已完成）
 
-*继续扩大 LingSi 覆盖面，并把主页决策调用做得更稳。*
+*本轮把最新 Lenny / 张小龙来源同步进 LingSi，并补齐张小龙 persona 的 case-based eval 基线。*
 
 | # | 任务 | 状态 | 说明 |
 |---|------|------|------|
-| 1 | 持续同步 anima-base 增量 | 待做 | 保持 `anima-base` 独立仓库持续同步，优先筛选高价值 Lenny / 张小龙决策案例进入人工审核链路 |
-| 2 | 张小龙 DecisionUnit 扩充 | 待做 | 继续把张小龙新增案例转成可审核的真实 `DecisionUnit`，补齐运营克制、社交设计、平台治理等场景密度 |
-| 3 | 主页 `@` 决策轨迹沉淀 | 待做 | 主页通过 `@persona` 触发的对话也沉淀可回放 trace，对照普通模式更完整 |
-| 4 | 对照评测扩展 | 待做 | 为张小龙 persona 增补 case-based eval，避免只用 Lenny 基线判断效果 |
+| 1 | 持续同步 anima-base 增量 | 已完成 | `anima-base` 已同步到 `851effb`，纳入最新 Lenny 定价 / GEM-DHM / PLG / discovery / activation / feedback 案例与张小龙小程序 / 开放平台材料 |
+| 2 | Lenny / 张小龙 DecisionUnit 扩充 | 已完成 | `scripts/extract-lingsi-seeds.ts` 已扩到 `2 personas / 33 sources / 53 approved units`，其中 `lenny=34`、`zhang=19` |
+| 3 | 张小龙 case-based eval 基线 | 已完成 | 新增 `npm run lingsi:evaluate:zhang`，输出 `docs/lingsi-eval-zhang.md` / `reports/lingsi-zhang-eval.json`，结果为 `decision 6 : normal 0 : tie 1` |
+| 4 | SOP 闭环 | 已完成 | 已完成文档同步、code review、`npm run lingsi:extract`、`npm run typecheck`、`npm test`、`npm run build`、`npm run test:e2e` 与 GitHub 备份 |
+
+## 下一阶段（v0.5.18 计划）
+
+*继续把 persona 评测体系和主页决策调用做得更稳。*
+
+| # | 任务 | 状态 | 说明 |
+|---|------|------|------|
+| 1 | 主页 `@` 决策轨迹沉淀 | 待做 | 主页通过 `@persona` 触发的对话继续强化 trace 对照与历史复盘 |
+| 2 | persona case-based eval 扩展 | 待做 | 在张小龙基线之外继续扩更多 persona / 更多题型，逐步从单次报告走向稳定评测套件 |
+| 3 | 持续同步 anima-base 增量 | 待做 | 保持 `anima-base` 独立仓库持续同步，优先筛选高价值 Lenny / 张小龙决策案例进入人工审核链路 |
+| 4 | 决策轨迹视图增强 | 待做 | 把 trace 里的 next actions / follow-up questions / evidence 对照做得更适合复盘 |
 
 
 ### 范围判断
@@ -122,6 +133,7 @@
 
 | 版本 | 日期 | 核心内容 |
 |------|------|----------|
+| v0.5.17 | 2026-03-17 | LingSi latest source sync + 张小龙基线评测：同步 `anima-base@851effb`，把 seeds 扩到 `2 personas / 33 sources / 53 approved units`，新增 `npm run lingsi:evaluate:zhang`，完成张小龙 case-based eval 基线 `decision 6 : normal 0 : tie 1` |
 | v0.5.16 | 2026-03-17 | LingSi 主页接入：主页 Space 入口新增 `灵思` 标识，`@persona` 支持 `普通 / 灵思` 结构化 mention token 与整块删除，AnswerModal 新增独立决策轨迹视图，并把主页 persona 调用接入统一 decisionTrace 链路 |
 | v0.5.15 | 2026-03-17 | LingSi 最新数据层 refresh：同步 `anima-base@eb83d12`，新增 8 条真实来源，把 seeds 扩到 25 sources / 41 approved units，覆盖 Lenny 留存优先、风险 rollout、设计评审，以及张小龙运营克制、功能生命周期、社交设计、平台治理 |
 | v0.5.14 | 2026-03-17 | LingSi 多 persona 扩展：同步 `anima-base@65ca4c7`，新增张小龙 persona、6 条真实来源、8 条 approved units，并在张小龙 Space 接入 `normal / 灵思` 模式 |
@@ -204,6 +216,7 @@
 | 2026-03-17 | Space 入口必须直接标明是否支持 `灵思` | 决策能力是关键差异点，不应要求用户进入 Space 后才发现 |
 | 2026-03-17 | 决策轨迹从“证据面板”升级为“独立视图” | 现有面板适合看脚注，不足以支持回放、复盘和后续对照评测 |
 | 2026-03-17 | 张小龙 persona 下一轮优先扩“运营克制/功能生命周期/社交设计/平台治理” | `anima-base@eb83d12` 新增 `case-18`~`case-21`，正好覆盖这四个高价值决策面 |
+| 2026-03-17 | persona 评测从单一 Lenny 扩到张小龙 case-based baseline | 当第二 persona 已进入真实产品链路后，评测必须按 persona 分层，避免只用 Lenny 基线判断效果 |
 | 2026-03-16 | 灵思 MVP 先只做 Lenny，不同步扩展多 persona | 单点打透证据层和交互链路，减少范围扩散 |
 | 2026-03-17 | 第二个 persona 先扩张到张小龙，并保持 `anima-base` 持续同步 | 张小龙在产品原则、社交增长、克制商业化上有高价值差异，且最新 base 已有成型案例库 |
 | 2026-03-16 | 灵思 MVP 支持泛决策，但证据不足时只给初步倾向 | 问题范围可以广，但证据门槛不能虚 |

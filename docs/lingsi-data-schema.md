@@ -1,6 +1,6 @@
 # LingSi 数据 Schema
 
-*最后更新: 2026-03-17 | 状态: 多 persona 基线已完成，已同步最新 Lenny / 张小龙案例*
+*最后更新: 2026-03-17 | 状态: 多 persona 基线已完成，已同步 latest Lenny / 张小龙案例并补齐张小龙 eval*
 
 ---
 
@@ -27,8 +27,8 @@
 
 当前 seed 统计：
 - `2` 个 persona
-- `25` 条来源 manifest
-- `41` 条 `approved` DecisionUnit
+- `33` 条来源 manifest
+- `53` 条 `approved` DecisionUnit
 
 正式接入产品时，再由导入链路写入 SQLite `storage` 表。
 
@@ -40,7 +40,7 @@
 
 当前 `anima-base` 来源基线：
 - 仓库路径：`/Users/zhiyangyu/Desktop/试验项目集合/自进化产品/anima-base`
-- 仓库 commit：`eb83d12`
+- 仓库 commit：`851effb`
 
 ---
 
@@ -227,6 +227,14 @@
 - `people/product/zhang-xiaolong/decision-cases/case-19-feature-evolution-philosophy.md`
 - `people/product/zhang-xiaolong/decision-cases/case-20-social-design-principles.md`
 - `people/product/zhang-xiaolong/decision-cases/case-21-platform-governance-philosophy.md`
+- `people/product/lenny-rachitsky/decision-cases/case-16-patrick-campbell-pricing-strategy.md`
+- `people/product/lenny-rachitsky/decision-cases/case-17-gibson-biddle-gem-dhm.md`
+- `people/product/lenny-rachitsky/decision-cases/case-18-wes-bush-plg-strategy.md`
+- `people/product/lenny-rachitsky/decision-cases/case-19-teresa-torres-continuous-discovery.md`
+- `people/product/lenny-rachitsky/decision-cases/case-20-ramli-john-activation-optimization.md`
+- `people/product/lenny-rachitsky/decision-cases/case-21-hiten-shah-feedback-system.md`
+- `people/product/zhang-xiaolong/decision-cases/case-03-mini-program-strategy.md`
+- `people/product/zhang-xiaolong/articles/2014-wechat-open-platform-philosophy.md`
 
 当前优先覆盖的问题类型：
 - PMF 判断

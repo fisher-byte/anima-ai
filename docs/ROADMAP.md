@@ -2,13 +2,20 @@
 
 ## 计划中版本
 
+#### v0.5.17 - LingSi latest source sync + 张小龙 case-based eval（已完成）
+- [x] `anima-base`：同步到 `851effb`，纳入最新 Lenny 定价 / GEM-DHM / PLG / discovery / activation / feedback 案例与张小龙小程序 / 开放平台材料
+- [x] `scripts/extract-lingsi-seeds.ts`：新增 8 条 source manifest 与 12 条 approved units，把 seeds 刷新为 `2 personas / 33 sources / 53 approved units`
+- [x] `scripts/evaluate-lingsi.ts` / `package.json`：新增 persona-scoped 张小龙评测入口 `npm run lingsi:evaluate:zhang`，输出 `docs/lingsi-eval-zhang.md` / `reports/lingsi-zhang-eval.json`
+- [x] `lingsiSeeds.test.ts` / `lingsiDecisionEngine.test.ts`：更新数量基线，并补充 Lenny PLG/TTV 与张小龙场景入口命中断言
+- [x] 验证：`npm run lingsi:extract`、`LINGSI_EVAL_PERSONA=zhang npm run lingsi:evaluate`（`decision 6 : normal 0 : tie 1`）、`npm test`（588/588）、`npm run typecheck`、`npm run build`、`npm run test:e2e`（44 passed / 4 skipped）
+
 #### v0.5.16 - LingSi 主页入口 + @mention 重构（已完成）
-- [ ] `Canvas.tsx`：在主页左侧 Space 入口直接标识哪些 persona 支持 `灵思`
-- [ ] `InputBox.tsx`：主页 `@` 联想支持选择 `普通` / `灵思` 的 persona mention，而不只是普通 Space 提示
-- [ ] `InputBox.tsx` / `canvasStore.ts`：把当前 `@name + pill` 模式重构为结构化 mention token，支持整块删除与稳定回退
-- [ ] `AnswerModal.tsx` / `AnswerModalSubcomponents.tsx`：把当前 evidence panel 扩成独立“决策轨迹视图”，支持 `personaId / mode / matchedDecisionUnitIds / sourceRefs` 回放
-- [ ] 持续同步 `anima-base` 最新高价值案例到人工审核链路
-- [ ] 验证：`npm run lingsi:extract`、`npm run lingsi:evaluate`、`npm test`、`npm run typecheck`、`npm run build`、`npm run test:e2e`
+- [x] `Canvas.tsx`：在主页左侧 Space 入口直接标识哪些 persona 支持 `灵思`
+- [x] `InputBox.tsx`：主页 `@` 联想支持选择 `普通` / `灵思` 的 persona mention，而不只是普通 Space 提示
+- [x] `InputBox.tsx` / `canvasStore.ts`：把当前 `@name + pill` 模式重构为结构化 mention token，支持整块删除与稳定回退
+- [x] `AnswerModal.tsx` / `AnswerModalSubcomponents.tsx`：把当前 evidence panel 扩成独立“决策轨迹视图”，支持 `personaId / mode / matchedDecisionUnitIds / sourceRefs` 回放
+- [x] 持续同步 `anima-base` 最新高价值案例到人工审核链路
+- [x] 验证：`npm run lingsi:extract`、`npm run lingsi:evaluate`、`npm test`、`npm run typecheck`、`npm run build`、`npm run test:e2e`
 
 ## 已完成版本
 
