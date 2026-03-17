@@ -107,10 +107,57 @@
         "publishedAt": "2024-05-02",
         "evidenceLevel": "A",
         "notes": "Make implicit explicit, meetings discuss not decide, kill criteria"
+      },
+      {
+        "id": "src-lenny-superhuman-pmf-case",
+        "label": "Superhuman PMF Survey Decision Case",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-01-superhuman-pmf-survey-decision.md",
+        "person": "Lenny Rachitsky",
+        "title": "Superhuman PMF Survey Decision Case",
+        "url": "https://www.youtube.com/watch?v=0igjSRZyX-w",
+        "publishedAt": "2025-03-23",
+        "evidenceLevel": "A",
+        "notes": "PMF segmentation, 50/50 roadmap, solution deepening before market widening"
+      },
+      {
+        "id": "src-lenny-roadmap-pyramid",
+        "label": "Product Roadmap Planning Framework",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/frameworks/product-roadmap-planning-framework.md",
+        "person": "Lenny Rachitsky",
+        "title": "Product Roadmap Planning Framework",
+        "url": "https://www.lennysnewsletter.com/p/mission-vision-strategy-goals-roadmap",
+        "publishedAt": "2022-10-18",
+        "evidenceLevel": "B",
+        "notes": "Mission to task planning hierarchy, goals-first roadmap prioritization"
+      },
+      {
+        "id": "src-lenny-uncertainty",
+        "label": "Navigating Uncertainty Decision Framework",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/articles/uncertainty-decision-framework.md",
+        "person": "Lenny Rachitsky",
+        "title": "Navigating Uncertainty Decision Framework",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "B",
+        "notes": "Reversible vs irreversible decisions, time-boxing, 70 percent certainty"
+      },
+      {
+        "id": "src-lenny-pm-career",
+        "label": "PM Career Path Decision Framework",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/articles/pm-career-path-decision-framework.md",
+        "person": "Lenny Rachitsky",
+        "title": "PM Career Path Decision Framework",
+        "url": "https://www.lennysnewsletter.com/p/which-companies-accelerate-your-pm",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "B",
+        "notes": "Career growth over prestige, IC-manager switch, company selection criteria"
       }
     ],
     "status": "active",
     "createdAt": "2026-03-17T06:20:17.767Z",
-    "updatedAt": "2026-03-17T09:05:28.813Z"
+    "updatedAt": "2026-03-17T12:41:17.326Z"
   }
 ]

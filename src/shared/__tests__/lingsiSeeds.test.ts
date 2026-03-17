@@ -37,7 +37,7 @@ describe('LingSi seed outputs', () => {
 
   it('keeps the generated seed baseline at the expected current size', () => {
     expect(personas).toHaveLength(1)
-    expect(manifest).toHaveLength(7)
-    expect(units).toHaveLength(13)
+    expect(manifest).toHaveLength(11)
+    expect(units).toHaveLength(20)
   })
 })

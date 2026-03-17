@@ -1,7 +1,7 @@
 # Anima — 项目计划
 
 > 唯一入口：每次发版、每次决策都在这里留记录。
-> 最后更新：2026-03-17 | 当前版本：v0.5.12
+> 最后更新：2026-03-17 | 当前版本：v0.5.13
 
 ---
 
@@ -13,13 +13,13 @@
 |---|------|------|------|
 | 1 | 灵思文档定稿 | 已完成 | MVP 范围、证据门槛、SOP 节奏已对齐 |
 | 2 | 真实证据层设计 | 已完成 | schema、共享类型、存储白名单、来源 manifest 已落地 |
-| 3 | 首批 DecisionUnit 基线入库 | 已完成 | 已生成 `seeds/lingsi` 基线：1 persona / 7 sources / 13 approved units，并支持写入 storage |
+| 3 | 首批 DecisionUnit 基线入库 | 已完成 | 已生成 `seeds/lingsi` 基线：1 persona / 11 sources / 20 approved units，并支持写入 storage |
 | 4 | Lenny 决策模式接入 | 已完成 | 已接入 `normal / 灵思` 切换、extraContext 注入、decisionTrace 持久化 |
 | 5 | 验证与对照 | 已完成 | 已跑 `15` 个真实问题对照，`decision` 赢 `15` 题，结果沉淀到 `docs/lingsi-eval-m4.md` |
 | 6 | 脚注展示与决策轨迹 | 已完成 | AnswerModal 已展示当前对话的 DecisionUnit 命中、来源 locator/excerpt 与灵思证据面板 |
 | 7 | 正文内脚注编号 | 已完成 | 回答正文首段已插入 `[1][2]...` 锚点，脚注面板可直接跳转到对应来源 |
-| 8 | anima-base 增量评估 | 已完成 | 已核对远端 `12` 个新提交，确认 Lenny `decision-cases` / `uncertainty` / `roadmap` / `career-path` 等材料值得进入下一轮数据补充 |
-| 9 | SOP 闭环 | 已完成 | 文档同步、`npm test`、`npm run typecheck`、`npm run build`、`npm run test:e2e`、code review、GitHub 备份已完成；部署验证待后续 |
+| 8 | anima-base 增量评估与导入 | 已完成 | 已拉取 `anima-base@4d27b3b`，并把 Lenny `decision-cases` / `uncertainty` / `roadmap` / `career-path` 材料扩充为 4 条新来源和 7 条新 DecisionUnit |
+| 9 | SOP 闭环 | 已完成 | 本轮数据扩充后的文档同步、评测、`npm test`、`npm run typecheck`、`npm run build`、`npm run test:e2e`、code review 与 GitHub 备份已完成 |
 
 ---
 
@@ -89,6 +89,7 @@
 
 | 版本 | 日期 | 核心内容 |
 |------|------|----------|
+| v0.5.13 | 2026-03-17 | 灵思数据层扩充：从最新 `anima-base` 导入 4 条高价值 Lenny 来源，把种子库扩到 11 sources / 20 approved units，覆盖 PMF 案例、路线图、决策不确定性与职业决策 |
 | v0.5.12 | 2026-03-17 | 灵思正文脚注：在回答正文插入 `[1][2]` 锚点，并完成 anima-base 远端增量价值评估，锁定下一轮高价值来源 |
 | v0.5.11 | 2026-03-17 | 灵思证据展示：AnswerModal 新增脚注与决策轨迹面板，展示 DecisionUnit 命中和真实来源摘录 |
 | v0.5.10 | 2026-03-17 | 稳定性补丁：修复 Lenny/Custom Space 切换残留 onboarding 状态；清理失效本地 token 以恢复浏览器真实提问链路 |

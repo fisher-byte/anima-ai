@@ -1,6 +1,6 @@
 # LingSi 数据 Schema
 
-*最后更新: 2026-03-17 | 状态: M4 内部评测已完成*
+*最后更新: 2026-03-17 | 状态: M4 数据扩充已完成，等待本轮验证收口*
 
 ---
 
@@ -27,8 +27,8 @@
 
 当前 seed 统计：
 - `1` 个 persona
-- `7` 条来源 manifest
-- `13` 条 `approved` DecisionUnit
+- `11` 条来源 manifest
+- `20` 条 `approved` DecisionUnit
 
 正式接入产品时，再由导入链路写入 SQLite `storage` 表。
 
@@ -40,7 +40,7 @@
 
 当前 `anima-base` 来源基线：
 - 仓库路径：`/Users/zhiyangyu/Desktop/试验项目集合/自进化产品/anima-base`
-- 仓库 commit：`17287af`
+- 仓库 commit：`4d27b3b`
 
 ---
 
@@ -140,7 +140,7 @@
   {
     "id": "src-lenny-annie-duke-2024-05-02",
     "repo": "anima-base",
-    "repoCommit": "17287af",
+    "repoCommit": "4d27b3b",
     "person": "Lenny Rachitsky",
     "type": "podcast_transcript",
     "sourcePath": "people/product/lenny-rachitsky/podcasts/2024-05-02-annie-duke.md",
@@ -208,6 +208,10 @@
 - `people/product/lenny-rachitsky/frameworks/growth-loops.md`
 - `people/product/lenny-rachitsky/frameworks/cross-functional-alignment.md`
 - `people/product/lenny-rachitsky/podcasts/2024-05-02-annie-duke.md`
+- `people/product/lenny-rachitsky/decision-cases/case-01-superhuman-pmf-survey-decision.md`
+- `people/product/lenny-rachitsky/frameworks/product-roadmap-planning-framework.md`
+- `people/product/lenny-rachitsky/articles/uncertainty-decision-framework.md`
+- `people/product/lenny-rachitsky/articles/pm-career-path-decision-framework.md`
 
 建议优先覆盖的问题类型：
 - PMF 判断
