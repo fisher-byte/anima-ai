@@ -1,5 +1,28 @@
 # Anima 变更日志
 
+## [0.5.16] - 2026-03-17
+
+### feat: 主页灵思入口 + 结构化 @mention + 独立决策轨迹视图
+
+**新增能力：**
+- `Canvas.tsx`：主页左侧 Space 入口直接显示 `灵思` 标识，明确 Lenny / 张小龙支持决策模式
+- `InputBox.tsx` / `inputMentions.ts`：主页 `@persona` 改为结构化 mention token，支持 `普通 / 灵思` suggestion，并支持像微信一样整块删除
+- `types.ts` / `canvasStore.ts`：新增 `invokedAssistant` 元数据，让主页 `@persona` 走统一 assistant/decisionTrace 链路
+- `AnswerModal.tsx` / `AnswerModalSubcomponents.tsx`：主页 persona 调用也能注入对应 system prompt，并新增独立“决策轨迹视图”，展示 persona、mode、matched units、next actions、follow-up questions 与来源摘录
+- `personaSpaces.ts`：抽出公共 persona 能力注册表，统一维护主页入口、Space prompt 与决策 persona 映射
+
+**测试与验证：**
+- `npm test`：586/586 通过
+- `npm run typecheck`：通过
+- `npm run build`：通过
+- `npm run test:e2e`：44 passed / 4 skipped
+
+**代码审查结论：**
+- 本轮 diff 已完成正式审查；结构化 mention token 与主页 persona 调用链路无新增阻塞项。
+
+---
+
+
 ## [0.5.15] - 2026-03-17
 
 ### feat: LingSi 最新 Lenny / 张小龙案例同步

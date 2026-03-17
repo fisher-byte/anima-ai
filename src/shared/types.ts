@@ -184,6 +184,16 @@ export interface DecisionTrace {
 }
 
 /**
+ * 从主页等非 Space 场景调用 persona / custom space 的上下文
+ */
+export interface AssistantInvocation {
+  type: 'public_space' | 'custom_space'
+  id: string
+  name: string
+  mode?: DecisionMode
+}
+
+/**
  * 对话记录
  */
 export interface Conversation {
@@ -199,6 +209,7 @@ export interface Conversation {
   appliedPreferences?: string[]
   appliedMemoryIds?: string[]   // 本次对话引用的 conversationId 列表
   decisionTrace?: DecisionTrace
+  invokedAssistant?: AssistantInvocation
   /** 深度搜索后台任务状态（可跨页面继续） */
   deepSearch?: {
     taskId: number

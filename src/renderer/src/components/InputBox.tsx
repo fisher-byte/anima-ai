@@ -20,15 +20,17 @@ import { X, Paperclip, FileText, FileCode, File as FileIcon, Loader2, ArrowUp, S
 import { formatFilesForAI, FilePreview, getFileType, readImageAsBase64, formatFileSize } from '../../../services/fileParsing'
 import type { FileAttachment } from '@shared/types'
 import { getAuthToken, configService } from '../services/storageService'
+import { PUBLIC_SPACE_DEFINITIONS } from '../utils/personaSpaces'
+import {
+  buildMentionTokenText,
+  findMentionTokenRange,
+  getActiveSpaceMention,
+  removeMentionTokenFromMessage,
+  replaceActiveMentionQuery,
+  syncMentionTokens,
+  type InputMentionToken,
+} from '../utils/inputMentions'
 import { useT } from '../i18n'
-
-// 公共空间定义（固定 4 个）
-const PUBLIC_SPACES = [
-  { id: 'lenny',  name: 'Lenny Rachitsky', initials: 'L',  persona: 'Lenny Rachitsky（Product · Growth）', storagePrefix: 'lenny' },
-  { id: 'pg',     name: 'Paul Graham',     initials: 'PG', persona: 'Paul Graham（Startup · Thinking）',    storagePrefix: 'pg' },
-  { id: 'zhang',  name: '张小龙',           initials: '张', persona: '张小龙（Product · WeChat）',           storagePrefix: 'zhang' },
-  { id: 'wang',   name: '王慧文',           initials: '王', persona: '王慧文（Startup · Product）',          storagePrefix: 'wang' },
-] as const
 
 // Skills 定义 — key 对应 i18n，prompt 是注入 AI 的指令前缀，keywords 用于自动场景检测
 const SKILLS = [
@@ -81,6 +83,25 @@ function ReferenceBlockPreview({ content, onRemove }: { content: string; onRemov
 }
 
 export function InputBox() {
+  type MentionSuggestionItem =
+    | {
+        kind: 'space'
+        id: string
+        name: string
+        initials: string
+        invocationType: 'public_space' | 'custom_space'
+        storagePrefix: string
+        mode: 'normal' | 'decision'
+        supportsDecisionMode: boolean
+      }
+    | {
+        kind: 'file'
+        id: string
+        name: string
+        embed_status: string
+        created_at: string
+      }
+
   const [message, setMessage] = useState('')
   const [images, setImages] = useState<string[]>([])
   const [files, setFiles] = useState<FileAttachment[]>([])
@@ -96,8 +117,8 @@ export function InputBox() {
   const [historicFiles, setHistoricFiles] = useState<{ id: string; filename: string; embed_status: string; created_at: string }[]>([])
   const historicFilesCacheRef = useRef<{ id: string; filename: string; embed_status: string; created_at: string }[] | null>(null)
 
-  // 已确认的 @提及（选中后显示为 pill）
-  const [confirmedMentions, setConfirmedMentions] = useState<string[]>([])
+  // 结构化 @mention token：主页里以整体块的方式删除/替换
+  const [mentionTokens, setMentionTokens] = useState<InputMentionToken[]>([])
   const [suggestedSkill, setSuggestedSkill] = useState<typeof SKILLS[number] | null>(null)
   const [isDismissedSkill, setIsDismissedSkill] = useState(false) // 用户 dismiss 后当次消息不再弹出
 
@@ -341,6 +362,51 @@ export function InputBox() {
     }
   }, [apiKeyInput, isVerifyingKey, checkApiKey, t])
 
+  const buildMentionSuggestions = useCallback((query: string): MentionSuggestionItem[] => {
+    const q = query.toLowerCase()
+    const publicSpaces = PUBLIC_SPACE_DEFINITIONS
+      .filter(space => space.name.toLowerCase().includes(q))
+      .flatMap((space) => {
+        const base = {
+          kind: 'space' as const,
+          id: space.id,
+          name: space.name,
+          initials: space.initials,
+          invocationType: 'public_space' as const,
+          storagePrefix: space.storagePrefix,
+          supportsDecisionMode: space.supportsDecisionMode,
+        }
+        return space.supportsDecisionMode
+          ? [{ ...base, mode: 'normal' as const }, { ...base, mode: 'decision' as const }]
+          : [{ ...base, mode: 'normal' as const }]
+      })
+
+    const customSpaceSuggestions = customSpaces
+      .filter(space => space.name.toLowerCase().includes(q))
+      .map((space) => ({
+        kind: 'space' as const,
+        id: space.id,
+        name: space.name,
+        initials: space.avatarInitials,
+        invocationType: 'custom_space' as const,
+        storagePrefix: `custom-${space.id}`,
+        mode: 'normal' as const,
+        supportsDecisionMode: false,
+      }))
+
+    const fileSuggestions = historicFiles
+      .filter(file => file.filename.toLowerCase().includes(q))
+      .map((file) => ({
+        kind: 'file' as const,
+        id: file.id,
+        name: file.filename,
+        embed_status: file.embed_status,
+        created_at: file.created_at,
+      }))
+
+    return [...publicSpaces, ...customSpaceSuggestions, ...fileSuggestions]
+  }, [customSpaces, historicFiles])
+
   // 提交：先上传文件到后端，再触发对话
   const handleSubmit = useCallback(async () => {
     // 无 key 时禁止提交
@@ -404,32 +470,27 @@ export function InputBox() {
       fullMessage = trimmed + fileContext
     }
 
-    // 检测 @文件名 引用，追加隐藏的 AI 提示（气泡中不显示）
-    const atMentionRegex = /@([^\s@，。！？、；：]+)/g
-    const mentionedNames = [...trimmed.matchAll(atMentionRegex)].map(m => m[1])
-    if (mentionedNames.length > 0) {
-      const matchedFiles = (historicFilesCacheRef.current ?? []).filter(f =>
-        mentionedNames.some(name => f.filename === name)
+    const activeSpaceMention = getActiveSpaceMention(mentionTokens)
+    const fileMentions = mentionTokens.filter(token => token.type === 'file')
+
+    if (fileMentions.length > 0) {
+      const matchedFiles = (historicFilesCacheRef.current ?? []).filter(file =>
+        fileMentions.some(token => token.entityId === file.id || token.label === file.filename)
       )
       if (matchedFiles.length > 0) {
         const hints = matchedFiles
-          .map(f => `【已关联文件：${f.filename} —— 如需引用请调用 search_files 工具】`)
+          .map(file => `【已关联文件：${file.filename} —— 如需引用请调用 search_files 工具】`)
           .join('\n')
         fullMessage = fullMessage + '\n\n' + hints
       }
+    }
 
-      // 检测 @空间名 引用，追加隐藏的空间 persona 提示
-      const allSpaces: { name: string; persona: string; storagePrefix: string }[] = [
-        ...PUBLIC_SPACES,
-        ...customSpaces.map(s => ({ name: s.name, persona: `${s.name}（${s.topic}）`, storagePrefix: `custom-${s.id}` }))
-      ]
-      const matchedSpaces = allSpaces.filter(s => mentionedNames.some(n => n === s.name))
-      if (matchedSpaces.length > 0) {
-        const spaceHints = matchedSpaces
-          .map(s => `【已关联空间：${s.persona}—— 请以 ${s.name} 的视角和知识来回答，可调用 search_memory 检索相关记忆】`)
-          .join('\n')
-        fullMessage = fullMessage + '\n\n' + spaceHints
-      }
+    if (activeSpaceMention) {
+      const spaceHint =
+        activeSpaceMention.invocationType === 'custom_space'
+          ? `【已关联空间：${activeSpaceMention.label}—— 请以 ${activeSpaceMention.label} 的视角和知识来回答，可调用 search_memory 检索相关记忆】`
+          : `【已关联空间：${activeSpaceMention.label}${activeSpaceMention.mode === 'decision' ? '（灵思）' : ''}—— 请以 ${activeSpaceMention.label} 的视角和知识来回答，可调用 search_memory 检索相关记忆】`
+      fullMessage = fullMessage + '\n\n' + spaceHint
     }
 
     // 将引用块追加到消息体，用标记包裹（AI 可读，记忆提取时剥离）
@@ -440,7 +501,16 @@ export function InputBox() {
       fullMessage = fullMessage + (fullMessage ? '\n\n' : '') + refSection
     }
 
-    startConversation(fullMessage, images, uploadedFiles)
+    startConversation(fullMessage, images, uploadedFiles, undefined, activeSpaceMention
+      ? {
+          invokedAssistant: {
+            type: activeSpaceMention.invocationType ?? 'public_space',
+            id: activeSpaceMention.entityId,
+            name: activeSpaceMention.label,
+            mode: activeSpaceMention.mode,
+          },
+        }
+      : undefined)
 
     // 清空状态（isProcessing 在清空后才重置，防止文件上传期间重复提交）
     setMessage('')
@@ -449,7 +519,7 @@ export function InputBox() {
     setFilePreviews([])
     setReferenceBlocks([])
     setMatchCount(0)
-    setConfirmedMentions([])
+    setMentionTokens([])
     setHighlight(null, [])
     setSuggestedSkill(null)
     setIsDismissedSkill(false)
@@ -463,68 +533,95 @@ export function InputBox() {
         textarea.style.height = 'auto'
       }
     })
-  }, [message, images, files, referenceBlocks, isProcessing, needsApiKey, startConversation, setHighlight, t])
+  }, [message, images, files, referenceBlocks, isProcessing, needsApiKey, startConversation, setHighlight, t, mentionTokens])
 
-  // @ 选择：将 @xxx 替换为 @名称（文件或空间均可）
-  const handleAtSelect = useCallback((item: { name: string } | { id: string; filename: string; embed_status: string }) => {
-    const displayName = 'filename' in item ? item.filename : item.name
+  // @ 选择：将 @query 替换为结构化 token，支持普通/灵思模式与整块删除
+  const handleAtSelect = useCallback((item: MentionSuggestionItem) => {
+    const displayName = item.name
     const textarea = textareaRef.current
     if (!textarea) return
     const cursor = textarea.selectionStart ?? message.length
-    const beforeCursor = message.slice(0, cursor)
-    const atIdx = beforeCursor.lastIndexOf('@')
-    if (atIdx < 0) return
-    const afterAt = message.slice(cursor)
-    const newMsg = message.slice(0, atIdx) + `@${displayName}` + afterAt
-    setMessage(newMsg)
+    const tokenText = buildMentionTokenText(
+      displayName,
+      item.kind === 'space' ? item.mode : undefined,
+      t.space.decisionModeLingSi,
+    )
+    const replacement = replaceActiveMentionQuery(message, cursor, tokenText)
+    setMessage(replacement.message)
     setAtQuery(null)
     setAtSelectedIndex(0)
-    // 记录已确认的 mention（去重）
-    setConfirmedMentions(prev => prev.includes(displayName) ? prev : [...prev, displayName])
+    const token: InputMentionToken = item.kind === 'file'
+      ? {
+          id: item.id,
+          type: 'file',
+          entityId: item.id,
+          label: item.name,
+          tokenText,
+        }
+      : {
+          id: `${item.id}:${item.mode}`,
+          type: 'space',
+          entityId: item.id,
+          label: item.name,
+          tokenText,
+          mode: item.mode,
+          invocationType: item.invocationType,
+          supportsDecisionMode: item.supportsDecisionMode,
+          storagePrefix: item.storagePrefix,
+        }
+    setMentionTokens(prev => {
+      const next = prev.filter(existing => existing.tokenText !== token.tokenText)
+      return [...next, token]
+    })
     requestAnimationFrame(() => {
       textarea.focus()
-      const newCursor = atIdx + 1 + displayName.length
-      textarea.setSelectionRange(newCursor, newCursor)
+      textarea.setSelectionRange(replacement.cursor, replacement.cursor)
     })
-  }, [message])
+  }, [message, t.space.decisionModeLingSi])
 
   // 键盘处理
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // @ 面板导航（空间 + 文件合并列表）
     if (atQuery !== null) {
-      const q = atQuery.toLowerCase()
-      const allSpaces: { name: string; initials?: string }[] = [
-        ...PUBLIC_SPACES,
-        ...customSpaces.map(s => ({ name: s.name, initials: s.avatarInitials }))
-      ]
-      const filteredSpaces = allSpaces.filter(s => s.name.toLowerCase().includes(q))
-      const filteredFiles = historicFiles.filter(f => f.filename.toLowerCase().includes(q))
-      const totalCount = filteredSpaces.length + filteredFiles.length
+      const suggestions = buildMentionSuggestions(atQuery)
+      const totalCount = suggestions.length
       if (e.key === 'ArrowDown') {
         e.preventDefault()
+        if (totalCount === 0) return
         setAtSelectedIndex(i => Math.min(i + 1, totalCount - 1))
         return
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault()
+        if (totalCount === 0) return
         setAtSelectedIndex(i => Math.max(i - 1, 0))
         return
       }
       if (e.key === 'Enter' && totalCount > 0) {
         e.preventDefault()
-        const idx = atSelectedIndex
-        if (idx < filteredSpaces.length) {
-          handleAtSelect(filteredSpaces[idx])
-        } else {
-          const fileIdx = idx - filteredSpaces.length
-          handleAtSelect(filteredFiles[fileIdx] ?? filteredFiles[0])
-        }
+        handleAtSelect(suggestions[atSelectedIndex] ?? suggestions[0])
         return
       }
       if (e.key === 'Escape') {
         e.preventDefault()
         setAtQuery(null)
         setAtSelectedIndex(0)
+        return
+      }
+    }
+    const textarea = textareaRef.current
+    if (textarea && (e.key === 'Backspace' || e.key === 'Delete') && textarea.selectionStart === textarea.selectionEnd) {
+      const cursor = textarea.selectionStart ?? 0
+      const range = findMentionTokenRange(message, mentionTokens, cursor, e.key)
+      if (range) {
+        e.preventDefault()
+        const next = removeMentionTokenFromMessage(message, { start: range.start, end: range.end })
+        setMessage(next.message)
+        setMentionTokens(prev => prev.filter(token => token.id !== range.token.id))
+        requestAnimationFrame(() => {
+          textarea.focus()
+          textarea.setSelectionRange(next.cursor, next.cursor)
+        })
         return
       }
     }
@@ -538,12 +635,13 @@ export function InputBox() {
       e.preventDefault()
       handleSubmit()
     }
-  }, [handleSubmit, atQuery, historicFiles, customSpaces, atSelectedIndex, handleAtSelect, suggestedSkill, isActionsOpen])
+  }, [handleSubmit, atQuery, atSelectedIndex, handleAtSelect, suggestedSkill, isActionsOpen, message, mentionTokens, buildMentionSuggestions])
 
   // 自动调整高度 + 输入时防抖检索记忆（badge 反馈）+ @ 文件联想
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value
     setMessage(val)
+    setMentionTokens(prev => syncMentionTokens(val, prev))
     const textarea = e.target
     textarea.style.height = 'auto'
     textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`
@@ -787,52 +885,11 @@ export function InputBox() {
           )}
         </AnimatePresence>
 
-        {/* 已确认的 @提及 pills */}
-        <AnimatePresence>
-          {confirmedMentions.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 4 }}
-              className="flex flex-wrap gap-1.5 mb-2"
-            >
-              {confirmedMentions.map(name => (
-                <motion.span
-                  key={name}
-                  initial={{ opacity: 0, scale: 0.85 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.85 }}
-                  className="flex items-center gap-1 pl-2 pr-1.5 py-0.5 bg-indigo-50 border border-indigo-200 rounded-full text-[12px] text-indigo-700 font-medium"
-                >
-                  <AtSign className="w-3 h-3 shrink-0" />
-                  <span>{name}</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setConfirmedMentions(prev => prev.filter(m => m !== name))
-                      setMessage(prev => prev.replace(`@${name}`, '').trimStart())
-                    }}
-                    className="ml-0.5 p-0.5 rounded-full hover:bg-indigo-200 transition-colors"
-                  >
-                    <X className="w-2.5 h-2.5" />
-                  </button>
-                </motion.span>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         {/* @ 联想面板（空间 + 文件） */}
         <AnimatePresence>
           {atQuery !== null && (() => {
-            const q = atQuery.toLowerCase()
-            const allSpaces = [
-              ...PUBLIC_SPACES,
-              ...customSpaces.map(s => ({ id: `custom-${s.id}`, name: s.name, initials: s.avatarInitials, persona: `${s.name}（${s.topic}）`, storagePrefix: `custom-${s.id}` }))
-            ]
-            const filteredSpaces = allSpaces.filter(s => s.name.toLowerCase().includes(q))
-            const filteredFiles = historicFiles.filter(f => f.filename.toLowerCase().includes(q))
-            if (filteredSpaces.length === 0 && filteredFiles.length === 0 && atQuery === '') return null
+            const suggestions = buildMentionSuggestions(atQuery)
+            if (suggestions.length === 0 && atQuery === '') return null
             let globalIdx = 0
             return (
               <motion.div
@@ -846,15 +903,14 @@ export function InputBox() {
                   {t.input.fileSearch}
                 </div>
 
-                {/* 空间分组 */}
-                {filteredSpaces.length > 0 && (
+                {suggestions.filter(item => item.kind === 'space').length > 0 && (
                   <>
                     <div className="px-4 py-1 text-[10px] text-gray-400 font-semibold uppercase tracking-wider bg-gray-50/60">{t.input.atSpaces}</div>
-                    {filteredSpaces.map((space) => {
+                    {suggestions.filter((item): item is Extract<MentionSuggestionItem, { kind: 'space' }> => item.kind === 'space').map((space) => {
                       const idx = globalIdx++
                       return (
                         <button
-                          key={space.id}
+                          key={`${space.id}-${space.mode}`}
                           onMouseDown={(e) => { e.preventDefault(); handleAtSelect(space) }}
                           className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors ${idx === atSelectedIndex ? 'bg-gray-50' : ''}`}
                         >
@@ -862,7 +918,22 @@ export function InputBox() {
                             {space.initials}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-[13px] font-medium text-gray-800 truncate">{space.name}</div>
+                            <div className="flex items-center gap-2">
+                              <div className="text-[13px] font-medium text-gray-800 truncate">{space.name}</div>
+                              {space.mode === 'decision' && (
+                                <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                                  {t.space.decisionModeLingSi}
+                                </span>
+                              )}
+                              {space.mode === 'normal' && space.supportsDecisionMode && (
+                                <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
+                                  {t.space.decisionModeNormal}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-gray-400">
+                              {space.invocationType === 'custom_space' ? t.space.mySpaces : t.input.atSpaces}
+                            </div>
                           </div>
                           <LayoutGrid className="w-3.5 h-3.5 text-gray-300 shrink-0" />
                         </button>
@@ -871,11 +942,10 @@ export function InputBox() {
                   </>
                 )}
 
-                {/* 文件分组 */}
-                {filteredFiles.length > 0 && (
+                {suggestions.filter(item => item.kind === 'file').length > 0 && (
                   <>
                     <div className="px-4 py-1 text-[10px] text-gray-400 font-semibold uppercase tracking-wider bg-gray-50/60">{t.input.atFiles}</div>
-                    {filteredFiles.map((f) => {
+                    {suggestions.filter((item): item is Extract<MentionSuggestionItem, { kind: 'file' }> => item.kind === 'file').map((f) => {
                       const idx = globalIdx++
                       return (
                         <button
@@ -885,7 +955,7 @@ export function InputBox() {
                         >
                           <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <div className="text-[13px] font-medium text-gray-800 truncate">{f.filename}</div>
+                            <div className="text-[13px] font-medium text-gray-800 truncate">{f.name}</div>
                             <div className="text-[10px] text-gray-400">
                               {f.embed_status !== 'done' ? t.input.vectorizing : new Date(f.created_at).toLocaleDateString()}
                             </div>
@@ -899,7 +969,7 @@ export function InputBox() {
                   </>
                 )}
 
-                {filteredSpaces.length === 0 && filteredFiles.length === 0 && (
+                {suggestions.length === 0 && (
                   <div className="px-4 py-3 text-[13px] text-gray-400">{t.input.noFileMatch}</div>
                 )}
               </motion.div>

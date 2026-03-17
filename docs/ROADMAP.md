@@ -2,7 +2,7 @@
 
 ## 计划中版本
 
-#### v0.5.16 - LingSi 主页入口 + @mention 重构（计划中）
+#### v0.5.16 - LingSi 主页入口 + @mention 重构（已完成）
 - [ ] `Canvas.tsx`：在主页左侧 Space 入口直接标识哪些 persona 支持 `灵思`
 - [ ] `InputBox.tsx`：主页 `@` 联想支持选择 `普通` / `灵思` 的 persona mention，而不只是普通 Space 提示
 - [ ] `InputBox.tsx` / `canvasStore.ts`：把当前 `@name + pill` 模式重构为结构化 mention token，支持整块删除与稳定回退

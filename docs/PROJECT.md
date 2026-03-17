@@ -1,7 +1,7 @@
 # Anima — 项目计划
 
 > 唯一入口：每次发版、每次决策都在这里留记录。
-> 最后更新：2026-03-17 | 当前版本：v0.5.15
+> 最后更新：2026-03-17 | 当前版本：v0.5.16
 
 ---
 
@@ -23,18 +23,28 @@
 
 ---
 
-## 下一阶段（v0.5.16 计划）
+## 当前冲刺（v0.5.16 已完成）
 
 *范围从“单 Space 决策模式”推进到“主页入口可见 + 主页可调用 + 可回放”。*
 
 | # | 任务 | 状态 | 说明 |
 |---|------|------|------|
-| 1 | Space 入口灵思标识 | 待做 | 在主页左侧 Space 入口直接标出哪些 persona 支持 `灵思`，避免用户进入后才发现 |
-| 2 | 主页 `@` 支持灵思模式 | 待做 | `@` 联想支持选择 `普通` / `灵思` 的 persona mention，并把 mode 注入主页对话链路 |
-| 3 | `@mention` 结构化 token 重构 | 待做 | 把当前 `@name + pill` 改成结构化 token，支持整块删除与稳定回退 |
-| 4 | 决策轨迹视图扩展 | 待做 | 从 AnswerModal evidence panel 扩成独立 trace 视图，支持 `personaId / mode / matchedDecisionUnitIds / sourceRefs / nextActions` 回放 |
-| 5 | 持续同步 anima-base 增量 | 待做 | 保持 `anima-base` 独立仓库持续同步，优先筛选高价值 Lenny / 张小龙决策案例进入人工审核链路 |
-| 6 | SOP 闭环 | 待做 | 本轮完成后同步文档、code review、`npm test`、`npm run typecheck`、`npm run build`、`npm run test:e2e`、GitHub 备份 |
+| 1 | Space 入口灵思标识 | 已完成 | 在主页左侧 Lenny / 张小龙入口直接标出 `灵思` 能力，降低 discoverability 成本 |
+| 2 | 主页 `@` 支持灵思模式 | 已完成 | `@` 联想支持 `普通` / `灵思` persona suggestion，并把 mode 注入主页对话链路 |
+| 3 | `@mention` 结构化 token 重构 | 已完成 | 主页 `@persona` 改成结构化 token，支持整块删除与稳定回退，不再依赖顶部 pill |
+| 4 | 决策轨迹视图扩展 | 已完成 | `AnswerModal` evidence panel 扩成独立 trace 视图，支持 persona、mode、matched units、next actions、follow-up questions 回放 |
+| 5 | SOP 闭环 | 已完成 | 已完成文档同步、code review、`npm test`、`npm run typecheck`、`npm run build`、`npm run test:e2e` 与 GitHub 备份 |
+
+## 下一阶段（v0.5.17 计划）
+
+*继续扩大 LingSi 覆盖面，并把主页决策调用做得更稳。*
+
+| # | 任务 | 状态 | 说明 |
+|---|------|------|------|
+| 1 | 持续同步 anima-base 增量 | 待做 | 保持 `anima-base` 独立仓库持续同步，优先筛选高价值 Lenny / 张小龙决策案例进入人工审核链路 |
+| 2 | 张小龙 DecisionUnit 扩充 | 待做 | 继续把张小龙新增案例转成可审核的真实 `DecisionUnit`，补齐运营克制、社交设计、平台治理等场景密度 |
+| 3 | 主页 `@` 决策轨迹沉淀 | 待做 | 主页通过 `@persona` 触发的对话也沉淀可回放 trace，对照普通模式更完整 |
+| 4 | 对照评测扩展 | 待做 | 为张小龙 persona 增补 case-based eval，避免只用 Lenny 基线判断效果 |
 
 
 ### 范围判断
@@ -90,16 +100,14 @@
 |------|------|------|
 | 静默吞错改善 | `canvasStore.ts`, `Canvas.tsx` | `endConversation` catch → `lastError` → Canvas toast ✅ v0.2.56 |
 | 节点虚拟化 | `Canvas.tsx` | viewport culling，80+ 节点时生效 ✅ v0.2.56 |
-| 主页 `@` mention 结构化重构 | `InputBox.tsx`, `AnswerModal.tsx`, `canvasStore.ts` | 当前 `@` 仍是纯字符串替换 + 顶部 pill，无法稳定表达 `灵思` mode，也不支持整块删除；需升级为 token 模型 |
-| Space 入口灵思可见性 | `Canvas.tsx`, `PublicSpaceCanvas.tsx` | 主页入口需直接告知哪些 persona 支持 `灵思`，降低 discoverability 成本 |
-| 决策轨迹独立视图 | `AnswerModal.tsx`, `AnswerModalSubcomponents.tsx` | 当前只有回答下方面板，不足以支撑复盘和 `normal vs 灵思` 对照 |
+| 主页 `@` 决策调用沉淀 | `InputBox.tsx`, `AnswerModal.tsx`, `canvasStore.ts` | 已支持主页 `@persona〔普通/灵思〕` 调用，但 trace 对照和历史复盘还可以继续增强 |
 
 ### P2（体验优化）
 | 任务 | 说明 | 状态 |
 |------|------|------|
 | prompt.ts 僵尸文件清理 | 删除或合并，消除双路径维护隐患 | ✅ v0.2.59 已完成 |
 | 节点布局算法 | 新节点生成位置避免重叠（当前是随机偏移） | 待做 |
-| `@` 联想双层选择 | 在不增加过多噪音的前提下，让用户在 `@persona` 时可切换 `普通 / 灵思` | 待设计 |
+| `@` 联想双层选择 | 在不增加过多噪音的前提下，让用户在 `@persona` 时可切换 `普通 / 灵思` | ✅ v0.5.16 已完成 |
 
 ### P3（未来方向）
 | 阶段 | 内容 | 状态 |
@@ -114,6 +122,7 @@
 
 | 版本 | 日期 | 核心内容 |
 |------|------|----------|
+| v0.5.16 | 2026-03-17 | LingSi 主页接入：主页 Space 入口新增 `灵思` 标识，`@persona` 支持 `普通 / 灵思` 结构化 mention token 与整块删除，AnswerModal 新增独立决策轨迹视图，并把主页 persona 调用接入统一 decisionTrace 链路 |
 | v0.5.15 | 2026-03-17 | LingSi 最新数据层 refresh：同步 `anima-base@eb83d12`，新增 8 条真实来源，把 seeds 扩到 25 sources / 41 approved units，覆盖 Lenny 留存优先、风险 rollout、设计评审，以及张小龙运营克制、功能生命周期、社交设计、平台治理 |
 | v0.5.14 | 2026-03-17 | LingSi 多 persona 扩展：同步 `anima-base@65ca4c7`，新增张小龙 persona、6 条真实来源、8 条 approved units，并在张小龙 Space 接入 `normal / 灵思` 模式 |
 | v0.5.13 | 2026-03-17 | 灵思数据层扩充：从最新 `anima-base` 导入 4 条高价值 Lenny 来源，把种子库扩到 11 sources / 20 approved units，覆盖 PMF 案例、路线图、决策不确定性与职业决策 |
