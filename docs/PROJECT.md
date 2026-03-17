@@ -1,22 +1,22 @@
 # Anima — 项目计划
 
 > 唯一入口：每次发版、每次决策都在这里留记录。
-> 最后更新：2026-03-17 | 当前版本：v0.5.4
+> 最后更新：2026-03-17 | 当前版本：v0.5.9
 
 ---
 
 ## 当前冲刺
 
-*新增冲刺：LingSi（灵思）决策版 MVP，当前已进入 `M4`：真实问题对照验证。*
+*新增冲刺：LingSi（灵思）决策版 MVP，`M4` 已完成，当前处于里程碑收口状态。*
 
 | # | 任务 | 状态 | 说明 |
 |---|------|------|------|
 | 1 | 灵思文档定稿 | 已完成 | MVP 范围、证据门槛、SOP 节奏已对齐 |
 | 2 | 真实证据层设计 | 已完成 | schema、共享类型、存储白名单、来源 manifest 已落地 |
-| 3 | 首批 DecisionUnit 基线入库 | 已完成 | 已生成 `seeds/lingsi` 基线：1 persona / 6 sources / 12 approved units，并支持写入 storage |
+| 3 | 首批 DecisionUnit 基线入库 | 已完成 | 已生成 `seeds/lingsi` 基线：1 persona / 7 sources / 13 approved units，并支持写入 storage |
 | 4 | Lenny 决策模式接入 | 已完成 | 已接入 `normal / 灵思` 切换、extraContext 注入、decisionTrace 持久化 |
-| 5 | 验证与对照 | 已完成 | 已跑 `15` 个真实问题对照，`decision` 赢 `14` 题，`normal` 赢 `1` 题，结果沉淀到 `docs/lingsi-eval-m4.md` |
-| 6 | SOP 闭环 | 进行中 | 文档同步、测试已完成；code review、GitHub 备份待执行 |
+| 5 | 验证与对照 | 已完成 | 已跑 `15` 个真实问题对照，`decision` 赢 `15` 题，结果沉淀到 `docs/lingsi-eval-m4.md` |
+| 6 | SOP 闭环 | 已完成 | 文档同步、测试、code review、GitHub 备份已完成；当前仍未做 E2E / 部署 |
 
 ---
 

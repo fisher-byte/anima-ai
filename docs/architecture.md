@@ -209,7 +209,7 @@ index.ts 中间件: c.set('db', getDb('a1b2c3d4e5f6'))
 
 支持工具调用（`$web_search`，Kimi 2.5 原生联网），工具结果自动进入第二轮请求。
 
-**LingSi（v0.5.5 M3 进行中）**：
+**LingSi（v0.5.5 M4 已完成）**：
 - `Lenny` 决策版沿用 `systemPromptOverride`，并新增 `extraContext` 注入 DecisionUnit 命中结果
 - 首次打开 Lenny Space 时，前端会把真实 `seeds/lingsi/*` 资产写入 `storage` 表，避免依赖 mock
 - 命中的证据会进入对话元数据 `decisionTrace`：`mode`、`matchedDecisionUnitIds`、`sourceRefs`

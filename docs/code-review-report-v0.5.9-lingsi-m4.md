@@ -14,7 +14,6 @@
   - `scripts/evaluate-lingsi.ts`
 - Review result: `3` findings fixed
 - Residual risk:
-  - `prioritize-roadmap` 仍是唯一 `normal` 胜出的 case
   - `npm run build` 存在既有 CSS minify warning，未在本轮处理
 
 ## Fixed Findings
@@ -45,7 +44,7 @@
 npm test
 ```
 
-- 结果：`559` tests passed / `23` test files
+- 结果：`560` tests passed / `23` test files
 
 ### Targeted validation
 
@@ -60,7 +59,7 @@ npx vitest run src/renderer/src/services/__tests__/lingsi.test.ts \
   src/shared/__tests__/lingsiSeeds.test.ts
 ```
 
-- `decision` vs `normal`：`14 : 1`
+- `decision` vs `normal`：`15 : 0`
 - 评测结果文件：
   - `/Users/zhiyangyu/Desktop/试验项目集合/自进化产品/evocanvas/docs/lingsi-eval-m4.md`
   - `/Users/zhiyangyu/Desktop/试验项目集合/自进化产品/evocanvas/reports/lingsi-m4-eval.json`
@@ -76,8 +75,8 @@ npm run build
 
 ## Recommendation
 
-- 当前可以进入 GitHub 备份
-- 备份后优先处理：
-  1. `prioritize-roadmap` 的决策模式直给能力
-  2. 脚注展示
-  3. 复跑 M4 验证
+- 当前 M4 里程碑已闭环，可作为 LingSi MVP 的稳定备份基线
+- 下一阶段优先处理：
+  1. 脚注展示
+  2. E2E / 部署验证
+  3. 继续扩充 `DecisionUnit` 覆盖面

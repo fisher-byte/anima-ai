@@ -61,6 +61,18 @@
         "notes": "Reach, impact, confidence, effort tradeoff"
       },
       {
+        "id": "src-lenny-cross-functional-alignment",
+        "label": "Cross-Functional Alignment Framework",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/frameworks/cross-functional-alignment.md",
+        "person": "Lenny Rachitsky",
+        "title": "Cross-Functional Alignment Framework",
+        "url": "https://www.lennysnewsletter.com/p/cross-functional-alignment",
+        "publishedAt": "2024-06-18",
+        "evidenceLevel": "B",
+        "notes": "Stakeholder pressure, CEO requests, alignment without roadmap churn"
+      },
+      {
         "id": "src-lenny-saas-pricing",
         "label": "SaaS Pricing Strategy Framework",
         "type": "framework",
@@ -99,6 +111,6 @@
     ],
     "status": "active",
     "createdAt": "2026-03-17T06:20:17.767Z",
-    "updatedAt": "2026-03-17T06:20:17.767Z"
+    "updatedAt": "2026-03-17T09:05:28.813Z"
   }
 ]
