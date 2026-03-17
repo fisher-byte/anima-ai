@@ -16,6 +16,7 @@ import type { Conversation } from '../../../../shared/types'
 const mockStorageRead = vi.fn()
 const mockStorageWrite = vi.fn()
 const mockStorageAppend = vi.fn()
+const mockSaveHistory = vi.fn()
 
 vi.mock('../../services/storageService', () => ({
   storageService: {
@@ -24,7 +25,7 @@ vi.mock('../../services/storageService', () => ({
     append: (...args: unknown[]) => mockStorageAppend(...args),
   },
   historyService: {
-    saveHistory: vi.fn(),
+    saveHistory: (...args: unknown[]) => mockSaveHistory(...args),
     getHistory: vi.fn().mockResolvedValue([]),
     deleteHistory: vi.fn(),
   },
@@ -65,6 +66,7 @@ describe('canvasStore — openLennyMode / closeLennyMode', () => {
     mockStorageRead.mockReset()
     mockStorageWrite.mockReset()
     mockStorageAppend.mockReset()
+    mockSaveHistory.mockReset()
   })
 
   afterEach(() => {
@@ -124,6 +126,30 @@ describe('canvasStore — openLennyMode / closeLennyMode', () => {
     expect(state.isLennyMode).toBe(false)
     expect(state.isModalOpen).toBe(false)
     expect(state.currentConversation).toBeNull()
+  })
+
+  it('closeModal exits onboarding mode and clears resume residue', async () => {
+    const { useCanvasStore } = await import('../canvasStore')
+
+    useCanvasStore.setState({
+      isOnboardingMode: true,
+      onboardingPhase: 3,
+      onboardingResumeTurns: [{ user: 'intro', assistant: 'ok' }],
+      isModalOpen: true,
+      currentConversation: makeConversation({ id: 'onboarding-conv' }),
+      conversationHistory: [{ role: 'assistant', content: 'hello' }],
+    })
+
+    useCanvasStore.getState().closeModal()
+
+    const state = useCanvasStore.getState()
+    expect(state.isModalOpen).toBe(false)
+    expect(state.currentConversation).toBeNull()
+    expect(state.conversationHistory).toEqual([])
+    expect(state.isOnboardingMode).toBe(false)
+    expect(state.onboardingPhase).toBe(0)
+    expect(state.onboardingResumeTurns).toBeNull()
+    expect(mockSaveHistory).not.toHaveBeenCalled()
   })
 
   it('setLennyDecisionMode updates the active Lenny response mode', async () => {

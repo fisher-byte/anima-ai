@@ -2,6 +2,13 @@
 
 ## 计划中版本
 
+#### v0.5.18 - LingSi stability + release sync（已完成）
+- [x] `Canvas.tsx`：修复首页 Lenny / 张小龙 Space 入口中 `灵思` badge 挤压标题的问题
+- [x] `canvasStore.ts` / `canvasStore.lennyMode.test.ts`：关闭 onboarding 弹层时退出教程模式，清空 phase / resume residue，并避免把 onboarding 历史写入普通对话历史
+- [x] `docs/lingsi-eval-m4.md` / `reports/lingsi-m4-eval.json`：重新生成 Lenny 全量评测产物，当前结果 `decision 14 : normal 1`
+- [x] 版本与发布同步：`package.json` / `APP_VERSION` / active docs / SOP / deployment docs 已统一到 `v0.5.18`
+- [x] 验证：`npm run lingsi:extract`（Files changed: 0）、`npm run lingsi:evaluate`（`decision 14 : normal 1`）、`npm run lingsi:evaluate:zhang`（`decision 6 : normal 0 : tie 1`）、`npm test`（589/589）、`npm run typecheck`、`npm run build`、`npm run test:e2e`（44 passed / 4 skipped）
+
 #### v0.5.17 - LingSi latest source sync + 张小龙 case-based eval（已完成）
 - [x] `anima-base`：同步到 `851effb`，纳入最新 Lenny 定价 / GEM-DHM / PLG / discovery / activation / feedback 案例与张小龙小程序 / 开放平台材料
 - [x] `scripts/extract-lingsi-seeds.ts`：新增 8 条 source manifest 与 12 条 approved units，把 seeds 刷新为 `2 personas / 33 sources / 53 approved units`
