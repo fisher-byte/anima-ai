@@ -154,11 +154,55 @@
         "publishedAt": "2026-03-17",
         "evidenceLevel": "B",
         "notes": "Career growth over prestige, IC-manager switch, company selection criteria"
+      },
+      {
+        "id": "src-lenny-reforge-community",
+        "label": "Reforge Community Strategy Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-12-reforge-product-strategy.md",
+        "person": "Lenny Rachitsky",
+        "title": "Reforge 产品策略决策",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "A",
+        "notes": "High-intent community, premium pricing, cohort learning, application gate"
+      },
+      {
+        "id": "src-lenny-retention-first",
+        "label": "Retention First Decision Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-13-elena-verna-retention-first.md",
+        "person": "Lenny Rachitsky",
+        "title": "Elena Verna 留存优先策略",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "A",
+        "notes": "Retention before acquisition, magic moment, churn resurrection"
+      },
+      {
+        "id": "src-lenny-netflix-password-sharing",
+        "label": "Netflix Password Sharing Decision Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-13-netflix-password-sharing.md",
+        "person": "Lenny Rachitsky",
+        "title": "Netflix 密码共享限制决策",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "A",
+        "notes": "Short-term pain for long-term growth, phased rollout, profile transfer"
+      },
+      {
+        "id": "src-lenny-design-critique",
+        "label": "Design Critique Decision Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-15-julie-zhuo-design-critique.md",
+        "person": "Lenny Rachitsky",
+        "title": "Julie Zhuo 设计评审方法",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "A",
+        "notes": "3W critique framing, level-3 feedback, stage-aware critique"
       }
     ],
     "status": "active",
     "createdAt": "2026-03-17T06:20:17.767Z",
-    "updatedAt": "2026-03-17T12:41:17.326Z"
+    "updatedAt": "2026-03-17T14:52:58.116Z"
   },
   {
     "id": "zhang",
@@ -250,10 +294,54 @@
         "publishedAt": "2017-05-01",
         "evidenceLevel": "B",
         "notes": "Independent entry, progressive reform, social recommendation over forced feed rewrite"
+      },
+      {
+        "id": "src-zhang-operation-restraint",
+        "label": "Operation Restraint Decision Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-18-operation-restraint.md",
+        "person": "Zhang Xiaolong",
+        "title": "运营克制决策",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "A",
+        "notes": "Operational restraint, no fake urgency, protect users from KPI noise"
+      },
+      {
+        "id": "src-zhang-feature-lifecycle",
+        "label": "Feature Lifecycle Philosophy Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-19-feature-evolution-philosophy.md",
+        "person": "Zhang Xiaolong",
+        "title": "功能演进哲学",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "A",
+        "notes": "Feature lifecycle, degrade before delete, quiet death, kill with intent"
+      },
+      {
+        "id": "src-zhang-social-design",
+        "label": "Social Design Principles Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-20-social-design-principles.md",
+        "person": "Zhang Xiaolong",
+        "title": "社交设计原则",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "A",
+        "notes": "Real relationships, private sharing, reduce social pressure"
+      },
+      {
+        "id": "src-zhang-platform-governance",
+        "label": "Platform Governance Philosophy Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-21-platform-governance-philosophy.md",
+        "person": "Zhang Xiaolong",
+        "title": "平台治理哲学",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "A",
+        "notes": "Decentralized distribution, rule-based governance, temporary centralization only for cold start"
       }
     ],
     "status": "active",
     "createdAt": "2026-03-17T14:06:39.805Z",
-    "updatedAt": "2026-03-17T14:06:39.805Z"
+    "updatedAt": "2026-03-17T14:52:58.116Z"
   }
 ]
