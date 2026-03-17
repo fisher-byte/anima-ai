@@ -156,6 +156,72 @@
         "notes": "Career growth over prestige, IC-manager switch, company selection criteria"
       },
       {
+        "id": "src-lenny-pricing-strategy",
+        "label": "Patrick Campbell Pricing Strategy Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-16-patrick-campbell-pricing-strategy.md",
+        "person": "Patrick Campbell",
+        "title": "Patrick Campbell定价策略",
+        "publishedAt": "2026-03-18",
+        "evidenceLevel": "A",
+        "notes": "Value-based pricing, localization, tier design, pricing as a growth lever"
+      },
+      {
+        "id": "src-lenny-gem-dhm",
+        "label": "Gibson Biddle GEM/DHM Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-17-gibson-biddle-gem-dhm.md",
+        "person": "Gibson Biddle",
+        "title": "GEM模型与DHM模型",
+        "publishedAt": "2026-03-18",
+        "evidenceLevel": "A",
+        "notes": "GEM strategy balance, DHM feature prioritization, data plus insight"
+      },
+      {
+        "id": "src-lenny-plg-strategy",
+        "label": "Wes Bush PLG Strategy Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-18-wes-bush-plg-strategy.md",
+        "person": "Wes Bush",
+        "title": "Wes Bush PLG策略",
+        "publishedAt": "2026-03-18",
+        "evidenceLevel": "A",
+        "notes": "TTV, freemium conditions, product-led growth loops"
+      },
+      {
+        "id": "src-lenny-continuous-discovery",
+        "label": "Teresa Torres Continuous Discovery Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-19-teresa-torres-continuous-discovery.md",
+        "person": "Teresa Torres",
+        "title": "Teresa Torres 持续发现",
+        "publishedAt": "2026-03-18",
+        "evidenceLevel": "A",
+        "notes": "Weekly customer conversations, opportunity solution tree, opportunity-first discovery"
+      },
+      {
+        "id": "src-lenny-activation-optimization",
+        "label": "Ramli John Activation Optimization Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-20-ramli-john-activation-optimization.md",
+        "person": "Ramli John",
+        "title": "Ramli John 激活优化",
+        "publishedAt": "2026-03-18",
+        "evidenceLevel": "A",
+        "notes": "Aha moment, bowling alley onboarding, TTV and guided activation"
+      },
+      {
+        "id": "src-lenny-feedback-system",
+        "label": "Hiten Shah Feedback System Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-21-hiten-shah-feedback-system.md",
+        "person": "Hiten Shah",
+        "title": "Hiten Shah 客户反馈系统",
+        "publishedAt": "2026-03-18",
+        "evidenceLevel": "A",
+        "notes": "Feedback loops, quantification by segment, pain versus requested solution"
+      },
+      {
         "id": "src-lenny-reforge-community",
         "label": "Reforge Community Strategy Case",
         "type": "decision_case",
@@ -202,7 +268,7 @@
     ],
     "status": "active",
     "createdAt": "2026-03-17T06:20:17.767Z",
-    "updatedAt": "2026-03-17T14:52:58.116Z"
+    "updatedAt": "2026-03-17T16:18:56.742Z"
   },
   {
     "id": "zhang",
@@ -338,10 +404,33 @@
         "publishedAt": "2026-03-17",
         "evidenceLevel": "A",
         "notes": "Decentralized distribution, rule-based governance, temporary centralization only for cold start"
+      },
+      {
+        "id": "src-zhang-mini-program",
+        "label": "Mini Program Strategy Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-03-mini-program-strategy.md",
+        "person": "Zhang Xiaolong",
+        "title": "微信小程序战略决策",
+        "publishedAt": "2026-03-18",
+        "evidenceLevel": "A",
+        "notes": "Use-and-go service form, scene-based entry, no centralized entrance"
+      },
+      {
+        "id": "src-zhang-open-platform-philosophy",
+        "label": "WeChat Open Platform Philosophy",
+        "type": "article",
+        "path": "people/product/zhang-xiaolong/articles/2014-wechat-open-platform-philosophy.md",
+        "person": "Zhang Xiaolong",
+        "title": "微信开放平台的理念与方向",
+        "url": "https://www.cnblogs.com/lanzhi/p/6467424.html",
+        "publishedAt": "2014-12-28",
+        "evidenceLevel": "A",
+        "notes": "Forest not palace, dynamic system, decentralized traffic, user value first"
       }
     ],
     "status": "active",
     "createdAt": "2026-03-17T14:06:39.805Z",
-    "updatedAt": "2026-03-17T14:52:58.116Z"
+    "updatedAt": "2026-03-17T16:18:56.742Z"
   }
 ]

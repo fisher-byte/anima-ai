@@ -1873,6 +1873,565 @@
     "updatedAt": "2026-03-17T14:52:58.116Z"
   },
   {
+    "id": "lenny-localize-pricing-by-willingness-to-pay",
+    "personaId": "lenny",
+    "title": "国际定价先看购买力，不要全球一口价",
+    "summary": "当产品已经跨区域售卖时，统一价格往往同时损失转化和收入。更稳的路径是按购买力和愿付价格做本地化。",
+    "scenario": "SaaS 产品开始面向多个地区售卖，团队在争论要不要所有国家同价。",
+    "goal": "在不破坏品牌和运营复杂度的前提下提升总体收入和转化。",
+    "constraints": [
+      "国际用户购买力差异大",
+      "团队担心价格体系复杂化"
+    ],
+    "tags": [
+      "pricing",
+      "global",
+      "saas"
+    ],
+    "triggerKeywords": [
+      "国际定价",
+      "全球统一价格",
+      "本地化定价",
+      "购买力",
+      "不同国家价格"
+    ],
+    "preferredPath": "先识别主要地区的购买力差异，再按区域做价格本地化，而不是坚持全球同价。",
+    "antiPatterns": [
+      "把美国价格直接复制到所有市场",
+      "只因担心复杂度就放弃更合理的价格结构"
+    ],
+    "reasoningSteps": [
+      "先判断不同区域购买力差异",
+      "再决定是否分层定价",
+      "最后控制执行复杂度和沟通成本"
+    ],
+    "reasons": [
+      "不同地区的购买力和愿付价格差异，会让统一价格天然失真。",
+      "本地化定价常常不是“降价”，而是把原本根本不会付费的人群转成有效收入。",
+      "价格策略本身就是增长杠杆，不应只按运营便利性设计。"
+    ],
+    "followUpQuestions": [
+      "你们主要收入区域之间，购买力和竞品价格差异有多大？",
+      "如果坚持统一价格，哪些市场其实已经被你们主动放弃了？"
+    ],
+    "nextActions": [
+      "先按国家或区域拉一版购买力、转化率和竞品价格对比表。",
+      "挑一个低购买力市场试本地化价格，而不是一次性全球改价。",
+      "把试点结果绑定到收入、转化和投诉率，而不是只看客单价。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-lenny-pricing-strategy",
+        "label": "Patrick Campbell Pricing Strategy Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-16-patrick-campbell-pricing-strategy.md",
+        "person": "Patrick Campbell",
+        "title": "Patrick Campbell定价策略",
+        "publishedAt": "2026-03-18",
+        "evidenceLevel": "A",
+        "notes": "Value-based pricing, localization, tier design, pricing as a growth lever",
+        "locator": "L394-L399",
+        "excerpt": "THEN 实施价格本地化：\n  - 发达国家：100%\n  - 中等收入国家：70-80%\n  - 低收入国家：30-50%\n\n结果：收入提升20-30%"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.82,
+    "createdAt": "2026-03-17T16:18:56.742Z",
+    "updatedAt": "2026-03-17T16:18:56.742Z"
+  },
+  {
+    "id": "lenny-balance-get-engagement-monetization",
+    "personaId": "lenny",
+    "title": "产品策略不要只追一个指标，要平衡 GEM",
+    "summary": "只追获客、只追留存或只追变现，都会把产品拉歪。更稳的策略是同时审视 Get、Engagement、Monetization 三个面。",
+    "scenario": "团队在做产品年度策略或增长策略，但内部只盯单一指标。",
+    "goal": "避免为了局部优化牺牲整体产品健康度。",
+    "constraints": [
+      "团队 KPI 分裂",
+      "短期压力容易放大单一指标"
+    ],
+    "tags": [
+      "strategy",
+      "growth",
+      "monetization"
+    ],
+    "triggerKeywords": [
+      "GEM",
+      "只看增长",
+      "只看留存",
+      "只看变现",
+      "产品战略"
+    ],
+    "preferredPath": "每轮策略讨论同时回答获客、参与和变现三件事，而不是先天只偏向一个维度。",
+    "antiPatterns": [
+      "获客强但留存差还继续加买量",
+      "留存强但变现路径一直空白"
+    ],
+    "reasoningSteps": [
+      "先看三个维度是否失衡",
+      "识别当前最弱板块",
+      "再做协同修正"
+    ],
+    "reasons": [
+      "单一指标最容易给出“看起来正确”的局部最优。",
+      "产品真正的复利来自获客、参与和变现的相互拉动，而不是单点爆发。",
+      "GEM 适合把战略讨论从口号拉回到完整经营模型。"
+    ],
+    "followUpQuestions": [
+      "你们这轮策略是在补最弱一环，还是在继续放大已经最强的一环？",
+      "如果把当前策略放到 GEM 三栏里，哪一栏几乎没有动作？"
+    ],
+    "nextActions": [
+      "把季度策略拆成 Get / Engagement / Monetization 三栏重新过一遍。",
+      "要求每个大项目说明它主要作用在哪一栏，以及会不会伤另一栏。",
+      "先修最失衡的一栏，而不是继续给最显眼的一栏堆资源。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-lenny-gem-dhm",
+        "label": "Gibson Biddle GEM/DHM Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-17-gibson-biddle-gem-dhm.md",
+        "person": "Gibson Biddle",
+        "title": "GEM模型与DHM模型",
+        "publishedAt": "2026-03-18",
+        "evidenceLevel": "A",
+        "notes": "GEM strategy balance, DHM feature prioritization, data plus insight",
+        "locator": "L23",
+        "excerpt": "关键：3个要素要平衡，不能只优化一个"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.79,
+    "createdAt": "2026-03-17T16:18:56.742Z",
+    "updatedAt": "2026-03-17T16:18:56.742Z"
+  },
+  {
+    "id": "lenny-score-features-with-dhm-not-opinions",
+    "personaId": "lenny",
+    "title": "功能优先级先过 DHM，再谈热闹程度",
+    "summary": "一个功能不该因为“大家都想做”就被排高优先级。先问它是否能让用户更愉悦、是否难以复制、是否增强利润。",
+    "scenario": "团队在拉功能优先级清单，但容易被热点需求或大客户声音带偏。",
+    "goal": "把功能决策从主观偏好拉回结构化判断。",
+    "constraints": [
+      "需求很多",
+      "组织里意见杂",
+      "资源有限"
+    ],
+    "tags": [
+      "prioritization",
+      "feature",
+      "strategy"
+    ],
+    "triggerKeywords": [
+      "DHM",
+      "功能优先级",
+      "护城河",
+      "利润",
+      "用户喜欢吗"
+    ],
+    "preferredPath": "用 Delight / Hard-to-Copy / Margin-Enhancing 三个问题给功能做结构化评估。",
+    "antiPatterns": [
+      "只因为竞品有就做",
+      "只因为某个利益相关方声音大就排高"
+    ],
+    "reasoningSteps": [
+      "先看是否真的 delight",
+      "再看是否形成护城河",
+      "最后看是否增强经营质量"
+    ],
+    "reasons": [
+      "没有结构化框架时，功能优先级很容易退化成意见投票。",
+      "DHM 逼团队同时看用户价值、竞争壁垒和商业结果。",
+      "并不是每个需求都值得做，有些需求只会增加复杂度。"
+    ],
+    "followUpQuestions": [
+      "这个功能如果做出来，用户是真会更喜欢，还是只是团队感觉更完整？",
+      "它会形成新的壁垒，还是一上线就能被快速抄走？"
+    ],
+    "nextActions": [
+      "给当前 Top 10 需求都补一张 DHM 打分卡。",
+      "优先讨论得分最低但资源消耗最高的需求，主动砍掉一批。",
+      "评审会上禁止只说“我觉得很重要”，必须映射到 DHM 维度。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-lenny-gem-dhm",
+        "label": "Gibson Biddle GEM/DHM Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-17-gibson-biddle-gem-dhm.md",
+        "person": "Gibson Biddle",
+        "title": "GEM模型与DHM模型",
+        "publishedAt": "2026-03-18",
+        "evidenceLevel": "A",
+        "notes": "GEM strategy balance, DHM feature prioritization, data plus insight",
+        "locator": "L47-L51",
+        "excerpt": "IF 评估新功能\nTHEN 问3个问题：\n1. Delight（愉悦）- 用户喜欢吗？\n2. Hard-to-Copy（护城河）- 竞品容易抄吗？\n3. Margin-Enhancing（利润）- 提升利润吗？"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.8,
+    "createdAt": "2026-03-17T16:18:56.742Z",
+    "updatedAt": "2026-03-17T16:18:56.742Z"
+  },
+  {
+    "id": "lenny-ttv-before-plg-distribution",
+    "personaId": "lenny",
+    "title": "PLG 先缩短 TTV，再加分发",
+    "summary": "如果用户注册后还要很久才能感到价值，PLG 不会成立。先把首次价值到达时间压到几分钟级，再谈放大流量。",
+    "scenario": "团队想把产品改成 PLG，但上来就先讨论投放、SEO 或推荐裂变。",
+    "goal": "让产品先具备自解释和自售卖能力。",
+    "constraints": [
+      "onboarding 重",
+      "首次价值出现慢",
+      "团队急着放大增长"
+    ],
+    "tags": [
+      "plg",
+      "activation",
+      "growth"
+    ],
+    "triggerKeywords": [
+      "PLG",
+      "TTV",
+      "自助增长",
+      "注册后流失",
+      "Time to Value"
+    ],
+    "preferredPath": "先把 Time to Value 压到 5 分钟内，再决定是否扩大 PLG 渠道投入。",
+    "antiPatterns": [
+      "产品本身还难以上手就先砸分发",
+      "把 onboarding 复杂度转嫁给销售或客服兜底"
+    ],
+    "reasoningSteps": [
+      "先找首次价值时刻",
+      "再压缩到达路径",
+      "最后再讨论分发和裂变"
+    ],
+    "reasons": [
+      "PLG 的本质是产品自己完成销售，而不是少配几个销售。",
+      "TTV 太长时，任何分发都只是在放大首轮流失。",
+      "先把价值抵达时间压缩，后续分发和病毒循环才有意义。"
+    ],
+    "followUpQuestions": [
+      "用户从注册到第一次感到“这个有价值”现在要多久？",
+      "如果只允许保留 3 步，你们会砍掉哪些 onboarding 环节？"
+    ],
+    "nextActions": [
+      "先定义你们的第一性 Aha Moment 和当前 TTV。",
+      "把首屏流程砍到只服务 Aha Moment，不服务完整教育。",
+      "等 TTV 接近 5 分钟内，再决定是否扩大免费试用和分发渠道。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-lenny-plg-strategy",
+        "label": "Wes Bush PLG Strategy Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-18-wes-bush-plg-strategy.md",
+        "person": "Wes Bush",
+        "title": "Wes Bush PLG策略",
+        "publishedAt": "2026-03-18",
+        "evidenceLevel": "A",
+        "notes": "TTV, freemium conditions, product-led growth loops",
+        "locator": "L83-L86",
+        "excerpt": "THEN TTV<5分钟是及格线：\n  - 简化注册（Email即可，无需表单）\n  - 跳过Onboarding（直接进产品）\n  - 快速达到Aha Moment"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.84,
+    "createdAt": "2026-03-17T16:18:56.742Z",
+    "updatedAt": "2026-03-17T16:18:56.742Z"
+  },
+  {
+    "id": "lenny-weekly-customer-conversations-beat-quarterly-research",
+    "personaId": "lenny",
+    "title": "持续发现靠固定节律，不靠季度大调研",
+    "summary": "用户理解最容易过时。比起偶尔做一次深度研究，更稳的机制是把每周用户对话做成团队节律。",
+    "scenario": "团队觉得自己不够了解用户，但用户研究只在重要项目或季度节点才会发生。",
+    "goal": "让用户洞察持续进入决策，而不是阶段性补课。",
+    "constraints": [
+      "研究资源有限",
+      "团队容易把用户访谈当一次性任务"
+    ],
+    "tags": [
+      "discovery",
+      "research",
+      "cadence"
+    ],
+    "triggerKeywords": [
+      "用户访谈",
+      "持续发现",
+      "每周 3 次",
+      "季度调研",
+      "research cadence"
+    ],
+    "preferredPath": "把每周固定用户对话做成产品团队的 operating rhythm，而不是项目附属动作。",
+    "antiPatterns": [
+      "只在项目卡住时临时找用户",
+      "把研究外包给单个角色不让团队参与"
+    ],
+    "reasoningSteps": [
+      "先建立固定节律",
+      "让团队共同参与",
+      "再让洞察反哺决策"
+    ],
+    "reasons": [
+      "用户需求变化比团队想象得更快，低频研究很容易失真。",
+      "持续节律会让团队更快识别重复问题，而不是每次都从零理解用户。",
+      "用户对话被产品团队共同看见，决策落地会比单份报告更强。"
+    ],
+    "followUpQuestions": [
+      "你们最近一次直接听到用户原话是什么时候？",
+      "如果每周只做三次用户对话，谁会参与、怎么固定下来？"
+    ],
+    "nextActions": [
+      "给产品团队固定出每周 3 个用户对话时段，先做 4 周试运行。",
+      "要求 PM、设计、工程至少两种角色一起参与，不只让研究员记录。",
+      "每周沉淀一个重复出现的 Opportunity，而不是只存访谈纪要。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-lenny-continuous-discovery",
+        "label": "Teresa Torres Continuous Discovery Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-19-teresa-torres-continuous-discovery.md",
+        "person": "Teresa Torres",
+        "title": "Teresa Torres 持续发现",
+        "publishedAt": "2026-03-18",
+        "evidenceLevel": "A",
+        "notes": "Weekly customer conversations, opportunity solution tree, opportunity-first discovery",
+        "locator": "L83-L86",
+        "excerpt": "THEN 每周至少3次用户对话：\n  - 周一：1次\n  - 周三：1次\n  - 周五：1次"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.81,
+    "createdAt": "2026-03-17T16:18:56.742Z",
+    "updatedAt": "2026-03-17T16:18:56.742Z"
+  },
+  {
+    "id": "lenny-opportunity-before-solution-tree",
+    "personaId": "lenny",
+    "title": "先定义 Opportunity，再长 Solution Tree",
+    "summary": "很多错误不是方案太差，而是团队从一开始就在验证自己喜欢的方案。更稳的路径是先把机会树建在用户痛点上。",
+    "scenario": "团队已经有一堆想做的方案，但总感觉决策容易偏主观。",
+    "goal": "让探索从真实问题出发，而不是从先入为主的方案出发。",
+    "constraints": [
+      "方案驱动惯性强",
+      "团队容易把访谈变成验证会"
+    ],
+    "tags": [
+      "discovery",
+      "opportunity-solution-tree",
+      "prioritization"
+    ],
+    "triggerKeywords": [
+      "Opportunity Solution Tree",
+      "方案驱动",
+      "机会驱动",
+      "先有方案",
+      "用户痛点"
+    ],
+    "preferredPath": "先定义 outcome 和 opportunity，再在树上展开 solution 与 experiment。",
+    "antiPatterns": [
+      "先想方案，再找用户背书",
+      "把用户访谈当做既有方案的 validate 工具"
+    ],
+    "reasoningSteps": [
+      "先写目标",
+      "再识别机会点",
+      "最后才生成方案和实验"
+    ],
+    "reasons": [
+      "方案驱动最常见的风险，是把用户研究退化成“证明我是对的”。",
+      "机会树能把业务目标、用户痛点和实验路径放到同一张图里。",
+      "先抓 opportunity，团队更容易发现原本没想到的更优解。"
+    ],
+    "followUpQuestions": [
+      "你们现在要解决的是哪个 opportunity，而不是哪个预设方案？",
+      "如果当前方案被证明不对，是否还有别的 solution 可以挂在同一个 opportunity 上？"
+    ],
+    "nextActions": [
+      "先把当前项目写成 Outcome -> Opportunity -> Solution -> Experiment 四层树。",
+      "删掉那些没有明确 opportunity 支撑的方案。",
+      "访谈时先验证痛点是否真实存在，而不是只验证方案喜好。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-lenny-continuous-discovery",
+        "label": "Teresa Torres Continuous Discovery Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-19-teresa-torres-continuous-discovery.md",
+        "person": "Teresa Torres",
+        "title": "Teresa Torres 持续发现",
+        "publishedAt": "2026-03-18",
+        "evidenceLevel": "A",
+        "notes": "Weekly customer conversations, opportunity solution tree, opportunity-first discovery",
+        "locator": "L108-L110",
+        "excerpt": "正确流程（机会驱动）:\n1. 发现用户痛点（Opportunity）\n2. 针对痛点设计方案（Solution）✅"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.8,
+    "createdAt": "2026-03-17T16:18:56.742Z",
+    "updatedAt": "2026-03-17T16:18:56.742Z"
+  },
+  {
+    "id": "lenny-guide-users-to-aha-moment-fast",
+    "personaId": "lenny",
+    "title": "激活优化先围绕 Aha Moment 设计护栏",
+    "summary": "如果 onboarding 只是解释产品，而不是把用户尽快带到 Aha Moment，流失会持续很高。护栏的目标是减少掉沟，不是增加教育内容。",
+    "scenario": "新用户注册后流失严重，团队想优化 onboarding。",
+    "goal": "缩短从注册到首次体验核心价值的路径。",
+    "constraints": [
+      "产品初次使用门槛高",
+      "团队倾向于通过更多教程解释产品"
+    ],
+    "tags": [
+      "activation",
+      "onboarding",
+      "aha-moment"
+    ],
+    "triggerKeywords": [
+      "Aha Moment",
+      "激活",
+      "onboarding",
+      "保龄球",
+      "新用户流失"
+    ],
+    "preferredPath": "先识别 Aha Moment，再设计最少步骤和护栏把用户带过去。",
+    "antiPatterns": [
+      "靠长教程解释价值",
+      "把 onboarding 做成信息灌输而不是行动引导"
+    ],
+    "reasoningSteps": [
+      "先定义 Aha Moment",
+      "再压缩路径",
+      "最后用护栏降低掉沟风险"
+    ],
+    "reasons": [
+      "Aha Moment 才是激活的真实目标，不是把所有功能都讲完。",
+      "引导用户做出关键动作，比给更多说明更能提升激活。",
+      "路径一旦足够短，后续的产品教育反而更容易发生。"
+    ],
+    "followUpQuestions": [
+      "你们的 Aha Moment 到底是什么具体动作或结果？",
+      "当前 onboarding 有多少步骤并不会让用户更接近这个时刻？"
+    ],
+    "nextActions": [
+      "明确写出你们的 Aha Moment，并绑定一个可量化动作。",
+      "把 onboarding 的每一步都问一句：它是否直接推动用户到达 Aha Moment？",
+      "优先测试更短的引导链路，而不是更完整的说明内容。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-lenny-activation-optimization",
+        "label": "Ramli John Activation Optimization Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-20-ramli-john-activation-optimization.md",
+        "person": "Ramli John",
+        "title": "Ramli John 激活优化",
+        "publishedAt": "2026-03-18",
+        "evidenceLevel": "A",
+        "notes": "Aha moment, bowling alley onboarding, TTV and guided activation",
+        "locator": "L109-L112",
+        "excerpt": "THEN 先识别Aha Moment：\n  - 用户体验到核心价值的瞬间\n  - 示例：Slack发第一条消息\n  - 示例：Dropbox同步第一个文件"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.82,
+    "createdAt": "2026-03-17T16:18:56.742Z",
+    "updatedAt": "2026-03-17T16:18:56.742Z"
+  },
+  {
+    "id": "lenny-quantify-feedback-by-segment-and-close-loop",
+    "personaId": "lenny",
+    "title": "反馈系统要量化、分层、闭环",
+    "summary": "功能请求不是谁声音大听谁。要先看有多少用户提、哪类用户提、是否值得做；然后无论做不做，都要回到用户那边完成闭环。",
+    "scenario": "团队收到大量分散的用户反馈，不知道该怎么优先级排序。",
+    "goal": "把反馈从噪音变成可决策的输入。",
+    "constraints": [
+      "反馈来源分散",
+      "团队容易被大客户或社交媒体声音带偏"
+    ],
+    "tags": [
+      "feedback",
+      "prioritization",
+      "customer-voice"
+    ],
+    "triggerKeywords": [
+      "用户反馈",
+      "功能请求",
+      "闭环",
+      "多少用户提",
+      "按用户类型分类"
+    ],
+    "preferredPath": "先按数量、用户角色和优先级分层，再把结果回传给用户，形成闭环。",
+    "antiPatterns": [
+      "凭印象判断“很多用户都在要”",
+      "记录了反馈但从不告诉用户结果"
+    ],
+    "reasoningSteps": [
+      "先统一收集",
+      "再量化分类",
+      "最后做决策并回传"
+    ],
+    "reasons": [
+      "不量化的反馈系统，最终只会奖励声音最大的人。",
+      "不同用户角色的反馈价值不同，不能混成一团看。",
+      "闭环沟通会提高用户继续反馈的意愿，也让团队更有责任感。"
+    ],
+    "followUpQuestions": [
+      "这个请求到底有多少用户提过，分别来自哪些用户层？",
+      "如果这次决定不做，你们准备怎么回复提出反馈的用户？"
+    ],
+    "nextActions": [
+      "先把分散在工单、邮件、访谈和产品内反馈的声音统一进一个系统。",
+      "给每条高频反馈补上数量、用户角色和优先级，而不是只写一句需求标题。",
+      "无论做不做，都安排一次对外反馈闭环，不让用户石沉大海。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-lenny-feedback-system",
+        "label": "Hiten Shah Feedback System Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-21-hiten-shah-feedback-system.md",
+        "person": "Hiten Shah",
+        "title": "Hiten Shah 客户反馈系统",
+        "publishedAt": "2026-03-18",
+        "evidenceLevel": "A",
+        "notes": "Feedback loops, quantification by segment, pain versus requested solution",
+        "locator": "L99-L102",
+        "excerpt": "THEN 追踪统计：\n  - 多少用户提到？\n  - 什么类型用户？（免费/付费/企业）\n  - 紧急程度？"
+      },
+      {
+        "id": "src-lenny-feedback-system",
+        "label": "Hiten Shah Feedback System Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-21-hiten-shah-feedback-system.md",
+        "person": "Hiten Shah",
+        "title": "Hiten Shah 客户反馈系统",
+        "publishedAt": "2026-03-18",
+        "evidenceLevel": "A",
+        "notes": "Feedback loops, quantification by segment, pain versus requested solution",
+        "locator": "L110-L113",
+        "excerpt": "IF 用户提反馈\nTHEN 必须回复：\n  - 即使不做，也要说明原因\n  - 做了，要通知用户"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.84,
+    "createdAt": "2026-03-17T16:18:56.742Z",
+    "updatedAt": "2026-03-17T16:18:56.742Z"
+  },
+  {
     "id": "zhang-new-relation-chain-before-old-assets",
     "personaId": "zhang",
     "title": "移动转折点上，优先押新关系链，不要被旧资产绑住",
@@ -2894,5 +3453,279 @@
     "confidence": 0.84,
     "createdAt": "2026-03-17T14:52:58.116Z",
     "updatedAt": "2026-03-17T14:52:58.116Z"
+  },
+  {
+    "id": "zhang-use-and-go-service-over-forced-retention",
+    "personaId": "zhang",
+    "title": "服务型产品先做到用完即走，不先追时长",
+    "summary": "当产品本质是服务工具而不是内容消费时，强行追求黏性往往会破坏体验。先把它做成真正顺手的工具，再谈回访。",
+    "scenario": "团队在服务型产品里讨论是否要加入更多留存和停留时长设计。",
+    "goal": "避免把服务产品做成反用户的黏性机器。",
+    "constraints": [
+      "内部仍用时长和活跃评估一切",
+      "团队担心“用完即走”会影响增长"
+    ],
+    "tags": [
+      "tool",
+      "service",
+      "retention"
+    ],
+    "triggerKeywords": [
+      "用完即走",
+      "工具属性",
+      "服务产品",
+      "停留时长",
+      "黏性设计"
+    ],
+    "preferredPath": "先让用户在需要时最快获得服务，不为了留存故意增加停留和回访动作。",
+    "antiPatterns": [
+      "为了时长故意增加停留步骤",
+      "服务产品也套内容产品的留存指标"
+    ],
+    "reasoningSteps": [
+      "先判断产品本质是服务还是内容",
+      "再定义用户完成任务的最短路径",
+      "最后才看是否需要额外回访机制"
+    ],
+    "reasons": [
+      "服务产品的价值常常体现在“更快完成”，而不是“停得更久”。",
+      "把工具做得轻和顺手，本身会提升复用，而不需要强行制造黏性。",
+      "错误的留存目标会让团队持续添加不必要的打扰和入口。"
+    ],
+    "followUpQuestions": [
+      "用户来你们这里，是为了完成任务还是为了打发时间？",
+      "当前哪些设计是在帮助用户完成任务，哪些设计只是为了拉长停留时长？"
+    ],
+    "nextActions": [
+      "先定义服务产品最核心的一次任务闭环，并测量完成时间。",
+      "砍掉那些只增加停留时长、不增加任务完成率的环节。",
+      "把核心指标从时长切换到任务完成率、复用率和满意度。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-zhang-mini-program",
+        "label": "Mini Program Strategy Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-03-mini-program-strategy.md",
+        "person": "Zhang Xiaolong",
+        "title": "微信小程序战略决策",
+        "publishedAt": "2026-03-18",
+        "evidenceLevel": "A",
+        "notes": "Use-and-go service form, scene-based entry, no centralized entrance",
+        "locator": "L186",
+        "excerpt": "小程序\"用完即走\",不做用户留存设计"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.87,
+    "createdAt": "2026-03-17T16:18:56.742Z",
+    "updatedAt": "2026-03-17T16:18:56.742Z"
+  },
+  {
+    "id": "zhang-scene-entry-beats-homepage-entry-for-services",
+    "personaId": "zhang",
+    "title": "服务入口优先贴场景，不优先抢首页入口",
+    "summary": "对有明确触发场景的服务，最有效的入口往往不是首页，而是用户当下所处场景里的自然触点。",
+    "scenario": "团队在做服务产品分发，争论要不要给它一个中心化主入口。",
+    "goal": "找到更自然、更高意图的服务触发点。",
+    "constraints": [
+      "团队迷信主入口",
+      "线下或具体场景入口还没被系统梳理"
+    ],
+    "tags": [
+      "distribution",
+      "service",
+      "entry-point"
+    ],
+    "triggerKeywords": [
+      "入口",
+      "二维码",
+      "场景化服务",
+      "主入口",
+      "线下场景"
+    ],
+    "preferredPath": "先找到用户真实发生需求的场景，再把入口嵌进去，而不是默认去抢中心化入口位。",
+    "antiPatterns": [
+      "没有场景洞察就先争首页入口",
+      "把所有服务统一塞进一个中心广场"
+    ],
+    "reasoningSteps": [
+      "先识别需求发生场景",
+      "再设计最短触发路径",
+      "最后验证是否真的需要中心入口"
+    ],
+    "reasons": [
+      "场景入口带来的不是流量，而是更高的意图密度。",
+      "服务和内容不同，很多时候用户不是想“逛”，而是想立刻完成事情。",
+      "场景驱动的分发通常比中心入口更自然，也更不打扰。"
+    ],
+    "followUpQuestions": [
+      "用户真正需要这个服务的瞬间发生在哪个线下或线上场景里？",
+      "如果不给首页入口，只给场景入口，完成率会不会反而更高？"
+    ],
+    "nextActions": [
+      "先画出用户需求发生的前 3 个具体场景，而不是先画首页信息架构。",
+      "优先在这些场景里设计二维码、扫码、近场触发或轻入口方案。",
+      "用完成率和重复使用率验证场景入口，而不是只看入口曝光量。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-zhang-mini-program",
+        "label": "Mini Program Strategy Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-03-mini-program-strategy.md",
+        "person": "Zhang Xiaolong",
+        "title": "微信小程序战略决策",
+        "publishedAt": "2026-03-18",
+        "evidenceLevel": "A",
+        "notes": "Use-and-go service form, scene-based entry, no centralized entrance",
+        "locator": "L205",
+        "excerpt": "小程序没有统一入口,通过二维码在场景中启动"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.86,
+    "createdAt": "2026-03-17T16:18:56.742Z",
+    "updatedAt": "2026-03-17T16:18:56.742Z"
+  },
+  {
+    "id": "zhang-build-forest-not-palace",
+    "personaId": "zhang",
+    "title": "做平台先建森林，不先建宫殿",
+    "summary": "平台的职责不是把每块价值都自己做完，而是营造规则和环境，让生态自己长出来。",
+    "scenario": "平台团队在讨论是否亲自下场覆盖生态里的每类功能和内容。",
+    "goal": "避免平台既当裁判又当运动员，压死生态活力。",
+    "constraints": [
+      "平台能力强，自己下场看起来更快",
+      "生态伙伴不成熟"
+    ],
+    "tags": [
+      "platform",
+      "ecosystem",
+      "strategy"
+    ],
+    "triggerKeywords": [
+      "森林",
+      "宫殿",
+      "生态系统",
+      "平台自己做",
+      "开放平台"
+    ],
+    "preferredPath": "平台优先建设土壤、规则和能力边界，让合作方生长，而不是自己把每个品类都做掉。",
+    "antiPatterns": [
+      "平台什么都自己做",
+      "把生态当流量附属，不给真实生长空间"
+    ],
+    "reasoningSteps": [
+      "先定义平台核心边界",
+      "再判断哪些能力该开放",
+      "最后把精力放在生态环境而非亲自覆盖一切"
+    ],
+    "reasons": [
+      "平台一旦亲自做太多，外部伙伴就没有足够空间形成正反馈。",
+      "生态系统比单体产品更依赖土壤质量，而不是中心化控制力度。",
+      "“先做完再开放”通常会让平台越来越重，也越来越封闭。"
+    ],
+    "followUpQuestions": [
+      "这项能力如果平台自己做，会不会直接挤压生态伙伴的生存空间？",
+      "你们现在在建设土壤，还是在不断扩建自己的宫殿？"
+    ],
+    "nextActions": [
+      "先列出平台必须自己做和应该开放出去的能力边界。",
+      "把资源从“自己做更多功能”转向“让生态更容易接入和生长”。",
+      "评估每个新项目是否会强化森林，还是只会加高宫殿围墙。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-zhang-open-platform-philosophy",
+        "label": "WeChat Open Platform Philosophy",
+        "type": "article",
+        "path": "people/product/zhang-xiaolong/articles/2014-wechat-open-platform-philosophy.md",
+        "person": "Zhang Xiaolong",
+        "title": "微信开放平台的理念与方向",
+        "url": "https://www.cnblogs.com/lanzhi/p/6467424.html",
+        "publishedAt": "2014-12-28",
+        "evidenceLevel": "A",
+        "notes": "Forest not palace, dynamic system, decentralized traffic, user value first",
+        "locator": "L101",
+        "excerpt": "我们是希望建造一个森林，而不是说我们要建造一个自己的宫殿出来。"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.85,
+    "createdAt": "2026-03-17T16:18:56.742Z",
+    "updatedAt": "2026-03-17T16:18:56.742Z"
+  },
+  {
+    "id": "zhang-dynamic-rules-beat-static-control",
+    "personaId": "zhang",
+    "title": "平台规则要能动态演化，不要指望一次写死",
+    "summary": "复杂生态里，静态规则看起来清楚，实际上更脆。更稳的做法是承认系统会变化，并让规则随生态共同演化。",
+    "scenario": "平台团队在制定治理规则，试图一次性写出绝对完备的静态规范。",
+    "goal": "保持治理系统对新问题和生态变化的适应力。",
+    "constraints": [
+      "外部要求规则明确",
+      "团队害怕变化带来争议"
+    ],
+    "tags": [
+      "governance",
+      "rules",
+      "platform"
+    ],
+    "triggerKeywords": [
+      "动态系统",
+      "平台规则",
+      "治理规则",
+      "一次性写死",
+      "生态演化"
+    ],
+    "preferredPath": "把平台治理当动态系统来运营，允许规则根据生态反馈持续调整，但保持原则稳定。",
+    "antiPatterns": [
+      "追求一次写死的完备规则",
+      "问题一出现就靠个案人工特批解决"
+    ],
+    "reasoningSteps": [
+      "先定义不变原则",
+      "再承认规则需要演化",
+      "用反馈持续修正规则而非堆例外"
+    ],
+    "reasons": [
+      "生态变化速度往往快于规则文档更新速度，静态规则会越来越脱离现实。",
+      "动态系统不等于没有原则，而是原则稳定、实现方式可迭代。",
+      "长期靠个案例外处理，会让平台规则失去公信力。"
+    ],
+    "followUpQuestions": [
+      "你们现在要解决的是原则不清，还是规则实现已经跟不上现实变化？",
+      "哪些地方应该写成稳定原则，哪些地方应该预留动态调整空间？"
+    ],
+    "nextActions": [
+      "把治理文档拆成“不可变原则”和“可调整执行规则”两层。",
+      "每次规则变动都说明触发原因和预期影响，不靠口头例外。",
+      "定期回看新增案例，判断是应修正规则，还是只是孤立噪音。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-zhang-open-platform-philosophy",
+        "label": "WeChat Open Platform Philosophy",
+        "type": "article",
+        "path": "people/product/zhang-xiaolong/articles/2014-wechat-open-platform-philosophy.md",
+        "person": "Zhang Xiaolong",
+        "title": "微信开放平台的理念与方向",
+        "url": "https://www.cnblogs.com/lanzhi/p/6467424.html",
+        "publishedAt": "2014-12-28",
+        "evidenceLevel": "A",
+        "notes": "Forest not palace, dynamic system, decentralized traffic, user value first",
+        "locator": "L113",
+        "excerpt": "相反，我们认为**一个动态的系统是一个更加能够获得动态稳定的系统**。"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.84,
+    "createdAt": "2026-03-17T16:18:56.742Z",
+    "updatedAt": "2026-03-17T16:18:56.742Z"
   }
 ]

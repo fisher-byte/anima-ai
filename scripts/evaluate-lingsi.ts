@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import decisionUnitsSeed from '../seeds/lingsi/decision-units.json'
 import { buildLingSiDecisionPayloadFromUnits, matchDecisionUnits } from '../src/shared/lingsiDecisionEngine'
-import { LENNY_SYSTEM_PROMPT } from '../src/shared/constants'
+import { LENNY_SYSTEM_PROMPT, ZHANG_SYSTEM_PROMPT } from '../src/shared/constants'
 import type { DecisionUnit } from '../src/shared/types'
 
 type EvalPrompt = {
@@ -41,13 +41,16 @@ const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const REPORT_DIR = join(ROOT, 'reports')
 const DEFAULT_REPORT_JSON = join(REPORT_DIR, 'lingsi-m4-eval.json')
 const DEFAULT_REPORT_MD = join(ROOT, 'docs', 'lingsi-eval-m4.md')
+const ZHANG_REPORT_JSON = join(REPORT_DIR, 'lingsi-zhang-eval.json')
+const ZHANG_REPORT_MD = join(ROOT, 'docs', 'lingsi-eval-zhang.md')
 const API_URL = process.env.LINGSI_EVAL_API_URL ?? 'http://localhost:3000'
 const CASE_FILTER = process.env.LINGSI_EVAL_CASE?.trim()
+const PERSONA_FILTER = (process.env.LINGSI_EVAL_PERSONA?.trim() || 'lenny') as 'lenny' | 'zhang'
 const MAX_RETRIES = 3
 const REQUEST_TIMEOUT_MS = Number(process.env.LINGSI_EVAL_TIMEOUT_MS ?? 90_000)
-const units = (decisionUnitsSeed as DecisionUnit[]).filter(unit => unit.personaId === 'lenny')
+const allUnits = decisionUnitsSeed as DecisionUnit[]
 
-const prompts: EvalPrompt[] = [
+const LENNY_PROMPTS: EvalPrompt[] = [
   {
     id: 'pmf-before-growth',
     category: 'product',
@@ -124,6 +127,78 @@ const prompts: EvalPrompt[] = [
     prompt: '最近事情太多，我每天都在做决定但都很乱。你会建议我先从哪里整理？',
   },
 ]
+
+const ZHANG_PROMPTS: EvalPrompt[] = [
+  {
+    id: 'service-shape-use-and-go',
+    category: 'service',
+    prompt: '我们在做一个高频入口下的线下服务工具，团队想加签到、连续使用奖励和内容流拉时长。你会怎么决策？',
+  },
+  {
+    id: 'scene-entry-vs-home-entry',
+    category: 'entry',
+    prompt: '一个本地生活服务想要微信首页一级入口来拉访问，但真实需求都发生在线下扫码场景。入口该怎么设计？',
+  },
+  {
+    id: 'platform-forest-vs-palace',
+    category: 'platform',
+    prompt: '我们做开放平台，内部想把生态里最赚钱的几类能力都自己做了。你会怎么判断？',
+  },
+  {
+    id: 'dynamic-rules',
+    category: 'governance',
+    prompt: '平台规则要不要一次性写得特别死，避免后面总改规则被人骂？',
+  },
+  {
+    id: 'social-pressure-signals',
+    category: 'social',
+    prompt: '社交产品要不要上已读回执和公开点赞数？这样互动数据会更好看。',
+  },
+  {
+    id: 'commercialize-social-feed',
+    category: 'commercialization',
+    prompt: '高频社交内容流准备上广告，业务希望快速放量。广告策略该怎么起步？',
+  },
+  {
+    id: 'cold-start-centralization',
+    category: 'governance',
+    prompt: '平台早期供给太少，完全去中心化导致内容很空。现在要不要先中心化推荐？',
+  },
+]
+
+type PersonaEvalConfig = {
+  personaId: 'lenny' | 'zhang'
+  personaName: string
+  systemPrompt: string
+  reportJson: string
+  reportMd: string
+  reportPrefix: string
+  title: string
+  prompts: EvalPrompt[]
+}
+
+const PERSONA_CONFIGS: Record<'lenny' | 'zhang', PersonaEvalConfig> = {
+  lenny: {
+    personaId: 'lenny',
+    personaName: 'Lenny Rachitsky',
+    systemPrompt: LENNY_SYSTEM_PROMPT,
+    reportJson: DEFAULT_REPORT_JSON,
+    reportMd: DEFAULT_REPORT_MD,
+    reportPrefix: 'lingsi-m4-eval',
+    title: 'LingSi Lenny Evaluation',
+    prompts: LENNY_PROMPTS,
+  },
+  zhang: {
+    personaId: 'zhang',
+    personaName: '张小龙',
+    systemPrompt: ZHANG_SYSTEM_PROMPT,
+    reportJson: ZHANG_REPORT_JSON,
+    reportMd: ZHANG_REPORT_MD,
+    reportPrefix: 'lingsi-zhang-eval',
+    title: 'LingSi Zhang Evaluation',
+    prompts: ZHANG_PROMPTS,
+  },
+}
 
 async function streamChatCompletion(
   userPrompt: string,
@@ -225,7 +300,7 @@ async function judgeCase(prompt: string, normalAnswer: string, decisionAnswer: s
   return JSON.parse(sanitized) as JudgeResult
 }
 
-function buildMarkdownReport(results: EvalCaseResult[]): string {
+function buildMarkdownReport(results: EvalCaseResult[], config: PersonaEvalConfig, units: DecisionUnit[]): string {
   const decisionWins = results.filter(item => item.judge.winner === 'decision').length
   const normalWins = results.filter(item => item.judge.winner === 'normal').length
   const ties = results.filter(item => item.judge.winner === 'tie').length
@@ -262,9 +337,10 @@ function buildMarkdownReport(results: EvalCaseResult[]): string {
   ].join('\n')).join('\n\n')
 
   return [
-    '# LingSi M4 Evaluation',
+    `# ${config.title}`,
     '',
     `Generated at: ${new Date().toISOString()}`,
+    `Persona: ${config.personaName}`,
     `Source units: ${units.length}`,
     `Cases: ${results.length}`,
     '',
@@ -290,33 +366,39 @@ function buildMarkdownReport(results: EvalCaseResult[]): string {
 }
 
 async function main() {
+  const config = PERSONA_CONFIGS[PERSONA_FILTER]
+  if (!config) {
+    throw new Error(`Unknown persona filter: ${PERSONA_FILTER}`)
+  }
+
+  const units = allUnits.filter(unit => unit.personaId === config.personaId)
   const cases = CASE_FILTER
-    ? prompts.filter(item => item.id === CASE_FILTER)
-    : prompts
+    ? config.prompts.filter(item => item.id === CASE_FILTER)
+    : config.prompts
   if (cases.length === 0) {
     throw new Error(`Unknown case filter: ${CASE_FILTER}`)
   }
 
   const reportJson = CASE_FILTER
-    ? join(REPORT_DIR, `lingsi-m4-eval-${CASE_FILTER}.json`)
-    : DEFAULT_REPORT_JSON
+    ? join(REPORT_DIR, `${config.reportPrefix}-${CASE_FILTER}.json`)
+    : config.reportJson
   const reportMd = CASE_FILTER
-    ? join(ROOT, 'docs', `lingsi-eval-m4-${CASE_FILTER}.md`)
-    : DEFAULT_REPORT_MD
+    ? join(ROOT, 'docs', `${config.reportPrefix === 'lingsi-m4-eval' ? 'lingsi-eval-m4' : 'lingsi-eval-zhang'}-${CASE_FILTER}.md`)
+    : config.reportMd
 
   const results: EvalCaseResult[] = []
 
   for (const item of cases) {
     const matchedUnits = matchDecisionUnits(item.prompt, units)
     const decisionPayload = buildLingSiDecisionPayloadFromUnits(item.prompt, 'decision', units, {
-      personaId: 'lenny',
-      personaName: 'Lenny Rachitsky',
+      personaId: config.personaId,
+      personaName: config.personaName,
     })
 
-    console.log(`Evaluating ${item.id} (${matchedUnits.length} matched units)`)
+    console.log(`Evaluating ${config.personaId}:${item.id} (${matchedUnits.length} matched units)`)
 
-    const normalAnswer = await streamChatCompletion(item.prompt, LENNY_SYSTEM_PROMPT)
-    const decisionAnswer = await streamChatCompletion(item.prompt, LENNY_SYSTEM_PROMPT, decisionPayload.extraContext)
+    const normalAnswer = await streamChatCompletion(item.prompt, config.systemPrompt)
+    const decisionAnswer = await streamChatCompletion(item.prompt, config.systemPrompt, decisionPayload.extraContext)
     const judge = await judgeCase(item.prompt, normalAnswer, decisionAnswer)
 
     results.push({
@@ -330,7 +412,7 @@ async function main() {
     })
   }
 
-  const markdown = buildMarkdownReport(results)
+  const markdown = buildMarkdownReport(results, config, units)
   await mkdir(REPORT_DIR, { recursive: true })
   await writeFile(reportJson, JSON.stringify(results, null, 2))
   await writeFile(reportMd, markdown)
@@ -338,7 +420,7 @@ async function main() {
   const decisionWins = results.filter(item => item.judge.winner === 'decision').length
   const normalWins = results.filter(item => item.judge.winner === 'normal').length
   const ties = results.filter(item => item.judge.winner === 'tie').length
-  console.log(`done: decision=${decisionWins}, normal=${normalWins}, tie=${ties}`)
+  console.log(`done (${config.personaId}): decision=${decisionWins}, normal=${normalWins}, tie=${ties}`)
   console.log(`json: ${reportJson}`)
   console.log(`markdown: ${reportMd}`)
 }

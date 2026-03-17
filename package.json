@@ -22,6 +22,7 @@
     "test:e2e:ui": "playwright test --ui",
     "lingsi:extract": "tsx scripts/extract-lingsi-seeds.ts",
     "lingsi:evaluate": "tsx scripts/evaluate-lingsi.ts",
+    "lingsi:evaluate:zhang": "LINGSI_EVAL_PERSONA=zhang tsx scripts/evaluate-lingsi.ts",
     "debug:browser": "tsx scripts/debug-browser.ts",
     "dev:electron": "electron-vite dev",
     "build:electron": "electron-vite build"

@@ -31,6 +31,14 @@ describe('lingsiDecisionEngine', () => {
     expect(matched.map(unit => unit.id)).toContain('lenny-retention-before-acquisition')
   })
 
+  it('matches PLG prompts to the TTV unit', () => {
+    const matched = matchDecisionUnits(
+      '我们想做 PLG，但注册后用户十几分钟都到不了核心价值，是不是先去投放和做 viral？',
+      units,
+    )
+    expect(matched.map(unit => unit.id)).toContain('lenny-ttv-before-plg-distribution')
+  })
+
   it('builds decision payload with trace and source refs', () => {
     const payload = buildLingSiDecisionPayloadFromUnits(
       'B2B AI 工具应该按 seat 还是按使用量定价？',
@@ -78,6 +86,17 @@ describe('lingsiDecisionEngine', () => {
       { personaId: 'zhang', personaName: '张小龙' },
     )
     expect(payload.decisionTrace.matchedDecisionUnitIds).toContain('zhang-operate-with-restraint-not-kpi-anxiety')
+    expect(payload.decisionTrace.matchedDecisionUnitIds?.some(id => id.startsWith('lenny-'))).toBe(false)
+  })
+
+  it('matches Zhang service entry prompts to mini-program scene units', () => {
+    const payload = buildLingSiDecisionPayloadFromUnits(
+      '这个线下服务到底该不该抢首页入口，还是应该让用户在扫码和真实场景里直接触发？',
+      'decision',
+      units,
+      { personaId: 'zhang', personaName: '张小龙' },
+    )
+    expect(payload.decisionTrace.matchedDecisionUnitIds).toContain('zhang-scene-entry-beats-homepage-entry-for-services')
     expect(payload.decisionTrace.matchedDecisionUnitIds?.some(id => id.startsWith('lenny-'))).toBe(false)
   })
 })

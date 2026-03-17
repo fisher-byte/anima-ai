@@ -1,6 +1,6 @@
 # Anima 测试手册
 
-*最后更新: 2026-03-17 | 版本: v0.5.16*
+*最后更新: 2026-03-17 | 版本: v0.5.17*
 
 ## 测试策略
 
@@ -100,7 +100,7 @@ npm run test:watch    # 监听模式（开发时用）
 
 - ✅ `memory.test.ts` — 记忆路由集成测试（含 FTS5 trigger、引用块过滤、decayPreferences、语义边 by-id）
 
-**总测试数**: **586 个用例，27 个测试文件，全部通过**
+**总测试数**: **588 个用例，27 个测试文件，全部通过**
 
 ---
 
@@ -116,7 +116,8 @@ npm run test:e2e:ui  # 带可视化 UI 模式
 ```
 
 LingSi 评测补充：
-- `npm run lingsi:evaluate` 支持 `LINGSI_EVAL_CASE=<case-id>` 只跑单题复核
+- `npm run lingsi:evaluate` 支持 `LINGSI_EVAL_CASE=<case-id>` 只跑 Lenny 单题复核
+- `npm run lingsi:evaluate:zhang` 用于张小龙 persona 的 case-based eval 基线
 - `LINGSI_EVAL_TIMEOUT_MS` 可覆盖单次流式请求超时，避免网络抖动时无限等待
 
 **测试文件**：

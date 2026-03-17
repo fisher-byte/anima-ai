@@ -37,8 +37,8 @@ describe('LingSi seed outputs', () => {
 
   it('keeps the generated seed baseline at the expected current size', () => {
     expect(personas).toHaveLength(2)
-    expect(manifest).toHaveLength(25)
-    expect(units).toHaveLength(41)
+    expect(manifest).toHaveLength(33)
+    expect(units).toHaveLength(53)
   })
 
   it('keeps persona coverage aligned between personas and units', () => {
@@ -49,7 +49,7 @@ describe('LingSi seed outputs', () => {
       expect(personaIds.has(unit.personaId)).toBe(true)
     }
 
-    expect(units.filter(unit => unit.personaId === 'lenny')).toHaveLength(26)
-    expect(units.filter(unit => unit.personaId === 'zhang')).toHaveLength(15)
+    expect(units.filter(unit => unit.personaId === 'lenny')).toHaveLength(34)
+    expect(units.filter(unit => unit.personaId === 'zhang')).toHaveLength(19)
   })
 })
