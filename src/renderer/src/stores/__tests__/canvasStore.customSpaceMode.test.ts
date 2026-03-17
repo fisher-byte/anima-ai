@@ -101,6 +101,28 @@ describe('canvasStore — openCustomSpaceMode / closeCustomSpaceMode', () => {
     expect(state.isWangMode).toBe(false)
   })
 
+  it('openCustomSpaceMode clears onboarding/modal residue', async () => {
+    const { useCanvasStore } = await import('../canvasStore')
+    useCanvasStore.setState({
+      isOnboardingMode: true,
+      onboardingPhase: 3,
+      onboardingResumeTurns: [{ user: 'intro', assistant: 'ok' }],
+      isModalOpen: true,
+      currentConversation: makeConversation({ id: 'onboarding-conv' }),
+      conversationHistory: [{ role: 'user', content: 'intro' }],
+    })
+
+    useCanvasStore.getState().openCustomSpaceMode('abc12345')
+
+    const state = useCanvasStore.getState()
+    expect(state.isOnboardingMode).toBe(false)
+    expect(state.onboardingPhase).toBe(0)
+    expect(state.onboardingResumeTurns).toBeNull()
+    expect(state.isModalOpen).toBe(false)
+    expect(state.currentConversation).toBeNull()
+    expect(state.conversationHistory).toEqual([])
+  })
+
   it('closeCustomSpaceMode resets isCustomSpaceMode and activeCustomSpaceId', async () => {
     const { useCanvasStore } = await import('../canvasStore')
     useCanvasStore.setState({ isCustomSpaceMode: true, activeCustomSpaceId: 'abc12345' })

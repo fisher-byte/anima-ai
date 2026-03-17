@@ -1,7 +1,7 @@
 # Anima — 项目计划
 
 > 唯一入口：每次发版、每次决策都在这里留记录。
-> 最后更新：2026-03-17 | 当前版本：v0.5.9
+> 最后更新：2026-03-17 | 当前版本：v0.5.10
 
 ---
 
@@ -16,7 +16,7 @@
 | 3 | 首批 DecisionUnit 基线入库 | 已完成 | 已生成 `seeds/lingsi` 基线：1 persona / 7 sources / 13 approved units，并支持写入 storage |
 | 4 | Lenny 决策模式接入 | 已完成 | 已接入 `normal / 灵思` 切换、extraContext 注入、decisionTrace 持久化 |
 | 5 | 验证与对照 | 已完成 | 已跑 `15` 个真实问题对照，`decision` 赢 `15` 题，结果沉淀到 `docs/lingsi-eval-m4.md` |
-| 6 | SOP 闭环 | 已完成 | 文档同步、测试、code review、GitHub 备份已完成；当前仍未做 E2E / 部署 |
+| 6 | SOP 闭环 | 已完成 | 文档同步、`npm test`、`npm run typecheck`、`npm run build`、`npm run test:e2e`、code review、GitHub 备份已完成；部署验证待后续 |
 
 ---
 
@@ -86,6 +86,7 @@
 
 | 版本 | 日期 | 核心内容 |
 |------|------|----------|
+| v0.5.10 | 2026-03-17 | 稳定性补丁：修复 Lenny/Custom Space 切换残留 onboarding 状态；清理失效本地 token 以恢复浏览器真实提问链路 |
 | v0.5.4 | 2026-03-14 | bootstrap-facts 幂等判断修复：改用 agent_tasks.payload.conversationId，彻底消除重复入队 |
 | v0.5.3 | 2026-03-14 | UI/UX polish：悬浮 pill 侧边栏、@mention pill chip、文件下载、头像统一、设置菜单重命名 |
 | v0.5.2 | 2026-03-14 | Space 向量索引全量补全；custom space convSource 修复；bootstrap-facts API |
