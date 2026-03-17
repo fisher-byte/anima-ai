@@ -3,6 +3,7 @@ import type { DecisionSourceRef, DecisionUnit } from '@shared/types'
 import {
   fallbackDecisionUnitLabel,
   formatLingSiSourceLabel,
+  injectLingSiInlineCitations,
   resolveDecisionUnitLabels,
 } from '../lingsiTrace'
 
@@ -51,5 +52,40 @@ describe('lingsiTrace helpers', () => {
     }
 
     expect(formatLingSiSourceLabel(ref)).toBe('Find PMF Before Growth · 2024-01-01-pmf.md · L40-L44')
+  })
+
+  it('injects inline citations into the first plain paragraph', () => {
+    const refs: DecisionSourceRef[] = [
+      {
+        id: 'src-1',
+        label: 'First source',
+        type: 'framework',
+        path: 'frameworks/a.md',
+        evidenceLevel: 'A',
+      },
+      {
+        id: 'src-2',
+        label: 'Second source',
+        type: 'framework',
+        path: 'frameworks/b.md',
+        evidenceLevel: 'B',
+      },
+    ]
+
+    const markdown = '# 标题\n\n先直接聚焦最小可验证路径。'
+    expect(injectLingSiInlineCitations(markdown, refs)).toContain('先直接聚焦最小可验证路径。 [1](#lingsi-source-1) [2](#lingsi-source-2)')
+  })
+
+  it('does not duplicate inline citations when already injected', () => {
+    const ref: DecisionSourceRef = {
+      id: 'src-1',
+      label: 'First source',
+      type: 'framework',
+      path: 'frameworks/a.md',
+      evidenceLevel: 'A',
+    }
+
+    const markdown = '结论先行。 [1](#lingsi-source-1)'
+    expect(injectLingSiInlineCitations(markdown, [ref])).toBe(markdown)
   })
 })

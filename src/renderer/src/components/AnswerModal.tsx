@@ -56,7 +56,7 @@ import {
   InputArea,
   LingSiTracePanel,
 } from './AnswerModalSubcomponents'
-import { resolveDecisionUnitLabels } from '../utils/lingsiTrace'
+import { injectLingSiInlineCitations, resolveDecisionUnitLabels } from '../utils/lingsiTrace'
 import { useT } from '../i18n'
 
 function authFetch(url: string, init?: RequestInit): Promise<Response> {
@@ -237,6 +237,18 @@ export function AnswerModal() {
     activeDecisionTrace.mode === 'decision' &&
     isPureLennySpace &&
     ((activeDecisionTrace.sourceRefs?.length ?? 0) > 0 || decisionUnitLabels.length > 0)
+
+  const renderAssistantMarkdown = useCallback((assistant: string, turnIndex: number) => {
+    const base = stripLeadingNumberHeading(assistant || (isStreaming && turnIndex === turns.length - 1 ? '...' : ''))
+    if (
+      turnIndex !== turns.length - 1 ||
+      !shouldShowLingSiTrace ||
+      !activeDecisionTrace?.sourceRefs?.length
+    ) {
+      return base
+    }
+    return injectLingSiInlineCitations(base, activeDecisionTrace.sourceRefs)
+  }, [activeDecisionTrace?.sourceRefs, isStreaming, shouldShowLingSiTrace, turns.length])
 
   useEffect(() => {
     let cancelled = false
@@ -1530,7 +1542,7 @@ export function AnswerModal() {
                               ) : (
                                 <div className="prose prose-slate max-w-none prose-sm prose-p:my-1.5 prose-headings:my-2">
                                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                    {stripLeadingNumberHeading(turn.assistant || (isStreaming && idx === turns.length - 1 ? '...' : ''))}
+                                    {renderAssistantMarkdown(turn.assistant || '', idx)}
                                   </ReactMarkdown>
                                 </div>
                               )}

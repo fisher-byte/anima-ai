@@ -175,6 +175,7 @@ export function LingSiTracePanel({
               {sourceRefs.map((ref, idx) => (
                 <li
                   key={`${ref.id}-${ref.locator ?? idx}`}
+                  id={`lingsi-source-${idx + 1}`}
                   className="rounded-xl border border-amber-200/70 bg-white/75 px-3 py-2.5"
                 >
                   <div className="flex items-start gap-2">
