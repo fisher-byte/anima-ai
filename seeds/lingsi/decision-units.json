@@ -1447,5 +1447,551 @@
     "confidence": 0.82,
     "createdAt": "2026-03-17T12:41:17.326Z",
     "updatedAt": "2026-03-17T12:41:17.326Z"
+  },
+  {
+    "id": "zhang-new-relation-chain-before-old-assets",
+    "personaId": "zhang",
+    "title": "移动转折点上，优先押新关系链，不要被旧资产绑住",
+    "summary": "当产品场景从 PC 切到移动或从旧媒介切到新媒介时，先判断新的关系链和分发基础是什么，再决定是否做独立产品。",
+    "scenario": "团队在新平台机会面前，犹豫要不要继续沿用旧用户关系和旧品牌资产。",
+    "goal": "避免因为复用旧资产而错过新平台的真实入口。",
+    "constraints": [
+      "内部已有成熟产品",
+      "新旧团队存在资源竞争"
+    ],
+    "tags": [
+      "mobile",
+      "strategy",
+      "social"
+    ],
+    "triggerKeywords": [
+      "关系链",
+      "通讯录",
+      "独立产品",
+      "移动转型",
+      "新平台"
+    ],
+    "preferredPath": "先识别新场景的天然关系链；如果它已经变了，就用独立产品承接，而不是硬套旧关系链。",
+    "antiPatterns": [
+      "拿旧关系链硬套新场景",
+      "为了复用品牌而牺牲产品自然性"
+    ],
+    "reasoningSteps": [
+      "先判断场景底层是否变了",
+      "再看新关系链是什么",
+      "最后决定独立产品还是旧产品延伸"
+    ],
+    "reasons": [
+      "平台迁移时，真正稀缺的不是品牌，而是新的默认关系链。",
+      "如果新场景的用户连接方式已经变化，沿用旧产品通常只会把旧包袱也带进来。",
+      "独立产品能给团队重新定义规则的空间。"
+    ],
+    "followUpQuestions": [
+      "这个新场景里，用户天然带来的关系链到底是什么？",
+      "如果沿用旧产品，你们是在复用资产，还是也把旧时代的约束一起继承了？"
+    ],
+    "nextActions": [
+      "先把新场景的默认关系链、分发入口和使用频次写清楚。",
+      "对比“独立产品”与“旧产品延伸”各自会继承哪些约束。",
+      "如果新关系链已明显变化，优先按独立产品立项。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-zhang-wechat-launch",
+        "label": "WeChat Launch Decision Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-10-wechat-launch-decision.md",
+        "person": "Zhang Xiaolong",
+        "title": "微信立项决策",
+        "publishedAt": "2010-11-20",
+        "evidenceLevel": "A",
+        "notes": "New relation chain, small team launch, fast MVP under strategic threat",
+        "locator": "L146",
+        "excerpt": "2. ✅ **基于手机通讯录**：而非QQ好友关系链"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.88,
+    "createdAt": "2026-03-17T14:06:39.805Z",
+    "updatedAt": "2026-03-17T14:06:39.805Z"
+  },
+  {
+    "id": "zhang-small-team-fast-mvp-under-window",
+    "personaId": "zhang",
+    "title": "时间窗口很短时，小团队先做最小可用产品",
+    "summary": "面对战略窗口或强竞争威胁时，先用小团队快速上线 MVP，占住入口，再持续迭代。",
+    "scenario": "团队发现明确窗口期，但大组织流程和完美主义会拖慢上线。",
+    "goal": "在窗口关闭前完成第一版验证。",
+    "constraints": [
+      "时间极紧",
+      "组织层级多",
+      "需求容易膨胀"
+    ],
+    "tags": [
+      "mvp",
+      "speed",
+      "execution"
+    ],
+    "triggerKeywords": [
+      "MVP",
+      "快速上线",
+      "窗口期",
+      "小团队",
+      "竞争威胁"
+    ],
+    "preferredPath": "收缩团队、收缩范围、先上最小可用版本，而不是先追求完整性。",
+    "antiPatterns": [
+      "窗口期里仍按大项目方式推进",
+      "先列全量需求再排期"
+    ],
+    "reasoningSteps": [
+      "先判断窗口期是否真实存在",
+      "再砍掉非必要范围",
+      "用小团队先做 MVP"
+    ],
+    "reasons": [
+      "窗口期竞争不是比谁计划更完整，而是比谁先占到真实用户入口。",
+      "小团队的沟通成本低，更适合在高不确定场景里快速试错。",
+      "MVP 不是低质量，而是把第一版只对准核心价值。"
+    ],
+    "followUpQuestions": [
+      "这件事最迟什么时候上线还算有意义？",
+      "如果只能保留一个核心价值，你们第一版到底要验证什么？"
+    ],
+    "nextActions": [
+      "把第一版需求压缩到只剩核心通讯或核心价值闭环。",
+      "用一个小而全的直接负责团队推进，不走大协作编排。",
+      "先定义上线节点，再倒推必须砍掉的范围。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-zhang-wechat-launch",
+        "label": "WeChat Launch Decision Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-10-wechat-launch-decision.md",
+        "person": "Zhang Xiaolong",
+        "title": "微信立项决策",
+        "publishedAt": "2010-11-20",
+        "evidenceLevel": "A",
+        "notes": "New relation chain, small team launch, fast MVP under strategic threat",
+        "locator": "L148",
+        "excerpt": "4. ✅ **快速迭代**：2个月上线，先做最小可用产品（MVP）"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.87,
+    "createdAt": "2026-03-17T14:06:39.805Z",
+    "updatedAt": "2026-03-17T14:06:39.805Z"
+  },
+  {
+    "id": "zhang-simple-rule-beats-feature-stack",
+    "personaId": "zhang",
+    "title": "优先设计一个简单规则，而不是堆一串功能",
+    "summary": "如果一个功能需要很多说明、按钮和流程，通常说明规则还不够好。先找更简单的交互规则。",
+    "scenario": "团队在设计新功能时，不断加按钮、设置项和说明文案。",
+    "goal": "用更少的规则引发更强的用户反应。",
+    "constraints": [
+      "功能堆积",
+      "用户学习成本高"
+    ],
+    "tags": [
+      "simplicity",
+      "ux",
+      "product"
+    ],
+    "triggerKeywords": [
+      "简单",
+      "复杂",
+      "功能太多",
+      "说明书",
+      "交互规则"
+    ],
+    "preferredPath": "先删掉冗余控制项，逼自己用一句话说清核心规则，再决定要不要开发。",
+    "antiPatterns": [
+      "功能没想清就先加入口",
+      "靠文案解释弥补规则复杂"
+    ],
+    "reasoningSteps": [
+      "先看规则能否一句话说清",
+      "再砍掉需要学习的部分",
+      "保留最能引发反应的最小动作"
+    ],
+    "reasons": [
+      "复杂往往只是设计者没有把问题想透，而不是用户真的需要更多控制。",
+      "简单规则更容易传播、学习，也更容易形成群体效应。",
+      "最简形态一旦成立，后续很难被更复杂的方案打败。"
+    ],
+    "followUpQuestions": [
+      "这个功能是否需要额外解释，用户才能知道怎么用？",
+      "如果只保留一个动作或一个入口，核心体验还能成立吗？"
+    ],
+    "nextActions": [
+      "把当前方案压缩到一句规则描述，删掉不能支撑这句规则的元素。",
+      "找 3 个没上下文的人做冷启动测试，看是否无需说明就会用。",
+      "如果仍需要长说明，继续回退并重构规则。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-zhang-core-principles",
+        "label": "Zhang Core Product Principles",
+        "type": "framework",
+        "path": "people/product/zhang-xiaolong/frameworks/core-principles.md",
+        "person": "Zhang Xiaolong",
+        "title": "产品基本原则",
+        "publishedAt": "2012-01-01",
+        "evidenceLevel": "A",
+        "notes": "Simple rules, user psychology, group effects, product restraint",
+        "locator": "L44",
+        "excerpt": "- **简单是最美的**: 宇宙规律都很简单, 为什么要复杂化? 规则越简单越能让群体自发互动"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.84,
+    "createdAt": "2026-03-17T14:06:39.805Z",
+    "updatedAt": "2026-03-17T14:06:39.805Z"
+  },
+  {
+    "id": "zhang-psychological-delight-before-utility-copy",
+    "personaId": "zhang",
+    "title": "很多增长卡点不是工具价值不够，而是爽点不够",
+    "summary": "如果用户不愿意安装、激活或分享，不要只强化“省钱/高效”的工具理由，要找到更强的心理驱动力。",
+    "scenario": "团队在做拉新或激活时，功能价值讲得很完整，但用户反应平淡。",
+    "goal": "把触发安装、激活或传播的核心动机找对。",
+    "constraints": [
+      "工具价值已经能讲通",
+      "用户行动意愿仍弱"
+    ],
+    "tags": [
+      "growth",
+      "motivation",
+      "consumer"
+    ],
+    "triggerKeywords": [
+      "拉新",
+      "激活",
+      "推广",
+      "用户没感觉",
+      "爽点",
+      "心理满足"
+    ],
+    "preferredPath": "先把用户真正想要的心理满足写清楚，再包装激活动作或传播动作。",
+    "antiPatterns": [
+      "只拿省钱和效率当卖点",
+      "把动机理解成表层功能需求"
+    ],
+    "reasoningSteps": [
+      "先找用户想获得的感觉",
+      "再设计触发动作",
+      "最后才包装功能价值"
+    ],
+    "reasons": [
+      "用户行动很多时候不是被功能说服，而是被情绪和身份感驱动。",
+      "心理满足找对了，工具动作才会变得自发。",
+      "只讲效率常常解释得通，却驱动不了行为。"
+    ],
+    "followUpQuestions": [
+      "用户完成这个动作时，真正想获得的感觉是什么？",
+      "你们现在的表达是在描述功能，还是在触发欲望？"
+    ],
+    "nextActions": [
+      "把当前价值主张拆成“工具收益”和“心理收益”两列比较。",
+      "重新设计激活文案和入口，优先呈现心理收益。",
+      "用小样本访谈验证哪种表达最能让用户立刻想试。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-zhang-discovering-needs",
+        "label": "Zhang Need Discovery Framework",
+        "type": "framework",
+        "path": "people/product/zhang-xiaolong/frameworks/discovering-needs.md",
+        "person": "Zhang Xiaolong",
+        "title": "需求发现方法论",
+        "publishedAt": "2012-01-01",
+        "evidenceLevel": "A",
+        "notes": "Psychological delight over utility, trend sensing, human motives",
+        "locator": "L37",
+        "excerpt": "> \"用户在你这里省一点钱, 会去买别的东西。他要的是很爽的感觉。\""
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.84,
+    "createdAt": "2026-03-17T14:06:39.805Z",
+    "updatedAt": "2026-03-17T14:06:39.805Z"
+  },
+  {
+    "id": "zhang-wrap-hard-task-in-social-game",
+    "personaId": "zhang",
+    "title": "高门槛激活动作，要用用户真想玩的壳来包住",
+    "summary": "用户不愿意直接完成高门槛动作时，不要硬推流程，而要用社交或游戏化机制把它包装成顺手完成的动作。",
+    "scenario": "产品需要用户完成绑卡、授权、邀请等高阻力激活动作。",
+    "goal": "降低激活阻力并保持自发性。",
+    "constraints": [
+      "动作门槛高",
+      "直接推动作效果差"
+    ],
+    "tags": [
+      "activation",
+      "growth",
+      "payment"
+    ],
+    "triggerKeywords": [
+      "绑卡",
+      "激活",
+      "高门槛动作",
+      "红包",
+      "游戏化"
+    ],
+    "preferredPath": "先找用户本来就愿意参与的社交游戏，再把高门槛动作嵌进去。",
+    "antiPatterns": [
+      "直接弹窗硬推绑定",
+      "靠补贴硬砸没有社交机制的激活"
+    ],
+    "reasoningSteps": [
+      "先识别阻力动作",
+      "再找用户自愿参与的壳",
+      "把激活动作设计成壳里的必经路径"
+    ],
+    "reasons": [
+      "用户对“我要完成任务”天然抗拒，但对“我要参与有趣/有利的社交动作”更愿意投入。",
+      "把高阻力动作藏进自然场景，比单独优化流程更有效。",
+      "一旦激活动作和社交传播绑定，增长和激活可以同步发生。"
+    ],
+    "followUpQuestions": [
+      "用户现在最抗拒的那个动作，能否变成参与某个社交玩法的必经步骤？",
+      "你们包装的外壳，是用户真想参与，还是团队觉得有趣？"
+    ],
+    "nextActions": [
+      "先画出当前激活漏斗里阻力最大的一步。",
+      "找一个用户自然愿意参与的社交场景，把这一步嵌进去。",
+      "优先验证“包装后是否真的提升完成率”，再扩大发布。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-zhang-red-packet",
+        "label": "Red Packet Activation Decision Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-15-red-packet.md",
+        "person": "Zhang Xiaolong",
+        "title": "春节红包决策",
+        "publishedAt": "2014-01-20",
+        "evidenceLevel": "A",
+        "notes": "Gamified activation, social diffusion, cultural timing window",
+        "locator": "L92",
+        "excerpt": "- 用红包包装绑卡 ✅ → 用户为了抢红包主动绑卡"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.9,
+    "createdAt": "2026-03-17T14:06:39.805Z",
+    "updatedAt": "2026-03-17T14:06:39.805Z"
+  },
+  {
+    "id": "zhang-social-random-loop-for-viral-growth",
+    "personaId": "zhang",
+    "title": "要做裂变，不只要社交链，还要让结果有随机惊喜",
+    "summary": "单纯邀请机制容易疲劳；把社交传播和随机性绑定，能显著提升参与率和反复传播。",
+    "scenario": "团队想设计自传播机制，但普通邀请裂变效果递减。",
+    "goal": "提升传播意愿和复玩率。",
+    "constraints": [
+      "用户注意力短",
+      "普通邀请机制容易审美疲劳"
+    ],
+    "tags": [
+      "viral",
+      "growth",
+      "social"
+    ],
+    "triggerKeywords": [
+      "裂变",
+      "病毒传播",
+      "随机",
+      "社交传播",
+      "红包"
+    ],
+    "preferredPath": "先保证链路天然社交，再加入随机回报和可展示结果，而不是只加邀请奖励。",
+    "antiPatterns": [
+      "只有单次邀请奖励",
+      "传播动作没有惊喜和讨论空间"
+    ],
+    "reasoningSteps": [
+      "先保证传播动作足够轻",
+      "再加入随机回报",
+      "最后让结果可被看见和讨论"
+    ],
+    "reasons": [
+      "社交链决定传播宽度，随机性决定重复参与的动力。",
+      "当结果有悬念和比较空间时，传播会从任务变成游戏。",
+      "病毒传播需要的是循环，不是一次性导流。"
+    ],
+    "followUpQuestions": [
+      "用户分享后，接收方是否会立刻产生参与冲动，而不只是知道有活动？",
+      "传播后有没有足够强的随机回报，让用户想再来一次？"
+    ],
+    "nextActions": [
+      "把当前裂变机制改写成“发起-参与-再发起”的闭环。",
+      "在结果里加入随机奖励或排名反馈，测试是否提升复玩率。",
+      "用一轮活动数据验证链路里哪一步最影响循环速度。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-zhang-red-packet",
+        "label": "Red Packet Activation Decision Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-15-red-packet.md",
+        "person": "Zhang Xiaolong",
+        "title": "春节红包决策",
+        "publishedAt": "2014-01-20",
+        "evidenceLevel": "A",
+        "notes": "Gamified activation, social diffusion, cultural timing window",
+        "locator": "L100",
+        "excerpt": "### 启发式2: 社交裂变 + 随机性 = 病毒传播"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.88,
+    "createdAt": "2026-03-17T14:06:39.805Z",
+    "updatedAt": "2026-03-17T14:06:39.805Z"
+  },
+  {
+    "id": "zhang-commercialize-with-restraint-and-native-form",
+    "personaId": "zhang",
+    "title": "商业化先求不破坏体验，再求放量",
+    "summary": "在高频产品里做广告或变现时，先保证内容原生、频次克制、用户可控，再逐步验证商业效率。",
+    "scenario": "团队要给高频内容或社交产品引入广告和商业化模块。",
+    "goal": "在不伤核心体验的前提下启动变现。",
+    "constraints": [
+      "用户对打扰敏感",
+      "商业化压力大"
+    ],
+    "tags": [
+      "ads",
+      "commercialization",
+      "consumer"
+    ],
+    "triggerKeywords": [
+      "广告",
+      "商业化",
+      "变现",
+      "信息流广告",
+      "频次"
+    ],
+    "preferredPath": "先限制频次和形式侵入性，用原生信息形态和用户控制权换取长期信任。",
+    "antiPatterns": [
+      "一上来追求高填充率",
+      "用突兀广告位破坏原有消费节奏"
+    ],
+    "reasoningSteps": [
+      "先定义不能破坏的体验边界",
+      "再设计原生形态",
+      "最后逐步放量验证"
+    ],
+    "reasons": [
+      "商业化一旦伤到核心体验，后续再修复信任成本很高。",
+      "克制投放会降低短期收入，但能换来更高接受度和更长生命周期。",
+      "原生形态让广告更像有用信息，而不是强行插入的打扰。"
+    ],
+    "followUpQuestions": [
+      "这条商业化动作最可能破坏用户的哪一段原始体验？",
+      "用户是否有明确的控制权去降低被打扰感？"
+    ],
+    "nextActions": [
+      "先写出商业化上线的频次上限和不可突破的体验边界。",
+      "优先测试原生信息形态，而不是新增高侵入广告位。",
+      "小规模上线后跟踪负反馈和留存，再决定是否放量。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-zhang-moments-ads",
+        "label": "Moments Ads Decision Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-17-moments-ads.md",
+        "person": "Zhang Xiaolong",
+        "title": "朋友圈广告决策",
+        "publishedAt": "2015-01-25",
+        "evidenceLevel": "A",
+        "notes": "Restrained commercialization, native ad format, user control",
+        "locator": "L31",
+        "excerpt": "> \"如果广告本身有价值，用户就不会讨厌它。广告的本质是信息，不是打扰。\""
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.87,
+    "createdAt": "2026-03-17T14:06:39.805Z",
+    "updatedAt": "2026-03-17T14:06:39.805Z"
+  },
+  {
+    "id": "zhang-independent-entry-for-controversial-change",
+    "personaId": "zhang",
+    "title": "争议性改版先做独立入口，不要直接强改主路径",
+    "summary": "当新功能可能改变用户习惯或价值观时，优先用独立入口渐进验证，而不是直接替换老入口。",
+    "scenario": "团队准备推动争议较大的内容分发或产品形态改版。",
+    "goal": "在验证新机制价值的同时，控制用户反感和迁移风险。",
+    "constraints": [
+      "老习惯强",
+      "改版争议大"
+    ],
+    "tags": [
+      "migration",
+      "content",
+      "rollout"
+    ],
+    "triggerKeywords": [
+      "独立入口",
+      "改版",
+      "信息流",
+      "强制替换",
+      "看一看"
+    ],
+    "preferredPath": "保留原路径，新增独立入口承接新机制，用数据和用户选择决定后续扩张。",
+    "antiPatterns": [
+      "一刀切强制替换老入口",
+      "在未验证前就要求全部用户迁移"
+    ],
+    "reasoningSteps": [
+      "先判断改版争议度",
+      "再设计可选的新入口",
+      "用数据决定是否扩大覆盖"
+    ],
+    "reasons": [
+      "争议性改版最大的问题不是功能对不对，而是用户是否愿意被强制迁移。",
+      "独立入口能把实验成本和主路径风险隔离开。",
+      "用户主动进入的新入口，能提供更干净的验证信号。"
+    ],
+    "followUpQuestions": [
+      "这个新机制是否会直接挑战用户已经形成的路径依赖？",
+      "如果先做独立入口，最关键的验证指标是什么？"
+    ],
+    "nextActions": [
+      "先保留旧路径，定义一个可独立进入的新入口和新机制。",
+      "明确首轮实验的成功信号，再决定是否扩大引导。",
+      "不要在实验期把全部教育成本都压给现有用户。"
+    ],
+    "evidenceLevel": "B",
+    "sourceRefs": [
+      {
+        "id": "src-zhang-subscription-feed",
+        "label": "Subscription Feed Redesign Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-06-subscription-feed-redesign.md",
+        "person": "Zhang Xiaolong",
+        "title": "订阅号信息流改版决策",
+        "publishedAt": "2017-05-01",
+        "evidenceLevel": "B",
+        "notes": "Independent entry, progressive reform, social recommendation over forced feed rewrite",
+        "locator": "L180",
+        "excerpt": "### 启发式3: 独立入口 vs 强制改版"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.83,
+    "createdAt": "2026-03-17T14:06:39.805Z",
+    "updatedAt": "2026-03-17T14:06:39.805Z"
   }
 ]

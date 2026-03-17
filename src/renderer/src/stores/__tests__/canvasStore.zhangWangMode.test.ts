@@ -101,6 +101,31 @@ describe('canvasStore — Zhang Space openZhangMode / closeZhangMode', () => {
     expect(state.isZhangMode).toBe(true)
     expect(state.isLennyMode).toBe(true)
   })
+
+  it('setZhangDecisionMode keeps the active Zhang conversation mode in sync', async () => {
+    const { useCanvasStore } = await import('../canvasStore')
+    useCanvasStore.setState({
+      isLennyMode: true,
+      isZhangMode: true,
+      isPGMode: false,
+      isWangMode: false,
+      currentConversation: {
+        id: 'zhang-conv-1',
+        createdAt: '2026-03-17T00:00:00.000Z',
+        userMessage: '订阅号应该怎么改版？',
+        assistantMessage: '',
+        decisionTrace: { mode: 'decision', personaId: 'zhang' },
+      },
+    })
+
+    useCanvasStore.getState().setZhangDecisionMode('normal')
+    expect(useCanvasStore.getState().zhangDecisionMode).toBe('normal')
+    expect(useCanvasStore.getState().currentConversation?.decisionTrace).toEqual({ mode: 'normal', personaId: 'zhang' })
+
+    useCanvasStore.getState().setZhangDecisionMode('decision')
+    expect(useCanvasStore.getState().zhangDecisionMode).toBe('decision')
+    expect(useCanvasStore.getState().currentConversation?.decisionTrace).toMatchObject({ mode: 'decision', personaId: 'zhang' })
+  })
 })
 
 // ── Wang Space 模式标志 ────────────────────────────────────────────────────────

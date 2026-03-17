@@ -27,6 +27,8 @@ const ZHANG_CONFIG: SpaceConfig = {
   hoverShadow: '0_8px_32px_rgba(37,99,235,0.12)',
   placeholderKey: 'zhangPlaceholder',
   useForceHook: false,
+  supportsDecisionMode: true,
+  decisionPersonaId: 'zhang',
 }
 
 interface ZhangSpaceCanvasProps {

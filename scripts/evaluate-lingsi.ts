@@ -45,7 +45,7 @@ const API_URL = process.env.LINGSI_EVAL_API_URL ?? 'http://localhost:3000'
 const CASE_FILTER = process.env.LINGSI_EVAL_CASE?.trim()
 const MAX_RETRIES = 3
 const REQUEST_TIMEOUT_MS = Number(process.env.LINGSI_EVAL_TIMEOUT_MS ?? 90_000)
-const units = decisionUnitsSeed as DecisionUnit[]
+const units = (decisionUnitsSeed as DecisionUnit[]).filter(unit => unit.personaId === 'lenny')
 
 const prompts: EvalPrompt[] = [
   {
@@ -308,7 +308,10 @@ async function main() {
 
   for (const item of cases) {
     const matchedUnits = matchDecisionUnits(item.prompt, units)
-    const decisionPayload = buildLingSiDecisionPayloadFromUnits(item.prompt, 'decision', units)
+    const decisionPayload = buildLingSiDecisionPayloadFromUnits(item.prompt, 'decision', units, {
+      personaId: 'lenny',
+      personaName: 'Lenny Rachitsky',
+    })
 
     console.log(`Evaluating ${item.id} (${matchedUnits.length} matched units)`)
 

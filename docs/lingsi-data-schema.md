@@ -1,6 +1,6 @@
 # LingSi 数据 Schema
 
-*最后更新: 2026-03-17 | 状态: M4 数据扩充已完成，等待本轮验证收口*
+*最后更新: 2026-03-17 | 状态: 多 persona 基线已完成*
 
 ---
 
@@ -12,7 +12,7 @@
 - 不 mock 正式证据
 - 来源必须可追溯
 - 首批数据支持“自动提候选 + 人工审核上线”
-- 先服务 `Lenny`，但结构预留多 persona 扩展
+- `Lenny` 与 `张小龙` 已接入，后续 persona 继续沿同一结构扩展
 
 ---
 
@@ -26,9 +26,9 @@
 - `/Users/zhiyangyu/Desktop/试验项目集合/自进化产品/evocanvas/seeds/lingsi/decision-units.json`
 
 当前 seed 统计：
-- `1` 个 persona
-- `11` 条来源 manifest
-- `20` 条 `approved` DecisionUnit
+- `2` 个 persona
+- `17` 条来源 manifest
+- `28` 条 `approved` DecisionUnit
 
 正式接入产品时，再由导入链路写入 SQLite `storage` 表。
 
@@ -40,7 +40,7 @@
 
 当前 `anima-base` 来源基线：
 - 仓库路径：`/Users/zhiyangyu/Desktop/试验项目集合/自进化产品/anima-base`
-- 仓库 commit：`4d27b3b`
+- 仓库 commit：`65ca4c7`
 
 ---
 
@@ -165,6 +165,7 @@
 ```json
 {
   "mode": "decision",
+  "personaId": "lenny",
   "matchedDecisionUnitIds": ["lenny-pmf-threshold"],
   "sourceRefs": []
 }
@@ -199,7 +200,7 @@
 
 ## 首批来源池
 
-建议首批先从这些文件提候选：
+当前已接入的高价值来源包括：
 
 - `people/product/lenny-rachitsky/frameworks/decision-making-frameworks.md`
 - `people/product/lenny-rachitsky/frameworks/pmf-assessment.md`
@@ -212,13 +213,22 @@
 - `people/product/lenny-rachitsky/frameworks/product-roadmap-planning-framework.md`
 - `people/product/lenny-rachitsky/articles/uncertainty-decision-framework.md`
 - `people/product/lenny-rachitsky/articles/pm-career-path-decision-framework.md`
+- `people/product/zhang-xiaolong/frameworks/core-principles.md`
+- `people/product/zhang-xiaolong/frameworks/discovering-needs.md`
+- `people/product/zhang-xiaolong/decision-cases/case-10-wechat-launch-decision.md`
+- `people/product/zhang-xiaolong/decision-cases/case-15-red-packet.md`
+- `people/product/zhang-xiaolong/decision-cases/case-17-moments-ads.md`
+- `people/product/zhang-xiaolong/decision-cases/case-06-subscription-feed-redesign.md`
 
-建议优先覆盖的问题类型：
+当前优先覆盖的问题类型：
 - PMF 判断
 - 功能优先级
 - 增长渠道选择
 - 定价
 - 职业路径与组织决策
+- 社交产品增长与激活
+- 克制商业化
+- 争议功能的渐进式改版
 
 ---
 

@@ -153,10 +153,10 @@ describe('canvasStore — openLennyMode / closeLennyMode', () => {
     })
 
     useCanvasStore.getState().setLennyDecisionMode('normal')
-    expect(useCanvasStore.getState().currentConversation?.decisionTrace).toEqual({ mode: 'normal' })
+    expect(useCanvasStore.getState().currentConversation?.decisionTrace).toEqual({ mode: 'normal', personaId: 'lenny' })
 
     useCanvasStore.getState().setLennyDecisionMode('decision')
-    expect(useCanvasStore.getState().currentConversation?.decisionTrace?.mode).toBe('decision')
+    expect(useCanvasStore.getState().currentConversation?.decisionTrace).toMatchObject({ mode: 'decision', personaId: 'lenny' })
   })
 
   it('startConversation stores decisionTrace.mode for pure Lenny conversations', async () => {

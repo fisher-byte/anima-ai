@@ -62,6 +62,8 @@ export interface SpaceConfig {
   useForceHook: boolean
   /** 是否支持灵思决策模式 */
   supportsDecisionMode?: boolean
+  /** 决策模式绑定的 persona */
+  decisionPersonaId?: 'lenny' | 'zhang'
 }
 
 // ─── 内置物理力常量（PG / Zhang / Wang 使用） ─────────────────────────────────
@@ -297,7 +299,16 @@ export function PublicSpaceCanvas({ config, isOpen, onClose }: PublicSpaceCanvas
   const closeMode = useCanvasStore(state => state[config.closeModeKey])
   const isModalOpen = useCanvasStore(state => state.isModalOpen)
   const lennyDecisionMode = useCanvasStore(state => state.lennyDecisionMode)
+  const zhangDecisionMode = useCanvasStore(state => state.zhangDecisionMode)
   const setLennyDecisionMode = useCanvasStore(state => state.setLennyDecisionMode)
+  const setZhangDecisionMode = useCanvasStore(state => state.setZhangDecisionMode)
+
+  const activeDecisionMode = config.decisionPersonaId === 'zhang'
+    ? zhangDecisionMode
+    : lennyDecisionMode
+  const setActiveDecisionMode = config.decisionPersonaId === 'zhang'
+    ? setZhangDecisionMode
+    : setLennyDecisionMode
 
   // ── useForceSimulation hook（React hooks 规则要求无条件调用）────────────────
   // 无论 useForceHook 是否为 true，hook 总是被调用。
@@ -772,9 +783,9 @@ export function PublicSpaceCanvas({ config, isOpen, onClose }: PublicSpaceCanvas
         {config.supportsDecisionMode && (
           <div className="flex items-center rounded-xl border border-gray-200 bg-white p-1 shrink-0">
             <button
-              onClick={() => setLennyDecisionMode('normal')}
+              onClick={() => setActiveDecisionMode('normal')}
               className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
-                lennyDecisionMode === 'normal'
+                activeDecisionMode === 'normal'
                   ? 'bg-gray-900 text-white'
                   : 'text-gray-500 hover:text-gray-800'
               }`}
@@ -782,9 +793,9 @@ export function PublicSpaceCanvas({ config, isOpen, onClose }: PublicSpaceCanvas
               {t.space.decisionModeNormal}
             </button>
             <button
-              onClick={() => setLennyDecisionMode('decision')}
+              onClick={() => setActiveDecisionMode('decision')}
               className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
-                lennyDecisionMode === 'decision'
+                activeDecisionMode === 'decision'
                   ? 'bg-amber-500 text-white'
                   : 'text-gray-500 hover:text-gray-800'
               }`}

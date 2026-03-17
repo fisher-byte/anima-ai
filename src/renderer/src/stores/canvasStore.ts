@@ -135,6 +135,8 @@ interface CanvasState {
   isLennyMode: boolean
   lennyDecisionMode: DecisionMode
   setLennyDecisionMode: (mode: DecisionMode) => void
+  zhangDecisionMode: DecisionMode
+  setZhangDecisionMode: (mode: DecisionMode) => void
   openLennyMode: () => void
   closeLennyMode: () => void
 
@@ -318,6 +320,7 @@ export const useCanvasStore = create<CanvasState>()(
   // Lenny Space 模式
   isLennyMode: false,
   lennyDecisionMode: 'normal',
+  zhangDecisionMode: 'normal',
   // Paul Graham Space 模式
   isPGMode: false,
   // Zhang Xiaolong Space 模式
@@ -394,8 +397,19 @@ export const useCanvasStore = create<CanvasState>()(
       ? {
           ...state.currentConversation,
           decisionTrace: mode === 'decision'
-            ? { ...(state.currentConversation.decisionTrace ?? {}), mode: 'decision' }
-            : { mode: 'normal' },
+            ? { ...(state.currentConversation.decisionTrace ?? {}), mode: 'decision', personaId: 'lenny' }
+            : { mode: 'normal', personaId: 'lenny' },
+        }
+      : state.currentConversation,
+  })),
+  setZhangDecisionMode: (mode) => set((state) => ({
+    zhangDecisionMode: mode,
+    currentConversation: state.isLennyMode && state.isZhangMode && state.currentConversation
+      ? {
+          ...state.currentConversation,
+          decisionTrace: mode === 'decision'
+            ? { ...(state.currentConversation.decisionTrace ?? {}), mode: 'decision', personaId: 'zhang' }
+            : { mode: 'normal', personaId: 'zhang' },
         }
       : state.currentConversation,
   })),
@@ -1526,7 +1540,9 @@ export const useCanvasStore = create<CanvasState>()(
 
   // 开始对话 (增强：检测意图并智能分支)
   startConversation: async (userMessage: string, images?: string[], files?: import('@shared/types').FileAttachment[], parentId?: string) => {
-    const { nodes, detectIntent, getRelevantMemories, isLennyMode, isPGMode, isZhangMode, isWangMode, lennyDecisionMode } = get()
+    const {
+      nodes, detectIntent, getRelevantMemories, isLennyMode, isPGMode, isZhangMode, isWangMode, lennyDecisionMode, zhangDecisionMode,
+    } = get()
 
     // 1. 检测当前意图分类
     const category = detectIntent(userMessage)
@@ -1539,8 +1555,10 @@ export const useCanvasStore = create<CanvasState>()(
       createdAt: new Date().toISOString(),
       userMessage,
       assistantMessage: '',
-      decisionTrace: isLennyMode && !isPGMode && !isZhangMode && !isWangMode
-        ? { mode: lennyDecisionMode }
+      decisionTrace: isLennyMode && !isPGMode && !isWangMode
+        ? isZhangMode
+          ? { mode: zhangDecisionMode, personaId: 'zhang' }
+          : { mode: lennyDecisionMode, personaId: 'lenny' }
         : undefined,
       images: images || [],
       files: files || [],
@@ -2082,6 +2100,9 @@ export const useCanvasStore = create<CanvasState>()(
           lennyDecisionMode: isLennyMode && !isPGMode && !isZhangMode && !isWangMode
             ? (merged.decisionTrace?.mode ?? get().lennyDecisionMode)
             : get().lennyDecisionMode,
+          zhangDecisionMode: isLennyMode && isZhangMode
+            ? (merged.decisionTrace?.mode ?? get().zhangDecisionMode)
+            : get().zhangDecisionMode,
         })
 
         // 若触发修复：追加写回一条“修复后的完整版”，让后续读取不再落到短版本
