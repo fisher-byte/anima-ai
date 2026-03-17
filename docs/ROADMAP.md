@@ -2,7 +2,7 @@
 
 ## 计划中版本
 
-#### v0.5.5 - LingSi 决策版 MVP（进行中）
+#### v0.5.5 - LingSi 决策版 MVP（里程碑收口）
 - [x] 文档定稿：`初步决策系统MVP设计(1).MD`、`docs/PROJECT.md`、`docs/ROADMAP.md`、`docs/sop-release.md`
 - [x] 数据层：新增 `decision-units.json`、`decision-personas.json`、`decision-source-manifest.json` 白名单与 schema
 - [x] 来源策略：`anima-base` 保持独立仓库，首批仅导入必要子集，记录来源文件与 commit
@@ -12,9 +12,9 @@
 - [x] 交互：Lenny Space 增加 `normal / decision` 模式切换；Space 打开时自动补齐 LingSi seed 资产
 - [x] 持久化：对话记录增加 `mode`、`matchedDecisionUnitIds`、`sourceRefs`
 - [x] 请求链路：`extraContext` 可与 `systemPromptOverride` 共存，决策证据可进入服务端上下文
-- [x] 验证：`15` 个真实问题对照测试已完成，`decision` 赢 `14` 题；详见 `docs/lingsi-eval-m4.md`
+- [x] 验证：`15` 个真实问题对照测试已完成，`decision` 赢 `15` 题；详见 `docs/lingsi-eval-m4.md`
 - [x] 匹配修正：补充 `segment / growth / DACI / two-way-door` 触发词，并阻断仅靠泛标签的误命中
-- [ ] 交付节奏：按里程碑执行文档同步、测试、code review、GitHub 备份
+- [x] 交付节奏：按里程碑执行文档同步、测试、code review、GitHub 备份
 
 ## 已完成版本
 

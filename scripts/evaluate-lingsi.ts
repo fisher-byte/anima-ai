@@ -39,9 +39,12 @@ type EvalCaseResult = {
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const REPORT_DIR = join(ROOT, 'reports')
-const REPORT_JSON = join(REPORT_DIR, 'lingsi-m4-eval.json')
-const REPORT_MD = join(ROOT, 'docs', 'lingsi-eval-m4.md')
+const DEFAULT_REPORT_JSON = join(REPORT_DIR, 'lingsi-m4-eval.json')
+const DEFAULT_REPORT_MD = join(ROOT, 'docs', 'lingsi-eval-m4.md')
 const API_URL = process.env.LINGSI_EVAL_API_URL ?? 'http://localhost:3000'
+const CASE_FILTER = process.env.LINGSI_EVAL_CASE?.trim()
+const MAX_RETRIES = 3
+const REQUEST_TIMEOUT_MS = Number(process.env.LINGSI_EVAL_TIMEOUT_MS ?? 90_000)
 const units = decisionUnitsSeed as DecisionUnit[]
 
 const prompts: EvalPrompt[] = [
@@ -127,54 +130,70 @@ async function streamChatCompletion(
   systemPromptOverride: string,
   extraContext?: string,
 ): Promise<string> {
-  const response = await fetch(`${API_URL}/api/ai/stream`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      messages: [{ role: 'user', content: userPrompt }],
-      preferences: [],
-      compressedMemory: '',
-      systemPromptOverride,
-      extraContext,
-    }),
-  })
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(new Error(`eval timeout after ${REQUEST_TIMEOUT_MS}ms`)), REQUEST_TIMEOUT_MS)
+    try {
+      const response = await fetch(`${API_URL}/api/ai/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: userPrompt }],
+          preferences: [],
+          compressedMemory: '',
+          systemPromptOverride,
+          extraContext,
+        }),
+      })
 
-  if (!response.ok || !response.body) {
-    const text = await response.text().catch(() => '')
-    throw new Error(`stream failed: ${response.status} ${text}`)
-  }
-
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  let fullText = ''
-
-  while (true) {
-    const { value, done } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-
-    const events = buffer.split(/\r?\n\r?\n/)
-    buffer = events.pop() ?? ''
-
-    for (const rawEvent of events) {
-      const dataLine = rawEvent
-        .split(/\r?\n/)
-        .find(line => line.startsWith('data:'))
-      if (!dataLine) continue
-
-      const payload = JSON.parse(dataLine.slice(5).trim()) as Record<string, unknown>
-      if (payload.type === 'content' && typeof payload.content === 'string') {
-        fullText += payload.content
-      } else if (payload.type === 'done' && typeof payload.fullText === 'string') {
-        fullText = payload.fullText
-      } else if (payload.type === 'error') {
-        throw new Error(typeof payload.error === 'string' ? payload.error : 'unknown stream error')
+      if (!response.ok || !response.body) {
+        const text = await response.text().catch(() => '')
+        throw new Error(`stream failed: ${response.status} ${text}`)
       }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let fullText = ''
+
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+
+        const events = buffer.split(/\r?\n\r?\n/)
+        buffer = events.pop() ?? ''
+
+        for (const rawEvent of events) {
+          const dataLine = rawEvent
+            .split(/\r?\n/)
+            .find(line => line.startsWith('data:'))
+          if (!dataLine) continue
+
+          const payload = JSON.parse(dataLine.slice(5).trim()) as Record<string, unknown>
+          if (payload.type === 'content' && typeof payload.content === 'string') {
+            fullText += payload.content
+          } else if (payload.type === 'done' && typeof payload.fullText === 'string') {
+            fullText = payload.fullText
+          } else if (payload.type === 'error') {
+            throw new Error(typeof payload.error === 'string' ? payload.error : 'unknown stream error')
+          }
+        }
+      }
+
+      return fullText.trim()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      const isRetryable = /429|overloaded|rate limit|fetch failed|network|stream error|timeout|aborted/i.test(message)
+      if (!isRetryable || attempt === MAX_RETRIES) throw error
+      const delayMs = 1500 * attempt
+      await new Promise(resolve => setTimeout(resolve, delayMs))
+    } finally {
+      clearTimeout(timeout)
     }
   }
-
-  return fullText.trim()
+  throw new Error('unreachable')
 }
 
 async function judgeCase(prompt: string, normalAnswer: string, decisionAnswer: string): Promise<JudgeResult> {
@@ -271,9 +290,23 @@ function buildMarkdownReport(results: EvalCaseResult[]): string {
 }
 
 async function main() {
+  const cases = CASE_FILTER
+    ? prompts.filter(item => item.id === CASE_FILTER)
+    : prompts
+  if (cases.length === 0) {
+    throw new Error(`Unknown case filter: ${CASE_FILTER}`)
+  }
+
+  const reportJson = CASE_FILTER
+    ? join(REPORT_DIR, `lingsi-m4-eval-${CASE_FILTER}.json`)
+    : DEFAULT_REPORT_JSON
+  const reportMd = CASE_FILTER
+    ? join(ROOT, 'docs', `lingsi-eval-m4-${CASE_FILTER}.md`)
+    : DEFAULT_REPORT_MD
+
   const results: EvalCaseResult[] = []
 
-  for (const item of prompts) {
+  for (const item of cases) {
     const matchedUnits = matchDecisionUnits(item.prompt, units)
     const decisionPayload = buildLingSiDecisionPayloadFromUnits(item.prompt, 'decision', units)
 
@@ -296,15 +329,15 @@ async function main() {
 
   const markdown = buildMarkdownReport(results)
   await mkdir(REPORT_DIR, { recursive: true })
-  await writeFile(REPORT_JSON, JSON.stringify(results, null, 2))
-  await writeFile(REPORT_MD, markdown)
+  await writeFile(reportJson, JSON.stringify(results, null, 2))
+  await writeFile(reportMd, markdown)
 
   const decisionWins = results.filter(item => item.judge.winner === 'decision').length
   const normalWins = results.filter(item => item.judge.winner === 'normal').length
   const ties = results.filter(item => item.judge.winner === 'tie').length
   console.log(`done: decision=${decisionWins}, normal=${normalWins}, tie=${ties}`)
-  console.log(`json: ${REPORT_JSON}`)
-  console.log(`markdown: ${REPORT_MD}`)
+  console.log(`json: ${reportJson}`)
+  console.log(`markdown: ${reportMd}`)
 }
 
 main().catch((error) => {

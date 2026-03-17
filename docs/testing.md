@@ -89,7 +89,7 @@ npm run test:watch    # 监听模式（开发时用）
 
 - ✅ `memory.test.ts` — 记忆路由集成测试（含 FTS5 trigger、引用块过滤、decayPreferences、语义边 by-id）
 
-**总测试数**: **559 个用例，23 个测试文件，全部通过**
+**总测试数**: **560 个用例，23 个测试文件，全部通过**
 
 ---
 
@@ -103,6 +103,10 @@ npm run dev          # 先启动开发服务器（前端 :5173 + 后端 :3000）
 npm run test:e2e     # 另开终端运行 E2E
 npm run test:e2e:ui  # 带可视化 UI 模式
 ```
+
+LingSi 评测补充：
+- `npm run lingsi:evaluate` 支持 `LINGSI_EVAL_CASE=<case-id>` 只跑单题复核
+- `LINGSI_EVAL_TIMEOUT_MS` 可覆盖单次流式请求超时，避免网络抖动时无限等待
 
 **测试文件**：
 | 文件 | 测试数 | 覆盖内容 |

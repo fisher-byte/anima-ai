@@ -33,6 +33,17 @@
     "notes": "Reach, impact, confidence, effort tradeoff"
   },
   {
+    "id": "src-lenny-cross-functional-alignment",
+    "repo": "anima-base",
+    "repoCommit": "17287af",
+    "person": "Lenny Rachitsky",
+    "type": "framework",
+    "sourcePath": "people/product/lenny-rachitsky/frameworks/cross-functional-alignment.md",
+    "importedAt": "2026-03-17T09:05:28.813Z",
+    "importedBy": "codex",
+    "notes": "Stakeholder pressure, CEO requests, alignment without roadmap churn"
+  },
+  {
     "id": "src-lenny-saas-pricing",
     "repo": "anima-base",
     "repoCommit": "17287af",

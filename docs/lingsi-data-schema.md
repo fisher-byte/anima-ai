@@ -27,8 +27,8 @@
 
 当前 seed 统计：
 - `1` 个 persona
-- `6` 条来源 manifest
-- `12` 条 `approved` DecisionUnit
+- `7` 条来源 manifest
+- `13` 条 `approved` DecisionUnit
 
 正式接入产品时，再由导入链路写入 SQLite `storage` 表。
 
@@ -206,6 +206,7 @@
 - `people/product/lenny-rachitsky/frameworks/rice-prioritization-framework.md`
 - `people/product/lenny-rachitsky/frameworks/saas-pricing-strategy-framework.md`
 - `people/product/lenny-rachitsky/frameworks/growth-loops.md`
+- `people/product/lenny-rachitsky/frameworks/cross-functional-alignment.md`
 - `people/product/lenny-rachitsky/podcasts/2024-05-02-annie-duke.md`
 
 建议优先覆盖的问题类型：

@@ -209,6 +209,94 @@
     "updatedAt": "2026-03-17T06:41:43.660Z"
   },
   {
+    "id": "lenny-roadmap-cutline-before-stakeholder-pull",
+    "personaId": "lenny",
+    "title": "路线图先收敛到关键项目，再处理外部拉扯",
+    "summary": "当季度路线图同时被 CEO、销售、客户成功拉扯时，先收敛关键项目，再用统一评估规则处理加项请求。",
+    "scenario": "小团队在季度规划时面对多方 stakeholder 压力，原计划容易不断加项。",
+    "goal": "保护执行节奏，同时不给 stakeholder 一句“拍脑袋拒绝”。",
+    "constraints": [
+      "产能有限",
+      "需求很多",
+      "stakeholder 压力持续存在"
+    ],
+    "tags": [
+      "roadmap",
+      "prioritization",
+      "stakeholder",
+      "alignment"
+    ],
+    "triggerKeywords": [
+      "路线图",
+      "季度",
+      "需求",
+      "销售",
+      "客户成功",
+      "CEO",
+      "施压"
+    ],
+    "preferredPath": "先把路线图收敛到少数关键项目，再把新增需求放进统一评估窗口，而不是直接插队。",
+    "antiPatterns": [
+      "谁声音大就先做谁",
+      "CEO 一提新想法就立刻加进 roadmap",
+      "路线图无限加项不做替换"
+    ],
+    "reasoningSteps": [
+      "先明确当前产能边界",
+      "再用 RICE 和战略契合度比较候选项",
+      "最后要求任何加项都明确替换项或先进入评估"
+    ],
+    "reasons": [
+      "RICE 的价值在于把争论从观点拉回到数据、证据和共同语言。",
+      "面对 CEO 或其他 stakeholder 的临时想法，先快速评估而不是立刻插队，能保护团队执行节奏。",
+      "把新增需求放进统一评估窗口，比在会里临时加项更不容易把 roadmap 搅乱。"
+    ],
+    "followUpQuestions": [
+      "如果今天要再加一项，具体替换掉当前路线图里的哪一项？",
+      "这个需求的用户价值、战略契合度和证据强度，跟当前前几项相比到底排第几？"
+    ],
+    "nextActions": [
+      "先把本季度路线图收敛到少数关键项目，并把其他需求明确放进“待评估池”。",
+      "把所有新增需求放进同一张 RICE 表，单独记录战略例外，不允许直接插队。",
+      "对 CEO 或其他高压需求给一个 2 天快速评估窗口：先问用户价值、战略目标、相对优先级，再决定是否进入路线图。"
+    ],
+    "evidenceLevel": "B",
+    "sourceRefs": [
+      {
+        "id": "src-lenny-rice",
+        "label": "RICE Prioritization Framework",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/frameworks/rice-prioritization-framework.md",
+        "person": "Lenny Rachitsky",
+        "title": "RICE Prioritization Framework",
+        "url": "https://www.lennysnewsletter.com/p/prioritizing",
+        "publishedAt": "2021-07-27",
+        "evidenceLevel": "B",
+        "notes": "Reach, impact, confidence, effort tradeoff",
+        "locator": "L376",
+        "excerpt": "RICE 最大的价值不是产生完美的分数，而是强迫团队对每个想法进行结构化思考，并基于数据和证据（而非观点）进行讨论。"
+      },
+      {
+        "id": "src-lenny-cross-functional-alignment",
+        "label": "Cross-Functional Alignment Framework",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/frameworks/cross-functional-alignment.md",
+        "person": "Lenny Rachitsky",
+        "title": "Cross-Functional Alignment Framework",
+        "url": "https://www.lennysnewsletter.com/p/cross-functional-alignment",
+        "publishedAt": "2024-06-18",
+        "evidenceLevel": "B",
+        "notes": "Stakeholder pressure, CEO requests, alignment without roadmap churn",
+        "locator": "L390",
+        "excerpt": "给我2天时间做快速评估,然后我们讨论。"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.83,
+    "createdAt": "2026-03-17T09:05:28.813Z",
+    "updatedAt": "2026-03-17T09:05:28.813Z"
+  },
+  {
     "id": "lenny-pricing-start-with-value-metric",
     "personaId": "lenny",
     "title": "定价前先确定价值指标，不要先拍价格点",

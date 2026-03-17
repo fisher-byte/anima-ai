@@ -15,6 +15,14 @@ describe('lingsiDecisionEngine', () => {
     expect(matched[0]?.id).toBe('lenny-pmf-validate-before-growth')
   })
 
+  it('matches roadmap stakeholder pressure prompts to the roadmap cutline unit', () => {
+    const matched = matchDecisionUnits(
+      '我是 4 人产品团队，下季度有 12 个需求，销售、客户成功、CEO 都在施压。路线图怎么排？',
+      units,
+    )
+    expect(matched.map(unit => unit.id)).toContain('lenny-roadmap-cutline-before-stakeholder-pull')
+  })
+
   it('builds decision payload with trace and source refs', () => {
     const payload = buildLingSiDecisionPayloadFromUnits(
       'B2B AI 工具应该按 seat 还是按使用量定价？',
