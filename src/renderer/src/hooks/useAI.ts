@@ -73,7 +73,8 @@ export function useAI(options: UseAIOptions = {}) {
     compressedMemory?: string,
     isOnboarding?: boolean,
     conversationId?: string,
-    systemPromptOverride?: string
+    systemPromptOverride?: string,
+    extraContext?: string
   ) => {
     // 创建新的 AbortController
     abortControllerRef.current = new AbortController()
@@ -100,7 +101,7 @@ export function useAI(options: UseAIOptions = {}) {
     let handedOffToDeepSearch = false
 
     try {
-      for await (const chunk of streamAI(messages, preferences, signal, compressedMemory, isOnboarding, conversationId, systemPromptOverride)) {
+      for await (const chunk of streamAI(messages, preferences, signal, compressedMemory, isOnboarding, conversationId, systemPromptOverride, extraContext)) {
         if (chunk.type === 'content') {
           fullText += chunk.content
           callbacksRef.current.onStream?.(chunk.content)

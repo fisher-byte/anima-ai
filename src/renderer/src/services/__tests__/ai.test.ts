@@ -297,4 +297,24 @@ describe('streamAI — systemPromptOverride', () => {
     const parsed = JSON.parse(capturedBody!)
     expect(Object.prototype.hasOwnProperty.call(parsed, 'systemPromptOverride')).toBe(false)
   })
+
+  it('passes extraContext in fetch body when provided', async () => {
+    let capturedBody: string | null = null
+    mockFetch.mockImplementationOnce((_url: string, init?: RequestInit) => {
+      capturedBody = init?.body as string ?? null
+      return Promise.resolve(mockSseResponse([
+        'data: {"type":"content","content":"ok"}\n\n',
+        'data: {"type":"done","fullText":"ok"}\n\n',
+      ]))
+    })
+
+    const { streamAI } = await import('../ai')
+    for await (const _ of streamAI([], [], undefined, undefined, undefined, undefined, 'TEST PROMPT', 'EXTRA CONTEXT')) {
+      /* consume */
+    }
+
+    expect(capturedBody).not.toBeNull()
+    const parsed = JSON.parse(capturedBody!)
+    expect(parsed.extraContext).toBe('EXTRA CONTEXT')
+  })
 })

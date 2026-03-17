@@ -1,0 +1,360 @@
+[
+  {
+    "id": "pmf-before-growth",
+    "category": "product",
+    "prompt": "我们刚上线一个协作 SaaS，注册转化还行，但第 4 周留存只有 6%。团队现在想开始投放买量。你会怎么决策？",
+    "matchedUnitIds": [
+      "lenny-pmf-validate-before-growth"
+    ],
+    "normalAnswer": "等等，先停一下。\n\n**6%的4周留存在协作SaaS里是非常危险的信号。** 正常B2B SaaS的月留存应该在80%以上，年留存85%+才是健康线。你现在这个水平，每100个注册用户4周后只剩6个还在用。\n\n现在投放买量等于往漏底的桶里倒水——你会烧钱、团队会被虚假的增长信号分散注意力、而且很难回头。\n\n我的建议：**把所有买量预算冻住，接下来90天只做一件事——搞清楚为什么用户在第1周就流失。**\n\n具体做什么：\n\n1. **看第1周留存（D7）是多少？** 如果D7留存也很低（<20%），问题在激活（onboarding）。协作SaaS的\"aha moment\"通常是\"第一次成功协作\"——文件被编辑、任务被分配、评论被回复。你们有没有追踪到这个？\n\n2. **做用户退出访谈**——给最近7天流失的用户发邮件：\"看起来你没在用我们的产品，能告诉我为什么吗？\" 回复率通常5-10%，但信号很珍贵。\n\n3. **检查\"虚假注册\"**——如果注册转化高但留存极低，可能你的注册门槛太低，来了太多不对的用户。尝试在注册流程中加一道筛选（比如\"你主要想解决什么问题？\"）。\n\n4. **竞品对比测试**——找5个没用过你们产品的人，让他们注册并完成一个典型任务，你们在旁边观察但不出声。痛点通常很明显。\n\n**什么时候可以重新考虑买量？**\n- 当你把4周留存拉到至少25-30%\n- 当你搞清楚用户画像（哪类用户留存好）\n- 当你有付费转化数据，知道CAC可以承受多少\n\n我知道停下来很难，团队压力、投资人的期待...但相信我，我在Airbnb见过太多早期疯狂买量最后死掉的团队。修好留存，增长会容易10倍。\n\n你们D1和D7的留存数据方便分享吗？这个数字会决定我的建议方向。",
+    "decisionAnswer": "**别急着买量。**\n\n第4周留存只有6%的话，你还没有找到PMF（Product-Market Fit）。这时候投放只会让你更快地把钱烧掉——进来的用户会一样快地流失掉。\n\n**这里的关键权衡是：**你现在花1块钱买量，可能只换来几分钱的长期收入。协作SaaS的年度留存基准是85%+，对应月留存应该在90%以上。6%的第4周留存说明产品还没有解决任何一群人的真实痛点，或者没有成功把他们带到\"啊哈时刻\"。\n\n**先回答这两个问题：**\n1. 你的留存曲线在D30之后是平缓下来的，还是继续往下掉？\n2. 如果现在把产品从这些早期用户手里拿走，有多少人会\"非常失望\"？\n\n如果第二题的比例低于40%——我赌你现在肯定远低于这个数——那就说明还没到时候。\n\n**两个验证动作：**\n\n1. **对最近2-4周的活跃用户跑一轮PMF调研**（就是那个\"如果你不能再使用这个产品，你会有什么感受？\"的问题）。先看看有多少人是\"非常失望\"（Very Disappointed）。没达到40%之前，暂停买量的讨论。\n\n2. **把调研结果按用户细分拆开**——是哪些人在说会失望？他们在公司里的角色、使用场景有什么共性？找到那一小群最需要你的人，然后只给他们做产品优化，而不是试图服务所有人。\n\n等你的D30留存提到至少15-20%，并且Sean Ellis测试过了40%那条线，再买量也不迟。",
+    "judge": {
+      "winner": "decision",
+      "normalScore": {
+        "directness": 5,
+        "actionability": 5,
+        "trustworthiness": 3
+      },
+      "decisionScore": {
+        "directness": 5,
+        "actionability": 4,
+        "trustworthiness": 4
+      },
+      "rationale": "Decision引用Sean Ellis量化标准（40%非常失望率）和明确留存阈值，方法论更可验证；Normal数据口径矛盾（月80%对应年85%），且依赖个人经验背书。"
+    }
+  },
+  {
+    "id": "find-best-segment",
+    "category": "product",
+    "prompt": "一个 AI 记账工具同时被自由职业者、小微商家、个人记账用户使用。资源有限时，我该先服务谁？",
+    "matchedUnitIds": [
+      "lenny-pmf-find-best-segment"
+    ],
+    "normalAnswer": "这是一个经典的早期产品优先级问题。我的诚实看法是：**先锚定自由职业者，但要验证三个关键假设。**\n\n为什么这么说？\n\n**我看到一个清晰的优先级排序：**\n\n**自由职业者 > 小微商家 > 个人记账**\n\n原因不是市场规模（个人记账用户最多），而是**问题严重程度和付费意愿的交集**。\n\n**先说说每个群体的本质：**\n\n- **个人记账用户**：这是\"维生素\"类产品——用了更好，不用也行。留存率低，付费意愿更弱。大多数人用Excel或干脆不记。\n\n- **小微商家**：需求复杂且差异化极大。一个餐厅和一个设计工作室的记账需求完全不同。你会陷入定制化地狱，难以标准化产品。\n\n- **自由职业者**：甜蜜点就在这里。他们有税务压力、有收入焦虑、有季节性现金流问题——这是\"止痛药\"级别的痛点。而且相比商家，他们的需求更标准化。\n\n**关键验证指标：**\n\n在决定之前，你需要看这三个数据：\n\n1. **激活转化率**：哪个群体从注册到\"完成第一笔账\"的比例最高？这预示你的产品契合度。\n\n2. **30天留存**：哪个群体30天后还在用？记账工具的成功标准是用户形成习惯，不是尝鲜。\n\n3. **付费意愿测试**：给每个群体展示相同定价，看哪个转化率高。\n\n**一个实用建议：**\n\n先别试图服务所有三个群体。选一个，把产品做到极致，再横向扩展。\n\n我见过太多产品因为想讨好所有人，最后变成四不像。Notion最早只服务创始人笔记需求，Square最早只服务咖啡摊，后来才扩展。\n\n**你的具体情况是？**你们现在有多少用户，各群体占比多少？哪个群体的使用频率明显更高？",
+    "decisionAnswer": "**先服务那个\"没有你们会很崩溃\"的群体——大概率是自由职业者或小微商家，而不是个人记账用户。**\n\n**当前阶段的逻辑**\n\n资源有限时，做\"所有人的产品\"等于没做。DecisionUnit 的核心洞见是：真正的 PMF 信号来自那些\"非常失望\"的用户，而不是平均反馈。你需要找到哪类用户最常表达\"没有这工具我很难受\"，然后把未来两周的资源全部押注在他们身上。\n\n**主要权衡**\n\n- 个人记账用户基数大，但痛感弱（记不记影响不大），付费意愿低，容易流失\n- 自由职业者/小微商家的痛点是刚需（报税、追款、现金流管理），痛感强到愿意付费，但需求更复杂\n- 小微商家可能客单价更高，但需求分散；自由职业者更同质化，容易做出标准化产品\n\n**不确定的地方**\n\n我不知道你现在的 PMF 调研数据——哪类用户的留存曲线最陡？哪类用户的\"非常失望\"比例最高？如果数据显示个人记账用户反而粘性更强，那上面的判断就错了。\n\n**三个验证动作**\n\n1. **跑一遍 Sean Ellis 测试**：给三类用户分别发问卷\"如果明天不能用这个产品，你会多失望？\"——聚焦\"非常失望\"比例最高的那类，其他两类先冻结新功能\n\n2. **看 D7/D30 留存曲线**：哪类用户的曲线最平缓？把决策单元里的\"高痛感用户\"定义为留存最高的细分群，未来两周只优化他们的核心工作流（比如自由职业者的发票管理，或小微商家的库存现金流）\n\n3. **做一个痛苦深度访谈**：挑 5 个每类用户的深度使用者，问\"上周记账时最想骂街的时刻是什么\"——对比三类用户的答案强度，选痛点最尖锐的那个群体验证\n\n哪个群体让你觉得\"这个产品就是为我做的\"？先成为那个群体的不可替代品，再谈扩张。",
+    "judge": {
+      "winner": "decision",
+      "normalScore": {
+        "directness": 5,
+        "actionability": 4,
+        "trustworthiness": 4
+      },
+      "decisionScore": {
+        "directness": 5,
+        "actionability": 5,
+        "trustworthiness": 5
+      },
+      "rationale": "Decision 明确列出'不确定的地方'，trustworthiness 更高；给出的 Sean Ellis 测试、D7/D30 留存曲线等动作更具体可操作。"
+    }
+  },
+  {
+    "id": "prioritize-roadmap",
+    "category": "product",
+    "prompt": "我是 4 人产品团队，下季度有 12 个需求，销售、客户成功、CEO 都在施压。路线图怎么排？",
+    "matchedUnitIds": [
+      "lenny-rice-prioritize-with-confidence"
+    ],
+    "normalAnswer": "我的直接回答：12个需求对4人团队来说太多了。你需要砍到3-4个，最多。\n\n**第一步：用RICE快速分类**\n\n别开会讨论，你自己先做一轮筛选：\n- **Reach**（影响多少人）：按月度活跃用户数算\n- **Impact**（影响多深）：1-3分，1分是边缘优化，3分是改变用户行为\n- **Confidence**（信心度）：你有数据支撑吗？\n- **Effort**（投入）：人月\n\n然后排序。通常你会发现，前3-4个的RICE分数是后面那些的5-10倍。那些低分的直接放进\"以后再说\"的池子。\n\n**第二步：处理政治压力**\n\n销售说要这个功能才能签大单？客户成功说这个流失用户天天抱怨？CEO说竞品做了？\n\n我的框架是：**用数据说话，但给选择。**\n\n准备一个1页文档：\n1. 列出所有12个需求及其RICE分数\n2. 画两条线：如果做前4个，预计影响是什么；如果做12个，每个只能做30%深度，预计影响是什么\n3. 问他们：\"你们选哪个？\"\n\n通常他们会选深度。如果他们坚持要做第5个，你就问：\"那前4个里，你们愿意放弃哪个？\"\n\n**第三步：承诺与交付**\n\n对CEO，你给这个承诺：\"Q2我们专注解决X问题，目标是让Y指标提升Z%。\"\n\n不要承诺做多少个功能，承诺业务结果。这样你可以灵活调整怎么做。\n\n**最后一点：**\n\n4人团队的核心杠杆是**速度**，不是范围。你们做3个功能并把它们做到极致，比做12个半成品有价值100倍。\n\n你们现在最大的风险是什么？是技术债务、流失率，还是获客？我可以帮你想想怎么把这些需求和核心指标挂钩。",
+    "decisionAnswer": "我的建议是：**用 RICE 框架把这 12 个需求重新过一遍，把\"谁喊得大声\"变成\"谁能说清数据和信心\"**。\n\nSo here's the thing... 4 人团队 + 12 个需求 + 三方施压，这是经典的多方博弈陷阱。如果没有结构化框架，最后往往是 CEO 或嗓门最大的销售赢，而不是最有影响力的需求赢。\n\n**当前阶段的关键权衡：**\n\n你们资源极度受限（4 个人一个季度），但需求池却很大。这时候最危险的是\"伪确定性\"——看起来大家都很有信心，实际上很多需求是基于直觉或单一客户反馈。RICE（Reach × Impact × Confidence ÷ Effort）的作用就是把模糊的争论转成可比较的判断，特别是 **Confidence（信心度）** 这个维度，能逼大家诚实说出\"我们其实还没验证过这个假设\"。\n\n**我的倾向：**\n\n1. **先强制统一打分**：把这 12 个需求全部放进一张 RICE 表格，让每个需求owner填 Reach（影响多少用户）、Impact（影响多深）、Confidence（有多少证据）、Effort（人天）。 Confidence 低于 50% 的必须标红。\n\n2. **先做高 RICE 分且 Confidence 高的**：别被\"战略重要性\"这种模糊词带偏。如果某个销售急推的需求 Confidence 只有 30%，那它就是假设，不是计划。\n\n3. **明确告诉利益相关者规则**：告诉他们排序是基于这个公式，不是基于职位高低。这样能把对话从\"你为什么不做我的需求\"转成\"我们怎么提高这个需求的 Confidence 分数\"。\n\n**两个验证动作：**\n\n1. **这周就把 12 个需求放进 RICE 表格重新打分**，特别关注 Confidence 维度是基于数据、用户访谈还是纯直觉。低于 50% 的项先补验证，再决定是否开做。\n\n2. **找销售和客户成功各要一份\"这功能做成后能影响的具体客户名单\"**——不是\"很多客户想要\"，而是\"如果我下季度交付，这 3 个客户会续约/增购\"。这能立刻暴露 Reach 和 Impact 的真实水位。\n\n这么搞一轮下来，通常你会发现 12 个里真正能高信心推进的只有 4-5 个，剩下的要么砍掉，要么降级为\"验证阶段\"而不是\"开发阶段\"。\n\n你们现在对这 12 个需求，有多少是基于真实用户数据，多少是基于内部假设？",
+    "judge": {
+      "winner": "normal",
+      "normalScore": {
+        "directness": 5,
+        "actionability": 5,
+        "trustworthiness": 4
+      },
+      "decisionScore": {
+        "directness": 3,
+        "actionability": 4,
+        "trustworthiness": 4
+      },
+      "rationale": "Normal开头直接给出'砍到3-4个'的明确判断，三步流程+1页政治应对文档更具可执行性；Decision分析过多，判断后置，政治压力处理弱于Normal。"
+    }
+  },
+  {
+    "id": "pricing-value-metric",
+    "category": "pricing",
+    "prompt": "我们准备给 B2B AI 工具定价，按 seat 收费还是按使用量收费？",
+    "matchedUnitIds": [
+      "lenny-pricing-start-with-value-metric"
+    ],
+    "normalAnswer": "",
+    "decisionAnswer": "先停一下——**别急着在seat和usage之间二选一，你们可能还没搞清楚最基础的问题：客户到底觉得自己在为\"什么结果\"付费？**\n\n我见过太多AI工具团队直接跳进pricing model的辩论，结果选了和客户价值脱钩的收费方式。DecisionUnit里说得特别对：先定义value metric，再选pricing model。\n\n**这个选择的本质是：**\n\n**按Seat收费**适合你们的产品价值 = \"有权限访问\"。比如AI工具是帮每个人做独立工作的（写代码、写邮件），且客户团队规模稳定。好处是简单、可预测；风险是客户会精确控制seat数，可能抑制扩散。\n\n**按Usage收费**适合你们的产品价值 = \"实际产生的输出/结果\"。比如按API调用、按生成的报告数、按处理的文档量。好处是和价值直接挂钩；风险是客户怕账单失控，可能不敢深度使用。\n\n**但这里有个陷阱：**很多AI工具两头不靠——买seat的人不一定用，用的人按token付费又太贵。你需要找到那个**既容易被客户理解、又不会惩罚深度使用**的指标。\n\n**我的建议验证动作：**\n\n1. **列出2-3个候选value metric，逐一测试**：是\"活跃用户数\"、\"API调用次数\"、还是\"完成的任务数\"？去问自己：这个指标上升时，客户获得的价值是不是也成正比上升？\n\n2. **用5-10个客户访谈验证理解成本**：分别用seat和usage的方式解释定价，看客户能否秒懂他们会付多少钱，以及会不会担心\"用越多付越多\"而故意少用。\n\n3. **检查你们的成本结构**：AI的token成本是边际成本很高的。如果按seat收费，一个大客户重度使用会让你们亏本；如果按usage收费，要确保客户感知到的价值 > 他们付的usage费用。\n\n你们现在最像哪种情况——是每个人独立使用获得价值，还是团队协作产生价值？这决定了seat是否有意义。",
+    "judge": {
+      "winner": "decision",
+      "normalScore": {
+        "directness": 2,
+        "actionability": 2,
+        "trustworthiness": 2
+      },
+      "decisionScore": {
+        "directness": 5,
+        "actionability": 5,
+        "trustworthiness": 5
+      },
+      "rationale": "Decision直接叫停二选一误区，给出3步验证动作，承认定价陷阱与成本风险，远优于泛泛对比的Normal回答。"
+    }
+  },
+  {
+    "id": "pricing-upgrade-path",
+    "category": "pricing",
+    "prompt": "SaaS 现在有 3 个套餐，但用户几乎都停在最低档。怎么改套餐设计？",
+    "matchedUnitIds": [
+      "lenny-pricing-start-with-value-metric",
+      "lenny-pricing-design-clear-upgrade-path"
+    ],
+    "normalAnswer": "这种情况我见了太多次了 — 几乎所有SaaS都会经历这个阶段。我的直接判断是：**你的套餐价值阶梯没搭好，用户看不到往上走的理由。**\n\n先诊断一下，通常有三种情况：\n\n**1. 功能区分太模糊**\n如果三档套餐的核心功能都差不多，只是\"用量\"差别，用户自然会选最便宜的。人们买的是**能力升级**，不是更多用量（除非他们真的用完了）。\n\n**2. 缺少\"锚定\"中间档**\n心理学上，中间档存在的意义是让最高档显得合理、让最低档显得\"够用但差点意思\"。如果你现在的中档定价只是低档的1.5倍，用户会觉得\"不如加点上最高档\"，或者直接\"最低档够了\"。\n\n**3. 用户还没体验到产品的完整价值**\n很多SaaS把核心功能锁在高档，但用户还没在基础档用出感觉，怎么会升级？你需要让用户**先成功，再付费升级**。\n\n---\n\n**具体怎么改？**\n\n**方案A：按\"团队成熟度\"分层，不是按功能数量**\n- 基础档：个人/小团队试水，解决单个痛点\n- 专业档：开始协作，需要团队功能（这是你的目标转化档）\n- 企业档：管理、合规、定制化\n\n关键是**让中档成为\"正常人\"的选择**。比如Notion的Personal Pro就是针对\"认真用的个人用户\"，不是公司。\n\n**方案B：引入\"用量+功能\"混合模型**\n如果用户卡在低档是因为用不完功能，试试：\n- 基础档：固定功能 + 限制用量（比如5个项目）\n- 中档：解锁关键功能（自动化、集成、高级分析）+ 更多用量\n- 高档：无限量 + 企业功能\n\n**方案C：直接\"推\"一把现有低档用户**\n大部分卡在低档的用户其实该升级了，但他们没意识到。试试：\n- 在产品内显示\"你本月已经用了X%的额度\"（制造焦虑）\n- 锁定一个\"梦中情功能\"在高/中档（比如导出、API、某高级模板）\n- 给他们发邮件：\"基于你的使用量，专业档能帮你节省X小时\"\n\n---\n\n**最后的建议：** 在改套餐前，先做5-10个用户访谈，问他们\"什么情况下你会考虑升级\"。十有八九，你会发现他们认为\"现在的够用了\"——**那就说明你的中高档没有解决他们的下一个痛点。**\n\n你现在的产品是什么类型的SaaS？我可以给更具体的建议。",
+    "decisionAnswer": "我的直接判断：**这几乎总是套餐的\"升级理由\"不清晰，而不是价格本身的问题。** 当所有人都停在最低档，说明中间层没有回答\"我为什么要付更多钱\"这个核心问题。\n\n**先看几个关键假设：**\n\n你的基础层是不是给得太全了？如果是，用户当然没有动力升级。反过来说，也可能中间层的功能根本不是用户想要付费解决的痛点。\n\n还有可能是**价值指标（value metric）**选错了。比如你按\"项目数\"收费，但客户真正在意的是\"存储空间\"或\"团队成员数\"——这种错配会让用户觉得\"我用基础版就够了\"。\n\n**怎么改：**\n\n把套餐压缩到清晰的3层，然后给每一层一个**具体的升级触发点**。不要只说\"Pro版有更多功能\"，要说\"当你需要超过3个管理员时，升级到Pro\"。\n\n中间层应该成为你设计的\"主打层\"——它要兼顾价值表达和商业效率。价格差距建议控制在2-3倍，如果中间层只是基础层的1.5倍，升级动力自然不足。\n\n**三个验证动作：**\n\n1. **重新检视你的value metric**——客户觉得自己是在为什么结果付费？是用户数、项目量、还是API调用？列出2-3个候选指标，看哪个和客户获得的价值成正比。\n\n2. **做5-10个深度访谈**——问已经在用基础层的客户：\"什么情况下你会考虑升级？\"如果他们想不出具体场景，说明你的中间层定位有问题。\n\n3. **分析用户行为数据**——看那些停留超过30天的基础层用户，他们有没有反复碰到功能限制？如果有但还没升级，是价格问题还是他们不知道有解决方案？\n\n你们现在的3个套餐，价格差距大概是多少倍？以及你们是按什么指标收费的——用户数、功能模块、还是用量？",
+    "judge": {
+      "winner": "decision",
+      "normalScore": {
+        "directness": 5,
+        "actionability": 5,
+        "trustworthiness": 4
+      },
+      "decisionScore": {
+        "directness": 5,
+        "actionability": 4,
+        "trustworthiness": 5
+      },
+      "rationale": "Decision更聚焦关键决策点（value metric、升级触发点），框架清晰；Normal方案详尽但决策聚焦稍弱。"
+    }
+  },
+  {
+    "id": "growth-loop",
+    "category": "growth",
+    "prompt": "一个内容协作产品现在靠朋友推荐增长，但团队想投 SEO、KOL、广告。先做哪条？",
+    "matchedUnitIds": [
+      "lenny-growth-loop-before-channel-scaling",
+      "lenny-pmf-validate-before-growth"
+    ],
+    "normalAnswer": "我的直接建议是：**先别急着分散火力，把推荐增长这个渠道榨干，然后再考虑SEO。广告和KOL暂时先放一放。**\n\nHere's the thing — 你们现在靠朋友推荐在增长，这本身就是一个很强的信号。内容协作产品天然带有病毒属性（一个人用，整个团队都要用），这种\"产品驱动增长\"的势头一旦有了，不要轻易打断它去试错别的渠道。\n\n我见过太多团队在这个阶段犯同样的错：觉得自己找到了Product-Market Fit，就开始同时试三四个渠道，结果哪个都没跑透。\n\n**如果要排优先级：**\n\n**1. 先深挖推荐（再坚持6-12个月）**\n- 优化分享流程：让邀请同事这件事更自然、更有激励\n- 看看推荐链条里谁在推荐——是个人用户还是团队管理员？针对性优化\n- 内容协作产品的病毒系数通常能做到0.3-0.5，你们到了吗？\n\n**2. SEO是第二选择（但要有耐心）**\n- 内容协作非常适合SEO，因为用户会搜\"团队文档模板\"、\"项目管理工具对比\"这类词\n- 但SEO需要12-18个月才能见效，而且需要持续投入内容生产\n- 我的建议是：可以开始布局，但不要指望它短期内替代推荐\n\n**3. 广告和KOL暂时别碰**\n- 广告：B2B协作工具的CAC通常很高，除非你们的客单价>2000元/年，否则很难跑正\n- KOL：对内容协作产品效果一般，因为这不是\"晒出来很酷\"的产品类型\n\n**一个务实的节奏：**\n- 接下来6个月：All in优化推荐机制，同时开始每周发1-2篇SEO内容（长尾关键词）\n- 12个月后：如果推荐增长见顶了，SEO应该开始带来稳定流量，再考虑付费渠道\n\n你们现在的ARR大概多少？这会影响我判断是不是该开始 diversifying 渠道了。",
+    "decisionAnswer": "我的直接判断：**先别急着开新渠道，把朋友推荐这个闭环优化透再说。**\n\nSEO、KOL、广告都是典型的漏斗型获客——你投钱进去，流量出来，但停止投喂就归零。而你们现在有的\"朋友推荐\"是增长闭环（growth loop），它的输出（新用户）可以成为新的输入。这种复利型增长比任何付费渠道都值钱。\n\n**当前阶段和主要权衡：**\n\n- **如果你们已经验证了PMF**（留存曲线趋稳，>40%用户会因失去产品而失望）：那核心问题是如何放大推荐效果，而不是分散精力去测试三个完全不同的漏斗。KOL可能有点loop属性（如果用户看到内容后自己也发），但SEO和纯广告都是线性的。\n\n- **如果PMF还没完全站稳**：现在投广告就是烧钱换流失。我见过太多团队在 retention 还没稳住时就开多渠道，结果只是把\"用户不喜欢产品\"这个事实放大得更快。\n\n**The pattern I see is**：最成功的协作产品（Figma、Notion、Loom）早期都靠一个loop打天下——通常是模板分享或邀请协作。它们把病毒系数做到极致后，才用SEO去 capture 已有的搜索意图。\n\n**验证动作：**\n\n1. **跑一轮PMF调研**——对最近2-4周的活跃用户问\"如果明天失去这个产品，你会有多失望？\"按用户细分拆开看。如果<40%选\"非常失望\"，先别投钱获客。\n\n2. **画出推荐漏斗的转化路径**——从\"老用户创建内容\"到\"新用户注册\"有几步？哪一步流失最大？通常协作产品的推荐卡点不在\"愿不愿意分享\"，而在\"接收方看到价值的速度\"。\n\n3. **选一个变现动作做A/B测试**——如果一定要试新渠道，优先试KOL（找垂直领域的创作者），因为内容协作产品天然有展示价值。但先小预算测试，看KOL带来的用户是否也有推荐他人的行为。如果他们没有，说明这个渠道带来的不是核心用户。\n\n你们现在更像漏斗还是闭环？这是我想追问的。",
+    "judge": {
+      "winner": "decision",
+      "normalScore": {
+        "directness": 5,
+        "actionability": 4,
+        "trustworthiness": 4
+      },
+      "decisionScore": {
+        "directness": 5,
+        "actionability": 5,
+        "trustworthiness": 5
+      },
+      "rationale": "Decision给出更聚焦的验证动作清单，区分PMF情境，追问关键信息，行动指导更具体可执行。"
+    }
+  },
+  {
+    "id": "daci-decision",
+    "category": "org",
+    "prompt": "产品、销售、客服都在争是否开放一个高风险定制功能，会上吵不出结论。怎么推进？",
+    "matchedUnitIds": [
+      "lenny-daci-for-cross-functional-decisions",
+      "lenny-pre-mortem-needs-kill-criteria"
+    ],
+    "normalAnswer": "This is such a classic growing-pains moment. I've seen this exact dynamic at Airbnb dozens of times — sales wants the deal, support knows they'll have to clean up the mess, product is terrified of tech debt.\n\nHere's the thing: **if you're arguing in a meeting without a decision framework, you've already lost.** You need to move from \"who yells loudest\" to \"what are our criteria.\"\n\nThe pattern I see working:\n\n**1. Define the decision criteria upfront**\nDon't debate the feature. Debate the principles. Ask: \"What would make this an obvious yes?\" Typically it's:\n- Revenue threshold (is this a $10k deal or $1M deal?)\n- Strategic value (is this a logo we need? A market we're entering?)\n- Technical cost (one-time hack vs architectural change?)\n- Support burden (can we automate the pain away?)\n\n**2. Product should own the decision, but with constraints**\nAt Airbnb, we eventually landed on: Product has veto power, but must respond within 48 hours with either (a) yes, (b) no with data, or (c) experiment proposal. No endless debate.\n\n**3. Create a \"custom request\" tier system**\nWhat worked for us:\n- **Tier 1**: Configurable by customer success (no eng) — always yes\n- **Tier 2**: Requires <1 week eng work — requires director approval\n- **Tier 3**: Structural changes — only C-level can approve, must have churn risk analysis\n\n**4. Make the risks concrete**\nWhen sales says \"we need this,\" ask: \"How many more deals will this unlock?\" When support pushes back, ask: \"What's the ticket volume per customer if we ship this?\" Get numbers, not feelings.\n\n**Quick tactical move for your next meeting:**\nSuggest a 2-week experiment. Ship it to 3 customers with heavy monitoring. Set clear abort criteria (support tickets >X, churn risk >Y). This usually cuts through the noise because everyone gets data to prove their point.\n\nWhat stage is the company at? That changes the calculus significantly.",
+    "decisionAnswer": "我的直接判断：**这不是一个产品决策问题，而是一个decision ownership问题**。你们卡在这里，99%是因为没搞清楚\"谁最终拍板\"这件事。\n\n所以 here's the thing——当销售、客服、产品三方在会上僵持，每个人都在用\"我觉得\"开场时，说明角色已经混了。销售在提供市场输入，客服在提供支持成本输入，产品在提供技术债输入，这些都很重要，**但问题是谁来平衡这些input并做最终决定**。\n\n**当前阶段和权衡**：\n- 销售看到的是短期收入和客户流失风险\n- 客服看到的是未来3-6个月的支持复杂度爆炸  \n- 产品看到的是代码分支和技术债\n- **核心权衡**：单点客户收入 vs 产品复杂度的长期代价\n\n**怎么推进**：\n\n**第一步，先停掉这种\"三方投票\"式的讨论**。用DACI把角色拆清楚：\n- **Approver只能有一个人**（可能是产品负责人，也可能是CEO，取决于你们公司结构）\n- 销售、客服、工程都是**Contributors**——他们提供输入，但不投票\n- 明确告诉大家：我们现在是在收集信息阶段，还是已经有人要拍板？\n\n**第二步，因为这是高风险定制，要做pre-mortem + kill criteria**。假设这个功能上线6个月后变成一个噩梦，最可能的原因是什么？然后写下2-3条kill criteria——比如\"如果有第二个客户要求类似定制就暂停\"，或者\"客服ticket增加超过X%就回滚\"。**没有kill criteria的团队，会在坏信号出现后继续自我说服**。\n\n**给你的2-3个验证动作**：\n\n1. **直接确认**：现在这件事的最终approver到底是谁？如果是CEO，就让产品、销售、客服各自写一份one-pager阐述利弊，CEO拍板；如果是产品负责人，那就要有权力说\"不\"并承担收入损失的责任。\n\n2. **追问销售**：这个定制需求是单个大客户的要求，还是已经听到多个客户在问？如果只是单点，kill criteria可以是\"仅为此客户开放，如果第二个客户需要就拒绝\"；如果是多点需求，那可能变成产品化的机会。\n\n3. **设置时间盒试点**：如果必须做，别直接全量开放。限制在\"1个客户、3个月、特定用例\"，并明确写下：出现什么信号就停止？由谁来触发停止？\n\n**别继续开没有决策权的会了**——先把approver定下来，其他的都是执行细节。",
+    "judge": {
+      "winner": "decision",
+      "normalScore": {
+        "directness": 3,
+        "actionability": 4,
+        "trustworthiness": 3
+      },
+      "decisionScore": {
+        "directness": 5,
+        "actionability": 5,
+        "trustworthiness": 4
+      },
+      "rationale": "Decision直接点明决策权归属核心矛盾，给出DACI框架和具体验证动作。"
+    }
+  },
+  {
+    "id": "two-way-door",
+    "category": "org",
+    "prompt": "我们在纠结要不要先上线一个可能不成熟的 onboarding 流程。这个决策要走完整评审吗？",
+    "matchedUnitIds": [
+      "lenny-two-way-door-for-speed"
+    ],
+    "normalAnswer": "我的建议是：**直接上，但设好止损线。**\n\nOnboarding 是那种你没法在会议室里想清楚的体验，必须看到真实用户的行为数据。我在 Airbnb 做供应端增长的时候，我们测试了无数个版本，有些想法看起来很蠢但数据很好，有些我们认为天才的设计反而让用户困惑。\n\n这里的关键区别是：**\"不成熟的完整流程\"和\"有漏洞但可以收集学习的数据点\"是两回事。**\n\n所以别走完整评审了，用轻量方式快速过一下，重点说清楚：\n- 你想验证什么假设（比如：用户需要看到 X 才会激活）\n- 用什么指标判断成功（D7 留存？完成率？）\n- 失败的标准是什么（比如：如果完成率 <20%，一周内下线）\n\n真正要做的其实是埋点和观察 —— 用户在哪一步卡住？他们的行为和你设想的一致吗？这比任何评审都能给你更真实的答案。\n\n你们现在最缺的是数据，还是缺信心？",
+    "decisionAnswer": "我的看法是：**不需要走完整评审**。这明显是个双向门（two-way door）决策，别用单向门的流程来处理。\n\nHere's the thing — 大多数产品和流程决策其实是可逆的，onboarding 流程绝对是其中之一。如果上线后数据不好，你们随时可以调整文案、改流程、甚至回滚到旧版本。把这种可逆决策当成不可逆决策来处理，会严重拖慢团队速度，而且没带来什么额外保护。\n\n**关键权衡在这里：**\n- 假设：你们担心\"不成熟\"会伤害用户体验\n- 但真相是：如果 onboarding 真的有问题，你们会在几天内看到激活率下降，而且修复成本很低\n- 真正该问的是：现在的审批复杂度，和真实风险匹配吗？\n\n**建议动作：**\n\n1. **重新分类这个决策** — 明确把它标记为 two-way door，跳过完整评审，直接进小范围试验。\n\n2. **设置试验围栏和回滚条件** — 比如先对 20% 新用户开启，观察 7 天激活率和完成率。如果 D7 留存下降超过设定阈值（比如 5%），48 小时内回滚。\n\n3. **追问团队** — 如果这个决定错了，回滚成本到底有多高？如果答案是\"改几个配置项\"或\"换回旧文案\"，那你们现在的纠结就是过度了。\n\n你们现在卡在评审流程的哪个环节？是怕用户体验受损，还是团队习惯了\"求安全\"的默认模式？",
+    "judge": {
+      "winner": "decision",
+      "normalScore": {
+        "directness": 5,
+        "actionability": 3,
+        "trustworthiness": 4
+      },
+      "decisionScore": {
+        "directness": 5,
+        "actionability": 5,
+        "trustworthiness": 5
+      },
+      "rationale": "Decision 明确区分双向门/单向门决策框架，给出结构化三步行动方案；Normal 建议合理但步骤较散，缺少决策分类思维。"
+    }
+  },
+  {
+    "id": "meeting-redesign",
+    "category": "org",
+    "prompt": "每周产品例会 90 分钟，经常一边发现问题一边拍板，最后谁都没跟。怎么改？",
+    "matchedUnitIds": [
+      "lenny-daci-for-cross-functional-decisions",
+      "lenny-meetings-are-for-discussion-not-discovery-or-decision"
+    ],
+    "normalAnswer": "Oh，这个问题太经典了。我在 Airbnb 的时候我们也有这个毛病，后来才慢慢改过来。\n\n**核心问题**：你把「信息同步」和「决策」混在一起开了，而且少了「执行承诺」这一环。\n\n我的建议是改成三层结构：\n\n**1. 拆成两个会，或者至少两个环节**\n- 前 60 分钟：同步进展、暴露问题（information sharing）\n- 后 30 分钟：只做有准备的决策（decision making）\n- 关键规则：会上第一次提的问题，当场不拍板。给大家 24 小时消化数据\n\n**2. 每个决策必须有 RACI**\n会上说\"我们改这个\"没用，要说清楚：\n- 谁负责做（Responsible）\n- 谁批准（Accountable）\n- 什么时候完成\n- 下次回顾的时间\n\n**3. 把 90 分钟砍到 60 分钟**\n我发现超过一小时的会，最后 30 分钟基本都在说车轱辘话。时间短反而逼大家提前把材料写好。\n\n**4. 引入「 decision log 」**\n用个简单的文档或者 Notion 页面，记录：\n- 我们决定了什么\n- 为什么（当时的假设）\n- 谁负责\n- 什么时候检查\n\nAirbnb 后来在 supply growth 团队试过这个，最大的改变是——**会前 24 小时发 pre-read**，会上只讨论已经看过的东西。你会发现 80% 的\"拍板\"在会前邮件里就搞定了。\n\n你们现在是谁在 run 这个会？PM 负责人还是产品总监？这会影响具体怎么改。",
+    "decisionAnswer": "把决策和执行分开，90分钟例会里当场拍板本来就有问题。\n\n我的直接判断：问题出在两个地方——**一是会前没做准备，二是会中没人知道自己角色**。一边开会一边发现新信息，等于让\"最会说服的人\"和\"反应最快的人\"赢，而不是让\"想法最好的人\"赢。更糟的是，如果没人明确这是谁拍板，即使现场达成了一个结论，回去执行的人也不知道这是命令还是建议。\n\n这事得分成三个阶段来改：\n\n**1. 把\"会前\"真正做起来**\n- 会前独立提交：让每个相关方在会前就写下自己的判断和优先级，而不是现场想\n- 用文档替代PPT：任何需要讨论的事，会前就发文档，会上不念稿\n- 会前明确DACI：这次会议对每件事情，谁是D（决策者）、A（批准者）、C（咨询者）、I（知情者），必须写清楚\n\n**2. 会上只做一件事：对齐分歧**\n- 不再是\"抛出议题→现场讨论→当场拍板\"，而是\"抛出议题→确认大家会前输入→只讨论分歧点\"\n- 90分钟里，前30分钟澄清分歧在哪，后60分钟只讨论那些分歧\n\n**3. 会后24小时内书面确认**\n- 会上的任何决策，必须会后由明确的Approver书面确认才生效\n- 现场可以说\"听起来我们应该做X\"，但必须写明：谁负责什么、什么时候交付\n\n---\n\n**三个立即可做的动作：**\n\n1. **下次会前，先发DACI表**：列出所有待讨论事项，每行标注谁是Approver（只能1个人）。如果找不到唯一Approver，别开这个会。\n\n2. **下次会上，只做分歧讨论**：会前让大家独立提交对各个议题的判断，会上只对比差异——\"A认为优先级是1-2-3，B认为是2-1-3，我们来对齐为什么分歧在这\"。\n\n3. **验证一下你当前的假设**：过去三次例会里，有多少决定是真正被执行了的？如果低于50%，问题不是执行力度，而是决策过程本身就没被认真对待。",
+    "judge": {
+      "winner": "decision",
+      "normalScore": {
+        "directness": 3,
+        "actionability": 4,
+        "trustworthiness": 3
+      },
+      "decisionScore": {
+        "directness": 5,
+        "actionability": 5,
+        "trustworthiness": 4
+      },
+      "rationale": "Decision回答开头即给出核心判断，Normal则先讲故事；Decision的三个立即动作更具体可执行；两者都较自信，但Decision最后提醒验证假设更显谨慎。"
+    }
+  },
+  {
+    "id": "pre-mortem",
+    "category": "risk",
+    "prompt": "准备花 3 个月做一个 AI 自动化功能，上线风险很高。你会怎么做 pre-mortem？",
+    "matchedUnitIds": [
+      "lenny-pre-mortem-needs-kill-criteria"
+    ],
+    "normalAnswer": "Oh, this is such a good question. 3 months + AI automation + high risk — this is exactly the scenario where skipping a pre-mortem is how you end up writing a painful post-mortem in month 4.\n\nMy honest take: I'd run the pre-mortem **now**, before you write a single line of code. Here's how I'd structure it.\n\n## 假设今天已经是 6 个月后，项目彻底失败\n\nGather your team and say: \"It's June, we launched, and this thing is a disaster. Nobody's using it, or worse, people are angry. What went wrong?\"\n\nThe pattern I see with AI automation projects is they usually fail in these specific ways:\n\n**Product/UX failures:**\n- \"Users didn't trust the AI to make decisions without human approval\"\n- \"The 'automation' wasn't actually saving time — it created more cleanup work\"\n- \"We automated the wrong workflow entirely\"\n- \"Edge cases made it unreliable 20% of the time, so users abandoned it\"\n\n**Technical failures:**\n- \"LLM hallucinations in production were way worse than in testing\"\n- \"Latency was 8 seconds — users won't wait that long\"\n- \"The 3-month timeline meant we shipped with a brittle MVP that broke constantly\"\n\n**Adoption failures:**\n- \"We didn't account for change management — people liked their old workflow\"\n- \"We built it for power users but it scared beginners\"\n- \"No one explained *why* we were automating this\"\n\n**The scary one (business risk):**\n- \"The AI made a bad decision that affected a customer, and [company] had to roll back completely\"\n\n## What I'd actually do\n\n**First, force the hard conversations:**\n\nAsk everyone to write down 3 reasons this will fail *anonymously* on sticky notes. You'll get the real fears, not the optimistic product manager version.\n\n**Then, categorize by \"kill the project\" vs \"mitigatable\":**\n\n| Kill the project | Can mitigate |\n|---|---|\n| \"Users fundamentally don't trust AI for this decision\" | \"LLM latency is too high\" |\n| \"The workflow varies too much customer-to-customer\" | \"Edge cases break 10% of the time\" |\n| \"Legal/compliance won't allow automated actions\" | \"UI is confusing\" |\n\nIf you're in the left column, stop now.\n\n**Build \"circuit breakers\" into the 3-month plan:**\n\nDon't ship a black-box automation. Airbnb learned this the hard way with various experiments — users need transparency and control.\n\n- Month 1: \"Shadow mode\" — AI runs in background, shows what it *would* do, but doesn't act\n- Month 2: \"Human-in-the-loop\" — AI suggests, human approves\n- Month 3: Optional full automation for power users only\n\n**The question I'd ask your team:**\n\n\"If this fails, what's the most likely reason?\" — then spend your first 2 weeks validating or invalidating that specific risk.\n\nWhat feels like the biggest uncertainty to you right now — the AI reliability, user adoption, or the timeline? That'll change what you test first.",
+    "decisionAnswer": "我的直接建议是：**pre-mortem 不是为了让团队更悲观，而是为了在事情真正出问题之前，提前锁定\"看到什么信号就该停\"的 kill criteria。**\n\n根据 Annie Duke 在我播客里分享的研究，大多数团队做 pre-mortem 的问题在于——他们列出了一堆可能失败的原因，却没有明确\"哪些信号一旦出现，我们就要暂停或放弃\"。没有 kill criteria，团队会在坏信号出现后不断找借口继续，直到沉没成本太高无法回头。\n\n具体到你们这个 3 个月的 AI 自动化功能，我建议分三步：\n\n**第一，先假设已经失败，反推原因。**\n召集核心团队，设想现在是 3 个月后，功能上线了但完全没达到预期。让每个人写下最可能导致失败的原因。这里的关键是**不要停留在\"我们可能失败\"，而是逼出具体的失败路径**——是技术可行性被高估？还是用户其实不想自动化这个流程？是模型准确率达不到可用阈值？\n\n**第二，把最致命的风险转化为 kill criteria。**\n从列出的原因中挑出 2-3 个\"如果发生，项目大概率失败\"的指标，写明触发条件和应对动作。例如：\n- 如果 6 周后的内部测试中，AI 准确率低于 80%，且团队没有明确的改进路径 → 暂停 2 周重新评估技术方案\n- 如果用户调研中，超过 50% 的目标用户表示\"担心失去控制\" → 转为半自动化方案\n- 如果开发中期发现需要重做核心架构 → 直接砍掉，不要硬撑\n\n**第三，写明谁来触发。**\n每个 kill criteria 必须指定一个\"触发人\"，这个人有权在条件满足时叫停项目，不需要经过层层审批。这是防止团队在压力面前视而不见的关键。\n\n---\n\n**验证动作/追问：**\n\n1. **这些信号现在有没有被量化写下来？** 不要只是\"如果做得不好就停\"，要具体到数字（准确率、转化率、NPS 等）和时间点。\n\n2. **如果最乐观的那个人反对 kill criteria，你会怎么回应？** 测试一下你们的 criteria 是否足够坚定，还是只是纸上谈兵。\n\n3. **你能不能用 1 周时间先做最高风险的验证？** 3 个月项目中，最大的风险往往在技术可行性或用户需求假设上。花 1 周做个快速原型或深度用户访谈，可能比 6 周后再发现要好得多。\n\n---\n\n**一个权衡需要明确：** 你的\"上线风险很高\"是指技术实现风险，还是市场接受度风险？如果是技术风险，kill criteria 应该围绕里程碑交付质量；如果是市场风险，你需要在开发早期就植入用户验证节点，不要等到 3 个月后才测试假设。\n\n这个框架的目的是让你们在情感上还愿意放弃的时候，就有明确的退出机制。等你们投入 2 个月精力后，理性判断会变得非常困难。",
+    "judge": {
+      "winner": "decision",
+      "normalScore": {
+        "directness": 3,
+        "actionability": 3,
+        "trustworthiness": 4
+      },
+      "decisionScore": {
+        "directness": 5,
+        "actionability": 5,
+        "trustworthiness": 4
+      },
+      "rationale": "Decision回答开篇即给出核心判断（kill criteria），三步法极其具体可执行，含量化指标与触发机制；Normal回答结构松散， actionable步骤偏泛化。"
+    }
+  },
+  {
+    "id": "make-implicit-explicit",
+    "category": "decision",
+    "prompt": "我总觉得这个方向对，但说不清为什么。怎么把直觉变成可检验的决策？",
+    "matchedUnitIds": [
+      "lenny-make-implicit-explicit"
+    ],
+    "normalAnswer": "Oh，这太经典了。几乎每个伟大的产品决策都始于\"我觉得这方向对，但说不清为什么\"。问题是，**直觉是起点，不是终点**。\n\n我在Airbnb早期经常看到这种情况——有人有很强的产品直觉，但要么拍脑袋就干，要么纠结到 paralysis。关键是把那个\"说不清的感觉\"翻译成可证伪的假设。\n\n**第一步：把直觉拆解成具体声明**\n\n问自己：\"如果我的直觉是对的，那具体会发生什么？\"\n\n直觉说\"用户想要更简单的预订流程\"——这太模糊了。改成：\n- \"如果简化到3步以内，完成率会从40%提升到60%\"\n- \"如果减少表单字段，移动端转化率会显著提高\"\n\n**第二步：区分\"信念\"vs\"可检验的假设\"**\n\n信念是你相信但无法直接验证的（比如\"用户在乎隐私\"）。假设是你能设计实验检验的（比如\"如果我们在首页突出隐私政策，注册完成率不会下降\"）。\n\n**第三步：找到风险最高的假设先验证**\n\n不要试图证明你是对的，要试图证明你是错的。问自己：**如果这个假设错了，整个项目会崩吗？**\n\n我见过太多团队花6个月建功能，最后发现根本假设是错的。不如先做个假的按钮（fake door test），看看有多少人会点。\n\n**第四步：定义\"足够好\"的信号**\n\n检验之前先定标准：我需要看到什么数据，才能说\"直觉对了，继续投\"？是20%的D7留存提升？还是50%的用户说\"非常失望\"如果拿走这个功能？\n\n没有预设标准，你只会看到你想看到的。\n\n你现在的直觉是关于什么的？产品方向、功能优先级、还是用户体验？说说具体情况，我可以帮你拆解成可检验的假设。",
+    "decisionAnswer": "我的直接判断是：你的直觉很可能抓住了某些真实信号，但问题是你不说清楚，就永远不知道自己什么时候错了。\n\n这其实是我在 Airbnb 早期经常碰到的情况 —— 很多产品直觉后来被证明是对的，但团队里总有人会问\"你怎么知道？\" 如果你答不上来，就无法说服别人，更糟的是，结果不好时你也不知道该调整什么。\n\n---\n\n**核心问题在这里：**\n\n你没把判断的\"零件\"拆开来。直觉是一个整体感觉，但决策需要可检验的组件 —— 假设是什么？你对各环节的置信度是多少？什么信号会让你改变主意？\n\nAnnie Duke 在我播客里说过一句话我印象很深：**\"把隐含的变成显性的，是提高决策质量的必经之路。\"**\n\n具体来说，你的直觉里其实打包了几个东西：\n- **假设**：你认为用户会因为这个功能而行为改变\n- **估计**：你估计改变的比例/程度\n- **信心等级**：你对此有多大把握（不是\"我觉得行\"，而是\"60%把握\"）\n\n---\n\n**两个你可以立刻做的动作：**\n\n1. **写一页判断卡**：针对这个方向，列出3个核心假设、你对每个的估计（比如\"30%用户会转化\"）、以及一个具体数字的信心等级。然后写清楚：**什么信号出现，我会承认自己错了？**\n\n2. **区分\"判断错了\"和\"运气不好\"**：这是很多人踩的坑。结果不好时，你要能回溯 —— 是因为底层假设错了，还是因为概率事件没发生？只有显性化之后才能拆开看。\n\n---\n\n**我想追问你两点：**\n\n- 你这次\"感觉对\"的背后，最关键的那个假设是什么？（比如\"用户痛点足够痛\"还是\"我们团队能执行好\"？）\n- 如果6个月后结果不如预期，你现在能说出哪个信号出现，会让你觉得\"方向本身错了\"，而不是\"执行没到位\"？",
+    "judge": {
+      "winner": "decision",
+      "normalScore": {
+        "directness": 3,
+        "actionability": 5,
+        "trustworthiness": 4
+      },
+      "decisionScore": {
+        "directness": 5,
+        "actionability": 5,
+        "trustworthiness": 5
+      },
+      "rationale": "Decision先给出明确判断（直觉有信号但不清楚会错），Normal是教程式展开；两者都可执行，但Decision要求写'判断卡'更具体；Decision明确量化信心等级，Normal较确定。Decision整体决策质量更高。"
+    }
+  },
+  {
+    "id": "leading-signals",
+    "category": "decision",
+    "prompt": "我们做企业软件，真正续费反馈要半年后才知道。现在怎么缩短反馈回路？",
+    "matchedUnitIds": [
+      "lenny-shorten-feedback-loops-with-leading-signals"
+    ],
+    "normalAnswer": "我的 honest take 是：**别等续费，你需要的是\"领先指标\"（leading indicators）**——那些能提前6个月预测客户是否会流失的信号。\n\n这个痛苦的反馈周期是 B2B SaaS 的结构性问题，但好消息是，流失其实是可预测的。\n\n**我观察到的模式：真正健康的 B2B 客户，在续约前3-6个月就已经\"露出马脚\"了——要么非常活跃，要么已经\"沉默\"。**\n\n这里有几个可以立即缩短反馈回路的方法：\n\n**1. 产品使用数据是最诚实的信号**\n- 建立\"PQL（Product Qualified Lead）\"的反面——\"PChurn风险分数\"\n- 关键指标：DAU/WAU/MAU 比率、核心功能使用频率、健康度评分\n- 我访谈过的顶级 B2B 公司都有一个\"客户健康仪表盘\"，红色预警的客户 80%+ 确实流失了\n\n**2. 第30-60天的\"激活时刻\"是关键**\n- 如果客户在前两个月没有达到\"aha moment\"（比如邀请3个同事、完成某个关键工作流），6个月后流失率极高\n- Airbnb 的经验告诉我们：早期参与曲线基本锁定了长期留存\n\n**3. NPS 和 CSAT 有滞后性，试试\"任务完成度\"**\n- 别只问\"你满意吗\"，问\"你上周完成核心工作的顺畅度 1-10 分？\"\n- 这个分数的波动，比季度 NPS 更能预警风险\n\n**4. 销售转客户成功的交接点**\n- 很多 B2B 产品在销售结束后就开始\"沉默\"，直到续约前3个月才开始接触\n- 聪明的做法：签约后第14天、第30天必须有人工触点，确认 onboarding 顺利\n\n**你现在有追踪哪些产品使用数据吗？** 我可以帮你看哪些指标最应该关注——不同产品类型（协作工具 vs 基础设施 vs 垂直 SaaS）的关键信号差别很大。\n\n而且说实话，半年反馈周期其实也有好处：你有足够时间干预和挽回。重点是**在沉默期建立足够多的\"触点\"和数据采集点**。",
+    "decisionAnswer": "直接说：**你们现在面对的\"长反馈回路\"问题，本质上是一个指标定义问题，不是业务周期问题。**\n\nHere's the thing — 半年后才看到续费结果，这确实是滞后指标。但Annie Duke在和我聊决策的时候说过一句话：\"There is no such thing as a long feedback loop. You can choose to shorten it.\" 真正的问题不是等不起半年，而是你们还没找到能预测续费的**领先信号**。\n\n---\n\n**具体怎么做：**\n\n**第一步：定义你的领先指标（Leading Indicators）**\n\n别盯着\"是否续费\"这个结果看，问团队：在客户决定不续费之前3个月，会发生什么？\n\n企业软件常见的领先信号通常是这些维度：\n- **使用深度**：核心功能使用频率（不是登录次数，是关键workflow完成率）\n- **团队渗透**：DAU/MAU在客户组织内的分布——是3个人每天用，还是30个人每周用一次？\n- **数据沉淀**：客户在你的产品里积累了多少\"舍不得丢\"的数据/配置/集成\n- **支持 tickets 的趋势**：突然减少可能是危险信号（没人用了），突然激增也可能是（遇到障碍）\n\n**第二步：把复盘频率强行缩短**\n\n现在你们可能是季度看一次续费pipeline，改成**每周**看领先指标健康度。这不是增加会议，是改变看数据的粒度。\n\n**第三步：建立早期预警分层**\n\n- 绿灯：领先指标健康 → 常规维护\n- 黄灯：领先指标下滑 → 客户成功介入\n- 红灯：多个领先指标同时告警 → 高管介入抢救\n\n---\n\n**三个验证动作（接下来两周内做）：**\n\n1. **回溯分析**：找10个去年续费和10个流失的客户，看看在合同到期前3-6个月，他们的产品使用数据有什么差异？找出那个差异最大的指标——这就是你的领先信号候选。\n\n2. **设定周度健康度看板**：选一个你觉得最可能预测续费的指标（比如周活跃用户数占购买席位的比例），每周五团队一起看趋势，坚持4周看有没有预警能力。\n\n3. **找3个客户做\"续费预演\"**：挑几个快到期或刚续费的客户，直接问他们：\"如果3个月前我们要判断你会不会续费，该看什么？\" 客户的答案往往比你的分析准。\n\n---\n\n**我想澄清一点：**\n\n你们现在的产品，客户从 onboarding 到真正获得价值大概要多久？如果是3个月以上，那即使有了领先指标，反馈回路还是会偏长。如果是这样，你可能还需要在 onboarding 阶段再拆一层更短的验证点。\n\n你们现在最头疼的是哪类客户的续费预测？是中小客户批量流失，还是大客户突然不续？",
+    "judge": {
+      "winner": "decision",
+      "normalScore": {
+        "directness": 5,
+        "actionability": 4,
+        "trustworthiness": 4
+      },
+      "decisionScore": {
+        "directness": 5,
+        "actionability": 5,
+        "trustworthiness": 4
+      },
+      "rationale": "Decision给出明确两周内可执行的三个验证动作，时间框架和量化要求更具体；Normal建议合理但缺乏紧迫性。两者均直接且承认不确定性，但Decision可执行性更强。"
+    }
+  },
+  {
+    "id": "career-switch",
+    "category": "career",
+    "prompt": "我现在是大厂产品经理，手上有一个 SaaS 创业机会，但收入会降很多。怎么判断该不该辞职？",
+    "matchedUnitIds": [],
+    "normalAnswer": "我的 honest take 是：**先别急着辞职，除非你已经验证到了相当强的PMF信号。**\n\n我在 Airbnb 的时候见过太多同事跳出去创业，收入砍半甚至更多，结果18个月后又回来找工作。最常见的错误是——把\"有个想法\"当成\"这是个机会\"。\n\n所以 here's the thing，先问自己这几个问题：\n\n**1. 你的 SaaS 验证到什么程度了？**\n- 有付费用户了吗？不只是注册用户，是真正掏钱的人\n- 年收入至少达到你目标薪资的 20-30% 了吗？\n- 月度流失率低于 5% 吗？\n\n如果没有，我的建议是**先兼职干**。大厂PM通常时间相对可控（相对创业公司而言），先花3-6个月验证需求，比裸辞明智得多。我见过最成功的转型都是先有 side project 跑起来，再全职投入。\n\n**2. 你有多少财务缓冲？**\n直说：SaaS 通常需要 12-24 个月才能产生可观收入。你现在的储蓄能支撑你降薪后的生活多久？如果答案少于18个月，风险太高了。\n\n**3. 这个机会的\"上限\"值得吗？**\n既然收入会降很多，那这个机会的 upside 必须足够大。问自己：\n- TAM（市场规模）真的够大吗？\n- 这是个\"维生素\"还是\"止痛药\"？（用户离了能活吗？）\n- 你有独特的 unfair advantage 吗？\n\n**4. 你的退出策略是什么？**\n最现实的情况：如果18个月后没成，你能接受回大厂吗？现在的大厂就业市场跟两年前不一样了，这点要考虑进去。\n\n---\n\n**我的建议路径：**\n\n如果还没验证：\n→ 先兼职做，周末+晚上，直到有10个付费客户且月留存 > 80%\n\n如果已经验证：\n→ 设定一个\"止损日期\"（比如12个月），到达之前收入目标就继续，否则回大厂\n\n如果机会成本太高：\n→ 考虑 angel investing 或 advisory 的方式参与，而不是全职 founder\n\nOh，还有一个问题想问你：**这个 SaaS 机会是你发现了真实痛点，还是你\"想做个产品\"？** 前者成功率至少高5倍。\n\n你现在手上这个项目到什么阶段了？有付费客户了吗？",
+    "decisionAnswer": "我的倾向是：**除非你已经验证了需求信号，否则不要辞职。**\n\n模式我看到的——大厂PM创业最常见的错误是，把\"有个想法\"当成\"有机会\"。想法一文不值，验证才是一切。你现在有收入要放弃，这个决策成本很高，需要更高的确定性来支撑。\n\n**当前阶段的判断标准：**\n\n如果你已经做到这三点，那全职是合理的：\n- 有3-10个付费用户或明确意向书（不是\"挺有意思\"的那种反馈）\n- 有6-12个月的生活费储备（创业收入可能为0持续很久）\n- 产品已经解决一个具体痛点，且用户愿意持续用\n\n如果以上任何一条不满足，你的第一优先级是用业余时间验证，而不是辞职。\n\n**主要权衡在这里：**\n\n- **机会成本**：大厂PM的现金流和职业信用，你一旦离开，回来可能降级\n- **验证速度**：全职确实能加速，但前提是你知道加速什么。很多人全职后反而更焦虑，做出错误决策\n- **心理压力**：收入归零会改变你的每一个产品决策——你会更想快速变现，而不是找到真正的PMF\n\n**三个验证动作（接下来30天）：**\n\n1. **跑Sean Ellis测试**：找20-30个目标用户试用产品，问\"如果明天不能用了，你会多失望？\"——超过40%说\"非常失望\"，你才有信号全职。低于这个数字，说明产品还没找到痛点。\n\n2. **测试付费意愿**：别问\"你愿意付钱吗\"，直接发付款链接或合同。哪怕只是$50/月，真实的付费行为比任何调研都准。如果没人付，说明你高估了需求。\n\n3. **算清真实 runway**：列出你6个月、12个月、18个月无收入能维持的生活成本。然后问：如果18个月后公司还是零收入，你能接受吗？如果答案犹豫，先别辞职。\n\n哦对了——你在Airbnb早期也见过很多供应商辞职来平台全职，最成功的那些都是在副业收入稳定后才跳车的。最惨的是那些\"先跳下去再找方向\"的。\n\n你现在这个SaaS项目做到哪一步了？有付费用户了吗？",
+    "judge": {
+      "winner": "decision",
+      "normalScore": {
+        "directness": 4,
+        "actionability": 3,
+        "trustworthiness": 4
+      },
+      "decisionScore": {
+        "directness": 5,
+        "actionability": 5,
+        "trustworthiness": 4
+      },
+      "rationale": "Decision给出具体30天验证动作（Sean Ellis测试、发付款链接、算runway），actionability显著更强；Normal建议较分散，实操性不足。"
+    }
+  },
+  {
+    "id": "cofounder-choice",
+    "category": "career",
+    "prompt": "我和朋友想一起创业，但他执行力强、价值观一般；另一个人价值观对但全职不确定。怎么选合伙人？",
+    "matchedUnitIds": [],
+    "normalAnswer": "我直接说吧：**选价值观对的人。**\n\nSo here's the thing... 我见过太多创业公司死在内斗上，而不是死在产品或市场上。技能可以学，人可以招，但价值观这东西——你们对什么是重要的、钱怎么分、遇到 ethical grey area 怎么办——这些在压力之下会被放大十倍。\n\n**The pattern I see is...** 执行力强但价值观不对的人，早期跑得很快，但一般在 A轮前后会爆雷。可能是财务不透明，可能是对待员工的方式让你无法接受，可能是关键时刻选择短期利益。而你和朋友这层关系会让事情更复杂——你们更难公事公办。\n\n那个\"全职不确定\"的人其实是个 red flag，我需要问清楚：**When you say 全职不确定，是指暂时还不能辞职，还是根本上不想承担创业的风险？** 如果是前者（比如需要3个月交接），那可以等；如果是后者，那他也算不上真正的合伙人。\n\n**It depends on where you are...** \n- 如果你们还在 idea 阶段，需要快速验证：执行力重要，但价值观底线不能妥协\n- 如果你们已经有 PMF，要 scale：价值观一致是唯一能撑过 5-10 年的东西\n\n我 Airbnb 时期见过很多搭档组合。Brian 和 Joe（联合创始人）能走那么远，不是因为他们技能完美互补，而是因为他们对\"我们要建什么样的公司\"有根本共识。\n\n**实际建议：**\n1. 别因为\"是朋友\"就选 A——创业会杀死友情，如果价值观还不对，双重杀死\n2. 和 B 坦诚谈：全职不确定是可以解决的（part-time 起步，milestone 到了再 full-time），但如果价值观不对，无解\n3. 你其实还有 option C：两个都不选，继续找\n\n**What have you already tried?** 你们三个人坐下来聊过股权、退出策略、如果有一天公司要死了怎么办这些话题吗？这些 conversation 最能暴露价值观差异。",
+    "decisionAnswer": "我的直接倾向：**价值观对的那个人**。\n\n这是我见过太多创业团队后学到的东西——**价值观分歧是杀死创业公司的头号原因，执行力问题可以修补，但价值观不合会让你们在最难的时刻互相踩雷**。当公司快没钱了、产品方向有争议、或者需要裁员的时候，你们怎么决策、怎么对待员工、怎么处理压力，这些才是决定生死的。\n\n但这取决于你处于哪个阶段和你个人的情况：\n\n**如果还在0-1阶段（没产品、没收入）**：执行力确实关键。但\"价值观一般\"具体指什么？如果是道德底线问题（对用户数据不诚实、对员工承诺不兑现），这会成为定时炸弹。如果只是风格不同（他偏激进你偏保守），那可以互补。\n\n**如果你已经有一定基础**：价值观一致的合伙人更重要。因为全职承诺可以通过股权绑定、里程碑机制来解决，但价值观冲突会让你们每次决策都内耗。\n\n我不确定的关键点：\n- \"价值观一般\"具体是什么维度？是工作伦理、对待用户的方式，还是对待团队的态度？\n- 另一个人\"全职不确定\"是现实约束（有家庭负担）还是信心问题（对项目本身犹豫）？\n\n**下一步验证动作**：\n1. **做一次压力测试对话**：和你朋友聊一个真实的艰难场景——\"如果6个月后资金链断了，我们得裁员一半，你会怎么处理？\"观察他的第一反应和底层逻辑。如果让你感到不安，这就是你的答案。\n\n2. **和另一个人确认全职路径**：问他\"如果要你6个月内全职加入，需要满足什么条件？\"如果是合理的里程碑（如产品上线或首笔收入），可以设置股权vesting计划来对齐；如果他自己都说不清楚，那才是真正的风险信号。\n\n3. **小项目试跑**：如果可能，先合作一个小项目（非全职），观察价值观一致的那个人在有限时间内的投入质量和沟通方式。这比任何面试都准。\n\n你更担心哪种风险——未来理念冲突，还是眼前推进太慢？",
+    "judge": {
+      "winner": "decision",
+      "normalScore": {
+        "directness": 5,
+        "actionability": 3,
+        "trustworthiness": 4
+      },
+      "decisionScore": {
+        "directness": 5,
+        "actionability": 5,
+        "trustworthiness": 5
+      },
+      "rationale": "Decision给出具体可执行的验证步骤，并明确承认不确定点；Normal建议较泛，缺乏具体操作方法。"
+    }
+  },
+  {
+    "id": "general-overload",
+    "category": "general",
+    "prompt": "最近事情太多，我每天都在做决定但都很乱。你会建议我先从哪里整理？",
+    "matchedUnitIds": [],
+    "normalAnswer": "So here's the thing... 我觉得你不是需要\"做决定\"，而是需要先停止做决定。\n\n我见过的创始人、PM们在事情太多时，最大的错误就是——他们试图对每件事都做出\"好决定\"。这其实是反过来的。当你混乱时，第一个决定应该是：这周哪1-2件事是真正重要的？\n\n我的建议：\n\n**第一步：全部倒出来（5分钟）**\n拿张纸，把脑子里所有\"我该做什么\"的事项全部倒出来。不要分类，不要排序，就是清空大脑。\n\n**第二步：用\"生死线\"筛选**\n问自己：这周如果我只做一件事，哪件不做会让一切崩塌？通常只有1-2件。其他都是\"最好做\"而不是\"必须做\"。\n\n**第三步：把\"是/否\"变成\"选项A/选项B\"**\n很多决策混乱是因为问题太大。比如\"我要不要做X\"太抽象了。改成\"这周我有3小时，是用来做X还是做Y？\"具体了就好选了。\n\n我在Airbnb最忙的时候，我的mentor教我一个招：每天早上问自己，\"今天结束时有哪件事没完成，我会觉得这天废了？\"只做那件事，其他随缘。\n\n你现在脑子里最压在胸口的那件事是什么？",
+    "decisionAnswer": "先停下做决策。\n\n**我的直接倾向：**你不是需要更好地\"整理\"决策，而是需要停止做这么多决策。每天乱糟糟地做决定，通常意味着你在战术层面救火，而不是在系统层面解决。\n\n**阶段和假设：**\n\n- **如果是早期/创业阶段：** 你可能在同时干太多人的活，没有清晰的\"哪些决策我真的需要亲自做\"的边界。\n- **如果是团队管理阶段：** 可能是授权不够，或者你和团队没有共享的优先级框架（RICE、ICE或者简单的\"这件事不做会怎样\"测试）。\n\n**主要权衡：**\n- 慢下来建系统 vs 继续救火\n- 亲自决策保质量 vs 授权出去保速度\n\n**我的实际经验：** 在Airbnb早期，我也曾觉得自己必须参与每个产品决策。后来我们强制推行了一个简单规则——\"任何要花超过X小时的决定，必须先写下来决策的前提和反方观点\"。这个摩擦感反而让80%的决策变得清晰了。\n\n**2-3个验证动作：**\n\n1. **明天的3x3测试：** 明天早上只写3个你要做的决定，然后问自己\"如果我不做这个决定，谁会做？如果不做会怎样？\"看看有多少是你可以推出去的。\n\n2. **决策审计（就这周）：** 翻过去5天，列出你真正做的决定。分类哪些是重复的、哪些是你本不该插手的、哪些其实是别人的问题甩给你。\n\n3. **建一个\"默认规则\"：** 比如\"新功能需求？先看看能不能用现有方案解决，能就不做新东西\"——给最常见的决策类型建个默认值，减少每次都要重新思考的负担。\n\n你现在最混乱的是哪类决策？产品方向、团队分工、还是日常优先级？",
+    "judge": {
+      "winner": "decision",
+      "normalScore": {
+        "directness": 4,
+        "actionability": 4,
+        "trustworthiness": 3
+      },
+      "decisionScore": {
+        "directness": 5,
+        "actionability": 5,
+        "trustworthiness": 4
+      },
+      "rationale": "Decision更直接开篇给结论，提供3个可立即执行的验证动作，且分阶段讨论并承认权衡。Normal actionable但Decision更系统化。"
+    }
+  }
+]

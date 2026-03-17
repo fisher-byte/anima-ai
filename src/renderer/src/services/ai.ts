@@ -35,7 +35,8 @@ export async function* streamAI(
   compressedMemory?: string,
   isOnboarding?: boolean,
   conversationId?: string,
-  systemPromptOverride?: string
+  systemPromptOverride?: string,
+  extraContext?: string
 ): AsyncGenerator<AIStreamChunk, AIResponse, unknown> {
   const controller = new AbortController()
   let abortListener: (() => void) | null = null
@@ -59,7 +60,15 @@ export async function* streamAI(
     const res = await fetch('/api/ai/stream', {
       method: 'POST',
       headers,
-      body: JSON.stringify({ messages, preferences, compressedMemory, isOnboarding, conversationId, ...(systemPromptOverride ? { systemPromptOverride } : {}) }),
+      body: JSON.stringify({
+        messages,
+        preferences,
+        compressedMemory,
+        isOnboarding,
+        conversationId,
+        ...(systemPromptOverride ? { systemPromptOverride } : {}),
+        ...(extraContext ? { extraContext } : {}),
+      }),
       signal: combinedSignal
     })
 

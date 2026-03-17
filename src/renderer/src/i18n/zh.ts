@@ -129,6 +129,8 @@ export interface Translations {
     deleteConfirm: string
     clickHint: string
     deleteNodeTooltip: string
+    decisionModeNormal: string
+    decisionModeLingSi: string
     lennyPlaceholder: string
     pgPlaceholder: string
     zhangPlaceholder: string
@@ -538,6 +540,8 @@ export const zh: Translations = {
     deleteConfirm: '删除',
     clickHint: '点击节点查看历史或提问，或在此输入 · Enter 发送',
     deleteNodeTooltip: '删除节点',
+    decisionModeNormal: '普通',
+    decisionModeLingSi: '灵思',
     lennyPlaceholder: '向 Lenny 提问…',
     pgPlaceholder: '向 Paul Graham 提问…',
     zhangPlaceholder: '向张小龙提问…',
@@ -720,4 +724,3 @@ export const zh: Translations = {
     clickToUse: '点击使用',
   },
 }
-

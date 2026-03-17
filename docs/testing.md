@@ -1,6 +1,6 @@
 # Anima 测试手册
 
-*最后更新: 2026-03-13 | 版本: v0.5.0*
+*最后更新: 2026-03-17 | 版本: v0.5.9*
 
 ## 测试策略
 
@@ -18,11 +18,12 @@
   - `parseTurnsFromAssistantMessage`：单轮、多轮、reasoning 提取
   - `stripLeadingNumberHeading`：THINKING 哨兵、#N 前缀、多轮前缀剥离
   - `buildAIHistory`：空消息过滤、用户/AI 交替构建
-- ✅ `services/ai.ts` — 前端 AI 服务（18 个用例）
+- ✅ `services/ai.ts` — 前端 AI 服务（20 个用例）
+- ✅ `services/lingsi.ts` — LingSi seed 初始化与加载（2 个用例）
 - ✅ `canvasStore.nodeConsolidation.test.ts` — 节点聚合逻辑（25 个用例）
   - 节点合并阈值、相似度判断、聚合后数据一致性
-- ✅ `canvasStore.lennyMode.test.ts` — Lenny Space 模式（12 个用例）
-  - Lenny Space 开关、节点加载、状态隔离
+- ✅ `canvasStore.lennyMode.test.ts` — Lenny Space 模式（16 个用例）
+  - Lenny Space 开关、节点加载、状态隔离、decision mode 同步
 - ✅ `canvasStore.customSpaceMode.test.ts` — 用户自定义 Space 模式（18 个用例）
   - `openCustomSpaceMode` 设置标志 + 互斥清除其他 Space 标志
   - `closeCustomSpaceMode` 重置全部状态
@@ -53,7 +54,7 @@ npm run test:watch    # 监听模式（开发时用）
 |------|---------|------|
 | `server.test.ts` (629行) | `testDb` + `resetDb` | health/storage/config/auth + 对话历史 + API key 守卫 |
 | `server-integration.test.ts` (703行) | `memDb` + `fileDb` | memory profile/facts/agent + 文件上传/向量化 + 逻辑边 |
-| `server-ai.test.ts` (272行) | 无 DB（纯逻辑） | readRound / 澄清层触发规则 / search_round 消息格式 |
+| `server-ai.test.ts` (272行) | 无 DB（纯逻辑） | readRound / 澄清层触发规则 / search_round 消息格式 / client context blocks |
 | `ai-onboarding.test.ts` | 独立 `aiDb` | onboarding 模式 + ONBOARDING_API_KEY 降级 |
 | `memory.test.ts` | 独立 `memoryDb` | 记忆路由完整 CRUD |
 
@@ -66,7 +67,7 @@ npm run test:watch    # 监听模式（开发时用）
   - 文件上传 + Magic Byte 校验 + file_embeddings 隔离
   - 逻辑边 API（GET / GET:id / DELETE:id）
   - AgentWorker 多租户隔离（4 个用例）
-- ✅ `server-ai.test.ts` — AI 功能纯逻辑测试（47 个用例）
+- ✅ `server-ai.test.ts` — AI 功能纯逻辑测试（70 个用例）
   - `readRound`：content 流、tool_call 累积、reader.releaseLock、[DONE] 跳过
   - 澄清层触发规则：关键词/引号/年份/长度/onboarding 守卫/重复触发
   - `search_round` SSE：round 消息、MAX_SEARCH_ROUNDS 边界、finishReason 退出
@@ -88,7 +89,7 @@ npm run test:watch    # 监听模式（开发时用）
 
 - ✅ `memory.test.ts` — 记忆路由集成测试（含 FTS5 trigger、引用块过滤、decayPreferences、语义边 by-id）
 
-**总测试数**: **517 个用例，19 个测试文件，全部通过**
+**总测试数**: **559 个用例，23 个测试文件，全部通过**
 
 ---
 

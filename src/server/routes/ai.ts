@@ -66,6 +66,37 @@ function approxTokens(text: string): number {
   return Math.ceil(count)
 }
 
+export function appendClientContextBlocks(
+  systemPrompt: string,
+  {
+    compressedMemory,
+    extraContext,
+    contextTokensUsed = 0,
+  }: {
+    compressedMemory?: string
+    extraContext?: string
+    contextTokensUsed?: number
+  }
+): { systemPrompt: string; contextTokensUsed: number } {
+  let nextPrompt = systemPrompt
+  let nextTokensUsed = contextTokensUsed
+
+  if (compressedMemory?.trim()) {
+    const block = '\n\n【相关记忆片段 - 供参考】\n' + compressedMemory.trim()
+    const cost = approxTokens(block)
+    if (nextTokensUsed + cost <= CONTEXT_BUDGET) {
+      nextPrompt += block
+      nextTokensUsed += cost
+    }
+  }
+
+  if (extraContext?.trim()) {
+    nextPrompt += `\n\n【额外上下文】\n${extraContext.trim()}`
+  }
+
+  return { systemPrompt: nextPrompt, contextTokensUsed: nextTokensUsed }
+}
+
 // ── FTS5 BM25 fallback（embedding 不可用时） ──────────────────────────────────
 function bm25FallbackFacts(db: InstanceType<typeof Database>, query: string): string[] {
   try {
@@ -380,6 +411,7 @@ interface AIRequestBody {
   messages: AIMessage[]
   preferences?: string[]
   compressedMemory?: string
+  extraContext?: string
   isOnboarding?: boolean
   conversationId?: string
   searchMode?: 'forced' | 'hybrid' | 'agent'
@@ -546,6 +578,9 @@ aiRoutes.post('/stream', async (c) => {
   const systemPromptOverride = typeof body.systemPromptOverride === 'string'
     ? body.systemPromptOverride.slice(0, 8000)
     : undefined
+  const extraContext = typeof body.extraContext === 'string'
+    ? body.extraContext.slice(0, 12000)
+    : undefined
   const allowedSearchModes = new Set(['forced', 'hybrid', 'agent'])
   const requestedMode = typeof body.searchMode === 'string' ? body.searchMode : undefined
   let searchMode: 'forced' | 'hybrid' | 'agent' = 'hybrid'
@@ -631,13 +666,13 @@ aiRoutes.post('/stream', async (c) => {
 
   // 选择 system prompt：override 模式直接使用（跳过用户数据注入）
   let systemPrompt: string
+  let contextTokensUsed = 0
   if (systemPromptOverride) {
     systemPrompt = systemPromptOverride.replace('{{DATE}}', today)
   } else if (isOnboarding) {
     systemPrompt = ONBOARDING_SYSTEM_PROMPT.replace('{{DATE}}', today)
   } else {
     systemPrompt = DEFAULT_SYSTEM_PROMPT.replace('{{DATE}}', today)
-    let contextTokensUsed = 0
 
     // ── 层 1（最高优先级）：进化基因（偏好规则）── 前端传入 + 后端 Agent 提取合并
     try {
@@ -806,14 +841,13 @@ aiRoutes.post('/stream', async (c) => {
     }
 
     // ── 层 4（最低优先级）：前端传入的压缩记忆片段 ──
-    if (compressedMemory?.trim()) {
-      const block = '\n\n【相关记忆片段 - 供参考】\n' + compressedMemory.trim()
-      const cost = approxTokens(block)
-      if (contextTokensUsed + cost <= CONTEXT_BUDGET) {
-        systemPrompt += block
-      }
-    }
   }
+
+  ;({ systemPrompt, contextTokensUsed } = appendClientContextBlocks(systemPrompt, {
+    compressedMemory,
+    extraContext,
+    contextTokensUsed,
+  }))
 
   return streamSSE(c, async (stream) => {
     let fullContent = ''
@@ -1237,7 +1271,7 @@ aiRoutes.post('/stream', async (c) => {
 /**
  * POST /api/ai/deep-search
  * 启动一个“深度搜索”后台任务（可跨页面继续）。
- * Body: { conversationId, messages, preferences?, compressedMemory?, isOnboarding?, systemPromptOverride? }
+ * Body: { conversationId, messages, preferences?, compressedMemory?, extraContext?, isOnboarding?, systemPromptOverride? }
  * Response: { ok: true, taskId }
  */
 aiRoutes.post('/deep-search', async (c) => {
@@ -1269,6 +1303,7 @@ aiRoutes.post('/deep-search', async (c) => {
     messages,
     preferences: body.preferences ?? [],
     compressedMemory: body.compressedMemory ?? '',
+    extraContext: body.extraContext ?? '',
     isOnboarding: body.isOnboarding ?? false,
     systemPromptOverride: body.systemPromptOverride ?? undefined,
   }, conversationId)

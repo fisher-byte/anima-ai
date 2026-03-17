@@ -23,21 +23,46 @@ async function migrateFromEvocanvasIfNeeded(): Promise<void> {
 }
 
 // 允许的文件名白名单（防止路径遍历）
-const ALLOWED_FILENAMES = ['profile.json', 'nodes.json', 'conversations.jsonl', 'settings.json']
+const ALLOWED_FILENAMES = [
+  'profile.json',
+  'nodes.json',
+  'conversations.jsonl',
+  'decision-personas.json',
+  'decision-units.json',
+  'decision-source-manifest.json',
+  'settings.json',
+  'semantic-edges.json',
+  'logical-edges.json',
+  'lenny-nodes.json',
+  'lenny-conversations.jsonl',
+  'lenny-edges.json',
+  'pg-nodes.json',
+  'pg-conversations.jsonl',
+  'pg-edges.json',
+  'zhang-nodes.json',
+  'zhang-conversations.jsonl',
+  'zhang-edges.json',
+  'wang-nodes.json',
+  'wang-conversations.jsonl',
+  'wang-edges.json',
+  'custom-spaces.json',
+  'memory_scores.json',
+  'session_memory.json',
+]
+
+const CUSTOM_SPACE_FILE_RE = /^custom-[a-z0-9]{8}-(nodes\.json|conversations\.jsonl|edges\.json)$/
 
 /**
  * 验证文件名是否合法
  */
 function isValidFilename(filename: string): boolean {
-  // 检查是否在允许列表中
-  if (!ALLOWED_FILENAMES.includes(filename)) {
-    return false
-  }
   // 检查是否包含路径遍历字符
   if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
     return false
   }
-  return true
+  if (ALLOWED_FILENAMES.includes(filename)) return true
+  if (CUSTOM_SPACE_FILE_RE.test(filename)) return true
+  return false
 }
 
 async function ensureDataDir() {

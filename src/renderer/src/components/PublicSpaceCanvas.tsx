@@ -16,6 +16,7 @@ import { Edge } from './Edge'
 import { SettingsModal } from './SettingsModal'
 import { FileBrowserPanel } from './FileBrowserPanel'
 import { storageService } from '../services/storageService'
+import { ensureLingSiStorageSeeded } from '../services/lingsi'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useForceSimulation } from '../hooks/useForceSimulation'
 import { useT } from '../i18n'
@@ -59,6 +60,8 @@ export interface SpaceConfig {
   placeholderKey: keyof ReturnType<typeof useT>['t']['space']
   /** true = Lenny 用 useForceSimulation；false = PG/Zhang/Wang 用内置 simTick */
   useForceHook: boolean
+  /** 是否支持灵思决策模式 */
+  supportsDecisionMode?: boolean
 }
 
 // ─── 内置物理力常量（PG / Zhang / Wang 使用） ─────────────────────────────────
@@ -293,6 +296,8 @@ export function PublicSpaceCanvas({ config, isOpen, onClose }: PublicSpaceCanvas
   const openMode = useCanvasStore(state => state[config.openModeKey])
   const closeMode = useCanvasStore(state => state[config.closeModeKey])
   const isModalOpen = useCanvasStore(state => state.isModalOpen)
+  const lennyDecisionMode = useCanvasStore(state => state.lennyDecisionMode)
+  const setLennyDecisionMode = useCanvasStore(state => state.setLennyDecisionMode)
 
   // ── useForceSimulation hook（React hooks 规则要求无条件调用）────────────────
   // 无论 useForceHook 是否为 true，hook 总是被调用。
@@ -395,6 +400,9 @@ export function PublicSpaceCanvas({ config, isOpen, onClose }: PublicSpaceCanvas
   useEffect(() => {
     if (!isOpen) return
     ;(async () => {
+      if (config.supportsDecisionMode) {
+        await ensureLingSiStorageSeeded()
+      }
       const [nodesRaw, edgesRaw] = await Promise.all([
         storageService.read(config.nodesFile),
         storageService.read(config.edgesFile),
@@ -760,6 +768,31 @@ export function PublicSpaceCanvas({ config, isOpen, onClose }: PublicSpaceCanvas
             </div>
           </div>
         </div>
+
+        {config.supportsDecisionMode && (
+          <div className="flex items-center rounded-xl border border-gray-200 bg-white p-1 shrink-0">
+            <button
+              onClick={() => setLennyDecisionMode('normal')}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
+                lennyDecisionMode === 'normal'
+                  ? 'bg-gray-900 text-white'
+                  : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              {t.space.decisionModeNormal}
+            </button>
+            <button
+              onClick={() => setLennyDecisionMode('decision')}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
+                lennyDecisionMode === 'decision'
+                  ? 'bg-amber-500 text-white'
+                  : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              {t.space.decisionModeLingSi}
+            </button>
+          </div>
+        )}
 
         <div className="flex items-center gap-1 shrink-0">
           <span className="text-[11px] font-bold text-gray-300 mr-2">{Math.round(scaleDisplay * 100)}%</span>

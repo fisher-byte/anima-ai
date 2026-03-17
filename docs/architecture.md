@@ -144,6 +144,13 @@ CREATE TABLE conversation_history (conversation_id TEXT PRIMARY KEY,
   messages TEXT, updated_at TEXT);
 ```
 
+**LingSi 数据资产**：
+- `decision-personas.json`
+- `decision-units.json`
+- `decision-source-manifest.json`
+
+这三份文件同样存放在 `storage` 表中，不新增数据库表。设计目标是先复用现有存储与鉴权链路，再在应用层做 schema 约束和人工审核流程。
+
 ### 3. 多租户架构
 
 ```
@@ -201,6 +208,12 @@ index.ts 中间件: c.set('db', getDb('a1b2c3d4e5f6'))
 ```
 
 支持工具调用（`$web_search`，Kimi 2.5 原生联网），工具结果自动进入第二轮请求。
+
+**LingSi（v0.5.5 M3 进行中）**：
+- `Lenny` 决策版沿用 `systemPromptOverride`，并新增 `extraContext` 注入 DecisionUnit 命中结果
+- 首次打开 Lenny Space 时，前端会把真实 `seeds/lingsi/*` 资产写入 `storage` 表，避免依赖 mock
+- 命中的证据会进入对话元数据 `decisionTrace`：`mode`、`matchedDecisionUnitIds`、`sourceRefs`
+- 来源真相库保留在独立仓库 `anima-base/`，主项目只导入必要子集
 
 **v0.3.2 新增能力：**
 

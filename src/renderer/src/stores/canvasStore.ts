@@ -17,7 +17,7 @@
 
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import type { Node, Edge, Conversation, Profile, PreferenceRule, NodePosition, CustomSpaceConfig } from '@shared/types'
+import type { Node, Edge, Conversation, Profile, PreferenceRule, NodePosition, CustomSpaceConfig, DecisionMode } from '@shared/types'
 import { STORAGE_FILES, FEEDBACK_TRIGGERS, CONFIDENCE_CONFIG, UI_CONFIG } from '@shared/constants'
 import { storageService, historyService } from '../services/storageService'
 import { getAuthToken } from '../services/storageService'
@@ -133,6 +133,8 @@ interface CanvasState {
 
   // Lenny Space 模式：对话/节点读写隔离到 lenny-*.json
   isLennyMode: boolean
+  lennyDecisionMode: DecisionMode
+  setLennyDecisionMode: (mode: DecisionMode) => void
   openLennyMode: () => void
   closeLennyMode: () => void
 
@@ -315,6 +317,7 @@ export const useCanvasStore = create<CanvasState>()(
 
   // Lenny Space 模式
   isLennyMode: false,
+  lennyDecisionMode: 'normal',
   // Paul Graham Space 模式
   isPGMode: false,
   // Zhang Xiaolong Space 模式
@@ -385,6 +388,17 @@ export const useCanvasStore = create<CanvasState>()(
     } catch { /* ignore */ }
   },
   setOnboardingPhase: (phase) => set({ onboardingPhase: phase }),
+  setLennyDecisionMode: (mode) => set((state) => ({
+    lennyDecisionMode: mode,
+    currentConversation: state.isLennyMode && !state.isPGMode && !state.isZhangMode && !state.isWangMode && state.currentConversation
+      ? {
+          ...state.currentConversation,
+          decisionTrace: mode === 'decision'
+            ? { ...(state.currentConversation.decisionTrace ?? {}), mode: 'decision' }
+            : { mode: 'normal' },
+        }
+      : state.currentConversation,
+  })),
   openLennyMode: () => set({ isLennyMode: true, isPGMode: false, isZhangMode: false, isWangMode: false }),
   closeLennyMode: () => set({ isLennyMode: false, isPGMode: false, isZhangMode: false, isWangMode: false, isModalOpen: false, currentConversation: null, conversationHistory: [] }),
   openPGMode: () => set({ isLennyMode: true, isPGMode: true, isZhangMode: false, isWangMode: false }),
@@ -1394,7 +1408,7 @@ export const useCanvasStore = create<CanvasState>()(
 
   // 开始对话 (增强：检测意图并智能分支)
   startConversation: async (userMessage: string, images?: string[], files?: import('@shared/types').FileAttachment[], parentId?: string) => {
-    const { nodes, detectIntent, getRelevantMemories, isLennyMode } = get()
+    const { nodes, detectIntent, getRelevantMemories, isLennyMode, isPGMode, isZhangMode, isWangMode, lennyDecisionMode } = get()
 
     // 1. 检测当前意图分类
     const category = detectIntent(userMessage)
@@ -1407,6 +1421,9 @@ export const useCanvasStore = create<CanvasState>()(
       createdAt: new Date().toISOString(),
       userMessage,
       assistantMessage: '',
+      decisionTrace: isLennyMode && !isPGMode && !isZhangMode && !isWangMode
+        ? { mode: lennyDecisionMode }
+        : undefined,
       images: images || [],
       files: files || [],
       _appliedMemories: []
@@ -1465,6 +1482,7 @@ export const useCanvasStore = create<CanvasState>()(
         createdAt: new Date().toISOString(),
         userMessage: currentConversation.userMessage,
         assistantMessage,
+        decisionTrace: currentConversation.decisionTrace,
         images: [],
         files: [],
       }
@@ -1621,6 +1639,7 @@ export const useCanvasStore = create<CanvasState>()(
               conversationId: conv.id,
               userMessage: conv.userMessage,
               assistantMessage,
+              decisionTrace: currentConversation.decisionTrace,
               source: isPGMode ? 'pg' : isZhangMode ? 'zhang' : isWangMode ? 'wang' : 'lenny',
             }),
           })
@@ -1939,7 +1958,13 @@ export const useCanvasStore = create<CanvasState>()(
           : mergedBase
 
         if (token !== _openModalToken) return
-        set({ currentConversation: merged, isLoading: false })
+        set({
+          currentConversation: merged,
+          isLoading: false,
+          lennyDecisionMode: isLennyMode && !isPGMode && !isZhangMode && !isWangMode
+            ? (merged.decisionTrace?.mode ?? get().lennyDecisionMode)
+            : get().lennyDecisionMode,
+        })
 
         // 若触发修复：追加写回一条“修复后的完整版”，让后续读取不再落到短版本
         // 注意：这里也会把子对话合并进 transcript（仅影响回放显示，不影响子节点本身）

@@ -221,6 +221,11 @@ describe('Storage API', () => {
       const res = await req('GET', '/api/storage/evil.txt')
       expect(res.status).toBe(400)
     })
+
+    it('accepts LingSi storage files in allowlist', async () => {
+      const res = await req('GET', '/api/storage/decision-units.json')
+      expect(res.status).toBe(404)
+    })
   })
 
   describe('PUT /api/storage/:filename', () => {
@@ -626,4 +631,3 @@ describe('Storage API - logical-edges.json fallback', () => {
     expect(JSON.parse(text)).toEqual([])
   })
 })
-

@@ -196,6 +196,8 @@ export const en: Translations = {
     deleteConfirm: 'Delete',
     clickHint: 'Click a node to explore or ask · Enter to send',
     deleteNodeTooltip: 'Delete node',
+    decisionModeNormal: 'Normal',
+    decisionModeLingSi: 'LingSi',
     lennyPlaceholder: 'Ask Lenny anything…',
     pgPlaceholder: 'Ask Paul Graham anything…',
     zhangPlaceholder: 'Ask Zhang Xiaolong anything…',
