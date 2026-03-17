@@ -39,6 +39,14 @@ describe('lingsiDecisionEngine', () => {
     expect(matched.map(unit => unit.id)).toContain('lenny-ttv-before-plg-distribution')
   })
 
+  it('matches AI eval prompts to the open-coding eval unit', () => {
+    const matched = matchDecisionUnits(
+      '我们这个 AI 产品 prompt 改来改去像猜谜，没有统一评测标准，应该怎么建 eval？',
+      units,
+    )
+    expect(matched.map(unit => unit.id)).toContain('lenny-open-code-real-failures-before-eval-rubric')
+  })
+
   it('builds decision payload with trace and source refs', () => {
     const payload = buildLingSiDecisionPayloadFromUnits(
       'B2B AI 工具应该按 seat 还是按使用量定价？',
@@ -97,6 +105,17 @@ describe('lingsiDecisionEngine', () => {
       { personaId: 'zhang', personaName: '张小龙' },
     )
     expect(payload.decisionTrace.matchedDecisionUnitIds).toContain('zhang-scene-entry-beats-homepage-entry-for-services')
+    expect(payload.decisionTrace.matchedDecisionUnitIds?.some(id => id.startsWith('lenny-'))).toBe(false)
+  })
+
+  it('matches Zhang tooltip-heavy prompts to the no-tips unit', () => {
+    const payload = buildLingSiDecisionPayloadFromUnits(
+      '这个新功能用户总看不懂，我们要不要加更多 tooltip 和新手引导说明？',
+      'decision',
+      units,
+      { personaId: 'zhang', personaName: '张小龙' },
+    )
+    expect(payload.decisionTrace.matchedDecisionUnitIds).toContain('zhang-no-tips-means-the-interaction-is-natural')
     expect(payload.decisionTrace.matchedDecisionUnitIds?.some(id => id.startsWith('lenny-'))).toBe(false)
   })
 })

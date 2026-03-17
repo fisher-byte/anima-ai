@@ -1,3 +1,27 @@
+## [0.5.19] - 2026-03-18
+
+### feat: decision UX polish + flywheel + latest source sync
+
+**新增与修复：**
+- `Canvas.tsx`：首页 Lenny / 张小龙卡片改为 badge 绝对定位，标题支持完整显示，不再被 `决策` 标签挤压或截断
+- `InputBox.tsx` / `inputMentions.ts`：主页 `@persona` 对支持决策的 persona 改成 decision-only suggestion，不再暴露普通模式；token 文本只显示 `@名字`
+- `zh.ts` / `en.ts`：前端用户可见文案从 `灵思` 统一为 `决策`，降低首次理解成本；系统内部仍保留 `LingSi` 工程名
+- `AnswerModalSubcomponents.tsx` / `AnswerModal.tsx`：`查看轨迹` 在流式输出期间禁用，trace modal 改为 portal 渲染并移除嵌套 button，修复页面卡死问题
+- `anima-base`：同步到 `a6c1078`，纳入最新 Lenny AI eval / velocity 与张小龙产品哲学 / 组织领导材料
+- `scripts/extract-lingsi-seeds.ts` / `seeds/lingsi/*`：种子基线刷新为 `2 personas / 37 sources / 59 approved units`，其中 `lenny=37`、`zhang=22`
+- `docs/lingsi-flywheel.md`：新增产品飞轮文档，定义产品状态包、persona 消费策略、人工审核与评测闭环
+
+**测试与验证：**
+- `npm run lingsi:extract`：通过，刷新为 `2 personas / 37 sources / 59 approved units`
+- `npm run lingsi:evaluate`：通过，`decision 14 : normal 1`
+- `npm run lingsi:evaluate:zhang`：通过，`decision 6 : normal 0 : tie 1`
+- `npm run typecheck`：通过
+- `npm test`：593/593 通过
+- `npm run build`：通过
+- `npm run test:e2e`：44 passed / 4 skipped
+
+---
+
 # Anima 变更日志
 
 ## [0.5.18] - 2026-03-17
@@ -5,7 +29,7 @@
 ### fix: LingSi stability + release sync
 
 **修复与收口：**
-- `Canvas.tsx`：修复首页 Lenny / 张小龙 Space 入口中 `灵思` badge 挤压标题的问题，长名字与 badge 现在稳定同排显示
+- `Canvas.tsx`：修复首页 Lenny / 张小龙 Space 入口中 `决策` badge 挤压标题的问题，长名字与 badge 现在稳定同排显示
 - `canvasStore.ts`：`closeModal` 关闭 onboarding 弹层时会退出教程模式、清空 phase / resume residue，并跳过 onboarding 对话历史持久化
 - `canvasStore.lennyMode.test.ts`：补充 onboarding 关闭后的状态回归测试
 - `docs/lingsi-eval-m4.md` / `reports/lingsi-m4-eval.json`：重新规范化 Lenny 全量 eval 产物，当前基线 `decision 14 : normal 1`

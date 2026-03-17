@@ -2,8 +2,18 @@
 
 ## 计划中版本
 
+#### v0.5.19 - Decision UX + flywheel + latest source sync（已完成）
+- [x] `Canvas.tsx`：首页 Lenny / 张小龙卡片改为 badge 绝对定位，标题完整显示，不再被 `决策` 标签挤压或截断
+- [x] `InputBox.tsx` / `inputMentions.ts`：主页 `@persona` 对支持决策的 persona 改成 decision-only suggestion，不再暴露普通模式；token 文本保持纯 `@名字`
+- [x] `zh.ts` / `en.ts`：前端用户可见文案从 `灵思` 统一为 `决策`，降低认知成本；系统内部仍保留 `LingSi` 工程名
+- [x] `AnswerModalSubcomponents.tsx` / `AnswerModal.tsx`：`查看轨迹` 在流式输出期间禁用，trace modal 改为 portal 渲染并移除嵌套 button，修复页面卡死问题
+- [x] `anima-base`：同步到 `a6c1078`，纳入最新 Lenny `ai-evals-framework` / `product-velocity-framework` 与张小龙 `2012-wechat-product-philosophy-speech` / `talk-wxg-leadership-2016`
+- [x] `scripts/extract-lingsi-seeds.ts`：新增 4 条 source manifest 与 6 条 approved units，把 seeds 刷新为 `2 personas / 37 sources / 59 approved units`
+- [x] `docs/lingsi-flywheel.md`：新增产品飞轮文档，定义产品状态包、persona 消费策略、人工审核与评测闭环
+- [x] 验证：`npm run lingsi:extract`（`2 personas / 37 sources / 59 approved units`）、`npm run lingsi:evaluate`（`decision 14 : normal 1`）、`npm run lingsi:evaluate:zhang`（`decision 6 : normal 0 : tie 1`）、`npm test`（593/593）、`npm run typecheck`、`npm run build`、`npm run test:e2e`（44 passed / 4 skipped）、deploy
+
 #### v0.5.18 - LingSi stability + release sync（已完成）
-- [x] `Canvas.tsx`：修复首页 Lenny / 张小龙 Space 入口中 `灵思` badge 挤压标题的问题
+- [x] `Canvas.tsx`：修复首页 Lenny / 张小龙 Space 入口中 `决策` badge 挤压标题的问题
 - [x] `canvasStore.ts` / `canvasStore.lennyMode.test.ts`：关闭 onboarding 弹层时退出教程模式，清空 phase / resume residue，并避免把 onboarding 历史写入普通对话历史
 - [x] `docs/lingsi-eval-m4.md` / `reports/lingsi-m4-eval.json`：重新生成 Lenny 全量评测产物，当前结果 `decision 14 : normal 1`
 - [x] 版本与发布同步：`package.json` / `APP_VERSION` / active docs / SOP / deployment docs 已统一到 `v0.5.18`
@@ -17,8 +27,8 @@
 - [x] 验证：`npm run lingsi:extract`、`LINGSI_EVAL_PERSONA=zhang npm run lingsi:evaluate`（`decision 6 : normal 0 : tie 1`）、`npm test`（588/588）、`npm run typecheck`、`npm run build`、`npm run test:e2e`（44 passed / 4 skipped）
 
 #### v0.5.16 - LingSi 主页入口 + @mention 重构（已完成）
-- [x] `Canvas.tsx`：在主页左侧 Space 入口直接标识哪些 persona 支持 `灵思`
-- [x] `InputBox.tsx`：主页 `@` 联想支持选择 `普通` / `灵思` 的 persona mention，而不只是普通 Space 提示
+- [x] `Canvas.tsx`：在主页左侧 Space 入口直接标识哪些 persona 支持 `决策`
+- [x] `InputBox.tsx`：主页 `@` 联想支持 persona mention，并可走决策模式
 - [x] `InputBox.tsx` / `canvasStore.ts`：把当前 `@name + pill` 模式重构为结构化 mention token，支持整块删除与稳定回退
 - [x] `AnswerModal.tsx` / `AnswerModalSubcomponents.tsx`：把当前 evidence panel 扩成独立“决策轨迹视图”，支持 `personaId / mode / matchedDecisionUnitIds / sourceRefs` 回放
 - [x] 持续同步 `anima-base` 最新高价值案例到人工审核链路
@@ -36,7 +46,7 @@
 #### v0.5.14 - LingSi 张小龙 persona + anima-base 同步（已完成）
 - [x] `anima-base`：同步到 `65ca4c7`，纳入张小龙首批 `decision-cases` / `frameworks` 增量
 - [x] `scripts/extract-lingsi-seeds.ts`：从单 persona 扩展到多 persona，新增 `zhang` persona、6 条来源、8 条 approved units
-- [x] `AnswerModal.tsx` / `canvasStore.ts` / `PublicSpaceCanvas.tsx`：张小龙 Space 接入 `normal / 灵思` 模式切换与 `decisionTrace.personaId` 持久化
+- [x] `AnswerModal.tsx` / `canvasStore.ts` / `PublicSpaceCanvas.tsx`：张小龙 Space 接入 `normal / decision` 模式切换与 `decisionTrace.personaId` 持久化
 - [x] `scripts/evaluate-lingsi.ts`：Lenny 评测改为 persona scoped，避免被张小龙 units 污染
 - [x] 验证：`npm run lingsi:extract`、`npm test`（575/575）、`npm run typecheck`、`npm run build`、`npm run test:e2e`（44 passed / 4 skipped）
 

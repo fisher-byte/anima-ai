@@ -10,20 +10,21 @@
 | [API文档](./api.md) | 服务API说明 | ✅ |
 | [开发指南](./dev-guide.md) | 开发环境、命令 | 📝 |
 | [测试手册](./testing.md) | 测试策略、用例 | 📝 |
-| [LingSi Schema](./lingsi-data-schema.md) | 灵思决策版数据层基线 | ✅ |
+| [LingSi Schema](./lingsi-data-schema.md) | 决策版数据层基线 | ✅ |
+| [LingSi Flywheel](./lingsi-flywheel.md) | 决策 persona 的产品飞轮与状态包 | ✅ |
 | [LingSi Eval M4](./lingsi-eval-m4.md) | 灵思决策版 15 题对照评测 | ✅ |
 | [LingSi Eval Zhang](./lingsi-eval-zhang.md) | 张小龙 persona case-based eval 基线 | ✅ |
 | [部署运维](./deployment.md) | 发布、配置 | 📝 |
 | [变更日志](./changelog.md) | 版本迭代记录 | ✅ |
 | [问题排查](./troubleshooting.md) | 常见问题解决 | 📝 |
-| [代码审查](./code-review-report-v0.5.18-onboarding-and-release-sync.md) | 最新审查报告 | ✅ |
+| [代码审查](./code-review-report-v0.5.19-decision-ui-and-flywheel.md) | 最新审查报告 | ✅ |
 | [路线图](./ROADMAP.md) | 近期/远期规划 | ✅ |
 
 ## 项目状态
 
-- **当前版本**: v0.5.18
+- **当前版本**: v0.5.19
 - **开发状态**: Active
-- **最后更新**: 2026-03-17（含 latest source sync、Lenny 入口样式修复、onboarding 退出修复与全量 release 收口）
+- **最后更新**: 2026-03-18（含决策命名调整、主页 persona decision-only、trace 稳定性修复、latest source sync 与 flywheel 文档）
 - **GitHub**: https://github.com/fisher-byte/anima-ai
 
 ## 核心功能

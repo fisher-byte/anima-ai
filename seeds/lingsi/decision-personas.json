@@ -264,11 +264,34 @@
         "publishedAt": "2026-03-17",
         "evidenceLevel": "A",
         "notes": "3W critique framing, level-3 feedback, stage-aware critique"
+      },
+      {
+        "id": "src-lenny-ai-evals",
+        "label": "AI Evals Framework",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/frameworks/ai-evals-framework.md",
+        "person": "Hamel Husain & Shreya Shankar",
+        "title": "AI Evals Framework",
+        "url": "https://www.youtube.com/watch?v=BsWxPI9UM4c",
+        "publishedAt": "2025-09-25",
+        "evidenceLevel": "A",
+        "notes": "Open coding, eval rubric, representative data, regression safety for AI products"
+      },
+      {
+        "id": "src-lenny-product-velocity",
+        "label": "Product Velocity Framework",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/frameworks/product-velocity-framework.md",
+        "person": "Lenny Rachitsky",
+        "title": "Product Velocity Framework",
+        "publishedAt": "2026-03-18",
+        "evidenceLevel": "B",
+        "notes": "Decision speed hierarchy, time-boxed debates, built-in analytics, variable scope with fixed time"
       }
     ],
     "status": "active",
     "createdAt": "2026-03-17T06:20:17.767Z",
-    "updatedAt": "2026-03-17T16:18:56.742Z"
+    "updatedAt": "2026-03-17T23:06:56.812Z"
   },
   {
     "id": "zhang",
@@ -427,10 +450,33 @@
         "publishedAt": "2014-12-28",
         "evidenceLevel": "A",
         "notes": "Forest not palace, dynamic system, decentralized traffic, user value first"
+      },
+      {
+        "id": "src-zhang-product-philosophy-2012",
+        "label": "WeChat Product Philosophy Speech (2012)",
+        "type": "article",
+        "path": "people/product/zhang-xiaolong/articles/2012-wechat-product-philosophy-speech.md",
+        "person": "Zhang Xiaolong",
+        "title": "微信背后的产品观：简单之美与人性洞察",
+        "publishedAt": "2012-06-15",
+        "evidenceLevel": "A",
+        "notes": "No explanatory text, primal interactions, simple rules drive complex evolution"
+      },
+      {
+        "id": "src-zhang-wxg-leadership-2016",
+        "label": "WXG Leadership Talk (2016)",
+        "type": "article",
+        "path": "people/product/zhang-xiaolong/talks/talk-wxg-leadership-2016.md",
+        "person": "Zhang Xiaolong",
+        "title": "KPI是副产品，警惕复杂流程——WXG领导力大会内部分享",
+        "url": "https://www.digitaling.com/articles/31588.html",
+        "publishedAt": "2016-10-30",
+        "evidenceLevel": "A",
+        "notes": "KPI as byproduct, use-and-go products, 150-person team limits, small team agility"
       }
     ],
     "status": "active",
     "createdAt": "2026-03-17T14:06:39.805Z",
-    "updatedAt": "2026-03-17T16:18:56.742Z"
+    "updatedAt": "2026-03-17T23:06:56.812Z"
   }
 ]

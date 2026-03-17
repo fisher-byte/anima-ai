@@ -16,8 +16,9 @@ export function buildMentionTokenText(
   label: string,
   mode: DecisionMode | undefined,
   decisionModeLabel = '灵思',
+  annotateDecision = true,
 ): string {
-  return mode === 'decision'
+  return mode === 'decision' && annotateDecision
     ? `@${label}〔${decisionModeLabel}〕 `
     : `@${label} `
 }
