@@ -1099,7 +1099,10 @@ export function Canvas() {
         >
           <div className="w-7 h-7 rounded-full bg-gray-900 border border-gray-700/50 flex items-center justify-center text-white font-semibold text-[11px] shrink-0">L</div>
           <div className="text-left flex-1 min-w-0">
-            <div className="text-[11px] font-semibold text-gray-700 leading-tight truncate">Lenny Rachitsky</div>
+            <div className="flex items-center gap-1.5">
+              <div className="text-[11px] font-semibold text-gray-700 leading-tight truncate">Lenny Rachitsky</div>
+              <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">{t.space.decisionModeLingSi}</span>
+            </div>
             <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{t.canvas.lennySubtitle}</div>
           </div>
           <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
@@ -1129,7 +1132,10 @@ export function Canvas() {
         >
           <div className="w-7 h-7 rounded-full bg-gray-900 border border-gray-700/50 flex items-center justify-center text-white font-semibold text-[11px] shrink-0">张</div>
           <div className="text-left flex-1 min-w-0">
-            <div className="text-[11px] font-semibold text-gray-700 leading-tight truncate">张小龙</div>
+            <div className="flex items-center gap-1.5">
+              <div className="text-[11px] font-semibold text-gray-700 leading-tight truncate">张小龙</div>
+              <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">{t.space.decisionModeLingSi}</span>
+            </div>
             <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{t.canvas.zhangSubtitle}</div>
           </div>
           <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>

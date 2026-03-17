@@ -174,6 +174,43 @@ describe('canvasStore — openLennyMode / closeLennyMode', () => {
 
     expect(useCanvasStore.getState().currentConversation?.decisionTrace?.mode).toBe('decision')
   })
+
+  it('startConversation stores invokedAssistant metadata for homepage @ persona calls', async () => {
+    const { useCanvasStore } = await import('../canvasStore')
+
+    useCanvasStore.setState({
+      isLennyMode: false,
+      isPGMode: false,
+      isZhangMode: false,
+      isWangMode: false,
+    })
+
+    await useCanvasStore.getState().startConversation(
+      '@张小龙〔灵思〕 帮我看下这个产品方向',
+      [],
+      [],
+      undefined,
+      {
+        invokedAssistant: {
+          type: 'public_space',
+          id: 'zhang',
+          name: '张小龙',
+          mode: 'decision',
+        },
+      },
+    )
+
+    expect(useCanvasStore.getState().currentConversation?.invokedAssistant).toEqual({
+      type: 'public_space',
+      id: 'zhang',
+      name: '张小龙',
+      mode: 'decision',
+    })
+    expect(useCanvasStore.getState().currentConversation?.decisionTrace).toEqual({
+      mode: 'decision',
+      personaId: 'zhang',
+    })
+  })
 })
 
 describe('canvasStore — endConversation in lenny mode', () => {

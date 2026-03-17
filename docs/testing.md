@@ -1,6 +1,6 @@
 # Anima 测试手册
 
-*最后更新: 2026-03-17 | 版本: v0.5.15*
+*最后更新: 2026-03-17 | 版本: v0.5.16*
 
 ## 测试策略
 
@@ -22,9 +22,10 @@
 - ✅ `services/lingsi.ts` — LingSi seed 初始化、加载与 persona 过滤（3 个用例）
 - ✅ `canvasStore.nodeConsolidation.test.ts` — 节点聚合逻辑（25 个用例）
   - 节点合并阈值、相似度判断、聚合后数据一致性
-- ✅ `canvasStore.lennyMode.test.ts` — Lenny Space 模式（17 个用例）
+- ✅ `canvasStore.lennyMode.test.ts` — Lenny Space 模式（18 个用例）
   - Lenny Space 开关、节点加载、状态隔离、decision mode 同步
   - 进入 Lenny Space 时清理 onboarding/modal residue
+  - 主页 `@persona` 调用时会记录 `invokedAssistant` 元数据
 - ✅ `canvasStore.customSpaceMode.test.ts` — 用户自定义 Space 模式（19 个用例）
   - `openCustomSpaceMode` 设置标志 + 互斥清除其他 Space 标志
   - `closeCustomSpaceMode` 重置全部状态
@@ -41,6 +42,10 @@
 - ✅ `lingsiTrace.test.ts` — 灵思证据展示辅助函数（5 个用例）
   - DecisionUnit 标题回退、source label 格式化、matched ids -> 标题解析
   - 正文脚注插入、重复脚注保护
+- ✅ `inputMentions.test.ts` — 结构化 mention token（5 个用例）
+  - `@persona〔普通/灵思〕` token 生成、替换、同步、整体删除
+- ✅ `personaSpaces.test.ts` — 主页 persona mode 解析（3 个用例）
+  - Space toggle / homepage `invokedAssistant` / `decisionTrace` 三种 mode 来源的优先级
 
 **运行命令**:
 ```bash
@@ -95,7 +100,7 @@ npm run test:watch    # 监听模式（开发时用）
 
 - ✅ `memory.test.ts` — 记忆路由集成测试（含 FTS5 trigger、引用块过滤、decayPreferences、语义边 by-id）
 
-**总测试数**: **577 个用例，25 个测试文件，全部通过**
+**总测试数**: **586 个用例，27 个测试文件，全部通过**
 
 ---
 

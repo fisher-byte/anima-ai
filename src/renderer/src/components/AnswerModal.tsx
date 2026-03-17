@@ -30,7 +30,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useAI } from '../hooks/useAI'
-import type { FileAttachment, Conversation, DecisionTrace } from '@shared/types'
+import type { AssistantInvocation, DecisionTrace, DecisionUnit, FileAttachment, Conversation } from '@shared/types'
 import type { AIMessage } from '@shared/types'
 import { parseFiles, formatFilesForAI } from '../../../services/fileParsing'
 import { ThinkingSection } from './ThinkingSection'
@@ -56,7 +56,8 @@ import {
   InputArea,
   LingSiTracePanel,
 } from './AnswerModalSubcomponents'
-import { injectLingSiInlineCitations, resolveDecisionUnitLabels } from '../utils/lingsiTrace'
+import { injectLingSiInlineCitations } from '../utils/lingsiTrace'
+import { getDecisionPersonaForPublicSpace, getSystemPromptForPublicSpace, resolveDecisionModeForPersona } from '../utils/personaSpaces'
 import { useT } from '../i18n'
 
 function authFetch(url: string, init?: RequestInit): Promise<Response> {
@@ -109,11 +110,14 @@ export function AnswerModal() {
   const isCustomSpaceMode = useCanvasStore(state => state.isCustomSpaceMode)
   const activeCustomSpaceId = useCanvasStore(state => state.activeCustomSpaceId)
   const customSpaces = useCanvasStore(state => state.customSpaces)
+  const invokedAssistant: AssistantInvocation | undefined = currentConversation?.invokedAssistant
   const activeDecisionPersona = isLennyMode && !isPGMode && !isWangMode
     ? (isZhangMode
       ? { id: 'zhang' as const, name: '张小龙' }
       : { id: 'lenny' as const, name: 'Lenny Rachitsky' })
-    : null
+    : invokedAssistant?.type === 'public_space'
+      ? getDecisionPersonaForPublicSpace(invokedAssistant.id)
+      : null
 
   const [turns, setTurns] = useState<Turn[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
@@ -151,7 +155,7 @@ export function AnswerModal() {
   const [editingContent, setEditingContent] = useState('')
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [decisionUnitLabels, setDecisionUnitLabels] = useState<string[]>([])
+  const [matchedDecisionUnits, setMatchedDecisionUnits] = useState<DecisionUnit[]>([])
   const lastDeepSearchContextRef = useRef<{
     conversationId?: string
     messages: AIMessage[]
@@ -180,13 +184,40 @@ export function AnswerModal() {
       : '[无回复]'
   }, [])
 
+  const resolveAssistantPromptOverride = useCallback((): string | undefined => {
+    if (isCustomSpaceMode) {
+      const activeSpace = customSpaces.find(space => space.id === activeCustomSpaceId)
+      return activeSpace?.systemPrompt ?? LENNY_SYSTEM_PROMPT
+    }
+
+    if (isLennyMode) {
+      return isPGMode ? PG_SYSTEM_PROMPT : isZhangMode ? ZHANG_SYSTEM_PROMPT : isWangMode ? WANG_SYSTEM_PROMPT : LENNY_SYSTEM_PROMPT
+    }
+
+    if (!invokedAssistant) return undefined
+
+    if (invokedAssistant.type === 'custom_space') {
+      const invokedSpace = customSpaces.find(space => space.id === invokedAssistant.id)
+      return invokedSpace?.systemPrompt
+    }
+
+    return getSystemPromptForPublicSpace(invokedAssistant.id)
+  }, [activeCustomSpaceId, customSpaces, invokedAssistant, isCustomSpaceMode, isLennyMode, isPGMode, isWangMode, isZhangMode])
+
   const buildLingSiRequest = useCallback(async (userMessage: string) => {
     if (!activeDecisionPersona) {
       return { extraContext: undefined, decisionTrace: { mode: 'normal' as const } }
     }
 
     await ensureLingSiStorageSeeded()
-    const currentMode = activeDecisionPersona.id === 'zhang' ? zhangDecisionMode : lennyDecisionMode
+    const currentMode = resolveDecisionModeForPersona({
+      personaId: activeDecisionPersona.id,
+      isPublicSpaceMode: isLennyMode,
+      lennyDecisionMode,
+      zhangDecisionMode,
+      invokedAssistant,
+      decisionTrace: currentConversation?.decisionTrace,
+    })
     const payload = await buildLingSiDecisionPayload(userMessage, currentMode, {
       personaId: activeDecisionPersona.id,
       personaName: activeDecisionPersona.name,
@@ -199,7 +230,7 @@ export function AnswerModal() {
     }
 
     return payload
-  }, [activeDecisionPersona, currentConversation, lennyDecisionMode, updateConversation, zhangDecisionMode])
+  }, [activeDecisionPersona, currentConversation, invokedAssistant, isLennyMode, lennyDecisionMode, updateConversation, zhangDecisionMode])
 
   const autoSaveIfNeeded = useCallback(async () => {
     try {
@@ -244,7 +275,7 @@ export function AnswerModal() {
     !!activeDecisionTrace &&
     activeDecisionTrace.mode === 'decision' &&
     !!activeDecisionPersona &&
-    ((activeDecisionTrace.sourceRefs?.length ?? 0) > 0 || decisionUnitLabels.length > 0)
+    ((activeDecisionTrace.sourceRefs?.length ?? 0) > 0 || matchedDecisionUnits.length > 0)
 
   const renderAssistantMarkdown = useCallback((assistant: string, turnIndex: number) => {
     const base = stripLeadingNumberHeading(assistant || (isStreaming && turnIndex === turns.length - 1 ? '...' : ''))
@@ -262,7 +293,7 @@ export function AnswerModal() {
     let cancelled = false
     const matchedIds = currentConversation?.decisionTrace?.matchedDecisionUnitIds
     if (!matchedIds?.length) {
-      setDecisionUnitLabels([])
+      setMatchedDecisionUnits([])
       return
     }
 
@@ -270,7 +301,7 @@ export function AnswerModal() {
       const units = await loadDecisionUnits()
       const scopedUnits = activeDecisionPersona ? units.filter(unit => unit.personaId === activeDecisionPersona.id) : units
       if (cancelled) return
-      setDecisionUnitLabels(resolveDecisionUnitLabels(matchedIds, scopedUnits))
+      setMatchedDecisionUnits(scopedUnits.filter(unit => matchedIds.includes(unit.id)))
     })()
 
     return () => {
@@ -692,15 +723,21 @@ export function AnswerModal() {
       setFeedbackMessage('')
 
       const preferences = (isLennyMode || isCustomSpaceMode) ? [] : getPreferencesForPrompt()
-      // Lenny/PG/Custom Space 模式：不传 conversationId（避免持久化到用户 conversation_history），使用对应 persona 的 system prompt
-      if (isCustomSpaceMode) {
-        const activeSpace = customSpaces.find(s => s.id === activeCustomSpaceId)
-        const spacePrompt = activeSpace?.systemPrompt ?? LENNY_SYSTEM_PROMPT
-        sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false, undefined, spacePrompt)
-      } else if (isLennyMode) {
-        const spacePrompt = isPGMode ? PG_SYSTEM_PROMPT : isZhangMode ? ZHANG_SYSTEM_PROMPT : isWangMode ? WANG_SYSTEM_PROMPT : LENNY_SYSTEM_PROMPT
+      const systemPromptOverride = resolveAssistantPromptOverride()
+      if (systemPromptOverride) {
         const decisionPayload = await buildLingSiRequest(currentConversation.userMessage)
-        sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false, undefined, spacePrompt, decisionPayload.extraContext)
+        const shouldPersistHistory = !isLennyMode && !isCustomSpaceMode
+        sendMessage(
+          currentConversation.userMessage,
+          preferences,
+          [],
+          currentConversation.images,
+          compressed,
+          false,
+          shouldPersistHistory ? currentConversation.id : undefined,
+          systemPromptOverride,
+          decisionPayload.extraContext,
+        )
       } else {
         sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false, currentConversation.id)
         lastDeepSearchContextRef.current = {
@@ -714,7 +751,7 @@ export function AnswerModal() {
     }
 
     prepareConversation()
-  }, [isModalOpen, currentConversation, isOnboardingMode, isLoading, resetHistory, sendMessage, getPreferencesForPrompt, getRelevantMemories, isLennyMode, isPGMode, isZhangMode, isWangMode, isCustomSpaceMode, customSpaces, activeCustomSpaceId, buildLingSiRequest])
+  }, [isModalOpen, currentConversation, isOnboardingMode, isLoading, resetHistory, sendMessage, getPreferencesForPrompt, getRelevantMemories, isLennyMode, isCustomSpaceMode, buildLingSiRequest, resolveAssistantPromptOverride])
 
   // ── 深度搜索后台任务轮询：可跨页面继续，完成后回写到当前节点 ────────────────
   useEffect(() => {
@@ -821,14 +858,11 @@ export function AnswerModal() {
     setIsStreaming(true)
     didMutateRef.current = true
     const preferences = (isLennyMode || isCustomSpaceMode) ? [] : getPreferencesForPrompt()
-    if (isCustomSpaceMode) {
-      const activeSpace = customSpaces.find(s => s.id === activeCustomSpaceId)
-      const spacePrompt = activeSpace?.systemPrompt ?? LENNY_SYSTEM_PROMPT
-      sendMessage(newContent, preferences, history, currentTurn.images, undefined, undefined, undefined, spacePrompt)
-    } else if (isLennyMode) {
-      const spacePrompt = isPGMode ? PG_SYSTEM_PROMPT : isZhangMode ? ZHANG_SYSTEM_PROMPT : isWangMode ? WANG_SYSTEM_PROMPT : LENNY_SYSTEM_PROMPT
+    const systemPromptOverride = resolveAssistantPromptOverride()
+    if (systemPromptOverride) {
       const decisionPayload = await buildLingSiRequest(newContent)
-      sendMessage(newContent, preferences, history, currentTurn.images, undefined, undefined, undefined, spacePrompt, decisionPayload.extraContext)
+      const shouldPersistHistory = !isLennyMode && !isCustomSpaceMode
+      sendMessage(newContent, preferences, history, currentTurn.images, undefined, undefined, shouldPersistHistory ? currentConversation.id : undefined, systemPromptOverride, decisionPayload.extraContext)
     } else {
       sendMessage(newContent, preferences, history, currentTurn.images, undefined, undefined, currentConversation.id)
     }
@@ -847,18 +881,15 @@ export function AnswerModal() {
     setTurns(newTurns)
     setIsStreaming(true)
     const preferences = (isLennyMode || isCustomSpaceMode) ? [] : getPreferencesForPrompt()
-    if (isCustomSpaceMode) {
-      const activeSpace = customSpaces.find(s => s.id === activeCustomSpaceId)
-      const spacePrompt = activeSpace?.systemPrompt ?? LENNY_SYSTEM_PROMPT
-      sendMessage(currentTurn.user, preferences, history, currentTurn.images, undefined, undefined, undefined, spacePrompt)
-    } else if (isLennyMode) {
-      const spacePrompt = isPGMode ? PG_SYSTEM_PROMPT : isZhangMode ? ZHANG_SYSTEM_PROMPT : isWangMode ? WANG_SYSTEM_PROMPT : LENNY_SYSTEM_PROMPT
+    const systemPromptOverride = resolveAssistantPromptOverride()
+    if (systemPromptOverride) {
       const decisionPayload = await buildLingSiRequest(currentTurn.user)
-      sendMessage(currentTurn.user, preferences, history, currentTurn.images, undefined, undefined, undefined, spacePrompt, decisionPayload.extraContext)
+      const shouldPersistHistory = !isLennyMode && !isCustomSpaceMode
+      sendMessage(currentTurn.user, preferences, history, currentTurn.images, undefined, undefined, shouldPersistHistory ? currentConversation.id : undefined, systemPromptOverride, decisionPayload.extraContext)
     } else {
       sendMessage(currentTurn.user, preferences, history, currentTurn.images, undefined, undefined, currentConversation.id)
     }
-  }, [turns, currentConversation, sendMessage, getPreferencesForPrompt, isLennyMode, isCustomSpaceMode, customSpaces, activeCustomSpaceId, isPGMode, isZhangMode, isWangMode, buildLingSiRequest])
+  }, [turns, currentConversation, sendMessage, getPreferencesForPrompt, isLennyMode, isCustomSpaceMode, buildLingSiRequest, resolveAssistantPromptOverride])
 
   const handleCopyMessage = useCallback(async (text: string, index: number) => {
     try {
@@ -1070,15 +1101,11 @@ export function AnswerModal() {
 
     const preferences = (isLennyMode || isCustomSpaceMode) ? [] : getPreferencesForPrompt()
     didMutateRef.current = true
-    // Custom Space / Lenny/PG 模式：传 systemPromptOverride + 历史记忆压缩，不传 conversationId（避免写用户历史）
-    if (isCustomSpaceMode) {
-      const activeSpace = customSpaces.find(s => s.id === activeCustomSpaceId)
-      const spacePrompt = activeSpace?.systemPrompt ?? LENNY_SYSTEM_PROMPT
-      sendMessage(fullMessage, preferences, history, pendingImages, compressed, false, undefined, spacePrompt)
-    } else if (isLennyMode) {
-      const spacePrompt = isPGMode ? PG_SYSTEM_PROMPT : isZhangMode ? ZHANG_SYSTEM_PROMPT : isWangMode ? WANG_SYSTEM_PROMPT : LENNY_SYSTEM_PROMPT
+    const systemPromptOverride = resolveAssistantPromptOverride()
+    if (systemPromptOverride) {
       const decisionPayload = await buildLingSiRequest(fullTrimmed)
-      sendMessage(fullMessage, preferences, history, pendingImages, compressed, false, undefined, spacePrompt, decisionPayload.extraContext)
+      const shouldPersistHistory = !isLennyMode && !isCustomSpaceMode
+      sendMessage(fullMessage, preferences, history, pendingImages, compressed, false, shouldPersistHistory ? currentConversation?.id : undefined, systemPromptOverride, decisionPayload.extraContext)
     } else {
       // 记录上下文，便于“关闭窗口→后台继续深度搜索”
       lastDeepSearchContextRef.current = {
@@ -1090,9 +1117,9 @@ export function AnswerModal() {
       }
       sendMessage(fullMessage, preferences, history, pendingImages, compressed, isOnboardingMode, isOnboardingMode ? undefined : currentConversation?.id)
     }
-  }, [feedbackMessage, pendingImages, pendingFiles, pendingReferenceBlocks, isStreaming, isOnboardingMode, isLennyMode, isPGMode, isZhangMode, isWangMode,
-      isCustomSpaceMode, activeCustomSpaceId, customSpaces,
-      getPreferencesForPrompt, sendMessage, turns, getRelevantMemories, setHighlight, focusNode, buildLingSiRequest])
+  }, [feedbackMessage, pendingImages, pendingFiles, pendingReferenceBlocks, isStreaming, isOnboardingMode, isLennyMode,
+      isCustomSpaceMode, getPreferencesForPrompt, sendMessage, turns, getRelevantMemories, setHighlight, focusNode,
+      buildLingSiRequest, currentConversation?.id, resolveAssistantPromptOverride])
 
   // ── 关闭并保存 ────────────────────────────────────────────────────────────
   const handleClose = useCallback(async () => {
@@ -1570,7 +1597,8 @@ export function AnswerModal() {
                               {idx === turns.length - 1 && shouldShowLingSiTrace && (
                                 <LingSiTracePanel
                                   mode={activeDecisionTrace.mode}
-                                  matchedUnitLabels={decisionUnitLabels}
+                                  personaName={activeDecisionPersona?.name ?? invokedAssistant?.name ?? 'LingSi'}
+                                  matchedUnits={matchedDecisionUnits}
                                   sourceRefs={activeDecisionTrace.sourceRefs ?? []}
                                 />
                               )}

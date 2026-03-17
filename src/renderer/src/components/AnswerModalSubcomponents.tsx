@@ -14,9 +14,9 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Sparkles, Square, Paperclip, X, ArrowUp,
-  File as FileIcon, Quote, ChevronDown, ChevronUp, BookOpen
+  File as FileIcon, Quote, ChevronDown, ChevronUp, BookOpen, Route, ExternalLink
 } from 'lucide-react'
-import type { DecisionMode, DecisionSourceRef, FileAttachment } from '@shared/types'
+import type { DecisionMode, DecisionSourceRef, DecisionUnit, FileAttachment } from '@shared/types'
 import { stripFileBlocksOnly } from '../utils/conversationUtils'
 import { formatLingSiSourceLabel } from '../utils/lingsiTrace'
 import { useT } from '../i18n'
@@ -115,15 +115,21 @@ export function ClosingAnimation({ isOnboarding, appliedPreferences }: { isOnboa
 
 export function LingSiTracePanel({
   mode,
-  matchedUnitLabels,
+  personaName,
+  matchedUnits,
   sourceRefs,
 }: {
   mode: DecisionMode
-  matchedUnitLabels: string[]
+  personaName: string
+  matchedUnits: DecisionUnit[]
   sourceRefs: DecisionSourceRef[]
 }) {
   const { t } = useT()
   const [expanded, setExpanded] = useState(true)
+  const [showTraceView, setShowTraceView] = useState(false)
+  const matchedUnitLabels = matchedUnits.map((unit) => unit.title)
+  const nextActions = Array.from(new Set(matchedUnits.flatMap((unit) => unit.nextActions))).slice(0, 6)
+  const followUpQuestions = Array.from(new Set(matchedUnits.flatMap((unit) => unit.followUpQuestions))).slice(0, 6)
 
   if (mode !== 'decision' || (matchedUnitLabels.length === 0 && sourceRefs.length === 0)) return null
 
@@ -150,7 +156,18 @@ export function LingSiTracePanel({
             {t.modal.lingsiDecisionTrace}
           </div>
         </div>
-        <div className="pt-1 text-amber-500">
+        <div className="flex items-center gap-2 pt-1 text-amber-500">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setShowTraceView(true)
+            }}
+            className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-1 text-[11px] font-medium text-amber-700 hover:bg-white"
+          >
+            <Route className="h-3 w-3" />
+            {t.modal.lingsiOpenTrace}
+          </button>
           {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </div>
       </button>
@@ -159,14 +176,27 @@ export function LingSiTracePanel({
         <div className="mt-3 space-y-3 border-t border-amber-200/70 pt-3">
           {matchedUnitLabels.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
-              {matchedUnitLabels.map((label, idx) => (
+              {matchedUnits.map((unit, idx) => (
                 <span
-                  key={`${label}-${idx}`}
+                  key={`${unit.id}-${idx}`}
                   className="rounded-full border border-amber-200 bg-white/70 px-2.5 py-1 text-[11px] text-amber-900"
                 >
-                  {label}
+                  {unit.title}
                 </span>
               ))}
+            </div>
+          )}
+
+          {nextActions.length > 0 && (
+            <div className="rounded-xl border border-amber-200/70 bg-white/75 px-3 py-2.5">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+                {t.modal.lingsiNextActions}
+              </div>
+              <ul className="mt-2 space-y-1.5 pl-4 text-[12px] leading-5 text-gray-700">
+                {nextActions.slice(0, 3).map((action, idx) => (
+                  <li key={`${action}-${idx}`}>{action}</li>
+                ))}
+              </ul>
             </div>
           )}
 
@@ -202,6 +232,122 @@ export function LingSiTracePanel({
           )}
         </div>
       )}
+
+      <AnimatePresence>
+        {showTraceView && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[130] bg-black/40"
+              onClick={() => setShowTraceView(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 24, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.98 }}
+              className="fixed inset-x-0 top-8 z-[131] mx-auto max-h-[80vh] w-[min(880px,calc(100vw-32px))] overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-2xl"
+            >
+              <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5">
+                <div>
+                  <div className="text-[12px] font-semibold uppercase tracking-[0.18em] text-amber-600">
+                    {t.modal.lingsiTraceView}
+                  </div>
+                  <div className="mt-1 text-[22px] font-semibold text-gray-900">
+                    {personaName} · {t.space.decisionModeLingSi}
+                  </div>
+                  <div className="mt-2 text-[13px] text-gray-500">
+                    {t.modal.lingsiUnits(matchedUnits.length)} · {t.modal.lingsiSources(sourceRefs.length)}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowTraceView(false)}
+                  className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="grid max-h-[calc(80vh-96px)] gap-0 overflow-y-auto md:grid-cols-[1.2fr_0.8fr]">
+                <div className="space-y-4 border-b border-gray-100 px-6 py-5 md:border-b-0 md:border-r">
+                  <section>
+                    <div className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">
+                      {t.modal.lingsiMatchedUnits}
+                    </div>
+                    <div className="mt-3 space-y-3">
+                      {matchedUnits.map((unit) => (
+                        <div key={unit.id} className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+                          <div className="text-[14px] font-semibold text-gray-900">{unit.title}</div>
+                          <div className="mt-1 text-[13px] leading-6 text-gray-600">{unit.summary}</div>
+                          {unit.preferredPath && (
+                            <div className="mt-3 rounded-xl bg-white px-3 py-2 text-[12px] leading-5 text-gray-700">
+                              <span className="font-medium text-gray-900">{t.modal.lingsiPreferredPath}:</span> {unit.preferredPath}
+                            </div>
+                          )}
+                          {unit.nextActions.length > 0 && (
+                            <ul className="mt-3 space-y-1.5 pl-4 text-[12px] leading-5 text-gray-700">
+                              {unit.nextActions.slice(0, 3).map((action, idx) => (
+                                <li key={`${unit.id}-action-${idx}`}>{action}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                </div>
+
+                <div className="space-y-4 px-6 py-5">
+                  {followUpQuestions.length > 0 && (
+                    <section>
+                      <div className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">
+                        {t.modal.lingsiFollowUpQuestions}
+                      </div>
+                      <ul className="mt-3 space-y-2 pl-4 text-[12px] leading-5 text-gray-700">
+                        {followUpQuestions.map((question, idx) => (
+                          <li key={`${question}-${idx}`}>{question}</li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
+
+                  <section>
+                    <div className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">
+                      {t.modal.lingsiSources(sourceRefs.length)}
+                    </div>
+                    <div className="mt-3 space-y-3">
+                      {sourceRefs.map((ref, idx) => (
+                        <div key={`${ref.id}-${idx}`} className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+                          <div className="flex items-center gap-2 text-[12px] font-medium text-gray-900">
+                            <span>[{idx + 1}]</span>
+                            <span>{formatLingSiSourceLabel(ref)}</span>
+                            <span className="rounded-full bg-white px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-gray-500">
+                              {ref.evidenceLevel}
+                            </span>
+                          </div>
+                          {ref.excerpt && (
+                            <blockquote className="mt-2 border-l-2 border-amber-300 pl-3 text-[12px] leading-5 text-gray-600">
+                              {ref.excerpt}
+                            </blockquote>
+                          )}
+                          {ref.path && (
+                            <div className="mt-2 inline-flex items-center gap-1 text-[11px] text-gray-500">
+                              <ExternalLink className="h-3 w-3" />
+                              <span>{ref.path}</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

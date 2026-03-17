@@ -250,6 +250,12 @@ export interface Translations {
     lingsiDecisionTrace: string
     lingsiUnits: (n: number) => string
     lingsiSources: (n: number) => string
+    lingsiOpenTrace: string
+    lingsiTraceView: string
+    lingsiMatchedUnits: string
+    lingsiPreferredPath: string
+    lingsiNextActions: string
+    lingsiFollowUpQuestions: string
     exportMd: string
     exportJson: string
     connecting: string
@@ -617,6 +623,12 @@ export const zh: Translations = {
     lingsiDecisionTrace: '当前回答所依据的决策单元与真实来源片段。',
     lingsiUnits: (n: number) => `命中 ${n} 个 Decision Unit`,
     lingsiSources: (n: number) => `${n} 条来源`,
+    lingsiOpenTrace: '查看轨迹',
+    lingsiTraceView: '决策轨迹',
+    lingsiMatchedUnits: '命中单元',
+    lingsiPreferredPath: '推荐路径',
+    lingsiNextActions: '下一步动作',
+    lingsiFollowUpQuestions: '追问与校验',
     exportMd: '导出对话 (MD)',
     exportJson: '导出全量数据 (JSON)',
     connecting: '正在连接…',

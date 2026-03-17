@@ -91,7 +91,13 @@ interface CanvasState {
   setView: (offset: NodePosition, scale: number) => void
   focusNode: (id: string) => void
   resetView: () => void
-  startConversation: (userMessage: string, images?: string[], files?: import('@shared/types').FileAttachment[], parentId?: string) => Promise<void>
+  startConversation: (
+    userMessage: string,
+    images?: string[],
+    files?: import('@shared/types').FileAttachment[],
+    parentId?: string,
+    options?: { invokedAssistant?: import('@shared/types').AssistantInvocation }
+  ) => Promise<void>
   updateConversation: (conversationId: string, updates: Partial<Conversation>) => Promise<void>
   endConversation: (assistantMessage: string, appliedPreferences?: string[], reasoning_content?: string, explicitConversation?: Conversation) => Promise<void>
   closeModal: () => void
@@ -1539,7 +1545,13 @@ export const useCanvasStore = create<CanvasState>()(
   },
 
   // 开始对话 (增强：检测意图并智能分支)
-  startConversation: async (userMessage: string, images?: string[], files?: import('@shared/types').FileAttachment[], parentId?: string) => {
+  startConversation: async (
+    userMessage: string,
+    images?: string[],
+    files?: import('@shared/types').FileAttachment[],
+    parentId?: string,
+    options?: { invokedAssistant?: import('@shared/types').AssistantInvocation },
+  ) => {
     const {
       nodes, detectIntent, getRelevantMemories, isLennyMode, isPGMode, isZhangMode, isWangMode, lennyDecisionMode, zhangDecisionMode,
     } = get()
@@ -1555,10 +1567,16 @@ export const useCanvasStore = create<CanvasState>()(
       createdAt: new Date().toISOString(),
       userMessage,
       assistantMessage: '',
+      invokedAssistant: options?.invokedAssistant,
       decisionTrace: isLennyMode && !isPGMode && !isWangMode
         ? isZhangMode
           ? { mode: zhangDecisionMode, personaId: 'zhang' }
           : { mode: lennyDecisionMode, personaId: 'lenny' }
+        : options?.invokedAssistant?.type === 'public_space' && (options.invokedAssistant.id === 'lenny' || options.invokedAssistant.id === 'zhang')
+          ? {
+              mode: options.invokedAssistant.mode ?? 'normal',
+              personaId: options.invokedAssistant.id,
+            }
         : undefined,
       images: images || [],
       files: files || [],
