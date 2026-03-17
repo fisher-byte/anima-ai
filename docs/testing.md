@@ -1,6 +1,6 @@
 # Anima 测试手册
 
-*最后更新: 2026-03-17 | 版本: v0.5.9*
+*最后更新: 2026-03-17 | 版本: v0.5.10*
 
 ## 测试策略
 
@@ -22,9 +22,10 @@
 - ✅ `services/lingsi.ts` — LingSi seed 初始化与加载（2 个用例）
 - ✅ `canvasStore.nodeConsolidation.test.ts` — 节点聚合逻辑（25 个用例）
   - 节点合并阈值、相似度判断、聚合后数据一致性
-- ✅ `canvasStore.lennyMode.test.ts` — Lenny Space 模式（16 个用例）
+- ✅ `canvasStore.lennyMode.test.ts` — Lenny Space 模式（17 个用例）
   - Lenny Space 开关、节点加载、状态隔离、decision mode 同步
-- ✅ `canvasStore.customSpaceMode.test.ts` — 用户自定义 Space 模式（18 个用例）
+  - 进入 Lenny Space 时清理 onboarding/modal residue
+- ✅ `canvasStore.customSpaceMode.test.ts` — 用户自定义 Space 模式（19 个用例）
   - `openCustomSpaceMode` 设置标志 + 互斥清除其他 Space 标志
   - `closeCustomSpaceMode` 重置全部状态
   - `createCustomSpace` 生成 id + 写 custom-spaces.json + 追加到数组
@@ -35,6 +36,8 @@
   - `isValidFilename` 接受 custom-{8}-nodes/conversations/edges + 拒绝非法变体
 - ✅ `rebuild-node-graph.test.ts` — 节点图重建（7 个用例）
   - 无数据返回 reason、clusters 数组格式、边界条件
+- ✅ `appToken.test.ts` — 启动期 token 修复（4 个用例）
+  - 失效 `anima_user_token` 回退到默认库、无 key 时保持原 token、空 token 直接跳过
 
 **运行命令**:
 ```bash
@@ -89,7 +92,7 @@ npm run test:watch    # 监听模式（开发时用）
 
 - ✅ `memory.test.ts` — 记忆路由集成测试（含 FTS5 trigger、引用块过滤、decayPreferences、语义边 by-id）
 
-**总测试数**: **560 个用例，23 个测试文件，全部通过**
+**总测试数**: **566 个用例，24 个测试文件，全部通过**
 
 ---
 
@@ -112,30 +115,31 @@ LingSi 评测补充：
 | 文件 | 测试数 | 覆盖内容 |
 |------|--------|---------|
 | `e2e/canvas.spec.ts` | 10 | 应用加载/能力块/后端 API/侧栏/节点/confirm dialog/API Key 提示 |
-| `e2e/features.spec.ts` | 36 | 引用块/文件标记/FTS5/decayPreferences/碰撞检测/多租户鉴权/semantic search/logical-edges/NodeTimeline/extract-topic/节点聚合 rebuild/Lenny Space 入口&白名单&种子数量 |
+| `e2e/features.spec.ts` | 33 | 引用块/文件标记/FTS5/decayPreferences/碰撞检测/多租户鉴权/semantic search/logical-edges/NodeTimeline/extract-topic/节点聚合 rebuild/Lenny/PG Space 入口与白名单 |
+| `e2e/journey.spec.ts` | 5 | 主空间 / PG / Lenny 对话闭环、回放追问、ESC 幂等保存 |
 
-**总 E2E 场景**：46 个（其中 1 个条件性 skip，视环境是否已配置 API Key）
+**总 E2E 结果**：48 个场景，`45 passed / 3 skipped`
 
 **环境要求**：需设置 `ACCESS_TOKEN` 环境变量（或在 `.env` 中配置）；无 token 时多租户鉴权相关测试自动跳过。
 
-#### 关键测试覆盖（v0.2.76 现状）
+#### 关键测试覆盖（v0.5.10 现状）
 
 | 场景 | 测试文件 | 测试编号 |
 |------|---------|---------|
 | 应用基础加载 | canvas.spec.ts | 1 |
 | 后端核心接口健康 | canvas.spec.ts | 3 |
 | POST /api/memory/queue 入队 | canvas.spec.ts | 7 |
-| GET /api/memory/logical-edges | features.spec.ts | 24-25 |
-| PUT /api/config/apikey 空值拒绝 | features.spec.ts | 26 |
-| 无 token → 401 | features.spec.ts | 21 |
+| 无 token 访问 `/api/memory/facts`（开放模型） | features.spec.ts | 21 |
+| 任意 token 访问 `/api/memory/facts`（按 token 隔离） | features.spec.ts | 22 |
 | 语义搜索 by-id | features.spec.ts | 23 |
-| NodeTimeline 多对话角标 | features.spec.ts | 29-30 |
-| extract-topic 接口 | features.spec.ts | 28 |
-| POST /api/memory/rebuild-node-graph | features.spec.ts | 31 |
-| 整理相似节点按钮可见 | features.spec.ts | 32-33 |
-| Lenny Space 入口按钮可见 | features.spec.ts | 34 |
-| lenny-nodes.json 白名单校验 | features.spec.ts | 35 |
-| Lenny Space 种子节点数量 ≥ 37 | features.spec.ts | 36 |
+| GET `/api/memory/logical-edges` | features.spec.ts | 24-25 |
+| PUT `/api/config/apikey` 空值拒绝 | features.spec.ts | 26 |
+| extract-topic 接口 | features.spec.ts | 28-29 |
+| NodeTimeline 多对话角标 + 面板打开 | features.spec.ts | 30-31 |
+| POST `/api/memory/rebuild-node-graph` | features.spec.ts | 32-34 |
+| Lenny / PG Space 入口与白名单 | features.spec.ts | 35-40 |
+| feedback API | features.spec.ts | 41-43 |
+| 主空间 / PG / Lenny 对话闭环 | journey.spec.ts | 44-48 |
 
 #### 手动测试清单（E2E 不覆盖的交互场景）
 

@@ -2,6 +2,12 @@
 
 ## 计划中版本
 
+#### v0.5.10 - LingSi 稳定性补丁（已完成）
+- [x] `App.tsx`：启动时修复失效 `anima_user_token`，默认库已配置可用 key 时自动回退，恢复浏览器真实提问链路
+- [x] `canvasStore.ts`：切换 Lenny / PG / 张 / 王 / Custom Space 时清空 onboarding residue、modal、当前对话和历史，避免状态串扰
+- [x] 新增 `appToken.test.ts` 与 Space 状态回归测试
+- [x] 验证：`npm test` 566/566、`npm run typecheck`、`npm run build`、`npm run test:e2e`（45 passed / 3 skipped）
+
 #### v0.5.5 - LingSi 决策版 MVP（里程碑收口）
 - [x] 文档定稿：`初步决策系统MVP设计(1).MD`、`docs/PROJECT.md`、`docs/ROADMAP.md`、`docs/sop-release.md`
 - [x] 数据层：新增 `decision-units.json`、`decision-personas.json`、`decision-source-manifest.json` 白名单与 schema

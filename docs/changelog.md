@@ -1,5 +1,26 @@
 # Anima 变更日志
 
+## [0.5.10] - 2026-03-17
+
+### fix: Lenny Space 状态收口 + 失效本地 token 修复
+
+**Bug 修复：**
+- `App.tsx`：启动时不再盲目沿用失效的 `anima_user_token`；若该 token 对应库无可用 key，而默认库已有可用 key，则自动移除失效 token 并回退到默认库，恢复浏览器真实提问链路
+- `canvasStore.ts`：切换 `Lenny / PG / 张 / 王 / Custom Space` 时统一清空 onboarding residue、modal、当前对话和历史，避免 Space 头部与 onboarding 输入框/会话状态串扰
+
+**测试与验证：**
+- 新增 `appToken.test.ts` 4 个用例，覆盖 token 保留/清理/空值边界
+- `canvasStore.lennyMode.test.ts` / `canvasStore.customSpaceMode.test.ts` 新增回归测试，覆盖 Space 切换时的状态清理
+- `npm test`：566/566 通过
+- `npm run typecheck`：通过
+- `npm run build`：通过
+- `npm run test:e2e`：45 passed / 3 skipped
+
+**代码审查结论：**
+- 评估过服务端配置 fallback 方案，但该方案会把默认库配置外溢到任意 token，存在多租户 secret 泄漏风险，已明确拒绝并未合入最终版本
+
+---
+
 ## [0.5.9] - 2026-03-14
 
 ### fix: memory extraction SHARED_API_KEY fallback + 记忆提取范围扩大

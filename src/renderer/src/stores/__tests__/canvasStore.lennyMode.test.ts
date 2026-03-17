@@ -83,6 +83,30 @@ describe('canvasStore — openLennyMode / closeLennyMode', () => {
     expect(useCanvasStore.getState().isLennyMode).toBe(true)
   })
 
+  it('openLennyMode clears onboarding/modal residue before entering Lenny Space', async () => {
+    const { useCanvasStore } = await import('../canvasStore')
+
+    useCanvasStore.setState({
+      isOnboardingMode: true,
+      onboardingPhase: 2,
+      onboardingResumeTurns: [{ user: 'hello', assistant: 'world' }],
+      isModalOpen: true,
+      currentConversation: makeConversation({ id: 'onboarding-conv' }),
+      conversationHistory: [{ role: 'user', content: 'hello' }],
+    })
+
+    useCanvasStore.getState().openLennyMode()
+
+    const state = useCanvasStore.getState()
+    expect(state.isLennyMode).toBe(true)
+    expect(state.isOnboardingMode).toBe(false)
+    expect(state.onboardingPhase).toBe(0)
+    expect(state.onboardingResumeTurns).toBeNull()
+    expect(state.isModalOpen).toBe(false)
+    expect(state.currentConversation).toBeNull()
+    expect(state.conversationHistory).toEqual([])
+  })
+
   it('closeLennyMode sets isLennyMode to false, isModalOpen to false, currentConversation to null', async () => {
     const { useCanvasStore } = await import('../canvasStore')
     const store = useCanvasStore.getState()
