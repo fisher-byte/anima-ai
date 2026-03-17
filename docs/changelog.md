@@ -1,5 +1,26 @@
 # Anima 变更日志
 
+## [0.5.11] - 2026-03-17
+
+### feat: LingSi 脚注与决策轨迹展示
+
+**新增能力：**
+- `AnswerModal.tsx`：对纯 Lenny 的决策对话展示灵思证据面板，直接暴露当前对话的 `DecisionUnit` 命中和来源脚注
+- `AnswerModalSubcomponents.tsx`：新增 `LingSiTracePanel`，展示 `sourceRefs.locator / excerpt / evidenceLevel`
+- `lingsiTrace.ts`：补齐 DecisionUnit 标题解析与来源 label 格式化，避免 UI 层重复拼装逻辑
+
+**测试与验证：**
+- 新增 `lingsiTrace.test.ts` 3 个用例
+- `npm test`：569/569 通过
+- `npm run typecheck`：通过
+- `npm run build`：通过
+- `npm run test:e2e`：45 passed / 3 skipped
+
+**代码审查结论：**
+- 本轮 diff 已检查，无新增阻塞项；服务端接口和多租户边界未变更
+
+---
+
 ## [0.5.10] - 2026-03-17
 
 ### fix: Lenny Space 状态收口 + 失效本地 token 修复

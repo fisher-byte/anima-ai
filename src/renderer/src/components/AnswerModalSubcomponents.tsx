@@ -14,10 +14,11 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Sparkles, Square, Paperclip, X, ArrowUp,
-  File as FileIcon, Quote, ChevronDown, ChevronUp
+  File as FileIcon, Quote, ChevronDown, ChevronUp, BookOpen
 } from 'lucide-react'
-import type { FileAttachment } from '@shared/types'
+import type { DecisionMode, DecisionSourceRef, FileAttachment } from '@shared/types'
 import { stripFileBlocksOnly } from '../utils/conversationUtils'
+import { formatLingSiSourceLabel } from '../utils/lingsiTrace'
 import { useT } from '../i18n'
 
 // ── UserMessageContent ────────────────────────────────────────────────────────
@@ -107,6 +108,100 @@ export function ClosingAnimation({ isOnboarding, appliedPreferences }: { isOnboa
         </div>
       )}
     </motion.div>
+  )
+}
+
+// ── LingSiTracePanel ────────────────────────────────────────────────────────
+
+export function LingSiTracePanel({
+  mode,
+  matchedUnitLabels,
+  sourceRefs,
+}: {
+  mode: DecisionMode
+  matchedUnitLabels: string[]
+  sourceRefs: DecisionSourceRef[]
+}) {
+  const { t } = useT()
+  const [expanded, setExpanded] = useState(true)
+
+  if (mode !== 'decision' || (matchedUnitLabels.length === 0 && sourceRefs.length === 0)) return null
+
+  return (
+    <div className="mt-4 rounded-2xl border border-amber-200/80 bg-amber-50/70 px-4 py-3">
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="flex w-full items-start gap-3 text-left"
+      >
+        <div className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+          <BookOpen className="h-4 w-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[12px] font-semibold text-amber-900">{t.modal.lingsiEvidence}</span>
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+              {t.modal.lingsiMode}
+            </span>
+            <span className="text-[11px] text-amber-700/80">
+              {t.modal.lingsiUnits(matchedUnitLabels.length)} · {t.modal.lingsiSources(sourceRefs.length)}
+            </span>
+          </div>
+          <div className="mt-1 text-[12px] leading-5 text-amber-900/80">
+            {t.modal.lingsiDecisionTrace}
+          </div>
+        </div>
+        <div className="pt-1 text-amber-500">
+          {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="mt-3 space-y-3 border-t border-amber-200/70 pt-3">
+          {matchedUnitLabels.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {matchedUnitLabels.map((label, idx) => (
+                <span
+                  key={`${label}-${idx}`}
+                  className="rounded-full border border-amber-200 bg-white/70 px-2.5 py-1 text-[11px] text-amber-900"
+                >
+                  {label}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {sourceRefs.length > 0 && (
+            <ol className="space-y-2.5">
+              {sourceRefs.map((ref, idx) => (
+                <li
+                  key={`${ref.id}-${ref.locator ?? idx}`}
+                  className="rounded-xl border border-amber-200/70 bg-white/75 px-3 py-2.5"
+                >
+                  <div className="flex items-start gap-2">
+                    <span className="pt-0.5 text-[11px] font-semibold text-amber-700">[{idx + 1}]</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[12px] font-medium text-gray-800">
+                          {formatLingSiSourceLabel(ref)}
+                        </span>
+                        <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-gray-500">
+                          {ref.evidenceLevel}
+                        </span>
+                      </div>
+                      {ref.excerpt && (
+                        <blockquote className="mt-1.5 border-l-2 border-amber-300 pl-2.5 text-[12px] leading-5 text-gray-600">
+                          {ref.excerpt}
+                        </blockquote>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
