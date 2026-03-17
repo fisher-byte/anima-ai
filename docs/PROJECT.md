@@ -1,25 +1,24 @@
 # Anima — 项目计划
 
 > 唯一入口：每次发版、每次决策都在这里留记录。
-> 最后更新：2026-03-17 | 当前版本：v0.5.18
+> 最后更新：2026-03-18 | 当前版本：v0.5.19
 
 ---
 
-## 当前冲刺
+## 当前冲刺（v0.5.19 已完成）
 
-*新增冲刺：LingSi（灵思）决策版 MVP，`M4` 已完成，当前处于里程碑收口状态。*
+*本轮把 LingSi 前台表达和稳定性继续收口：统一用户可见命名为“决策”，主页 persona 调用改成 decision-only，同步最新 Lenny / 张小龙来源，并补上产品飞轮文档。*
 
 | # | 任务 | 状态 | 说明 |
 |---|------|------|------|
-| 1 | 灵思文档定稿 | 已完成 | MVP 范围、证据门槛、SOP 节奏已对齐 |
-| 2 | 真实证据层设计 | 已完成 | schema、共享类型、存储白名单、来源 manifest 已落地 |
-| 3 | 首批 DecisionUnit 基线入库 | 已完成 | 已生成 `seeds/lingsi` 基线：2 personas / 33 sources / 53 approved units，并支持写入 storage |
-| 4 | Lenny / 张小龙 决策模式接入 | 已完成 | 已接入 `normal / 灵思` 切换、extraContext 注入、decisionTrace 持久化，并按 persona 过滤命中结果 |
-| 5 | 验证与对照 | 已完成 | 已跑 `15` 个真实问题对照，`decision` 赢 `15` 题，结果沉淀到 `docs/lingsi-eval-m4.md` |
-| 6 | 脚注展示与决策轨迹 | 已完成 | AnswerModal 已展示当前对话的 DecisionUnit 命中、来源 locator/excerpt 与灵思证据面板 |
-| 7 | 正文内脚注编号 | 已完成 | 回答正文首段已插入 `[1][2]...` 锚点，脚注面板可直接跳转到对应来源 |
-| 8 | anima-base 增量评估与导入 | 已完成 | 已同步 `anima-base@851effb`，新增 Lenny / 张小龙最新决策案例，并把 LingSi 扩充到 33 sources / 53 approved units |
-| 9 | SOP 闭环 | 已完成 | 本轮最新 source refresh 已完成文档同步、`npm test`、`npm run typecheck`、`npm run build`、`npm run test:e2e`、targeted `LINGSI_EVAL_CASE=pmf-before-growth` 验证、code review 与 GitHub 备份 |
+| 1 | 首页 persona 卡片样式修复 | 已完成 | `Canvas.tsx` 改为 badge 绝对定位，标题支持完整显示，不再被 `决策` 标签挤压或截断 |
+| 2 | 主页 `@persona` 决策单轨化 | 已完成 | 支持决策模式的 persona 在主页 `@` 联想中只暴露决策版本，输入框 token 保持普通名字显示，但内部 metadata 仍记录 `mode='decision'` |
+| 3 | 决策命名澄清 | 已完成 | 前端用户可见文案从 `灵思` 统一为 `决策`，降低首次理解成本；系统内部仍保留 `LingSi` 作为工程名 |
+| 4 | 决策轨迹稳定性修复 | 已完成 | `查看轨迹` 在流式生成期间禁用；trace modal 改为 portal 渲染，并拆掉嵌套 button，避免页面卡死 |
+| 5 | anima-base 最新同步 | 已完成 | 已同步 `anima-base@a6c1078`，把最新 Lenny AI eval / velocity 与张小龙产品哲学 / 组织领导材料纳入人工审核链路 |
+| 6 | DecisionUnit 扩充 | 已完成 | `seeds/lingsi` 刷新到 `2 personas / 37 sources / 59 approved units`，其中 `lenny=37`、`zhang=22` |
+| 7 | Flywheel 文档补齐 | 已完成 | 新增 `docs/lingsi-flywheel.md`，定义产品状态包、persona 消费链路、人工审核与评测闭环 |
+| 8 | SOP 闭环 | 已完成 | 已完成 live eval、文档同步、code review、GitHub 备份、部署验证与本地/线上健康检查 |
 
 ---
 
@@ -29,8 +28,8 @@
 
 | # | 任务 | 状态 | 说明 |
 |---|------|------|------|
-| 1 | Space 入口灵思标识 | 已完成 | 在主页左侧 Lenny / 张小龙入口直接标出 `灵思` 能力，降低 discoverability 成本 |
-| 2 | 主页 `@` 支持灵思模式 | 已完成 | `@` 联想支持 `普通` / `灵思` persona suggestion，并把 mode 注入主页对话链路 |
+| 1 | Space 入口灵思标识 | 已完成 | 在主页左侧 Lenny / 张小龙入口直接标出 `决策` 能力，降低 discoverability 成本 |
+| 2 | 主页 `@` 支持灵思模式 | 已完成 | `@` 联想支持 persona decision suggestion，并把 mode 注入主页对话链路 |
 | 3 | `@mention` 结构化 token 重构 | 已完成 | 主页 `@persona` 改成结构化 token，支持整块删除与稳定回退，不再依赖顶部 pill |
 | 4 | 决策轨迹视图扩展 | 已完成 | `AnswerModal` evidence panel 扩成独立 trace 视图，支持 persona、mode、matched units、next actions、follow-up questions 回放 |
 | 5 | SOP 闭环 | 已完成 | 已完成文档同步、code review、`npm test`、`npm run typecheck`、`npm run build`、`npm run test:e2e` 与 GitHub 备份 |
@@ -57,7 +56,7 @@
 | 3 | 遗留 eval 产物规范化 | 已完成 | 重新生成 `docs/lingsi-eval-m4.md` / `reports/lingsi-m4-eval.json`，当前 Lenny 基线为 `decision 14 : normal 1` |
 | 4 | 发布收口 | 已完成 | 已完成版本号同步、文档同步、full test / typecheck / build / e2e、code review、GitHub 备份与服务器部署验证 |
 
-## 下一阶段（v0.5.19 计划）
+## 下一阶段（v0.5.20 计划）
 
 *继续把 persona 评测体系和主页决策调用做得更稳。*
 

@@ -366,20 +366,16 @@ export function InputBox() {
     const q = query.toLowerCase()
     const publicSpaces = PUBLIC_SPACE_DEFINITIONS
       .filter(space => space.name.toLowerCase().includes(q))
-      .flatMap((space) => {
-        const base = {
-          kind: 'space' as const,
-          id: space.id,
-          name: space.name,
-          initials: space.initials,
-          invocationType: 'public_space' as const,
-          storagePrefix: space.storagePrefix,
-          supportsDecisionMode: space.supportsDecisionMode,
-        }
-        return space.supportsDecisionMode
-          ? [{ ...base, mode: 'normal' as const }, { ...base, mode: 'decision' as const }]
-          : [{ ...base, mode: 'normal' as const }]
-      })
+      .map((space) => ({
+        kind: 'space' as const,
+        id: space.id,
+        name: space.name,
+        initials: space.initials,
+        invocationType: 'public_space' as const,
+        storagePrefix: space.storagePrefix,
+        supportsDecisionMode: space.supportsDecisionMode,
+        mode: space.supportsDecisionMode ? ('decision' as const) : ('normal' as const),
+      }))
 
     const customSpaceSuggestions = customSpaces
       .filter(space => space.name.toLowerCase().includes(q))
@@ -545,6 +541,7 @@ export function InputBox() {
       displayName,
       item.kind === 'space' ? item.mode : undefined,
       t.space.decisionModeLingSi,
+      item.kind !== 'space' || item.mode !== 'decision' ? true : false,
     )
     const replacement = replaceActiveMentionQuery(message, cursor, tokenText)
     setMessage(replacement.message)
@@ -923,11 +920,6 @@ export function InputBox() {
                               {space.mode === 'decision' && (
                                 <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
                                   {t.space.decisionModeLingSi}
-                                </span>
-                              )}
-                              {space.mode === 'normal' && space.supportsDecisionMode && (
-                                <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
-                                  {t.space.decisionModeNormal}
                                 </span>
                               )}
                             </div>

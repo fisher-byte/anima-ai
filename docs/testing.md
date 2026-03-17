@@ -1,6 +1,6 @@
 # Anima 测试手册
 
-*最后更新: 2026-03-17 | 版本: v0.5.18*
+*最后更新: 2026-03-18 | 版本: v0.5.19*
 
 ## 测试策略
 
@@ -42,10 +42,13 @@
 - ✅ `lingsiTrace.test.ts` — 灵思证据展示辅助函数（5 个用例）
   - DecisionUnit 标题回退、source label 格式化、matched ids -> 标题解析
   - 正文脚注插入、重复脚注保护
-- ✅ `inputMentions.test.ts` — 结构化 mention token（5 个用例）
-  - `@persona〔普通/灵思〕` token 生成、替换、同步、整体删除
+- ✅ `inputMentions.test.ts` — 结构化 mention token（6 个用例）
+  - `@persona` 决策 token 生成、替换、同步、整体删除
+  - 支持决策的 persona 在主页 `@` 中只暴露决策 suggestion，但输入框只展示纯 `@名字`
 - ✅ `personaSpaces.test.ts` — 主页 persona mode 解析（3 个用例）
   - Space toggle / homepage `invokedAssistant` / `decisionTrace` 三种 mode 来源的优先级
+- ✅ `AnswerModalSubcomponents.test.tsx` — 决策轨迹面板稳定性（2 个用例）
+  - streaming 中禁用 `查看轨迹`，避免流式阶段打开 trace modal 导致卡死
 
 **运行命令**:
 ```bash
@@ -100,7 +103,7 @@ npm run test:watch    # 监听模式（开发时用）
 
 - ✅ `memory.test.ts` — 记忆路由集成测试（含 FTS5 trigger、引用块过滤、decayPreferences、语义边 by-id）
 
-**总测试数**: **589 个用例，27 个测试文件，全部通过**
+**总测试数**: **593 个用例，28 个测试文件，全部通过**
 
 ---
 

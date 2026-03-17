@@ -1600,6 +1600,7 @@ export function AnswerModal() {
                                   personaName={activeDecisionPersona?.name ?? invokedAssistant?.name ?? 'LingSi'}
                                   matchedUnits={matchedDecisionUnits}
                                   sourceRefs={activeDecisionTrace.sourceRefs ?? []}
+                                  isStreaming={isStreaming}
                                 />
                               )}
                             </div>

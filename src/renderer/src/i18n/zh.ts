@@ -251,6 +251,7 @@ export interface Translations {
     lingsiUnits: (n: number) => string
     lingsiSources: (n: number) => string
     lingsiOpenTrace: string
+    lingsiTraceWaitForCompletion: string
     lingsiTraceView: string
     lingsiMatchedUnits: string
     lingsiPreferredPath: string
@@ -552,7 +553,7 @@ export const zh: Translations = {
     clickHint: '点击节点查看历史或提问，或在此输入 · Enter 发送',
     deleteNodeTooltip: '删除节点',
     decisionModeNormal: '普通',
-    decisionModeLingSi: '灵思',
+    decisionModeLingSi: '决策',
     lennyPlaceholder: '向 Lenny 提问…',
     pgPlaceholder: '向 Paul Graham 提问…',
     zhangPlaceholder: '向张小龙提问…',
@@ -618,12 +619,13 @@ export const zh: Translations = {
   modal: {
     onboardingHint: '随时可以关闭，下次点击「新手教程」继续',
     memorized: '已记住：',
-    lingsiEvidence: '灵思依据',
-    lingsiMode: '灵思模式',
+    lingsiEvidence: '决策依据',
+    lingsiMode: '决策模式',
     lingsiDecisionTrace: '当前回答所依据的决策单元与真实来源片段。',
     lingsiUnits: (n: number) => `命中 ${n} 个 Decision Unit`,
     lingsiSources: (n: number) => `${n} 条来源`,
     lingsiOpenTrace: '查看轨迹',
+    lingsiTraceWaitForCompletion: '请等回答生成完成后再查看轨迹',
     lingsiTraceView: '决策轨迹',
     lingsiMatchedUnits: '命中单元',
     lingsiPreferredPath: '推荐路径',
