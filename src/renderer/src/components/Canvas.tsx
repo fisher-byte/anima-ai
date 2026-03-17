@@ -1095,13 +1095,15 @@ export function Canvas() {
           onClick={() => setIsLennySpaceOpen(true)}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          className="flex items-center gap-2.5 pl-2.5 pr-3 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[168px]"
+          className="flex items-center gap-2.5 pl-2.5 pr-3 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[176px]"
         >
           <div className="w-7 h-7 rounded-full bg-gray-900 border border-gray-700/50 flex items-center justify-center text-white font-semibold text-[11px] shrink-0">L</div>
           <div className="text-left flex-1 min-w-0">
-            <div className="flex items-center gap-1.5">
-              <div className="text-[11px] font-semibold text-gray-700 leading-tight truncate">Lenny Rachitsky</div>
-              <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">{t.space.decisionModeLingSi}</span>
+            <div className="flex items-center gap-1 min-w-0">
+              <div className="min-w-0 flex-1 text-[11px] font-semibold text-gray-700 leading-tight truncate">Lenny Rachitsky</div>
+              <span className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold leading-none text-amber-700">
+                {t.space.decisionModeLingSi}
+              </span>
             </div>
             <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{t.canvas.lennySubtitle}</div>
           </div>
@@ -1113,7 +1115,7 @@ export function Canvas() {
           onClick={() => setIsPGSpaceOpen(true)}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          className="flex items-center gap-2.5 pl-2.5 pr-3 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[168px]"
+          className="flex items-center gap-2.5 pl-2.5 pr-3 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[176px]"
         >
           <div className="w-7 h-7 rounded-full bg-gray-900 border border-gray-700/50 flex items-center justify-center text-white font-semibold text-[11px] shrink-0">PG</div>
           <div className="text-left flex-1 min-w-0">
@@ -1128,13 +1130,15 @@ export function Canvas() {
           onClick={() => setIsZhangSpaceOpen(true)}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          className="flex items-center gap-2.5 pl-2.5 pr-3 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[168px]"
+          className="flex items-center gap-2.5 pl-2.5 pr-3 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[176px]"
         >
           <div className="w-7 h-7 rounded-full bg-gray-900 border border-gray-700/50 flex items-center justify-center text-white font-semibold text-[11px] shrink-0">张</div>
           <div className="text-left flex-1 min-w-0">
-            <div className="flex items-center gap-1.5">
-              <div className="text-[11px] font-semibold text-gray-700 leading-tight truncate">张小龙</div>
-              <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">{t.space.decisionModeLingSi}</span>
+            <div className="flex items-center gap-1 min-w-0">
+              <div className="min-w-0 flex-1 text-[11px] font-semibold text-gray-700 leading-tight truncate">张小龙</div>
+              <span className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold leading-none text-amber-700">
+                {t.space.decisionModeLingSi}
+              </span>
             </div>
             <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{t.canvas.zhangSubtitle}</div>
           </div>
@@ -1146,7 +1150,7 @@ export function Canvas() {
           onClick={() => setIsWangSpaceOpen(true)}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          className="flex items-center gap-2.5 pl-2.5 pr-3 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[168px]"
+          className="flex items-center gap-2.5 pl-2.5 pr-3 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[176px]"
         >
           <div className="w-7 h-7 rounded-full bg-gray-900 border border-gray-700/50 flex items-center justify-center text-white font-semibold text-[11px] shrink-0">王</div>
           <div className="text-left flex-1 min-w-0">

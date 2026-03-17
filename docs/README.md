@@ -16,14 +16,14 @@
 | [部署运维](./deployment.md) | 发布、配置 | 📝 |
 | [变更日志](./changelog.md) | 版本迭代记录 | ✅ |
 | [问题排查](./troubleshooting.md) | 常见问题解决 | 📝 |
-| [代码审查](./code-review-report-v0.5.17-lingsi-sync-and-zhang-eval.md) | 最新审查报告 | ✅ |
+| [代码审查](./code-review-report-v0.5.18-onboarding-and-release-sync.md) | 最新审查报告 | ✅ |
 | [路线图](./ROADMAP.md) | 近期/远期规划 | ✅ |
 
 ## 项目状态
 
-- **当前版本**: v0.5.17
+- **当前版本**: v0.5.18
 - **开发状态**: Active
-- **最后更新**: 2026-03-17（含 latest source sync、53 条 approved units 与张小龙 case-based eval 基线）
+- **最后更新**: 2026-03-17（含 latest source sync、Lenny 入口样式修复、onboarding 退出修复与全量 release 收口）
 - **GitHub**: https://github.com/fisher-byte/anima-ai
 
 ## 核心功能

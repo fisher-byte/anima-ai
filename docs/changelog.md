@@ -1,5 +1,28 @@
 # Anima 变更日志
 
+## [0.5.18] - 2026-03-17
+
+### fix: LingSi stability + release sync
+
+**修复与收口：**
+- `Canvas.tsx`：修复首页 Lenny / 张小龙 Space 入口中 `灵思` badge 挤压标题的问题，长名字与 badge 现在稳定同排显示
+- `canvasStore.ts`：`closeModal` 关闭 onboarding 弹层时会退出教程模式、清空 phase / resume residue，并跳过 onboarding 对话历史持久化
+- `canvasStore.lennyMode.test.ts`：补充 onboarding 关闭后的状态回归测试
+- `docs/lingsi-eval-m4.md` / `reports/lingsi-m4-eval.json`：重新规范化 Lenny 全量 eval 产物，当前基线 `decision 14 : normal 1`
+- `package.json` / `package-lock.json` / `src/shared/constants.ts`：版本统一到 `0.5.18`
+- `docs/*` / `README*.md` / `docs/sop-release.md` / `docs/deployment.md`：同步最新版本、测试基线与发布状态
+
+**测试与验证：**
+- `npm run lingsi:extract`：通过，`Files changed: 0`
+- `npm run lingsi:evaluate`：通过，`decision 14 : normal 1`
+- `npm run lingsi:evaluate:zhang`：通过，`decision 6 : normal 0 : tie 1`
+- `npm test`：589/589 通过
+- `npm run typecheck`：通过
+- `npm run build`：通过
+- `npm run test:e2e`：44 passed / 4 skipped
+
+---
+
 ## [0.5.17] - 2026-03-17
 
 ### feat: latest source sync + 张小龙 case-based eval

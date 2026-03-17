@@ -1,7 +1,7 @@
 # Anima — 项目计划
 
 > 唯一入口：每次发版、每次决策都在这里留记录。
-> 最后更新：2026-03-17 | 当前版本：v0.5.17
+> 最后更新：2026-03-17 | 当前版本：v0.5.18
 
 ---
 
@@ -46,7 +46,18 @@
 | 3 | 张小龙 case-based eval 基线 | 已完成 | 新增 `npm run lingsi:evaluate:zhang`，输出 `docs/lingsi-eval-zhang.md` / `reports/lingsi-zhang-eval.json`，结果为 `decision 6 : normal 0 : tie 1` |
 | 4 | SOP 闭环 | 已完成 | 已完成文档同步、code review、`npm run lingsi:extract`、`npm run typecheck`、`npm test`、`npm run build`、`npm run test:e2e` 与 GitHub 备份 |
 
-## 下一阶段（v0.5.18 计划）
+## 当前冲刺（v0.5.18 已完成）
+
+*本轮完成首页样式修复、onboarding 退出状态修复、Lenny 全量 eval 产物规范化，以及版本/发布文档收口。*
+
+| # | 任务 | 状态 | 说明 |
+|---|------|------|------|
+| 1 | Lenny / 张小龙入口样式修复 | 已完成 | `Canvas.tsx` 调整 Space 卡片宽度与 badge 布局，`灵思` 标签不再挤压 Lenny 标题 |
+| 2 | onboarding 退出状态修复 | 已完成 | `closeModal` 现在会退出 onboarding mode，清空 phase / resume residue，并避免把 onboarding 历史写入普通对话历史 |
+| 3 | 遗留 eval 产物规范化 | 已完成 | 重新生成 `docs/lingsi-eval-m4.md` / `reports/lingsi-m4-eval.json`，当前 Lenny 基线为 `decision 14 : normal 1` |
+| 4 | 发布收口 | 已完成 | 已完成版本号同步、文档同步、full test / typecheck / build / e2e、code review、GitHub 备份与服务器部署验证 |
+
+## 下一阶段（v0.5.19 计划）
 
 *继续把 persona 评测体系和主页决策调用做得更稳。*
 
@@ -133,6 +144,7 @@
 
 | 版本 | 日期 | 核心内容 |
 |------|------|----------|
+| v0.5.18 | 2026-03-17 | 稳定性与发布收口：修复 Lenny 入口 `灵思` badge 挤压样式、修复 onboarding 关闭后仍残留教程模式、重新规范化 Lenny/张小龙 eval 产物，并完成版本号/文档/SOP/部署同步 |
 | v0.5.17 | 2026-03-17 | LingSi latest source sync + 张小龙基线评测：同步 `anima-base@851effb`，把 seeds 扩到 `2 personas / 33 sources / 53 approved units`，新增 `npm run lingsi:evaluate:zhang`，完成张小龙 case-based eval 基线 `decision 6 : normal 0 : tie 1` |
 | v0.5.16 | 2026-03-17 | LingSi 主页接入：主页 Space 入口新增 `灵思` 标识，`@persona` 支持 `普通 / 灵思` 结构化 mention token 与整块删除，AnswerModal 新增独立决策轨迹视图，并把主页 persona 调用接入统一 decisionTrace 链路 |
 | v0.5.15 | 2026-03-17 | LingSi 最新数据层 refresh：同步 `anima-base@eb83d12`，新增 8 条真实来源，把 seeds 扩到 25 sources / 41 approved units，覆盖 Lenny 留存优先、风险 rollout、设计评审，以及张小龙运营克制、功能生命周期、社交设计、平台治理 |

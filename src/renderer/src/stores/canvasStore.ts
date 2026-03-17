@@ -1962,11 +1962,22 @@ export const useCanvasStore = create<CanvasState>()(
   closeModal: () => {
     // 持久化当前对话历史到服务器（fire-and-forget）
     // P1-3: Lenny/Custom Space 模式下不写用户历史（space 对话不属于用户的 conversation_history）
-    const { currentConversation, conversationHistory, isLennyMode, isCustomSpaceMode } = get()
-    if (!isLennyMode && !isCustomSpaceMode && currentConversation?.id && conversationHistory.length > 0) {
+    const { currentConversation, conversationHistory, isLennyMode, isCustomSpaceMode, isOnboardingMode } = get()
+    if (!isLennyMode && !isCustomSpaceMode && !isOnboardingMode && currentConversation?.id && conversationHistory.length > 0) {
       historyService.saveHistory(currentConversation.id, conversationHistory)
     }
-    set({ isModalOpen: false, currentConversation: null, isLoading: false, highlightedCategory: null, highlightedNodeIds: [], focusedCategory: null, conversationHistory: [] })
+    set({
+      isModalOpen: false,
+      currentConversation: null,
+      isLoading: false,
+      highlightedCategory: null,
+      highlightedNodeIds: [],
+      focusedCategory: null,
+      conversationHistory: [],
+      isOnboardingMode: false,
+      onboardingPhase: 0,
+      onboardingResumeTurns: null,
+    })
   },
 
   // 打开模态框（用于回放）
