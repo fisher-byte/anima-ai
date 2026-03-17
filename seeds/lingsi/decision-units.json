@@ -919,5 +919,533 @@
     "confidence": 0.86,
     "createdAt": "2026-03-17T06:20:17.767Z",
     "updatedAt": "2026-03-17T06:41:43.660Z"
+  },
+  {
+    "id": "lenny-pmf-listen-to-the-almost-convinced",
+    "personaId": "lenny",
+    "title": "PMF 卡住时，优先研究“差一点就爱上你”的用户",
+    "summary": "当用户反馈很多但增长没有起势时，不要平均听所有人，而要集中研究那些接近爱上产品、只是被少数阻碍卡住的用户。",
+    "scenario": "团队已经有一批喜欢产品的早期用户，但路线图仍然容易被杂音带偏。",
+    "goal": "把 PMF 优化资源集中到最可能抬升核心需求强度的人群。",
+    "constraints": [
+      "用户反馈混杂",
+      "团队容易被大客户或重度用户带偏"
+    ],
+    "tags": [
+      "pmf",
+      "segment",
+      "roadmap"
+    ],
+    "triggerKeywords": [
+      "somewhat disappointed",
+      "非常失望",
+      "用户反馈太多",
+      "PMF 调研",
+      "差一点",
+      "接近爱上"
+    ],
+    "preferredPath": "少听已经爱上产品的人和根本不在乎的人，优先拆解“差一点”的用户到底被什么挡住。",
+    "antiPatterns": [
+      "把所有用户反馈视为同等重要",
+      "只听最满意用户的功能建议"
+    ],
+    "reasoningSteps": [
+      "先按 PMF 调研结果分层",
+      "识别接近爱上产品的用户",
+      "围绕他们的阻碍重排路线图"
+    ],
+    "reasons": [
+      "最有价值的 PMF 提升空间，通常藏在“接近爱上你但还差一点”的用户里。",
+      "已经非常满意的用户会放大边缘功能，不会告诉你卡住普适增长的真正阻碍。",
+      "明确“谁的反馈最该听”，能直接减少路线图噪音。"
+    ],
+    "followUpQuestions": [
+      "哪些用户明确认可核心价值，但还因为少数问题没有彻底买账？",
+      "这些用户反复提到的阻碍，是体验问题、缺失能力，还是定位问题？"
+    ],
+    "nextActions": [
+      "把最近一轮 PMF 调研按 very/somewhat/not disappointed 分层。",
+      "单独拉出 somewhat disappointed 且认可核心价值主张的人群做访谈。",
+      "用他们的前三大阻碍重排接下来 1-2 个迭代的修复和优化。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-lenny-superhuman-pmf-case",
+        "label": "Superhuman PMF Survey Decision Case",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-01-superhuman-pmf-survey-decision.md",
+        "person": "Lenny Rachitsky",
+        "title": "Superhuman PMF Survey Decision Case",
+        "url": "https://www.youtube.com/watch?v=0igjSRZyX-w",
+        "publishedAt": "2025-03-23",
+        "evidenceLevel": "A",
+        "notes": "PMF segmentation, 50/50 roadmap, solution deepening before market widening",
+        "locator": "L170",
+        "excerpt": "「诀窍是不要太听\"very disappointed\"用户的反馈，因为他们已经爱你了。也不要听\"not disappointed\"用户的反馈，因为他们离爱你太远，本质上是lost cause。要聚焦\"somewhat disappointed\"用户——他们有点爱你，但有些东西阻碍了他们。」"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.87,
+    "createdAt": "2026-03-17T12:41:17.326Z",
+    "updatedAt": "2026-03-17T12:41:17.326Z"
+  },
+  {
+    "id": "lenny-pmf-balance-love-and-objections",
+    "personaId": "lenny",
+    "title": "PMF 提升不是只补短板，要用 50/50 同时强化优势和拆阻碍",
+    "summary": "路线图不能只盯着用户抱怨，也不能只继续堆大家已经喜欢的功能。更稳的做法是同时强化核心吸引力和移除关键阻碍。",
+    "scenario": "团队在决定 PMF 阶段的下个迭代应该做增强项还是补缺口。",
+    "goal": "避免路线图过度偏向修 bug 或过度偏向锦上添花。",
+    "constraints": [
+      "团队产能有限",
+      "核心用户很满意但增长还没被点燃"
+    ],
+    "tags": [
+      "pmf",
+      "roadmap",
+      "prioritization"
+    ],
+    "triggerKeywords": [
+      "50/50",
+      "强化优势",
+      "克服异议",
+      "路线图怎么排",
+      "PMF 提升"
+    ],
+    "preferredPath": "用一半资源加深用户最爱的价值，另一半资源拆掉接近转化用户的关键阻碍。",
+    "antiPatterns": [
+      "路线图只剩修补抱怨",
+      "路线图只服务最满意用户"
+    ],
+    "reasoningSteps": [
+      "找出用户最爱的价值",
+      "找出差一点转化用户的最大阻碍",
+      "按 50/50 分配迭代资源"
+    ],
+    "reasons": [
+      "只补阻碍会让产品失去锋利度，只强化优势又可能放任关键阻塞存在。",
+      "50/50 分配能同时加深核心价值和扩大真实可转化人群。",
+      "这比按声音大小排需求更接近 PMF 机制本身。"
+    ],
+    "followUpQuestions": [
+      "当前用户最爱的 1-2 个价值点是什么？",
+      "接近转化但没彻底买单的用户，最大的阻碍是哪几个？"
+    ],
+    "nextActions": [
+      "从访谈里提炼一份“最爱功能”清单和一份“关键阻碍”清单。",
+      "下一轮迭代按 50/50 分配资源，而不是让同一类事项吃掉所有带宽。",
+      "两周后复盘：是爱的价值更强了，还是关键阻碍减少了？"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-lenny-superhuman-pmf-case",
+        "label": "Superhuman PMF Survey Decision Case",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-01-superhuman-pmf-survey-decision.md",
+        "person": "Lenny Rachitsky",
+        "title": "Superhuman PMF Survey Decision Case",
+        "url": "https://www.youtube.com/watch?v=0igjSRZyX-w",
+        "publishedAt": "2025-03-23",
+        "evidenceLevel": "A",
+        "notes": "PMF segmentation, 50/50 roadmap, solution deepening before market widening",
+        "locator": "L178",
+        "excerpt": "「在计划周期开始时，我建议花一半时间加倍投入用户真正喜欢的功能，另一半时间系统化地克服\"somewhat disappointed\"用户的异议——特别是那些\"主要价值主张吸引我\"的用户。」"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.86,
+    "createdAt": "2026-03-17T12:41:17.326Z",
+    "updatedAt": "2026-03-17T12:41:17.326Z"
+  },
+  {
+    "id": "lenny-solution-deepening-before-market-widening",
+    "personaId": "lenny",
+    "title": "产品还没站稳时，先做深再做宽",
+    "summary": "当团队纠结先扩平台、扩市场还是继续打磨核心体验时，默认应先把当前核心用户的体验做深，除非已有很强证据证明扩张窗口更重要。",
+    "scenario": "产品团队在“继续打磨核心体验”和“拓展更多市场/平台”之间摇摆。",
+    "goal": "避免在 PMF 未稳时过早分散资源。",
+    "constraints": [
+      "资源有限",
+      "扩平台诉求强",
+      "核心体验仍有明显短板"
+    ],
+    "tags": [
+      "pmf",
+      "focus",
+      "expansion"
+    ],
+    "triggerKeywords": [
+      "扩市场",
+      "扩平台",
+      "支持移动端",
+      "支持 Outlook",
+      "做深还是做宽",
+      "solution deepening"
+    ],
+    "preferredPath": "先把当前用户最核心的使用体验做到明显更强，再决定是否扩市场或平台。",
+    "antiPatterns": [
+      "为了看起来市场更大而过早扩平台",
+      "核心体验还不稳就同时开很多战线"
+    ],
+    "reasoningSteps": [
+      "先判断核心价值是否已经足够强",
+      "再衡量扩张是否真的比做深更重要",
+      "把大部分资源保留给现有核心用户价值"
+    ],
+    "reasons": [
+      "PMF 阶段最容易被“市场更大”叙事带偏，结果是每条战线都浅。",
+      "先做深能更快建立强口碑和留存，再扩张时基础更稳。",
+      "资源有限时，集中投入通常比多线平推更有效。"
+    ],
+    "followUpQuestions": [
+      "现有核心用户最关键的体验短板，是否已经被补到足够强？",
+      "如果现在扩平台，是否会直接稀释团队打磨核心价值的带宽？"
+    ],
+    "nextActions": [
+      "先列出当前核心用户体验里最影响留存的 2-3 个问题。",
+      "把大部分研发带宽优先给这些问题，而不是新平台适配。",
+      "只有当核心体验指标明显稳定后，再重开市场拓展评估。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-lenny-superhuman-pmf-case",
+        "label": "Superhuman PMF Survey Decision Case",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-01-superhuman-pmf-survey-decision.md",
+        "person": "Lenny Rachitsky",
+        "title": "Superhuman PMF Survey Decision Case",
+        "url": "https://www.youtube.com/watch?v=0igjSRZyX-w",
+        "publishedAt": "2025-03-23",
+        "evidenceLevel": "A",
+        "notes": "PMF segmentation, 50/50 roadmap, solution deepening before market widening",
+        "locator": "L174",
+        "excerpt": "「有些空间、市场、平台的市场拓展很快很容易，但有些空间（比如邮件）市场拓展非常难、非常慢。所以早期我们极度聚焦：只支持Gmail，只支持Web。前几年我们把每一盎司R&D精力、每一美元工程投入都投到solution deepening上——让产品对现有用户更好。用户当然喜欢，这就是我们如何达成PMF的。」"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.88,
+    "createdAt": "2026-03-17T12:41:17.326Z",
+    "updatedAt": "2026-03-17T12:41:17.326Z"
+  },
+  {
+    "id": "lenny-roadmap-start-from-goals-not-noise",
+    "personaId": "lenny",
+    "title": "路线图先锚定目标，再讨论需求",
+    "summary": "如果目标都没写清楚，路线图讨论几乎必然退化成谁更会争取资源。先把目标和战略锚定，才能谈优先级。",
+    "scenario": "团队在季度规划时发现所有项目都“看起来重要”，无法真正排序。",
+    "goal": "让路线图优先级回到目标贡献，而不是回到话语权。",
+    "constraints": [
+      "stakeholder 多",
+      "路线图候选项多",
+      "目标定义不够清晰"
+    ],
+    "tags": [
+      "roadmap",
+      "strategy",
+      "goals"
+    ],
+    "triggerKeywords": [
+      "目标不清楚",
+      "路线图很乱",
+      "为什么做这个",
+      "战略对齐",
+      "季度规划"
+    ],
+    "preferredPath": "先明确 mission/vision/strategy/goals，再用 Impact/Effort 排路线图。",
+    "antiPatterns": [
+      "先列功能再找理由",
+      "没有目标就直接开路线图会"
+    ],
+    "reasoningSteps": [
+      "先明确目标",
+      "检查项目是否支持目标",
+      "再用 ROI 比较候选项"
+    ],
+    "reasons": [
+      "没有目标时，任何项目都能讲出自己的重要性，排序会失真。",
+      "让路线图项目明确服务目标，可以把讨论从意见拉回结果。",
+      "Impact/Effort 只有在目标清楚时才有意义。"
+    ],
+    "followUpQuestions": [
+      "这轮路线图最核心要推动的目标到底是什么？",
+      "每个候选项目如果上线，具体会推高哪个目标指标？"
+    ],
+    "nextActions": [
+      "先把这轮季度规划的 1-2 个核心目标写成可度量指标。",
+      "逐项检查现有路线图项目是否直接支持这些目标。",
+      "删除或下沉那些说不清支持哪个目标的项目，再做 Impact/Effort 排序。"
+    ],
+    "evidenceLevel": "B",
+    "sourceRefs": [
+      {
+        "id": "src-lenny-roadmap-pyramid",
+        "label": "Product Roadmap Planning Framework",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/frameworks/product-roadmap-planning-framework.md",
+        "person": "Lenny Rachitsky",
+        "title": "Product Roadmap Planning Framework",
+        "url": "https://www.lennysnewsletter.com/p/mission-vision-strategy-goals-roadmap",
+        "publishedAt": "2022-10-18",
+        "evidenceLevel": "B",
+        "notes": "Mission to task planning hierarchy, goals-first roadmap prioritization",
+        "locator": "L146",
+        "excerpt": "没有目标就无法优先级排序路线图："
+      },
+      {
+        "id": "src-lenny-roadmap-pyramid",
+        "label": "Product Roadmap Planning Framework",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/frameworks/product-roadmap-planning-framework.md",
+        "person": "Lenny Rachitsky",
+        "title": "Product Roadmap Planning Framework",
+        "url": "https://www.lennysnewsletter.com/p/mission-vision-strategy-goals-roadmap",
+        "publishedAt": "2022-10-18",
+        "evidenceLevel": "B",
+        "notes": "Mission to task planning hierarchy, goals-first roadmap prioritization",
+        "locator": "L141",
+        "excerpt": "- 路线图项目必须支持目标"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.85,
+    "createdAt": "2026-03-17T12:41:17.326Z",
+    "updatedAt": "2026-03-17T12:41:17.326Z"
+  },
+  {
+    "id": "lenny-timebox-most-decisions-under-uncertainty",
+    "personaId": "lenny",
+    "title": "多数不确定决策要限时，并按可逆性处理",
+    "summary": "在高不确定环境里，默认不要等到“完全想清楚”再动。先判断是否可逆，可逆就限时决策，用 70% 把握推进。",
+    "scenario": "团队面对不确定决策容易反复讨论，迟迟不落地。",
+    "goal": "在不牺牲关键质量的前提下，提高决策速度。",
+    "constraints": [
+      "信息不完整",
+      "团队害怕决策错误",
+      "竞争或窗口期存在"
+    ],
+    "tags": [
+      "decision-making",
+      "uncertainty",
+      "speed"
+    ],
+    "triggerKeywords": [
+      "不确定",
+      "信息不全",
+      "要不要等",
+      "70% 把握",
+      "限时决策",
+      "可逆不可逆"
+    ],
+    "preferredPath": "先判断决策可逆性和重要性；大多数可逆决策直接设截止时间，用 70% 确定度推进。",
+    "antiPatterns": [
+      "把所有决策都当成不可逆",
+      "无限期等待更多信息"
+    ],
+    "reasoningSteps": [
+      "先分类可逆性",
+      "给决策设时限",
+      "达到足够信息后先推进并跟踪结果"
+    ],
+    "reasons": [
+      "多数决策其实可逆，不值得按高风险审批节奏处理。",
+      "最后那点确定性通常极其昂贵，而延迟本身也在持续产生成本。",
+      "先推进并跟踪结果，通常比继续空转更有效。"
+    ],
+    "followUpQuestions": [
+      "这件事如果判断错了，回滚成本到底有多高？",
+      "你们愿意给这次决策设一个明确截止时间吗？"
+    ],
+    "nextActions": [
+      "把当前待决事项先标成 reversible 或 irreversible。",
+      "为这次讨论先设一个明确 deadline，而不是无限期开会。",
+      "当信息达到大约 70% 时先做决定，并同步定义后续观测指标。"
+    ],
+    "evidenceLevel": "B",
+    "sourceRefs": [
+      {
+        "id": "src-lenny-uncertainty",
+        "label": "Navigating Uncertainty Decision Framework",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/articles/uncertainty-decision-framework.md",
+        "person": "Lenny Rachitsky",
+        "title": "Navigating Uncertainty Decision Framework",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "B",
+        "notes": "Reversible vs irreversible decisions, time-boxing, 70 percent certainty",
+        "locator": "L54",
+        "excerpt": "**Key insight**: Most decisions are reversible. Don't treat all decisions like they're irreversible."
+      },
+      {
+        "id": "src-lenny-uncertainty",
+        "label": "Navigating Uncertainty Decision Framework",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/articles/uncertainty-decision-framework.md",
+        "person": "Lenny Rachitsky",
+        "title": "Navigating Uncertainty Decision Framework",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "B",
+        "notes": "Reversible vs irreversible decisions, time-boxing, 70 percent certainty",
+        "locator": "L193",
+        "excerpt": "**Rule**: Set decision deadline before discussion starts."
+      },
+      {
+        "id": "src-lenny-uncertainty",
+        "label": "Navigating Uncertainty Decision Framework",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/articles/uncertainty-decision-framework.md",
+        "person": "Lenny Rachitsky",
+        "title": "Navigating Uncertainty Decision Framework",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "B",
+        "notes": "Reversible vs irreversible decisions, time-boxing, 70 percent certainty",
+        "locator": "L210",
+        "excerpt": "**Rule**: Make decisions with 70% certainty, not 100%."
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.86,
+    "createdAt": "2026-03-17T12:41:17.326Z",
+    "updatedAt": "2026-03-17T12:41:17.326Z"
+  },
+  {
+    "id": "lenny-career-choose-growth-over-prestige",
+    "personaId": "lenny",
+    "title": "职业选择先看成长密度，不先看名头",
+    "summary": "选 PM 机会时，优先看公司是否真正教你产品能力、是否持续把 PM 推向更大职业拐点，而不是只看牌子或估值。",
+    "scenario": "产品经理在权衡去大厂、明星公司或成长型团队时难以决策。",
+    "goal": "提高职业选择对长期能力和轨迹的复利效果。",
+    "constraints": [
+      "外部品牌诱惑大",
+      "很难判断公司是否真的会培养 PM"
+    ],
+    "tags": [
+      "career",
+      "pm",
+      "growth"
+    ],
+    "triggerKeywords": [
+      "职业选择",
+      "offer 选择",
+      "去哪个公司",
+      "PM 成长",
+      "大厂还是创业公司"
+    ],
+    "preferredPath": "优先选择能教你产品能力、并对 PM 职业发展有真实加速记录的环境。",
+    "antiPatterns": [
+      "只按公司名气选工作",
+      "忽略团队是否会真实培养 PM"
+    ],
+    "reasoningSteps": [
+      "先看是否能学到核心产品能力",
+      "再看是否有 PM 成长样本",
+      "最后再比较名气和短期收益"
+    ],
+    "reasons": [
+      "职业最有价值的复利来自能力增长和轨迹拐点，而不是短期头衔。",
+      "同样知名的公司，对 PM 的培养强度可能完全不同。",
+      "选择能持续拉高你能力密度的环境，后续可选项会更多。"
+    ],
+    "followUpQuestions": [
+      "这家公司具体靠什么教 PM，而不只是把你放进去自己摸索？",
+      "有没有真实案例证明这里出来的 PM 会获得更快的职业拐点？"
+    ],
+    "nextActions": [
+      "在比较 offer 时，把“craft 教学能力”和“职业拐点样本”列成独立评分项。",
+      "面试里直接追问职业路径、培养机制和晋升样本，而不是只听品牌故事。",
+      "把名气、现金和成长密度拆开打分，避免它们混成一个直觉判断。"
+    ],
+    "evidenceLevel": "B",
+    "sourceRefs": [
+      {
+        "id": "src-lenny-pm-career",
+        "label": "PM Career Path Decision Framework",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/articles/pm-career-path-decision-framework.md",
+        "person": "Lenny Rachitsky",
+        "title": "PM Career Path Decision Framework",
+        "url": "https://www.lennysnewsletter.com/p/which-companies-accelerate-your-pm",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "B",
+        "notes": "Career growth over prestige, IC-manager switch, company selection criteria",
+        "locator": "L12",
+        "excerpt": "> When people ask me where they should try to go work, I encourage them to find a company that (1) is best at teaching them the craft of product management and (2) has a track record of creating an inflection in the careers of PMs who've worked there."
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.84,
+    "createdAt": "2026-03-17T12:41:17.326Z",
+    "updatedAt": "2026-03-17T12:41:17.326Z"
+  },
+  {
+    "id": "lenny-career-test-manager-track-as-reversible",
+    "personaId": "lenny",
+    "title": "IC 还是管理，不要浪漫化，先把它当可逆试验",
+    "summary": "到了资深 PM 阶段，如果在 IC 和管理之间犹豫，默认不要把它想成终身绑定选择。先确认公司是否支持切换，再把第一次转管理当成可逆试验。",
+    "scenario": "资深 PM 在考虑是否转管理岗，担心选错后回不来。",
+    "goal": "降低职业轨道切换的心理成本和决策拖延。",
+    "constraints": [
+      "担心身份切换失败",
+      "不同公司职业梯子不一致"
+    ],
+    "tags": [
+      "career",
+      "management",
+      "ic"
+    ],
+    "triggerKeywords": [
+      "IC 还是管理",
+      "要不要带团队",
+      "转管理",
+      "职业轨道",
+      "L6"
+    ],
+    "preferredPath": "先确认公司是否支持 IC/Manager 双轨，再把第一次管理尝试视为可逆实验而不是不可回头的身份切换。",
+    "antiPatterns": [
+      "把转管理想成一次性终局决定",
+      "在没有双轨支持的环境里盲目切换"
+    ],
+    "reasoningSteps": [
+      "先确认公司双轨是否存在",
+      "再评估自己对带人的兴趣",
+      "把首次切换当作可回退试验"
+    ],
+    "reasons": [
+      "很多 PM 会因为把转管理想得过于不可逆，而长期卡在犹豫里。",
+      "如果公司本来就支持双轨切换，第一次尝试的真实风险比想象低。",
+      "把职业切换当试验，更容易基于体验做判断，而不是基于想象做判断。"
+    ],
+    "followUpQuestions": [
+      "你所在公司是否有清晰的 IC/Manager 双轨和切换机制？",
+      "你想转管理，是因为喜欢培养人，还是因为把它当成唯一上升通道？"
+    ],
+    "nextActions": [
+      "先向经理或 HR 确认公司是否支持 IC/Manager 双轨切换。",
+      "如果支持，优先争取一个低风险的带人或项目管理试验窗口。",
+      "试验后按真实体验复盘，而不是在抽象层面继续空想。"
+    ],
+    "evidenceLevel": "B",
+    "sourceRefs": [
+      {
+        "id": "src-lenny-pm-career",
+        "label": "PM Career Path Decision Framework",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/articles/pm-career-path-decision-framework.md",
+        "person": "Lenny Rachitsky",
+        "title": "PM Career Path Decision Framework",
+        "url": "https://www.lennysnewsletter.com/p/which-companies-accelerate-your-pm",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "B",
+        "notes": "Career growth over prestige, IC-manager switch, company selection criteria",
+        "locator": "L76",
+        "excerpt": "> \"Two-thirds of companies have both an IC track and a manager track. When there's a manager track, you can switch at L6 (i.e., Sr. Product Manager).\""
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.82,
+    "createdAt": "2026-03-17T12:41:17.326Z",
+    "updatedAt": "2026-03-17T12:41:17.326Z"
   }
 ]

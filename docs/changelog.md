@@ -1,5 +1,29 @@
 # Anima 变更日志
 
+## [0.5.13] - 2026-03-17
+
+### feat: LingSi 数据层扩充（anima-base refresh）
+
+**新增能力：**
+- `scripts/extract-lingsi-seeds.ts`：接入 4 份最新高价值 Lenny 材料，包括 `Superhuman PMF decision case`、`product roadmap planning framework`、`uncertainty decision framework`、`PM career path decision framework`
+- `seeds/lingsi/decision-source-manifest.json`：来源基线扩充到 `11` 条 manifest，绑定 `anima-base@4d27b3b`
+- `seeds/lingsi/decision-units.json`：批准单元扩充到 `20` 条，新增 PMF 分层、50/50 路线图、solution deepening、goals-first roadmap、不确定性决策、PM 职业决策等覆盖
+- `docs/lingsi-eval-m4.md`：M4 对照评测已基于 `20` 条 source units 重新生成
+
+**测试与验证：**
+- `npm run lingsi:extract`：通过，`Files changed: 3`
+- `npx vitest run src/shared/__tests__/lingsiSeeds.test.ts src/shared/__tests__/lingsiDecisionEngine.test.ts`：7/7 通过
+- `npm run lingsi:evaluate`：`decision 15 : normal 0`
+- `npm test`：571/571 通过
+- `npm run typecheck`：通过
+- `npm run build`：通过
+- `npm run test:e2e`：44 passed / 4 skipped
+
+**代码审查结论：**
+- 本轮 diff 无新增阻塞项；新增数据来源均可回溯到 `anima-base` 实际文件与 locator/excerpt 片段。
+
+---
+
 ## [0.5.12] - 2026-03-17
 
 ### feat: LingSi 正文脚注编号 + anima-base 增量评估

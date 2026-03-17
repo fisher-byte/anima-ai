@@ -2,6 +2,13 @@
 
 ## 计划中版本
 
+#### v0.5.13 - LingSi anima-base 数据扩充（已完成）
+- [x] `scripts/extract-lingsi-seeds.ts`：接入 `case-01-superhuman-pmf-survey-decision.md`、`product-roadmap-planning-framework.md`、`uncertainty-decision-framework.md`、`pm-career-path-decision-framework.md`
+- [x] 新增 7 条 `DecisionUnit`，覆盖 PMF 分层、50/50 路线图、solution deepening、goals-first roadmap、不确定性决策、PM 职业决策
+- [x] `seeds/lingsi/*`：刷新为 `1 persona / 11 sources / 20 approved units`，来源 commit 更新到 `anima-base@4d27b3b`
+- [x] `lingsiSeeds.test.ts`：更新数据基线断言，确保 manifest / unit 数量与最新种子一致
+- [x] 验证：`npm run lingsi:extract`、`npm run lingsi:evaluate`（`decision 15 : normal 0`）、`npm test`（571/571）、`npm run typecheck`、`npm run build`、`npm run test:e2e`（44 passed / 4 skipped）
+
 #### v0.5.12 - LingSi 正文脚注 + anima-base 增量筛选（已完成）
 - [x] `lingsiTrace.ts`：把来源脚注编号插入回答正文首个自然段，并避免重复插入
 - [x] `AnswerModalSubcomponents.tsx`：脚注面板来源项增加锚点 id，支持正文编号跳转
@@ -10,7 +17,7 @@
   - `people/product/lenny-rachitsky/articles/uncertainty-decision-framework.md`
   - `people/product/lenny-rachitsky/frameworks/product-roadmap-planning-framework.md`
   - `people/product/lenny-rachitsky/articles/pm-career-path-decision-framework.md`
-- [ ] 下一轮数据层：把上述高价值材料转成新的 `DecisionUnit` / `source manifest` 条目
+- [x] 下一轮数据层：已把上述高价值材料转成新的 `DecisionUnit` / `source manifest` 条目
 
 #### v0.5.11 - LingSi 证据展示层（已完成）
 - [x] `AnswerModal.tsx`：根据 `decisionTrace` 展示当前对话的灵思证据面板
