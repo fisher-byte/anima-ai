@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
+import { appendClientContextBlocks } from '../routes/ai'
 
 // ── SSE stream helpers ────────────────────────────────────────────────────────
 
@@ -268,6 +269,30 @@ describe('search_round SSE event 格式', () => {
     }
     expect(iterations).toBe(2)
     expect(round).toBe(2)
+  })
+})
+
+describe('appendClientContextBlocks', () => {
+  it('appends compressedMemory even when caller uses systemPromptOverride', () => {
+    const { systemPrompt } = appendClientContextBlocks('OVERRIDE PROMPT', {
+      compressedMemory: 'memory fact',
+      extraContext: 'decision evidence',
+    })
+
+    expect(systemPrompt).toContain('OVERRIDE PROMPT')
+    expect(systemPrompt).toContain('【相关记忆片段 - 供参考】')
+    expect(systemPrompt).toContain('memory fact')
+    expect(systemPrompt).toContain('【额外上下文】')
+    expect(systemPrompt).toContain('decision evidence')
+  })
+
+  it('skips blank optional blocks', () => {
+    const { systemPrompt } = appendClientContextBlocks('BASE PROMPT', {
+      compressedMemory: '   ',
+      extraContext: '',
+    })
+
+    expect(systemPrompt).toBe('BASE PROMPT')
   })
 })
 

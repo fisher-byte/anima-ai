@@ -27,6 +27,7 @@ const LENNY_CONFIG: SpaceConfig = {
   hoverShadow: '0_8px_32px_rgba(0,0,0,0.12)',
   placeholderKey: 'lennyPlaceholder',
   useForceHook: true,
+  supportsDecisionMode: true,
 }
 
 interface LennySpaceCanvasProps {

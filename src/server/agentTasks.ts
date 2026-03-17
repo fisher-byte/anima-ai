@@ -44,6 +44,7 @@ interface DeepSearchPayload {
   messages: AIMessage[]
   preferences?: string[]
   compressedMemory?: string
+  extraContext?: string
   isOnboarding?: boolean
   systemPromptOverride?: string
 }
@@ -474,9 +475,12 @@ export async function deepSearchAnswer(
   const memoryBlock = payload.compressedMemory?.trim()
     ? `\n\n【相关记忆片段】\n${payload.compressedMemory.trim().slice(0, 6000)}\n`
     : ''
+  const extraContextBlock = payload.extraContext?.trim()
+    ? `\n\n【额外上下文】\n${payload.extraContext.trim().slice(0, 12000)}\n`
+    : ''
 
   const fullMessages: AIMessage[] = [
-    { role: 'system', content: systemPrompt + prefBlock + memoryBlock },
+    { role: 'system', content: systemPrompt + prefBlock + memoryBlock + extraContextBlock },
     ...messages
   ]
 

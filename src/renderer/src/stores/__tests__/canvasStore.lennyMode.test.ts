@@ -101,6 +101,55 @@ describe('canvasStore — openLennyMode / closeLennyMode', () => {
     expect(state.isModalOpen).toBe(false)
     expect(state.currentConversation).toBeNull()
   })
+
+  it('setLennyDecisionMode updates the active Lenny response mode', async () => {
+    const { useCanvasStore } = await import('../canvasStore')
+
+    useCanvasStore.getState().setLennyDecisionMode('decision')
+    expect(useCanvasStore.getState().lennyDecisionMode).toBe('decision')
+
+    useCanvasStore.getState().setLennyDecisionMode('normal')
+    expect(useCanvasStore.getState().lennyDecisionMode).toBe('normal')
+  })
+
+  it('setLennyDecisionMode keeps the active pure-Lenny conversation mode in sync', async () => {
+    const { useCanvasStore } = await import('../canvasStore')
+
+    useCanvasStore.setState({
+      isLennyMode: true,
+      isPGMode: false,
+      isZhangMode: false,
+      isWangMode: false,
+      currentConversation: makeConversation({
+        decisionTrace: {
+          mode: 'decision',
+          matchedDecisionUnitIds: ['unit-1'],
+        },
+      }),
+    })
+
+    useCanvasStore.getState().setLennyDecisionMode('normal')
+    expect(useCanvasStore.getState().currentConversation?.decisionTrace).toEqual({ mode: 'normal' })
+
+    useCanvasStore.getState().setLennyDecisionMode('decision')
+    expect(useCanvasStore.getState().currentConversation?.decisionTrace?.mode).toBe('decision')
+  })
+
+  it('startConversation stores decisionTrace.mode for pure Lenny conversations', async () => {
+    const { useCanvasStore } = await import('../canvasStore')
+
+    useCanvasStore.setState({
+      isLennyMode: true,
+      isPGMode: false,
+      isZhangMode: false,
+      isWangMode: false,
+      lennyDecisionMode: 'decision',
+    })
+
+    await useCanvasStore.getState().startConversation('How should I prioritize this roadmap?')
+
+    expect(useCanvasStore.getState().currentConversation?.decisionTrace?.mode).toBe('decision')
+  })
 })
 
 describe('canvasStore — endConversation in lenny mode', () => {
@@ -211,6 +260,42 @@ describe('canvasStore — endConversation in lenny mode', () => {
       typeof url === 'string' && url.includes('/api/memory/index')
     )
     expect(indexCalls).toHaveLength(0)
+  })
+
+  it('syncs decisionTrace metadata to /api/memory/sync-lenny-conv', async () => {
+    const { useCanvasStore } = await import('../canvasStore')
+    const conv = makeConversation({
+      decisionTrace: {
+        mode: 'decision',
+        matchedDecisionUnitIds: ['lenny-rice-prioritize-with-confidence'],
+        sourceRefs: [{
+          id: 'src-lenny-rice',
+          label: 'RICE Prioritization Framework',
+          type: 'framework',
+          path: 'people/product/lenny-rachitsky/frameworks/rice-prioritization-framework.md',
+          locator: 'L101',
+          excerpt: '- **50% = Low Confidence（低信心）**: 主要基于直觉或假设',
+          evidenceLevel: 'B',
+        }],
+      },
+    })
+
+    useCanvasStore.setState({
+      isLennyMode: true,
+      currentConversation: conv,
+    })
+
+    await useCanvasStore.getState().endConversation('Use RICE and make confidence explicit.')
+
+    const syncCall = (mockFetch.mock.calls as [string, RequestInit][]).find(([url]) =>
+      typeof url === 'string' && url.includes('/api/memory/sync-lenny-conv')
+    )
+
+    expect(syncCall).toBeDefined()
+    const body = JSON.parse(String(syncCall?.[1]?.body ?? '{}'))
+    expect(body.decisionTrace?.mode).toBe('decision')
+    expect(body.decisionTrace?.matchedDecisionUnitIds).toContain('lenny-rice-prioritize-with-confidence')
+    expect(body.decisionTrace?.sourceRefs?.[0]?.locator).toBe('L101')
   })
 
   it('does nothing when currentConversation is null', async () => {

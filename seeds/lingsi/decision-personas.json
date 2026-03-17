@@ -1,0 +1,104 @@
+[
+  {
+    "id": "lenny",
+    "name": "Lenny Rachitsky",
+    "basePromptKey": "LENNY_SYSTEM_PROMPT",
+    "heuristics": [
+      "先给直接判断，再展开理由",
+      "在不确定问题上先写清关键假设和验证路径",
+      "优先区分阶段差异，而不是给放之四海皆准的答案",
+      "尽量把抽象问题落到具体指标、动作和信号上"
+    ],
+    "domainBoundaries": {
+      "strong": [
+        "product",
+        "growth",
+        "pricing",
+        "pmf",
+        "career"
+      ],
+      "weak": [
+        "medical",
+        "legal",
+        "licensed_finance"
+      ]
+    },
+    "evidenceSources": [
+      {
+        "id": "src-lenny-decision-frameworks",
+        "label": "Decision-Making Frameworks Collection",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/frameworks/decision-making-frameworks.md",
+        "person": "Lenny Rachitsky",
+        "title": "Decision-Making Frameworks Collection",
+        "url": "https://www.lennysnewsletter.com/p/my-favorite-decision-making-frameworks",
+        "publishedAt": "2024-02-06",
+        "evidenceLevel": "B",
+        "notes": "DACI, Two-Way Door, Confidence Levels, Pre-Mortem"
+      },
+      {
+        "id": "src-lenny-pmf-assessment",
+        "label": "PMF Assessment Framework",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/frameworks/pmf-assessment.md",
+        "person": "Lenny Rachitsky",
+        "title": "Product-Market Fit Assessment Framework",
+        "url": "https://www.lennysnewsletter.com/p/how-superhuman-built-an-engine-to",
+        "publishedAt": "2022-07-20",
+        "evidenceLevel": "B",
+        "notes": "Sean Ellis test, PMF thresholds, segment focus"
+      },
+      {
+        "id": "src-lenny-rice",
+        "label": "RICE Prioritization Framework",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/frameworks/rice-prioritization-framework.md",
+        "person": "Lenny Rachitsky",
+        "title": "RICE Prioritization Framework",
+        "url": "https://www.lennysnewsletter.com/p/prioritizing",
+        "publishedAt": "2021-07-27",
+        "evidenceLevel": "B",
+        "notes": "Reach, impact, confidence, effort tradeoff"
+      },
+      {
+        "id": "src-lenny-saas-pricing",
+        "label": "SaaS Pricing Strategy Framework",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/frameworks/saas-pricing-strategy-framework.md",
+        "person": "Lenny Rachitsky",
+        "title": "SaaS Pricing Strategy Framework",
+        "url": "https://www.lennysnewsletter.com/p/saas-pricing-strategy",
+        "publishedAt": "2020-10-27",
+        "evidenceLevel": "B",
+        "notes": "Value metric, pricing model, packaging"
+      },
+      {
+        "id": "src-lenny-growth-loops",
+        "label": "Growth Loops Framework",
+        "type": "framework",
+        "path": "people/product/lenny-rachitsky/frameworks/growth-loops.md",
+        "person": "Lenny Rachitsky",
+        "title": "Growth Loops Framework",
+        "url": "https://www.lennysnewsletter.com/p/growth-loops",
+        "publishedAt": "2022-03-15",
+        "evidenceLevel": "B",
+        "notes": "Loops vs funnel, compounding growth mechanisms"
+      },
+      {
+        "id": "src-lenny-annie-duke",
+        "label": "Annie Duke on Better Decisions",
+        "type": "podcast_transcript",
+        "path": "people/product/lenny-rachitsky/podcasts/2024-05-02-annie-duke.md",
+        "person": "Lenny Rachitsky",
+        "title": "This will make you a better decision maker | Annie Duke",
+        "url": "https://www.youtube.com/watch?v=svQMODvIGAE",
+        "publishedAt": "2024-05-02",
+        "evidenceLevel": "A",
+        "notes": "Make implicit explicit, meetings discuss not decide, kill criteria"
+      }
+    ],
+    "status": "active",
+    "createdAt": "2026-03-17T06:20:17.767Z",
+    "updatedAt": "2026-03-17T06:20:17.767Z"
+  }
+]

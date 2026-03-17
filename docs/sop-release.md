@@ -1,12 +1,40 @@
 # Anima 发版 SOP
 
-*最后更新: 2026-03-13 | 版本: v0.4.5*
+*最后更新: 2026-03-17 | 版本: v0.4.5*
 
 每次发版（无论 patch / minor / major）按此流程执行，确保代码、文档、服务器三端一致。
+
+对于像 `LingSi` 这样持续数天的功能流，先按里程碑做“小闭环”，再在最终发版时走完整发布 SOP。里程碑闭环的目标是：不把半定义、半验证状态直接推进到下一阶段。
 
 ---
 
 ## 一、开发完成后（本地）
+
+### 0. 里程碑模式（适用于大型功能流）
+
+当需求不是单次 patch，而是分阶段推进时，每个里程碑先执行下面的最小闭环：
+
+```bash
+# 1. 文档同步
+# PROJECT.md / ROADMAP.md / 需求文档（必要时补 api.md / architecture.md）
+
+# 2. 针对性验证
+npm test -- <related tests>   # 或直接 npm test（视改动范围）
+npx tsc --noEmit
+
+# 3. 代码审查
+# 至少形成一轮 review 结论，记录已知风险 / 未决问题
+
+# 4. GitHub 备份
+git add <本里程碑相关文件>
+git commit -m "<type>: <milestone summary>"
+git push origin main
+```
+
+适用场景：
+- 新能力从“文档 → 数据层 → 交互层 → 验证”分阶段落地
+- 需要反复同步产品决策与工程实现
+- 需要保留每个阶段的审计轨迹
 
 ### 1. 测试 & 类型检查
 
@@ -48,6 +76,7 @@ npm run test:e2e      # 当前基线：26/27（1 条件性 skip，正常）
 - [ ] 若有新 API / 路由变更，更新 `docs/api.md`
 - [ ] 若有架构变更（新模块、数据库表、数据流），更新 `docs/architecture.md`
 - [ ] 若踩了新坑或有重要修复决策，追加 `docs/dev-notes.md`
+- [ ] 若是阶段性功能推进，更新 `docs/PROJECT.md` 当前冲刺与 `docs/ROADMAP.md` 计划中版本
 
 ### 4. Code Review 报告（minor / major 版本必须，patch 可选）
 

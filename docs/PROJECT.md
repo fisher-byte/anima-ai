@@ -1,28 +1,22 @@
 # Anima — 项目计划
 
 > 唯一入口：每次发版、每次决策都在这里留记录。
-> 最后更新：2026-03-14 | 当前版本：v0.5.4
+> 最后更新：2026-03-17 | 当前版本：v0.5.4
 
 ---
 
 ## 当前冲刺
 
-*v0.5.3 所有计划任务均已完成，暂无进行中冲刺。*
+*新增冲刺：LingSi（灵思）决策版 MVP，当前已进入 `M4`：真实问题对照验证。*
 
 | # | 任务 | 状态 | 说明 |
 |---|------|------|------|
-| 1 | 力模拟布局引擎 | ✅ 完成 | 两层力系统（节点级 + 星云级）+ 全局顺时针公转 |
-| 2 | 拖拽推挤 | ✅ 完成 | 拖拽节点时推开邻近节点（PUSH_RADIUS=280），DOM 直写流畅 |
-| 3 | 渲染架构重构 | ✅ 完成 | force sim 只写 DOM，React style 不含 left/top，彻底消除闪回 |
-| 4 | 冷启动冻结 + 重叠检测 | ✅ 完成 | 初始 temp=0 不重排；检测到重叠时自动 kick 散开 |
-| 5 | B2 主动记忆触发 | ✅ 完成 | 每次实质对话结束后（>80字）10min 冷却自动入队 extract_mental_model，避免重复入队 |
-| 6 | B3 跨节点逻辑推理 | ✅ 完成 | System Prompt Layer 2.7：注入 logical_edges（confidence≥0.6，top 5），AI 主动关联话题脉络 |
-| 7 | C1 时间轴视图 | ✅ 完成 | 工具栏 Clock 按钮切换；X轴=日期升序，Y轴=分类；contentLayer display:none 保留 force sim |
-| 8 | C2 话题聚焦模式 | ✅ 完成 | 点击 ClusterLabel 聚焦分类，其余节点淡出；再次点击退出；复用 highlightedNodeIds 机制 |
-| 9 | C3 主动对话 | ✅ 完成 | 距上次对话 >24h 时弹出个性化 Toast；基于心智模型长期目标生成提示语；sessionStorage 防重 |
-| 10 | Embedding 共享库 | ✅ 完成 | `src/server/lib/embedding.ts` 统一 cosineSim/fetchEmbedding/embedTextWithUserKey，消除三处重复 |
-| 11 | 全空间记忆同步 | ✅ 完成 | 4 个 Public Space + Custom Space 对话均同步到主空间向量索引，bootstrap-facts 补齐历史数据 |
-| 12 | UI/UX polish | ✅ 完成 | 悬浮 pill 侧边栏、@mention pill、文件下载、头像统一、菜单名称修正 |
+| 1 | 灵思文档定稿 | 已完成 | MVP 范围、证据门槛、SOP 节奏已对齐 |
+| 2 | 真实证据层设计 | 已完成 | schema、共享类型、存储白名单、来源 manifest 已落地 |
+| 3 | 首批 DecisionUnit 基线入库 | 已完成 | 已生成 `seeds/lingsi` 基线：1 persona / 6 sources / 12 approved units，并支持写入 storage |
+| 4 | Lenny 决策模式接入 | 已完成 | 已接入 `normal / 灵思` 切换、extraContext 注入、decisionTrace 持久化 |
+| 5 | 验证与对照 | 已完成 | 已跑 `15` 个真实问题对照，`decision` 赢 `14` 题，`normal` 赢 `1` 题，结果沉淀到 `docs/lingsi-eval-m4.md` |
+| 6 | SOP 闭环 | 进行中 | 文档同步、测试已完成；code review、GitHub 备份待执行 |
 
 ---
 
@@ -163,6 +157,11 @@
 
 | 日期 | 决策 | 原因 |
 |------|------|------|
+| 2026-03-16 | 灵思 MVP 先只做 Lenny，不同步扩展多 persona | 单点打透证据层和交互链路，减少范围扩散 |
+| 2026-03-16 | 灵思 MVP 支持泛决策，但证据不足时只给初步倾向 | 问题范围可以广，但证据门槛不能虚 |
+| 2026-03-16 | 首批 DecisionUnit 采用“自动提候选 + 人工审核上线” | 兼顾速度与可信度，避免把抽取草稿直接暴露给用户 |
+| 2026-03-16 | `anima-base` 保持独立仓库，只拷必要子集进入主项目 | 降低主仓库噪音，保留来源真相库的独立演进能力 |
+| 2026-03-16 | 灵思按里程碑走 SOP，而不是每个小 patch 都走完整发布流程 | 控制节奏，同时保证每个阶段都有文档、测试和 review 闭环 |
 | 2026-03-08 | 力模拟引擎纯 TS 实现（不引入 d3）| 零依赖，完全控制力参数；d3-force 打包体积大且 API 不适合 DOM-direct 渲染模式 |
 | 2026-03-08 | force sim 只写 DOM，不写 Zustand store | 写 store 触发 React 重渲染，motion.div 读 store 坐标会覆盖 DOM，产生闪回；DOM 直写每帧 60fps，store 每 90 帧低频同步一次 |
 | 2026-03-08 | 初始温度为 0，不做开场重排 | 用户已手动摆好布局，不应每次刷新都重排；只在检测到重叠时才自动 kick |

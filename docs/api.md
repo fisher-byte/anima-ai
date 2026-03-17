@@ -50,11 +50,18 @@ curl -X POST http://localhost:3000/api/storage/conversations.jsonl/append \
   -d '{"id":"uuid","userMessage":"hello"}'
 ```
 
-**允许的文件名**（白名单）：
+**允许的文件名**（白名单，节选）：
 - `profile.json`
 - `nodes.json`
 - `conversations.jsonl`
+- `decision-personas.json`
+- `decision-units.json`
+- `decision-source-manifest.json`
 - `settings.json`
+
+说明：
+- Public Space / Custom Space 还包含各自的 `*-nodes.json` / `*-conversations.jsonl` / `*-edges.json`
+- 自定义 Space 文件名通过模式校验：`custom-{8位小写字母数字}-{nodes|conversations|edges}`
 
 ---
 
@@ -111,6 +118,8 @@ curl -X PUT http://localhost:3000/api/config/apikey \
   messages: AIMessage[]          // 对话历史（不含 system，由服务端注入）
   preferences?: string[]         // 用户偏好列表（注入 system prompt）
   compressedMemory?: string      // 压缩后的相关记忆文本
+  systemPromptOverride?: string  // Space / persona 覆盖 prompt
+  extraContext?: string          // 额外证据上下文（如 LingSi DecisionUnit 命中结果）
 }
 ```
 

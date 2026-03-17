@@ -68,6 +68,119 @@ export interface FileAttachment {
 }
 
 /**
+ * 灵思决策证据等级
+ * A = 原始材料直接支撑
+ * B = 策展/框架归纳材料支撑
+ * C = 弱证据或间接线索，仅用于提示不确定性
+ */
+export type DecisionEvidenceLevel = 'A' | 'B' | 'C'
+
+/**
+ * 灵思来源类型
+ */
+export type DecisionSourceType =
+  | 'podcast_transcript'
+  | 'framework'
+  | 'quote'
+  | 'profile'
+  | 'resource'
+  | 'topic_index'
+
+/**
+ * 灵思输出模式
+ */
+export type DecisionMode = 'normal' | 'decision'
+
+/**
+ * 单条来源线索
+ */
+export interface DecisionSourceRef {
+  id: string
+  label: string
+  type: DecisionSourceType
+  path: string
+  locator?: string
+  excerpt?: string
+  person?: string
+  title?: string
+  url?: string
+  publishedAt?: string
+  evidenceLevel: DecisionEvidenceLevel
+  notes?: string
+}
+
+/**
+ * DecisionUnit：面向一个常见决策权衡的最小证据单元
+ */
+export interface DecisionUnit {
+  id: string
+  personaId: string
+  title: string
+  summary: string
+  scenario: string
+  goal?: string
+  constraints?: string[]
+  tags: string[]
+  triggerKeywords: string[]
+  preferredPath?: string
+  antiPatterns?: string[]
+  reasoningSteps: string[]
+  reasons: string[]
+  followUpQuestions: string[]
+  nextActions: string[]
+  evidenceLevel: DecisionEvidenceLevel
+  sourceRefs: DecisionSourceRef[]
+  status: 'candidate' | 'approved' | 'archived'
+  confidence?: number
+  createdAt: string
+  updatedAt: string
+}
+
+/**
+ * 决策 persona 的轻量结构化描述
+ */
+export interface DecisionPersona {
+  id: string
+  name: string
+  basePromptKey?: string
+  archetypeTags?: string[]
+  drives?: Record<string, number>
+  heuristics: string[]
+  domainBoundaries?: {
+    strong: string[]
+    weak: string[]
+  }
+  evidenceSources: DecisionSourceRef[]
+  status: 'active' | 'draft' | 'archived'
+  createdAt: string
+  updatedAt: string
+}
+
+/**
+ * 导入到当前项目的来源文件清单，用于审计和追溯
+ */
+export interface DecisionSourceManifestEntry {
+  id: string
+  repo: string
+  repoCommit: string
+  person: string
+  type: DecisionSourceType
+  sourcePath: string
+  importedAt: string
+  importedBy?: string
+  notes?: string
+}
+
+/**
+ * 单轮对话中灵思决策模式的命中信息
+ */
+export interface DecisionTrace {
+  mode: DecisionMode
+  matchedDecisionUnitIds?: string[]
+  sourceRefs?: DecisionSourceRef[]
+}
+
+/**
  * 对话记录
  */
 export interface Conversation {
@@ -82,6 +195,7 @@ export interface Conversation {
   negativeFeedback?: string
   appliedPreferences?: string[]
   appliedMemoryIds?: string[]   // 本次对话引用的 conversationId 列表
+  decisionTrace?: DecisionTrace
   /** 深度搜索后台任务状态（可跨页面继续） */
   deepSearch?: {
     taskId: number

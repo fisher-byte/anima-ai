@@ -27,6 +27,7 @@
 
 import { Hono } from 'hono'
 import type Database from 'better-sqlite3'
+import type { DecisionTrace } from '../../shared/types'
 import { enqueueTask } from '../agentWorker'
 import {
   fetchEmbedding,
@@ -971,11 +972,12 @@ memoryRoutes.delete('/logical-edges/:conversationId', (c) => {
  */
 memoryRoutes.post('/sync-lenny-conv', async (c) => {
   const db = userDb(c)
-  const { conversationId, userMessage, assistantMessage, source } = await c.req.json<{
+  const { conversationId, userMessage, assistantMessage, source, decisionTrace } = await c.req.json<{
     conversationId: string
     userMessage: string
     assistantMessage: string
     source?: string  // 'lenny' | 'pg'，默认 'lenny'
+    decisionTrace?: DecisionTrace
   }>()
 
   if (!conversationId || !userMessage) {
@@ -992,6 +994,7 @@ memoryRoutes.post('/sync-lenny-conv', async (c) => {
     createdAt: now,
     userMessage,
     assistantMessage: safeAssistant,
+    decisionTrace,
     source: convSource,
     images: [],
     files: [],

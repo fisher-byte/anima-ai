@@ -48,6 +48,7 @@ import {
   buildAIHistory,
 } from '../utils/conversationUtils'
 import { getAuthToken } from '../services/storageService'
+import { buildLingSiDecisionPayload, ensureLingSiStorageSeeded, mergeDecisionTrace } from '../services/lingsi'
 import { FEEDBACK_TRIGGERS, LENNY_SYSTEM_PROMPT, PG_SYSTEM_PROMPT, ZHANG_SYSTEM_PROMPT, WANG_SYSTEM_PROMPT } from '@shared/constants'
 import {
   UserMessageContent,
@@ -101,9 +102,11 @@ export function AnswerModal() {
   const isPGMode = useCanvasStore(state => state.isPGMode)
   const isZhangMode = useCanvasStore(state => state.isZhangMode)
   const isWangMode = useCanvasStore(state => state.isWangMode)
+  const lennyDecisionMode = useCanvasStore(state => state.lennyDecisionMode)
   const isCustomSpaceMode = useCanvasStore(state => state.isCustomSpaceMode)
   const activeCustomSpaceId = useCanvasStore(state => state.activeCustomSpaceId)
   const customSpaces = useCanvasStore(state => state.customSpaces)
+  const isPureLennySpace = isLennyMode && !isPGMode && !isZhangMode && !isWangMode
 
   const [turns, setTurns] = useState<Turn[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
@@ -147,6 +150,7 @@ export function AnswerModal() {
     preferences: string[]
     compressedMemory?: string
     systemPromptOverride?: string
+    extraContext?: string
     isOnboarding?: boolean
   } | null>(null)
   const networkHandoffOnceRef = useRef<string | null>(null) // 避免同一 convId 重复转后台
@@ -167,6 +171,24 @@ export function AnswerModal() {
           .join('\n\n')
       : '[无回复]'
   }, [])
+
+  const buildLennyDecisionRequest = useCallback(async (userMessage: string) => {
+    if (!isPureLennySpace) {
+      return { extraContext: undefined, decisionTrace: { mode: 'normal' as const } }
+    }
+
+    await ensureLingSiStorageSeeded()
+    const currentMode = lennyDecisionMode
+    const payload = await buildLingSiDecisionPayload(userMessage, currentMode)
+
+    if (currentConversation?.id) {
+      await updateConversation(currentConversation.id, {
+        decisionTrace: mergeDecisionTrace(currentConversation.decisionTrace, payload.decisionTrace),
+      })
+    }
+
+    return payload
+  }, [currentConversation, isPureLennySpace, lennyDecisionMode, updateConversation])
 
   const autoSaveIfNeeded = useCallback(async () => {
     try {
@@ -365,6 +387,7 @@ export function AnswerModal() {
             compressedMemory: ctx.compressedMemory,
             isOnboarding: ctx.isOnboarding ?? false,
             systemPromptOverride: ctx.systemPromptOverride,
+            extraContext: ctx.extraContext,
           })
         }).then(async (r) => {
           if (!r.ok) {
@@ -627,7 +650,8 @@ export function AnswerModal() {
         sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false, undefined, spacePrompt)
       } else if (isLennyMode) {
         const spacePrompt = isPGMode ? PG_SYSTEM_PROMPT : isZhangMode ? ZHANG_SYSTEM_PROMPT : isWangMode ? WANG_SYSTEM_PROMPT : LENNY_SYSTEM_PROMPT
-        sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false, undefined, spacePrompt)
+        const decisionPayload = await buildLennyDecisionRequest(currentConversation.userMessage)
+        sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false, undefined, spacePrompt, decisionPayload.extraContext)
       } else {
         sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false, currentConversation.id)
         lastDeepSearchContextRef.current = {
@@ -641,7 +665,7 @@ export function AnswerModal() {
     }
 
     prepareConversation()
-  }, [isModalOpen, currentConversation, isOnboardingMode, isLoading, resetHistory, sendMessage, getPreferencesForPrompt, getRelevantMemories, isLennyMode, isPGMode, isZhangMode, isWangMode])
+  }, [isModalOpen, currentConversation, isOnboardingMode, isLoading, resetHistory, sendMessage, getPreferencesForPrompt, getRelevantMemories, isLennyMode, isPGMode, isZhangMode, isWangMode, isCustomSpaceMode, customSpaces, activeCustomSpaceId, buildLennyDecisionRequest])
 
   // ── 深度搜索后台任务轮询：可跨页面继续，完成后回写到当前节点 ────────────────
   useEffect(() => {
@@ -747,8 +771,18 @@ export function AnswerModal() {
     setEditingIndex(null)
     setIsStreaming(true)
     didMutateRef.current = true
-    const preferences = getPreferencesForPrompt()
-    sendMessage(newContent, preferences, history, currentTurn.images, undefined, undefined, currentConversation?.id)
+    const preferences = (isLennyMode || isCustomSpaceMode) ? [] : getPreferencesForPrompt()
+    if (isCustomSpaceMode) {
+      const activeSpace = customSpaces.find(s => s.id === activeCustomSpaceId)
+      const spacePrompt = activeSpace?.systemPrompt ?? LENNY_SYSTEM_PROMPT
+      sendMessage(newContent, preferences, history, currentTurn.images, undefined, undefined, undefined, spacePrompt)
+    } else if (isLennyMode) {
+      const spacePrompt = isPGMode ? PG_SYSTEM_PROMPT : isZhangMode ? ZHANG_SYSTEM_PROMPT : isWangMode ? WANG_SYSTEM_PROMPT : LENNY_SYSTEM_PROMPT
+      const decisionPayload = await buildLennyDecisionRequest(newContent)
+      sendMessage(newContent, preferences, history, currentTurn.images, undefined, undefined, undefined, spacePrompt, decisionPayload.extraContext)
+    } else {
+      sendMessage(newContent, preferences, history, currentTurn.images, undefined, undefined, currentConversation.id)
+    }
   }
 
   const handleStopGeneration = useCallback(() => { cancel() }, [cancel])
@@ -763,9 +797,19 @@ export function AnswerModal() {
     const newTurns = [...previousTurns, { user: currentTurn.user, assistant: '', images: currentTurn.images, files: currentTurn.files }]
     setTurns(newTurns)
     setIsStreaming(true)
-    const preferences = getPreferencesForPrompt()
-    sendMessage(currentTurn.user, preferences, history, currentTurn.images, undefined, undefined, currentConversation?.id)
-  }, [turns, currentConversation, sendMessage, getPreferencesForPrompt])
+    const preferences = (isLennyMode || isCustomSpaceMode) ? [] : getPreferencesForPrompt()
+    if (isCustomSpaceMode) {
+      const activeSpace = customSpaces.find(s => s.id === activeCustomSpaceId)
+      const spacePrompt = activeSpace?.systemPrompt ?? LENNY_SYSTEM_PROMPT
+      sendMessage(currentTurn.user, preferences, history, currentTurn.images, undefined, undefined, undefined, spacePrompt)
+    } else if (isLennyMode) {
+      const spacePrompt = isPGMode ? PG_SYSTEM_PROMPT : isZhangMode ? ZHANG_SYSTEM_PROMPT : isWangMode ? WANG_SYSTEM_PROMPT : LENNY_SYSTEM_PROMPT
+      const decisionPayload = await buildLennyDecisionRequest(currentTurn.user)
+      sendMessage(currentTurn.user, preferences, history, currentTurn.images, undefined, undefined, undefined, spacePrompt, decisionPayload.extraContext)
+    } else {
+      sendMessage(currentTurn.user, preferences, history, currentTurn.images, undefined, undefined, currentConversation.id)
+    }
+  }, [turns, currentConversation, sendMessage, getPreferencesForPrompt, isLennyMode, isCustomSpaceMode, customSpaces, activeCustomSpaceId, isPGMode, isZhangMode, isWangMode, buildLennyDecisionRequest])
 
   const handleCopyMessage = useCallback(async (text: string, index: number) => {
     try {
@@ -984,7 +1028,8 @@ export function AnswerModal() {
       sendMessage(fullMessage, preferences, history, pendingImages, compressed, false, undefined, spacePrompt)
     } else if (isLennyMode) {
       const spacePrompt = isPGMode ? PG_SYSTEM_PROMPT : isZhangMode ? ZHANG_SYSTEM_PROMPT : isWangMode ? WANG_SYSTEM_PROMPT : LENNY_SYSTEM_PROMPT
-      sendMessage(fullMessage, preferences, history, pendingImages, compressed, false, undefined, spacePrompt)
+      const decisionPayload = await buildLennyDecisionRequest(fullTrimmed)
+      sendMessage(fullMessage, preferences, history, pendingImages, compressed, false, undefined, spacePrompt, decisionPayload.extraContext)
     } else {
       // 记录上下文，便于“关闭窗口→后台继续深度搜索”
       lastDeepSearchContextRef.current = {
@@ -998,7 +1043,7 @@ export function AnswerModal() {
     }
   }, [feedbackMessage, pendingImages, pendingFiles, pendingReferenceBlocks, isStreaming, isOnboardingMode, isLennyMode, isPGMode, isZhangMode, isWangMode,
       isCustomSpaceMode, activeCustomSpaceId, customSpaces,
-      getPreferencesForPrompt, sendMessage, turns, getRelevantMemories, setHighlight, focusNode])
+      getPreferencesForPrompt, sendMessage, turns, getRelevantMemories, setHighlight, focusNode, buildLennyDecisionRequest])
 
   // ── 关闭并保存 ────────────────────────────────────────────────────────────
   const handleClose = useCallback(async () => {
@@ -1028,6 +1073,7 @@ export function AnswerModal() {
           compressedMemory: (ctx?.conversationId === currentConversation.id ? ctx.compressedMemory : undefined),
           isOnboarding: isOnboardingMode,
           systemPromptOverride: (ctx?.conversationId === currentConversation.id ? ctx.systemPromptOverride : undefined),
+          extraContext: (ctx?.conversationId === currentConversation.id ? ctx.extraContext : undefined),
         }
         const resp = await authFetch('/api/ai/deep-search', { method: 'POST', body: JSON.stringify(payload) })
         if (resp.ok) {
@@ -1561,4 +1607,3 @@ export function AnswerModal() {
     </>
   )
 }
-
