@@ -1,5 +1,28 @@
 # Anima 变更日志
 
+## [0.5.14] - 2026-03-17
+
+### feat: LingSi 扩到张小龙 persona + anima-base 最新同步
+
+**新增能力：**
+- `scripts/extract-lingsi-seeds.ts`：从单 persona 扩展到多 persona，新增 `zhang` persona、6 条张小龙真实来源、8 条 approved units
+- `ZhangSpaceCanvas.tsx` / `PublicSpaceCanvas.tsx` / `AnswerModal.tsx` / `canvasStore.ts`：张小龙 Space 接入 `normal / 灵思` 切换、persona scoped `decisionTrace` 与证据展示
+- `services/lingsi.ts` / `lingsiDecisionEngine.ts`：按 persona 过滤 DecisionUnit，`extraContext` 不再硬编码 Lenny
+- `scripts/evaluate-lingsi.ts`：Lenny 基线评测改为只读 `personaId='lenny'` 的 units，避免第二 persona 干扰 M4 报告
+- `anima-base`：同步到 `65ca4c7`，纳入张小龙微信立项、春节红包、朋友圈广告、订阅号改版等决策材料
+
+**测试与验证：**
+- `npm run lingsi:extract`：通过，刷新为 `2 personas / 17 sources / 28 approved units`
+- `npm test`：575/575 通过
+- `npm run typecheck`：通过
+- `npm run build`：通过
+- `npm run test:e2e`：44 passed / 4 skipped
+
+**代码审查结论：**
+- 本轮 diff 已完成正式审查；无新增阻塞项，多 persona 扩展未破坏既有 Lenny 评测隔离。
+
+---
+
 ## [0.5.13] - 2026-03-17
 
 ### feat: LingSi 数据层扩充（anima-base refresh）

@@ -62,10 +62,14 @@ export function matchDecisionUnits(query: string, units: DecisionUnit[]): Decisi
     .map(item => item.unit)
 }
 
-export function buildDecisionExtraContext(query: string, matchedUnits: DecisionUnit[]): string {
+export function buildDecisionExtraContext(
+  query: string,
+  matchedUnits: DecisionUnit[],
+  personaName = '当前 persona',
+): string {
   const header = [
     '【LingSi 决策模式】',
-    '当前任务：以 Lenny 的方式回答一个决策问题。',
+    `当前任务：以 ${personaName} 的方式回答一个决策问题。`,
     '回答要求：',
     '1. 先给直接判断或倾向，不要先铺垫。',
     '2. 明确区分当前阶段、假设条件和主要权衡。',
@@ -103,10 +107,11 @@ export function buildDecisionExtraContext(query: string, matchedUnits: DecisionU
   return [...header, '命中的 DecisionUnit：', ...unitBlocks].join('\n\n')
 }
 
-export function buildDecisionTrace(mode: DecisionMode, matchedUnits: DecisionUnit[]): DecisionTrace {
-  if (mode === 'normal') return { mode: 'normal' }
+export function buildDecisionTrace(mode: DecisionMode, matchedUnits: DecisionUnit[], personaId?: string): DecisionTrace {
+  if (mode === 'normal') return { mode: 'normal', personaId }
   return {
     mode: 'decision',
+    personaId,
     matchedDecisionUnitIds: matchedUnits.map(unit => unit.id),
     sourceRefs: dedupeSourceRefs(matchedUnits.flatMap(unit => unit.sourceRefs)),
   }
@@ -116,18 +121,25 @@ export function buildLingSiDecisionPayloadFromUnits(
   query: string,
   mode: DecisionMode,
   units: DecisionUnit[],
+  options?: {
+    personaId?: string
+    personaName?: string
+  },
 ): {
   extraContext?: string
   decisionTrace: DecisionTrace
 } {
   if (mode !== 'decision') {
-    return { decisionTrace: { mode: 'normal' } }
+    return { decisionTrace: { mode: 'normal', personaId: options?.personaId } }
   }
 
-  const matchedUnits = matchDecisionUnits(query, units)
+  const scopedUnits = options?.personaId
+    ? units.filter(unit => unit.personaId === options.personaId)
+    : units
+  const matchedUnits = matchDecisionUnits(query, scopedUnits)
   return {
-    extraContext: buildDecisionExtraContext(query, matchedUnits),
-    decisionTrace: buildDecisionTrace('decision', matchedUnits),
+    extraContext: buildDecisionExtraContext(query, matchedUnits, options?.personaName),
+    decisionTrace: buildDecisionTrace('decision', matchedUnits, options?.personaId),
   }
 }
 
@@ -135,9 +147,10 @@ export function mergeDecisionTrace(
   existing: DecisionTrace | undefined,
   next: DecisionTrace,
 ): DecisionTrace {
-  if (next.mode === 'normal') return { mode: 'normal' }
+  if (next.mode === 'normal') return { mode: 'normal', personaId: next.personaId ?? existing?.personaId }
   return {
     mode: 'decision',
+    personaId: next.personaId ?? existing?.personaId,
     matchedDecisionUnitIds: [...new Set([...(existing?.matchedDecisionUnitIds ?? []), ...(next.matchedDecisionUnitIds ?? [])])],
     sourceRefs: dedupeSourceRefs([...(existing?.sourceRefs ?? []), ...(next.sourceRefs ?? [])]),
   }

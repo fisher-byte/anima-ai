@@ -28,18 +28,37 @@ describe('lingsiDecisionEngine', () => {
       'B2B AI 工具应该按 seat 还是按使用量定价？',
       'decision',
       units,
+      {
+        personaId: 'lenny',
+        personaName: 'Lenny Rachitsky',
+      },
     )
     expect(payload.extraContext).toContain('LingSi 决策模式')
     expect(payload.decisionTrace.mode).toBe('decision')
+    expect(payload.decisionTrace.personaId).toBe('lenny')
     expect(payload.decisionTrace.matchedDecisionUnitIds).toContain('lenny-pricing-start-with-value-metric')
     expect(payload.decisionTrace.sourceRefs?.[0]?.locator).toBeTruthy()
   })
 
   it('merges traces without duplicating unit ids', () => {
-    const first = buildLingSiDecisionPayloadFromUnits('路线图优先级怎么排？', 'decision', units).decisionTrace
-    const second = buildLingSiDecisionPayloadFromUnits('路线图优先级还是用 RICE 吗？', 'decision', units).decisionTrace
+    const first = buildLingSiDecisionPayloadFromUnits('路线图优先级怎么排？', 'decision', units, { personaId: 'lenny' }).decisionTrace
+    const second = buildLingSiDecisionPayloadFromUnits('路线图优先级还是用 RICE 吗？', 'decision', units, { personaId: 'lenny' }).decisionTrace
     const merged = mergeDecisionTrace(first, second)
     expect(merged.mode).toBe('decision')
+    expect(merged.personaId).toBe('lenny')
     expect(merged.matchedDecisionUnitIds?.filter(id => id === 'lenny-rice-prioritize-with-confidence')).toHaveLength(1)
+  })
+
+  it('scopes matching to the selected persona', () => {
+    const payload = buildLingSiDecisionPayloadFromUnits(
+      '如何做一个争议较大的信息流改版？',
+      'decision',
+      units,
+      { personaId: 'zhang', personaName: '张小龙' },
+    )
+    expect(payload.decisionTrace.personaId).toBe('zhang')
+    expect(payload.decisionTrace.matchedDecisionUnitIds?.some(id => id.startsWith('zhang-'))).toBe(true)
+    expect(payload.decisionTrace.matchedDecisionUnitIds?.some(id => id.startsWith('lenny-'))).toBe(false)
+    expect(payload.extraContext).toContain('以 张小龙 的方式回答')
   })
 })

@@ -159,5 +159,101 @@
     "status": "active",
     "createdAt": "2026-03-17T06:20:17.767Z",
     "updatedAt": "2026-03-17T12:41:17.326Z"
+  },
+  {
+    "id": "zhang",
+    "name": "张小龙",
+    "basePromptKey": "ZHANG_SYSTEM_PROMPT",
+    "heuristics": [
+      "先判断是否违背人性、场景和关系链，再谈功能方案",
+      "优先寻找更简单、更自然的规则，而不是堆更多控制项",
+      "在社交和内容场景里，先考虑群体效应和传播机制",
+      "商业化或增长动作要克制，不能破坏长期体验"
+    ],
+    "domainBoundaries": {
+      "strong": [
+        "product",
+        "social",
+        "consumer",
+        "content",
+        "growth"
+      ],
+      "weak": [
+        "medical",
+        "legal",
+        "licensed_finance"
+      ]
+    },
+    "evidenceSources": [
+      {
+        "id": "src-zhang-core-principles",
+        "label": "Zhang Core Product Principles",
+        "type": "framework",
+        "path": "people/product/zhang-xiaolong/frameworks/core-principles.md",
+        "person": "Zhang Xiaolong",
+        "title": "产品基本原则",
+        "publishedAt": "2012-01-01",
+        "evidenceLevel": "A",
+        "notes": "Simple rules, user psychology, group effects, product restraint"
+      },
+      {
+        "id": "src-zhang-discovering-needs",
+        "label": "Zhang Need Discovery Framework",
+        "type": "framework",
+        "path": "people/product/zhang-xiaolong/frameworks/discovering-needs.md",
+        "person": "Zhang Xiaolong",
+        "title": "需求发现方法论",
+        "publishedAt": "2012-01-01",
+        "evidenceLevel": "A",
+        "notes": "Psychological delight over utility, trend sensing, human motives"
+      },
+      {
+        "id": "src-zhang-wechat-launch",
+        "label": "WeChat Launch Decision Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-10-wechat-launch-decision.md",
+        "person": "Zhang Xiaolong",
+        "title": "微信立项决策",
+        "publishedAt": "2010-11-20",
+        "evidenceLevel": "A",
+        "notes": "New relation chain, small team launch, fast MVP under strategic threat"
+      },
+      {
+        "id": "src-zhang-red-packet",
+        "label": "Red Packet Activation Decision Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-15-red-packet.md",
+        "person": "Zhang Xiaolong",
+        "title": "春节红包决策",
+        "publishedAt": "2014-01-20",
+        "evidenceLevel": "A",
+        "notes": "Gamified activation, social diffusion, cultural timing window"
+      },
+      {
+        "id": "src-zhang-moments-ads",
+        "label": "Moments Ads Decision Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-17-moments-ads.md",
+        "person": "Zhang Xiaolong",
+        "title": "朋友圈广告决策",
+        "publishedAt": "2015-01-25",
+        "evidenceLevel": "A",
+        "notes": "Restrained commercialization, native ad format, user control"
+      },
+      {
+        "id": "src-zhang-subscription-feed",
+        "label": "Subscription Feed Redesign Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-06-subscription-feed-redesign.md",
+        "person": "Zhang Xiaolong",
+        "title": "订阅号信息流改版决策",
+        "publishedAt": "2017-05-01",
+        "evidenceLevel": "B",
+        "notes": "Independent entry, progressive reform, social recommendation over forced feed rewrite"
+      }
+    ],
+    "status": "active",
+    "createdAt": "2026-03-17T14:06:39.805Z",
+    "updatedAt": "2026-03-17T14:06:39.805Z"
   }
 ]

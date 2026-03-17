@@ -1,6 +1,6 @@
 # Anima 架构文档
 
-*最后更新: 2026-03-14 | 版本: v0.5.4*
+*最后更新: 2026-03-17 | 版本: v0.5.14*
 
 ---
 
@@ -210,9 +210,9 @@ index.ts 中间件: c.set('db', getDb('a1b2c3d4e5f6'))
 支持工具调用（`$web_search`，Kimi 2.5 原生联网），工具结果自动进入第二轮请求。
 
 **LingSi（v0.5.5 M4 已完成）**：
-- `Lenny` 决策版沿用 `systemPromptOverride`，并新增 `extraContext` 注入 DecisionUnit 命中结果
-- 首次打开 Lenny Space 时，前端会把真实 `seeds/lingsi/*` 资产写入 `storage` 表，避免依赖 mock
-- 命中的证据会进入对话元数据 `decisionTrace`：`mode`、`matchedDecisionUnitIds`、`sourceRefs`
+- `Lenny` 与 `张小龙` 决策版沿用 `systemPromptOverride`，并新增 `extraContext` 注入 DecisionUnit 命中结果
+- 首次打开支持灵思的 Space 时，前端会把真实 `seeds/lingsi/*` 资产写入 `storage` 表，避免依赖 mock
+- 命中的证据会进入对话元数据 `decisionTrace`：`mode`、`personaId`、`matchedDecisionUnitIds`、`sourceRefs`
 - 来源真相库保留在独立仓库 `anima-base/`，主项目只导入必要子集
 
 **v0.3.2 新增能力：**

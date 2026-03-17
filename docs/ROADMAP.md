@@ -2,6 +2,13 @@
 
 ## 计划中版本
 
+#### v0.5.14 - LingSi 张小龙 persona + anima-base 同步（已完成）
+- [x] `anima-base`：同步到 `65ca4c7`，纳入张小龙最新 `decision-cases` / `frameworks` 增量
+- [x] `scripts/extract-lingsi-seeds.ts`：从单 persona 扩展到多 persona，新增 `zhang` persona、6 条来源、8 条 approved units
+- [x] `AnswerModal.tsx` / `canvasStore.ts` / `PublicSpaceCanvas.tsx`：张小龙 Space 接入 `normal / 灵思` 模式切换与 `decisionTrace.personaId` 持久化
+- [x] `scripts/evaluate-lingsi.ts`：Lenny 评测改为 persona scoped，避免被张小龙 units 污染
+- [x] 验证：`npm run lingsi:extract`、`npm test`（575/575）、`npm run typecheck`、`npm run build`、`npm run test:e2e`（44 passed / 4 skipped）
+
 #### v0.5.13 - LingSi anima-base 数据扩充（已完成）
 - [x] `scripts/extract-lingsi-seeds.ts`：接入 `case-01-superhuman-pmf-survey-decision.md`、`product-roadmap-planning-framework.md`、`uncertainty-decision-framework.md`、`pm-career-path-decision-framework.md`
 - [x] 新增 7 条 `DecisionUnit`，覆盖 PMF 分层、50/50 路线图、solution deepening、goals-first roadmap、不确定性决策、PM 职业决策

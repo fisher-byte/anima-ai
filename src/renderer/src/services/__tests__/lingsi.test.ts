@@ -49,4 +49,64 @@ describe('lingsi service', () => {
     expect(units).toHaveLength(1)
     expect(units[0].id).toBe('unit-1')
   })
+
+  it('filters payload generation by persona', async () => {
+    mockStorageRead.mockImplementation(async (filename: string) => {
+      if (filename === 'decision-personas.json') return '[]'
+      if (filename === 'decision-source-manifest.json') return '[]'
+      if (filename === 'decision-units.json') {
+        return JSON.stringify([
+          {
+            id: 'lenny-unit',
+            personaId: 'lenny',
+            title: 'Lenny Unit',
+            summary: 's',
+            scenario: '定价讨论',
+            tags: ['pricing'],
+            triggerKeywords: ['定价'],
+            reasoningSteps: [],
+            reasons: [],
+            followUpQuestions: [],
+            nextActions: [],
+            evidenceLevel: 'B',
+            sourceRefs: [],
+            status: 'approved',
+            createdAt: '2026-03-17T00:00:00.000Z',
+            updatedAt: '2026-03-17T00:00:00.000Z',
+          },
+          {
+            id: 'zhang-unit',
+            personaId: 'zhang',
+            title: 'Zhang Unit',
+            summary: 's',
+            scenario: '定价讨论',
+            tags: ['pricing'],
+            triggerKeywords: ['定价'],
+            reasoningSteps: [],
+            reasons: [],
+            followUpQuestions: [],
+            nextActions: [],
+            evidenceLevel: 'B',
+            sourceRefs: [],
+            status: 'approved',
+            createdAt: '2026-03-17T00:00:00.000Z',
+            updatedAt: '2026-03-17T00:00:00.000Z',
+          },
+        ])
+      }
+      return null
+    })
+
+    const { buildLingSiDecisionPayload, loadDecisionUnits } = await import('../lingsi')
+    const zhangUnits = await loadDecisionUnits('zhang')
+    const payload = await buildLingSiDecisionPayload('定价怎么做？', 'decision', {
+      personaId: 'zhang',
+      personaName: '张小龙',
+    })
+
+    expect(zhangUnits.map(unit => unit.id)).toEqual(['zhang-unit'])
+    expect(payload.decisionTrace.personaId).toBe('zhang')
+    expect(payload.decisionTrace.matchedDecisionUnitIds).toEqual(['zhang-unit'])
+    expect(payload.extraContext).toContain('以 张小龙 的方式回答')
+  })
 })

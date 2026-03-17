@@ -14,6 +14,7 @@ import type {
 
 interface SourceSpec {
   id: string
+  personaId: string
   type: DecisionSourceType
   person: string
   sourcePath: string
@@ -26,6 +27,17 @@ interface SourceSpec {
   mustInclude: string[]
 }
 
+interface PersonaSpec {
+  id: string
+  name: string
+  basePromptKey: string
+  heuristics: string[]
+  domainBoundaries: {
+    strong: string[]
+    weak: string[]
+  }
+}
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const evocanvasRoot = resolve(__dirname, '..')
@@ -33,9 +45,43 @@ const workspaceRoot = resolve(evocanvasRoot, '..')
 const animaBaseRoot = join(workspaceRoot, 'anima-base')
 const outputDir = join(evocanvasRoot, 'seeds', 'lingsi')
 
+const PERSONA_SPECS: PersonaSpec[] = [
+  {
+    id: 'lenny',
+    name: 'Lenny Rachitsky',
+    basePromptKey: 'LENNY_SYSTEM_PROMPT',
+    heuristics: [
+      '先给直接判断，再展开理由',
+      '在不确定问题上先写清关键假设和验证路径',
+      '优先区分阶段差异，而不是给放之四海皆准的答案',
+      '尽量把抽象问题落到具体指标、动作和信号上',
+    ],
+    domainBoundaries: {
+      strong: ['product', 'growth', 'pricing', 'pmf', 'career'],
+      weak: ['medical', 'legal', 'licensed_finance'],
+    },
+  },
+  {
+    id: 'zhang',
+    name: '张小龙',
+    basePromptKey: 'ZHANG_SYSTEM_PROMPT',
+    heuristics: [
+      '先判断是否违背人性、场景和关系链，再谈功能方案',
+      '优先寻找更简单、更自然的规则，而不是堆更多控制项',
+      '在社交和内容场景里，先考虑群体效应和传播机制',
+      '商业化或增长动作要克制，不能破坏长期体验',
+    ],
+    domainBoundaries: {
+      strong: ['product', 'social', 'consumer', 'content', 'growth'],
+      weak: ['medical', 'legal', 'licensed_finance'],
+    },
+  },
+]
+
 const SOURCE_SPECS: SourceSpec[] = [
   {
     id: 'src-lenny-decision-frameworks',
+    personaId: 'lenny',
     type: 'framework',
     person: 'Lenny Rachitsky',
     sourcePath: 'people/product/lenny-rachitsky/frameworks/decision-making-frameworks.md',
@@ -49,6 +95,7 @@ const SOURCE_SPECS: SourceSpec[] = [
   },
   {
     id: 'src-lenny-pmf-assessment',
+    personaId: 'lenny',
     type: 'framework',
     person: 'Lenny Rachitsky',
     sourcePath: 'people/product/lenny-rachitsky/frameworks/pmf-assessment.md',
@@ -62,6 +109,7 @@ const SOURCE_SPECS: SourceSpec[] = [
   },
   {
     id: 'src-lenny-rice',
+    personaId: 'lenny',
     type: 'framework',
     person: 'Lenny Rachitsky',
     sourcePath: 'people/product/lenny-rachitsky/frameworks/rice-prioritization-framework.md',
@@ -75,6 +123,7 @@ const SOURCE_SPECS: SourceSpec[] = [
   },
   {
     id: 'src-lenny-cross-functional-alignment',
+    personaId: 'lenny',
     type: 'framework',
     person: 'Lenny Rachitsky',
     sourcePath: 'people/product/lenny-rachitsky/frameworks/cross-functional-alignment.md',
@@ -88,6 +137,7 @@ const SOURCE_SPECS: SourceSpec[] = [
   },
   {
     id: 'src-lenny-saas-pricing',
+    personaId: 'lenny',
     type: 'framework',
     person: 'Lenny Rachitsky',
     sourcePath: 'people/product/lenny-rachitsky/frameworks/saas-pricing-strategy-framework.md',
@@ -101,6 +151,7 @@ const SOURCE_SPECS: SourceSpec[] = [
   },
   {
     id: 'src-lenny-growth-loops',
+    personaId: 'lenny',
     type: 'framework',
     person: 'Lenny Rachitsky',
     sourcePath: 'people/product/lenny-rachitsky/frameworks/growth-loops.md',
@@ -114,6 +165,7 @@ const SOURCE_SPECS: SourceSpec[] = [
   },
   {
     id: 'src-lenny-annie-duke',
+    personaId: 'lenny',
     type: 'podcast_transcript',
     person: 'Lenny Rachitsky',
     sourcePath: 'people/product/lenny-rachitsky/podcasts/2024-05-02-annie-duke.md',
@@ -127,6 +179,7 @@ const SOURCE_SPECS: SourceSpec[] = [
   },
   {
     id: 'src-lenny-superhuman-pmf-case',
+    personaId: 'lenny',
     type: 'framework',
     person: 'Lenny Rachitsky',
     sourcePath: 'people/product/lenny-rachitsky/decision-cases/case-01-superhuman-pmf-survey-decision.md',
@@ -140,6 +193,7 @@ const SOURCE_SPECS: SourceSpec[] = [
   },
   {
     id: 'src-lenny-roadmap-pyramid',
+    personaId: 'lenny',
     type: 'framework',
     person: 'Lenny Rachitsky',
     sourcePath: 'people/product/lenny-rachitsky/frameworks/product-roadmap-planning-framework.md',
@@ -153,6 +207,7 @@ const SOURCE_SPECS: SourceSpec[] = [
   },
   {
     id: 'src-lenny-uncertainty',
+    personaId: 'lenny',
     type: 'framework',
     person: 'Lenny Rachitsky',
     sourcePath: 'people/product/lenny-rachitsky/articles/uncertainty-decision-framework.md',
@@ -165,6 +220,7 @@ const SOURCE_SPECS: SourceSpec[] = [
   },
   {
     id: 'src-lenny-pm-career',
+    personaId: 'lenny',
     type: 'framework',
     person: 'Lenny Rachitsky',
     sourcePath: 'people/product/lenny-rachitsky/articles/pm-career-path-decision-framework.md',
@@ -176,10 +232,89 @@ const SOURCE_SPECS: SourceSpec[] = [
     evidenceLevel: 'B',
     mustInclude: ['best at teaching them the craft of product management', 'track record of creating an inflection in the careers of PMs', 'switch at L6 (i.e., Sr. Product Manager)'],
   },
+  {
+    id: 'src-zhang-core-principles',
+    personaId: 'zhang',
+    type: 'framework',
+    person: 'Zhang Xiaolong',
+    sourcePath: 'people/product/zhang-xiaolong/frameworks/core-principles.md',
+    label: 'Zhang Core Product Principles',
+    title: '产品基本原则',
+    publishedAt: '2012-01-01',
+    notes: 'Simple rules, user psychology, group effects, product restraint',
+    evidenceLevel: 'A',
+    mustInclude: ['简单是最美的', '产品研究的是群体', '最简无法被打败'],
+  },
+  {
+    id: 'src-zhang-discovering-needs',
+    personaId: 'zhang',
+    type: 'framework',
+    person: 'Zhang Xiaolong',
+    sourcePath: 'people/product/zhang-xiaolong/frameworks/discovering-needs.md',
+    label: 'Zhang Need Discovery Framework',
+    title: '需求发现方法论',
+    publishedAt: '2012-01-01',
+    notes: 'Psychological delight over utility, trend sensing, human motives',
+    evidenceLevel: 'A',
+    mustInclude: ['心理满足 > 工具价值', '他要的是很爽的感觉', '需求是满足人们的贪嗔痴'],
+  },
+  {
+    id: 'src-zhang-wechat-launch',
+    personaId: 'zhang',
+    type: 'decision_case',
+    person: 'Zhang Xiaolong',
+    sourcePath: 'people/product/zhang-xiaolong/decision-cases/case-10-wechat-launch-decision.md',
+    label: 'WeChat Launch Decision Case',
+    title: '微信立项决策',
+    publishedAt: '2010-11-20',
+    notes: 'New relation chain, small team launch, fast MVP under strategic threat',
+    evidenceLevel: 'A',
+    mustInclude: ['2. ✅ **基于手机通讯录**：而非QQ好友关系链', '4. ✅ **快速迭代**：2个月上线，先做最小可用产品（MVP）', '1. ✅ **全新产品**：不是手机QQ升级，是全新品牌"微信"'],
+  },
+  {
+    id: 'src-zhang-red-packet',
+    personaId: 'zhang',
+    type: 'decision_case',
+    person: 'Zhang Xiaolong',
+    sourcePath: 'people/product/zhang-xiaolong/decision-cases/case-15-red-packet.md',
+    label: 'Red Packet Activation Decision Case',
+    title: '春节红包决策',
+    publishedAt: '2014-01-20',
+    notes: 'Gamified activation, social diffusion, cultural timing window',
+    evidenceLevel: 'A',
+    mustInclude: ['用红包包装绑卡', '社交裂变 + 随机性 = 病毒传播', '抓住文化节点 + 快速执行'],
+  },
+  {
+    id: 'src-zhang-moments-ads',
+    personaId: 'zhang',
+    type: 'decision_case',
+    person: 'Zhang Xiaolong',
+    sourcePath: 'people/product/zhang-xiaolong/decision-cases/case-17-moments-ads.md',
+    label: 'Moments Ads Decision Case',
+    title: '朋友圈广告决策',
+    publishedAt: '2015-01-25',
+    notes: 'Restrained commercialization, native ad format, user control',
+    evidenceLevel: 'A',
+    mustInclude: ['> "如果广告本身有价值，用户就不会讨厌它。广告的本质是信息，不是打扰。"', '1. **克制投放**: 每天最多1条朋友圈广告（不像微博/Facebook密集投放）', '2. **原生形态**: 广告外观接近朋友圈内容（不做突兀Banner）'],
+  },
+  {
+    id: 'src-zhang-subscription-feed',
+    personaId: 'zhang',
+    type: 'decision_case',
+    person: 'Zhang Xiaolong',
+    sourcePath: 'people/product/zhang-xiaolong/decision-cases/case-06-subscription-feed-redesign.md',
+    label: 'Subscription Feed Redesign Case',
+    title: '订阅号信息流改版决策',
+    publishedAt: '2017-05-01',
+    notes: 'Independent entry, progressive reform, social recommendation over forced feed rewrite',
+    evidenceLevel: 'B',
+    mustInclude: ['2. **增加信息流**: 在"发现-看一看"单独入口（而非直接改订阅号）', '3. **社交推荐**: 基于好友点赞推荐（而非纯算法）', '### 启发式3: 独立入口 vs 强制改版'],
+  },
 ]
 
 interface UnitSeed {
   id: string
+  personaId: string
   title: string
   summary: string
   scenario: string
@@ -204,6 +339,7 @@ interface UnitSeed {
 const UNIT_SEEDS: UnitSeed[] = [
   {
     id: 'lenny-pmf-validate-before-growth',
+    personaId: 'lenny',
     title: '先验证 PMF，再加速增长',
     summary: '当团队想加大增长投入时，优先看 PMF 信号是否已经成立，而不是只看情绪或短期收入。',
     scenario: '产品负责人在判断是否进入增长加速阶段。',
@@ -237,6 +373,7 @@ const UNIT_SEEDS: UnitSeed[] = [
   },
   {
     id: 'lenny-pmf-find-best-segment',
+    personaId: 'lenny',
     title: '先找到最痛用户群，再谈全面扩张',
     summary: 'PMF 不是对所有人同时成立，先识别最离不开产品的那群用户，再围绕他们集中优化。',
     scenario: '团队发现用户反馈分化，难判断到底有没有 PMF。',
@@ -270,6 +407,7 @@ const UNIT_SEEDS: UnitSeed[] = [
   },
   {
     id: 'lenny-rice-prioritize-with-confidence',
+    personaId: 'lenny',
     title: '资源有限时，用 RICE 排序而不是拍脑袋',
     summary: '面对多个候选功能或项目时，用 Reach、Impact、Confidence、Effort 一起比较，尤其要正视信心不足。',
     scenario: '产品团队在多个功能之间做路线图取舍。',
@@ -303,6 +441,7 @@ const UNIT_SEEDS: UnitSeed[] = [
   },
   {
     id: 'lenny-roadmap-cutline-before-stakeholder-pull',
+    personaId: 'lenny',
     title: '路线图先收敛到关键项目，再处理外部拉扯',
     summary: '当季度路线图同时被 CEO、销售、客户成功拉扯时，先收敛关键项目，再用统一评估规则处理加项请求。',
     scenario: '小团队在季度规划时面对多方 stakeholder 压力，原计划容易不断加项。',
@@ -342,6 +481,7 @@ const UNIT_SEEDS: UnitSeed[] = [
   },
   {
     id: 'lenny-pricing-start-with-value-metric',
+    personaId: 'lenny',
     title: '定价前先确定价值指标，不要先拍价格点',
     summary: '对 SaaS 产品而言，先想清楚客户为什么付费、按什么单位付费，再决定具体价格。',
     scenario: '团队准备给新产品或新套餐定价。',
@@ -375,6 +515,7 @@ const UNIT_SEEDS: UnitSeed[] = [
   },
   {
     id: 'lenny-pricing-design-clear-upgrade-path',
+    personaId: 'lenny',
     title: '套餐设计的重点是升级路径，而不是层数堆砌',
     summary: '套餐不宜过多，重点是让基础层易采用、中间层成为主打、高层捕获高价值客户。',
     scenario: '团队在设计 SaaS 套餐结构。',
@@ -408,6 +549,7 @@ const UNIT_SEEDS: UnitSeed[] = [
   },
   {
     id: 'lenny-growth-loop-before-channel-scaling',
+    personaId: 'lenny',
     title: '先识别增长闭环，再决定砸哪条渠道',
     summary: '如果产品还没有找到能自我强化的增长闭环，单纯放大漏斗投入往往不可持续。',
     scenario: '团队在考虑增长渠道选择和预算分配。',
@@ -441,6 +583,7 @@ const UNIT_SEEDS: UnitSeed[] = [
   },
   {
     id: 'lenny-daci-for-cross-functional-decisions',
+    personaId: 'lenny',
     title: '跨团队决策先把角色定清楚，尤其是唯一 approver',
     summary: '当决策涉及多个团队时，先用 DACI 明确 driver、approver、contributors、informed，减少无效争论。',
     scenario: '一个功能或路线图决策牵涉产品、设计、工程、数据等多个角色。',
@@ -474,6 +617,7 @@ const UNIT_SEEDS: UnitSeed[] = [
   },
   {
     id: 'lenny-two-way-door-for-speed',
+    personaId: 'lenny',
     title: '能回滚的事就快做快试，不要用单向门流程处理双向门',
     summary: '很多团队决策之所以慢，不是因为事情真的不可逆，而是把可回滚的决策也当成了高风险审批项。',
     scenario: '团队在速度和谨慎之间摇摆，导致推进缓慢。',
@@ -507,6 +651,7 @@ const UNIT_SEEDS: UnitSeed[] = [
   },
   {
     id: 'lenny-meetings-are-for-discussion-not-discovery-or-decision',
+    personaId: 'lenny',
     title: '会议只做讨论，不做发现和拍板',
     summary: '把发现信息和做决定都挪到会前/会后，会议本身只保留高质量讨论。',
     scenario: '团队开会常常被最响亮或最自信的人带偏。',
@@ -540,6 +685,7 @@ const UNIT_SEEDS: UnitSeed[] = [
   },
   {
     id: 'lenny-pre-mortem-needs-kill-criteria',
+    personaId: 'lenny',
     title: '做 pre-mortem 时一定要配 kill criteria',
     summary: '提前假设项目会失败还不够，关键是先承诺：出现哪些信号就停、改或重算。',
     scenario: '团队在上线新项目或重大功能前做风险评估。',
@@ -573,6 +719,7 @@ const UNIT_SEEDS: UnitSeed[] = [
   },
   {
     id: 'lenny-make-implicit-explicit',
+    personaId: 'lenny',
     title: '把隐含判断显性化，才能知道自己什么时候错了',
     summary: '直觉可以有价值，但如果不把判断写出来，就无法复盘自己到底错在假设、估计还是执行。',
     scenario: '创始人或负责人在高不确定问题上主要依赖经验判断。',
@@ -606,6 +753,7 @@ const UNIT_SEEDS: UnitSeed[] = [
   },
   {
     id: 'lenny-shorten-feedback-loops-with-leading-signals',
+    personaId: 'lenny',
     title: '所谓长反馈回路，通常是你还没定义领先信号',
     summary: '当最终结果要很久才显现时，先找到与目标强相关的中间信号，主动缩短反馈周期。',
     scenario: '团队面对长期结果导向问题，担心试错成本太高。',
@@ -639,6 +787,7 @@ const UNIT_SEEDS: UnitSeed[] = [
   },
   {
     id: 'lenny-pmf-listen-to-the-almost-convinced',
+    personaId: 'lenny',
     title: 'PMF 卡住时，优先研究“差一点就爱上你”的用户',
     summary: '当用户反馈很多但增长没有起势时，不要平均听所有人，而要集中研究那些接近爱上产品、只是被少数阻碍卡住的用户。',
     scenario: '团队已经有一批喜欢产品的早期用户，但路线图仍然容易被杂音带偏。',
@@ -672,6 +821,7 @@ const UNIT_SEEDS: UnitSeed[] = [
   },
   {
     id: 'lenny-pmf-balance-love-and-objections',
+    personaId: 'lenny',
     title: 'PMF 提升不是只补短板，要用 50/50 同时强化优势和拆阻碍',
     summary: '路线图不能只盯着用户抱怨，也不能只继续堆大家已经喜欢的功能。更稳的做法是同时强化核心吸引力和移除关键阻碍。',
     scenario: '团队在决定 PMF 阶段的下个迭代应该做增强项还是补缺口。',
@@ -705,6 +855,7 @@ const UNIT_SEEDS: UnitSeed[] = [
   },
   {
     id: 'lenny-solution-deepening-before-market-widening',
+    personaId: 'lenny',
     title: '产品还没站稳时，先做深再做宽',
     summary: '当团队纠结先扩平台、扩市场还是继续打磨核心体验时，默认应先把当前核心用户的体验做深，除非已有很强证据证明扩张窗口更重要。',
     scenario: '产品团队在“继续打磨核心体验”和“拓展更多市场/平台”之间摇摆。',
@@ -738,6 +889,7 @@ const UNIT_SEEDS: UnitSeed[] = [
   },
   {
     id: 'lenny-roadmap-start-from-goals-not-noise',
+    personaId: 'lenny',
     title: '路线图先锚定目标，再讨论需求',
     summary: '如果目标都没写清楚，路线图讨论几乎必然退化成谁更会争取资源。先把目标和战略锚定，才能谈优先级。',
     scenario: '团队在季度规划时发现所有项目都“看起来重要”，无法真正排序。',
@@ -777,6 +929,7 @@ const UNIT_SEEDS: UnitSeed[] = [
   },
   {
     id: 'lenny-timebox-most-decisions-under-uncertainty',
+    personaId: 'lenny',
     title: '多数不确定决策要限时，并按可逆性处理',
     summary: '在高不确定环境里，默认不要等到“完全想清楚”再动。先判断是否可逆，可逆就限时决策，用 70% 把握推进。',
     scenario: '团队面对不确定决策容易反复讨论，迟迟不落地。',
@@ -820,6 +973,7 @@ const UNIT_SEEDS: UnitSeed[] = [
   },
   {
     id: 'lenny-career-choose-growth-over-prestige',
+    personaId: 'lenny',
     title: '职业选择先看成长密度，不先看名头',
     summary: '选 PM 机会时，优先看公司是否真正教你产品能力、是否持续把 PM 推向更大职业拐点，而不是只看牌子或估值。',
     scenario: '产品经理在权衡去大厂、明星公司或成长型团队时难以决策。',
@@ -853,6 +1007,7 @@ const UNIT_SEEDS: UnitSeed[] = [
   },
   {
     id: 'lenny-career-test-manager-track-as-reversible',
+    personaId: 'lenny',
     title: 'IC 还是管理，不要浪漫化，先把它当可逆试验',
     summary: '到了资深 PM 阶段，如果在 IC 和管理之间犹豫，默认不要把它想成终身绑定选择。先确认公司是否支持切换，再把第一次转管理当成可逆试验。',
     scenario: '资深 PM 在考虑是否转管理岗，担心选错后回不来。',
@@ -883,6 +1038,278 @@ const UNIT_SEEDS: UnitSeed[] = [
       excerpt: '> "Two-thirds of companies have both an IC track and a manager track. When there\'s a manager track, you can switch at L6 (i.e., Sr. Product Manager)."',
     }],
     confidence: 0.82,
+  },
+  {
+    id: 'zhang-new-relation-chain-before-old-assets',
+    personaId: 'zhang',
+    title: '移动转折点上，优先押新关系链，不要被旧资产绑住',
+    summary: '当产品场景从 PC 切到移动或从旧媒介切到新媒介时，先判断新的关系链和分发基础是什么，再决定是否做独立产品。',
+    scenario: '团队在新平台机会面前，犹豫要不要继续沿用旧用户关系和旧品牌资产。',
+    goal: '避免因为复用旧资产而错过新平台的真实入口。',
+    constraints: ['内部已有成熟产品', '新旧团队存在资源竞争'],
+    tags: ['mobile', 'strategy', 'social'],
+    triggerKeywords: ['关系链', '通讯录', '独立产品', '移动转型', '新平台'],
+    preferredPath: '先识别新场景的天然关系链；如果它已经变了，就用独立产品承接，而不是硬套旧关系链。',
+    antiPatterns: ['拿旧关系链硬套新场景', '为了复用品牌而牺牲产品自然性'],
+    reasoningSteps: ['先判断场景底层是否变了', '再看新关系链是什么', '最后决定独立产品还是旧产品延伸'],
+    reasons: [
+      '平台迁移时，真正稀缺的不是品牌，而是新的默认关系链。',
+      '如果新场景的用户连接方式已经变化，沿用旧产品通常只会把旧包袱也带进来。',
+      '独立产品能给团队重新定义规则的空间。',
+    ],
+    followUpQuestions: [
+      '这个新场景里，用户天然带来的关系链到底是什么？',
+      '如果沿用旧产品，你们是在复用资产，还是也把旧时代的约束一起继承了？',
+    ],
+    nextActions: [
+      '先把新场景的默认关系链、分发入口和使用频次写清楚。',
+      '对比“独立产品”与“旧产品延伸”各自会继承哪些约束。',
+      '如果新关系链已明显变化，优先按独立产品立项。',
+    ],
+    evidenceLevel: 'A',
+    evidenceRefs: [{
+      sourceId: 'src-zhang-wechat-launch',
+      excerpt: '2. ✅ **基于手机通讯录**：而非QQ好友关系链',
+    }],
+    confidence: 0.88,
+  },
+  {
+    id: 'zhang-small-team-fast-mvp-under-window',
+    personaId: 'zhang',
+    title: '时间窗口很短时，小团队先做最小可用产品',
+    summary: '面对战略窗口或强竞争威胁时，先用小团队快速上线 MVP，占住入口，再持续迭代。',
+    scenario: '团队发现明确窗口期，但大组织流程和完美主义会拖慢上线。',
+    goal: '在窗口关闭前完成第一版验证。',
+    constraints: ['时间极紧', '组织层级多', '需求容易膨胀'],
+    tags: ['mvp', 'speed', 'execution'],
+    triggerKeywords: ['MVP', '快速上线', '窗口期', '小团队', '竞争威胁'],
+    preferredPath: '收缩团队、收缩范围、先上最小可用版本，而不是先追求完整性。',
+    antiPatterns: ['窗口期里仍按大项目方式推进', '先列全量需求再排期'],
+    reasoningSteps: ['先判断窗口期是否真实存在', '再砍掉非必要范围', '用小团队先做 MVP'],
+    reasons: [
+      '窗口期竞争不是比谁计划更完整，而是比谁先占到真实用户入口。',
+      '小团队的沟通成本低，更适合在高不确定场景里快速试错。',
+      'MVP 不是低质量，而是把第一版只对准核心价值。',
+    ],
+    followUpQuestions: [
+      '这件事最迟什么时候上线还算有意义？',
+      '如果只能保留一个核心价值，你们第一版到底要验证什么？',
+    ],
+    nextActions: [
+      '把第一版需求压缩到只剩核心通讯或核心价值闭环。',
+      '用一个小而全的直接负责团队推进，不走大协作编排。',
+      '先定义上线节点，再倒推必须砍掉的范围。',
+    ],
+    evidenceLevel: 'A',
+    evidenceRefs: [{
+      sourceId: 'src-zhang-wechat-launch',
+      excerpt: '4. ✅ **快速迭代**：2个月上线，先做最小可用产品（MVP）',
+    }],
+    confidence: 0.87,
+  },
+  {
+    id: 'zhang-simple-rule-beats-feature-stack',
+    personaId: 'zhang',
+    title: '优先设计一个简单规则，而不是堆一串功能',
+    summary: '如果一个功能需要很多说明、按钮和流程，通常说明规则还不够好。先找更简单的交互规则。',
+    scenario: '团队在设计新功能时，不断加按钮、设置项和说明文案。',
+    goal: '用更少的规则引发更强的用户反应。',
+    constraints: ['功能堆积', '用户学习成本高'],
+    tags: ['simplicity', 'ux', 'product'],
+    triggerKeywords: ['简单', '复杂', '功能太多', '说明书', '交互规则'],
+    preferredPath: '先删掉冗余控制项，逼自己用一句话说清核心规则，再决定要不要开发。',
+    antiPatterns: ['功能没想清就先加入口', '靠文案解释弥补规则复杂'],
+    reasoningSteps: ['先看规则能否一句话说清', '再砍掉需要学习的部分', '保留最能引发反应的最小动作'],
+    reasons: [
+      '复杂往往只是设计者没有把问题想透，而不是用户真的需要更多控制。',
+      '简单规则更容易传播、学习，也更容易形成群体效应。',
+      '最简形态一旦成立，后续很难被更复杂的方案打败。',
+    ],
+    followUpQuestions: [
+      '这个功能是否需要额外解释，用户才能知道怎么用？',
+      '如果只保留一个动作或一个入口，核心体验还能成立吗？',
+    ],
+    nextActions: [
+      '把当前方案压缩到一句规则描述，删掉不能支撑这句规则的元素。',
+      '找 3 个没上下文的人做冷启动测试，看是否无需说明就会用。',
+      '如果仍需要长说明，继续回退并重构规则。',
+    ],
+    evidenceLevel: 'A',
+    evidenceRefs: [{
+      sourceId: 'src-zhang-core-principles',
+      excerpt: '- **简单是最美的**: 宇宙规律都很简单, 为什么要复杂化? 规则越简单越能让群体自发互动',
+    }],
+    confidence: 0.84,
+  },
+  {
+    id: 'zhang-psychological-delight-before-utility-copy',
+    personaId: 'zhang',
+    title: '很多增长卡点不是工具价值不够，而是爽点不够',
+    summary: '如果用户不愿意安装、激活或分享，不要只强化“省钱/高效”的工具理由，要找到更强的心理驱动力。',
+    scenario: '团队在做拉新或激活时，功能价值讲得很完整，但用户反应平淡。',
+    goal: '把触发安装、激活或传播的核心动机找对。',
+    constraints: ['工具价值已经能讲通', '用户行动意愿仍弱'],
+    tags: ['growth', 'motivation', 'consumer'],
+    triggerKeywords: ['拉新', '激活', '推广', '用户没感觉', '爽点', '心理满足'],
+    preferredPath: '先把用户真正想要的心理满足写清楚，再包装激活动作或传播动作。',
+    antiPatterns: ['只拿省钱和效率当卖点', '把动机理解成表层功能需求'],
+    reasoningSteps: ['先找用户想获得的感觉', '再设计触发动作', '最后才包装功能价值'],
+    reasons: [
+      '用户行动很多时候不是被功能说服，而是被情绪和身份感驱动。',
+      '心理满足找对了，工具动作才会变得自发。',
+      '只讲效率常常解释得通，却驱动不了行为。',
+    ],
+    followUpQuestions: [
+      '用户完成这个动作时，真正想获得的感觉是什么？',
+      '你们现在的表达是在描述功能，还是在触发欲望？',
+    ],
+    nextActions: [
+      '把当前价值主张拆成“工具收益”和“心理收益”两列比较。',
+      '重新设计激活文案和入口，优先呈现心理收益。',
+      '用小样本访谈验证哪种表达最能让用户立刻想试。',
+    ],
+    evidenceLevel: 'A',
+    evidenceRefs: [{
+      sourceId: 'src-zhang-discovering-needs',
+      excerpt: '> "用户在你这里省一点钱, 会去买别的东西。他要的是很爽的感觉。"',
+    }],
+    confidence: 0.84,
+  },
+  {
+    id: 'zhang-wrap-hard-task-in-social-game',
+    personaId: 'zhang',
+    title: '高门槛激活动作，要用用户真想玩的壳来包住',
+    summary: '用户不愿意直接完成高门槛动作时，不要硬推流程，而要用社交或游戏化机制把它包装成顺手完成的动作。',
+    scenario: '产品需要用户完成绑卡、授权、邀请等高阻力激活动作。',
+    goal: '降低激活阻力并保持自发性。',
+    constraints: ['动作门槛高', '直接推动作效果差'],
+    tags: ['activation', 'growth', 'payment'],
+    triggerKeywords: ['绑卡', '激活', '高门槛动作', '红包', '游戏化'],
+    preferredPath: '先找用户本来就愿意参与的社交游戏，再把高门槛动作嵌进去。',
+    antiPatterns: ['直接弹窗硬推绑定', '靠补贴硬砸没有社交机制的激活'],
+    reasoningSteps: ['先识别阻力动作', '再找用户自愿参与的壳', '把激活动作设计成壳里的必经路径'],
+    reasons: [
+      '用户对“我要完成任务”天然抗拒，但对“我要参与有趣/有利的社交动作”更愿意投入。',
+      '把高阻力动作藏进自然场景，比单独优化流程更有效。',
+      '一旦激活动作和社交传播绑定，增长和激活可以同步发生。',
+    ],
+    followUpQuestions: [
+      '用户现在最抗拒的那个动作，能否变成参与某个社交玩法的必经步骤？',
+      '你们包装的外壳，是用户真想参与，还是团队觉得有趣？',
+    ],
+    nextActions: [
+      '先画出当前激活漏斗里阻力最大的一步。',
+      '找一个用户自然愿意参与的社交场景，把这一步嵌进去。',
+      '优先验证“包装后是否真的提升完成率”，再扩大发布。',
+    ],
+    evidenceLevel: 'A',
+    evidenceRefs: [{
+      sourceId: 'src-zhang-red-packet',
+      excerpt: '- 用红包包装绑卡 ✅ → 用户为了抢红包主动绑卡',
+    }],
+    confidence: 0.9,
+  },
+  {
+    id: 'zhang-social-random-loop-for-viral-growth',
+    personaId: 'zhang',
+    title: '要做裂变，不只要社交链，还要让结果有随机惊喜',
+    summary: '单纯邀请机制容易疲劳；把社交传播和随机性绑定，能显著提升参与率和反复传播。',
+    scenario: '团队想设计自传播机制，但普通邀请裂变效果递减。',
+    goal: '提升传播意愿和复玩率。',
+    constraints: ['用户注意力短', '普通邀请机制容易审美疲劳'],
+    tags: ['viral', 'growth', 'social'],
+    triggerKeywords: ['裂变', '病毒传播', '随机', '社交传播', '红包'],
+    preferredPath: '先保证链路天然社交，再加入随机回报和可展示结果，而不是只加邀请奖励。',
+    antiPatterns: ['只有单次邀请奖励', '传播动作没有惊喜和讨论空间'],
+    reasoningSteps: ['先保证传播动作足够轻', '再加入随机回报', '最后让结果可被看见和讨论'],
+    reasons: [
+      '社交链决定传播宽度，随机性决定重复参与的动力。',
+      '当结果有悬念和比较空间时，传播会从任务变成游戏。',
+      '病毒传播需要的是循环，不是一次性导流。',
+    ],
+    followUpQuestions: [
+      '用户分享后，接收方是否会立刻产生参与冲动，而不只是知道有活动？',
+      '传播后有没有足够强的随机回报，让用户想再来一次？',
+    ],
+    nextActions: [
+      '把当前裂变机制改写成“发起-参与-再发起”的闭环。',
+      '在结果里加入随机奖励或排名反馈，测试是否提升复玩率。',
+      '用一轮活动数据验证链路里哪一步最影响循环速度。',
+    ],
+    evidenceLevel: 'A',
+    evidenceRefs: [{
+      sourceId: 'src-zhang-red-packet',
+      excerpt: '### 启发式2: 社交裂变 + 随机性 = 病毒传播',
+    }],
+    confidence: 0.88,
+  },
+  {
+    id: 'zhang-commercialize-with-restraint-and-native-form',
+    personaId: 'zhang',
+    title: '商业化先求不破坏体验，再求放量',
+    summary: '在高频产品里做广告或变现时，先保证内容原生、频次克制、用户可控，再逐步验证商业效率。',
+    scenario: '团队要给高频内容或社交产品引入广告和商业化模块。',
+    goal: '在不伤核心体验的前提下启动变现。',
+    constraints: ['用户对打扰敏感', '商业化压力大'],
+    tags: ['ads', 'commercialization', 'consumer'],
+    triggerKeywords: ['广告', '商业化', '变现', '信息流广告', '频次'],
+    preferredPath: '先限制频次和形式侵入性，用原生信息形态和用户控制权换取长期信任。',
+    antiPatterns: ['一上来追求高填充率', '用突兀广告位破坏原有消费节奏'],
+    reasoningSteps: ['先定义不能破坏的体验边界', '再设计原生形态', '最后逐步放量验证'],
+    reasons: [
+      '商业化一旦伤到核心体验，后续再修复信任成本很高。',
+      '克制投放会降低短期收入，但能换来更高接受度和更长生命周期。',
+      '原生形态让广告更像有用信息，而不是强行插入的打扰。',
+    ],
+    followUpQuestions: [
+      '这条商业化动作最可能破坏用户的哪一段原始体验？',
+      '用户是否有明确的控制权去降低被打扰感？',
+    ],
+    nextActions: [
+      '先写出商业化上线的频次上限和不可突破的体验边界。',
+      '优先测试原生信息形态，而不是新增高侵入广告位。',
+      '小规模上线后跟踪负反馈和留存，再决定是否放量。',
+    ],
+    evidenceLevel: 'A',
+    evidenceRefs: [{
+      sourceId: 'src-zhang-moments-ads',
+      excerpt: '> "如果广告本身有价值，用户就不会讨厌它。广告的本质是信息，不是打扰。"',
+    }],
+    confidence: 0.87,
+  },
+  {
+    id: 'zhang-independent-entry-for-controversial-change',
+    personaId: 'zhang',
+    title: '争议性改版先做独立入口，不要直接强改主路径',
+    summary: '当新功能可能改变用户习惯或价值观时，优先用独立入口渐进验证，而不是直接替换老入口。',
+    scenario: '团队准备推动争议较大的内容分发或产品形态改版。',
+    goal: '在验证新机制价值的同时，控制用户反感和迁移风险。',
+    constraints: ['老习惯强', '改版争议大'],
+    tags: ['migration', 'content', 'rollout'],
+    triggerKeywords: ['独立入口', '改版', '信息流', '强制替换', '看一看'],
+    preferredPath: '保留原路径，新增独立入口承接新机制，用数据和用户选择决定后续扩张。',
+    antiPatterns: ['一刀切强制替换老入口', '在未验证前就要求全部用户迁移'],
+    reasoningSteps: ['先判断改版争议度', '再设计可选的新入口', '用数据决定是否扩大覆盖'],
+    reasons: [
+      '争议性改版最大的问题不是功能对不对，而是用户是否愿意被强制迁移。',
+      '独立入口能把实验成本和主路径风险隔离开。',
+      '用户主动进入的新入口，能提供更干净的验证信号。',
+    ],
+    followUpQuestions: [
+      '这个新机制是否会直接挑战用户已经形成的路径依赖？',
+      '如果先做独立入口，最关键的验证指标是什么？',
+    ],
+    nextActions: [
+      '先保留旧路径，定义一个可独立进入的新入口和新机制。',
+      '明确首轮实验的成功信号，再决定是否扩大引导。',
+      '不要在实验期把全部教育成本都压给现有用户。',
+    ],
+    evidenceLevel: 'B',
+    evidenceRefs: [{
+      sourceId: 'src-zhang-subscription-feed',
+      excerpt: '### 启发式3: 独立入口 vs 强制改版',
+    }],
+    confidence: 0.83,
   },
 ]
 
@@ -975,21 +1402,13 @@ function buildEvidenceRef(record: SourceFileRecord, excerpt: string): DecisionSo
   }
 }
 
-function buildPersona(sourceRefs: DecisionSourceRef[], timestamp: string): DecisionPersona {
+function buildPersona(spec: PersonaSpec, sourceRefs: DecisionSourceRef[], timestamp: string): DecisionPersona {
   return {
-    id: 'lenny',
-    name: 'Lenny Rachitsky',
-    basePromptKey: 'LENNY_SYSTEM_PROMPT',
-    heuristics: [
-      '先给直接判断，再展开理由',
-      '在不确定问题上先写清关键假设和验证路径',
-      '优先区分阶段差异，而不是给放之四海皆准的答案',
-      '尽量把抽象问题落到具体指标、动作和信号上',
-    ],
-    domainBoundaries: {
-      strong: ['product', 'growth', 'pricing', 'pmf', 'career'],
-      weak: ['medical', 'legal', 'licensed_finance'],
-    },
+    id: spec.id,
+    name: spec.name,
+    basePromptKey: spec.basePromptKey,
+    heuristics: spec.heuristics,
+    domainBoundaries: spec.domainBoundaries,
     evidenceSources: sourceRefs,
     status: 'active',
     createdAt: timestamp,
@@ -1000,7 +1419,7 @@ function buildPersona(sourceRefs: DecisionSourceRef[], timestamp: string): Decis
 function buildUnit(seed: UnitSeed, sourceRefs: DecisionSourceRef[], timestamp: string): DecisionUnit {
   return {
     id: seed.id,
-    personaId: 'lenny',
+    personaId: seed.personaId,
     title: seed.title,
     summary: seed.summary,
     scenario: seed.scenario,
@@ -1108,8 +1527,14 @@ async function main() {
     .map(spec => manifestFromSpec(spec, repoCommit, generationTimestamp))
     .map(entry => mergeManifestImportedAt(entry, existingManifest))
 
-  const personaSourceRefs = SOURCE_SPECS.map(spec => sourceRefFromSpec(spec))
-  const persona = mergeEntityTimestamps(buildPersona(personaSourceRefs, generationTimestamp), existingPersonas)
+  const personas = PERSONA_SPECS
+    .map((spec) => {
+      const sourceRefs = SOURCE_SPECS
+        .filter(source => source.personaId === spec.id)
+        .map(source => sourceRefFromSpec(source))
+      return mergeEntityTimestamps(buildPersona(spec, sourceRefs, generationTimestamp), existingPersonas)
+    })
+    .sort((a, b) => a.id.localeCompare(b.id))
 
   const units = UNIT_SEEDS.map((seed) => {
     const refs = seed.evidenceRefs.map(({ sourceId, excerpt }) => {
@@ -1121,13 +1546,13 @@ async function main() {
   })
 
   const wroteFiles = await Promise.all([
-    writeJsonIfChanged(join(outputDir, 'decision-personas.json'), [persona]),
+    writeJsonIfChanged(join(outputDir, 'decision-personas.json'), personas),
     writeJsonIfChanged(join(outputDir, 'decision-source-manifest.json'), manifest),
     writeJsonIfChanged(join(outputDir, 'decision-units.json'), units),
   ])
 
   console.log(`Wrote LingSi seed files to ${outputDir}`)
-  console.log(`Persona count: 1`)
+  console.log(`Persona count: ${personas.length}`)
   console.log(`Source count: ${manifest.length}`)
   console.log(`Approved unit count: ${units.length}`)
   console.log(`Files changed: ${wroteFiles.filter(Boolean).length}`)

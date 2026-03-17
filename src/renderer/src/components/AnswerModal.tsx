@@ -105,10 +105,15 @@ export function AnswerModal() {
   const isZhangMode = useCanvasStore(state => state.isZhangMode)
   const isWangMode = useCanvasStore(state => state.isWangMode)
   const lennyDecisionMode = useCanvasStore(state => state.lennyDecisionMode)
+  const zhangDecisionMode = useCanvasStore(state => state.zhangDecisionMode)
   const isCustomSpaceMode = useCanvasStore(state => state.isCustomSpaceMode)
   const activeCustomSpaceId = useCanvasStore(state => state.activeCustomSpaceId)
   const customSpaces = useCanvasStore(state => state.customSpaces)
-  const isPureLennySpace = isLennyMode && !isPGMode && !isZhangMode && !isWangMode
+  const activeDecisionPersona = isLennyMode && !isPGMode && !isWangMode
+    ? (isZhangMode
+      ? { id: 'zhang' as const, name: '张小龙' }
+      : { id: 'lenny' as const, name: 'Lenny Rachitsky' })
+    : null
 
   const [turns, setTurns] = useState<Turn[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
@@ -175,14 +180,17 @@ export function AnswerModal() {
       : '[无回复]'
   }, [])
 
-  const buildLennyDecisionRequest = useCallback(async (userMessage: string) => {
-    if (!isPureLennySpace) {
+  const buildLingSiRequest = useCallback(async (userMessage: string) => {
+    if (!activeDecisionPersona) {
       return { extraContext: undefined, decisionTrace: { mode: 'normal' as const } }
     }
 
     await ensureLingSiStorageSeeded()
-    const currentMode = lennyDecisionMode
-    const payload = await buildLingSiDecisionPayload(userMessage, currentMode)
+    const currentMode = activeDecisionPersona.id === 'zhang' ? zhangDecisionMode : lennyDecisionMode
+    const payload = await buildLingSiDecisionPayload(userMessage, currentMode, {
+      personaId: activeDecisionPersona.id,
+      personaName: activeDecisionPersona.name,
+    })
 
     if (currentConversation?.id) {
       await updateConversation(currentConversation.id, {
@@ -191,7 +199,7 @@ export function AnswerModal() {
     }
 
     return payload
-  }, [currentConversation, isPureLennySpace, lennyDecisionMode, updateConversation])
+  }, [activeDecisionPersona, currentConversation, lennyDecisionMode, updateConversation, zhangDecisionMode])
 
   const autoSaveIfNeeded = useCallback(async () => {
     try {
@@ -235,7 +243,7 @@ export function AnswerModal() {
   const shouldShowLingSiTrace =
     !!activeDecisionTrace &&
     activeDecisionTrace.mode === 'decision' &&
-    isPureLennySpace &&
+    !!activeDecisionPersona &&
     ((activeDecisionTrace.sourceRefs?.length ?? 0) > 0 || decisionUnitLabels.length > 0)
 
   const renderAssistantMarkdown = useCallback((assistant: string, turnIndex: number) => {
@@ -260,14 +268,15 @@ export function AnswerModal() {
 
     ;(async () => {
       const units = await loadDecisionUnits()
+      const scopedUnits = activeDecisionPersona ? units.filter(unit => unit.personaId === activeDecisionPersona.id) : units
       if (cancelled) return
-      setDecisionUnitLabels(resolveDecisionUnitLabels(matchedIds, units))
+      setDecisionUnitLabels(resolveDecisionUnitLabels(matchedIds, scopedUnits))
     })()
 
     return () => {
       cancelled = true
     }
-  }, [currentConversation?.decisionTrace?.matchedDecisionUnitIds])
+  }, [activeDecisionPersona, currentConversation?.decisionTrace?.matchedDecisionUnitIds])
 
   // ── 文件上传（本地解析 + 上传后端）──────────────────────────────────────────
   // Embedding 由后端 Agent 自动处理（embed_file 任务队列），不在前端触发
@@ -690,7 +699,7 @@ export function AnswerModal() {
         sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false, undefined, spacePrompt)
       } else if (isLennyMode) {
         const spacePrompt = isPGMode ? PG_SYSTEM_PROMPT : isZhangMode ? ZHANG_SYSTEM_PROMPT : isWangMode ? WANG_SYSTEM_PROMPT : LENNY_SYSTEM_PROMPT
-        const decisionPayload = await buildLennyDecisionRequest(currentConversation.userMessage)
+        const decisionPayload = await buildLingSiRequest(currentConversation.userMessage)
         sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false, undefined, spacePrompt, decisionPayload.extraContext)
       } else {
         sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false, currentConversation.id)
@@ -705,7 +714,7 @@ export function AnswerModal() {
     }
 
     prepareConversation()
-  }, [isModalOpen, currentConversation, isOnboardingMode, isLoading, resetHistory, sendMessage, getPreferencesForPrompt, getRelevantMemories, isLennyMode, isPGMode, isZhangMode, isWangMode, isCustomSpaceMode, customSpaces, activeCustomSpaceId, buildLennyDecisionRequest])
+  }, [isModalOpen, currentConversation, isOnboardingMode, isLoading, resetHistory, sendMessage, getPreferencesForPrompt, getRelevantMemories, isLennyMode, isPGMode, isZhangMode, isWangMode, isCustomSpaceMode, customSpaces, activeCustomSpaceId, buildLingSiRequest])
 
   // ── 深度搜索后台任务轮询：可跨页面继续，完成后回写到当前节点 ────────────────
   useEffect(() => {
@@ -818,7 +827,7 @@ export function AnswerModal() {
       sendMessage(newContent, preferences, history, currentTurn.images, undefined, undefined, undefined, spacePrompt)
     } else if (isLennyMode) {
       const spacePrompt = isPGMode ? PG_SYSTEM_PROMPT : isZhangMode ? ZHANG_SYSTEM_PROMPT : isWangMode ? WANG_SYSTEM_PROMPT : LENNY_SYSTEM_PROMPT
-      const decisionPayload = await buildLennyDecisionRequest(newContent)
+      const decisionPayload = await buildLingSiRequest(newContent)
       sendMessage(newContent, preferences, history, currentTurn.images, undefined, undefined, undefined, spacePrompt, decisionPayload.extraContext)
     } else {
       sendMessage(newContent, preferences, history, currentTurn.images, undefined, undefined, currentConversation.id)
@@ -844,12 +853,12 @@ export function AnswerModal() {
       sendMessage(currentTurn.user, preferences, history, currentTurn.images, undefined, undefined, undefined, spacePrompt)
     } else if (isLennyMode) {
       const spacePrompt = isPGMode ? PG_SYSTEM_PROMPT : isZhangMode ? ZHANG_SYSTEM_PROMPT : isWangMode ? WANG_SYSTEM_PROMPT : LENNY_SYSTEM_PROMPT
-      const decisionPayload = await buildLennyDecisionRequest(currentTurn.user)
+      const decisionPayload = await buildLingSiRequest(currentTurn.user)
       sendMessage(currentTurn.user, preferences, history, currentTurn.images, undefined, undefined, undefined, spacePrompt, decisionPayload.extraContext)
     } else {
       sendMessage(currentTurn.user, preferences, history, currentTurn.images, undefined, undefined, currentConversation.id)
     }
-  }, [turns, currentConversation, sendMessage, getPreferencesForPrompt, isLennyMode, isCustomSpaceMode, customSpaces, activeCustomSpaceId, isPGMode, isZhangMode, isWangMode, buildLennyDecisionRequest])
+  }, [turns, currentConversation, sendMessage, getPreferencesForPrompt, isLennyMode, isCustomSpaceMode, customSpaces, activeCustomSpaceId, isPGMode, isZhangMode, isWangMode, buildLingSiRequest])
 
   const handleCopyMessage = useCallback(async (text: string, index: number) => {
     try {
@@ -1068,7 +1077,7 @@ export function AnswerModal() {
       sendMessage(fullMessage, preferences, history, pendingImages, compressed, false, undefined, spacePrompt)
     } else if (isLennyMode) {
       const spacePrompt = isPGMode ? PG_SYSTEM_PROMPT : isZhangMode ? ZHANG_SYSTEM_PROMPT : isWangMode ? WANG_SYSTEM_PROMPT : LENNY_SYSTEM_PROMPT
-      const decisionPayload = await buildLennyDecisionRequest(fullTrimmed)
+      const decisionPayload = await buildLingSiRequest(fullTrimmed)
       sendMessage(fullMessage, preferences, history, pendingImages, compressed, false, undefined, spacePrompt, decisionPayload.extraContext)
     } else {
       // 记录上下文，便于“关闭窗口→后台继续深度搜索”
@@ -1083,7 +1092,7 @@ export function AnswerModal() {
     }
   }, [feedbackMessage, pendingImages, pendingFiles, pendingReferenceBlocks, isStreaming, isOnboardingMode, isLennyMode, isPGMode, isZhangMode, isWangMode,
       isCustomSpaceMode, activeCustomSpaceId, customSpaces,
-      getPreferencesForPrompt, sendMessage, turns, getRelevantMemories, setHighlight, focusNode, buildLennyDecisionRequest])
+      getPreferencesForPrompt, sendMessage, turns, getRelevantMemories, setHighlight, focusNode, buildLingSiRequest])
 
   // ── 关闭并保存 ────────────────────────────────────────────────────────────
   const handleClose = useCallback(async () => {

@@ -47,8 +47,8 @@ export async function ensureLingSiStorageSeeded(): Promise<void> {
   }
 }
 
-export async function loadDecisionUnits(): Promise<DecisionUnit[]> {
-  if (cachedUnits) return cachedUnits
+export async function loadDecisionUnits(personaId?: string): Promise<DecisionUnit[]> {
+  if (cachedUnits) return personaId ? cachedUnits.filter(unit => unit.personaId === personaId) : cachedUnits
 
   await ensureLingSiStorageSeeded()
   const raw = await storageService.read(STORAGE_FILES.DECISION_UNITS)
@@ -62,15 +62,22 @@ export async function loadDecisionUnits(): Promise<DecisionUnit[]> {
   } catch {
     cachedUnits = BUNDLED_DECISION_UNITS
   }
-  return cachedUnits
+  return personaId ? cachedUnits.filter(unit => unit.personaId === personaId) : cachedUnits
 }
 
-export async function buildLingSiDecisionPayload(query: string, mode: DecisionMode): Promise<{
+export async function buildLingSiDecisionPayload(
+  query: string,
+  mode: DecisionMode,
+  options?: {
+    personaId?: string
+    personaName?: string
+  },
+): Promise<{
   extraContext?: string
   decisionTrace: DecisionTrace
 }> {
   const units = await loadDecisionUnits()
-  return buildLingSiDecisionPayloadFromUnits(query, mode, units)
+  return buildLingSiDecisionPayloadFromUnits(query, mode, units, options)
 }
 
 export { mergeDecisionTrace }

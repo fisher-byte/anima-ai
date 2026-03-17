@@ -81,6 +81,8 @@ export type DecisionEvidenceLevel = 'A' | 'B' | 'C'
 export type DecisionSourceType =
   | 'podcast_transcript'
   | 'framework'
+  | 'article'
+  | 'decision_case'
   | 'quote'
   | 'profile'
   | 'resource'
@@ -176,6 +178,7 @@ export interface DecisionSourceManifestEntry {
  */
 export interface DecisionTrace {
   mode: DecisionMode
+  personaId?: string
   matchedDecisionUnitIds?: string[]
   sourceRefs?: DecisionSourceRef[]
 }
