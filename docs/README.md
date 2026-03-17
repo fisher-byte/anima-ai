@@ -15,14 +15,14 @@
 | [部署运维](./deployment.md) | 发布、配置 | 📝 |
 | [变更日志](./changelog.md) | 版本迭代记录 | ✅ |
 | [问题排查](./troubleshooting.md) | 常见问题解决 | 📝 |
-| [代码审查](./code-review-report-v0.5.11-lingsi-ui.md) | 最新审查报告 | ✅ |
+| [代码审查](./code-review-report-v0.5.12-inline-citations.md) | 最新审查报告 | ✅ |
 | [路线图](./ROADMAP.md) | 近期/远期规划 | ✅ |
 
 ## 项目状态
 
-- **当前版本**: v0.5.11
+- **当前版本**: v0.5.12
 - **开发状态**: Active
-- **最后更新**: 2026-03-17（含 LingSi 脚注与决策轨迹 UI）
+- **最后更新**: 2026-03-17（含 LingSi 正文脚注与 anima-base 增量筛选）
 - **GitHub**: https://github.com/fisher-byte/anima-ai
 
 ## 核心功能

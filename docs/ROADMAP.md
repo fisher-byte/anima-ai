@@ -2,6 +2,16 @@
 
 ## 计划中版本
 
+#### v0.5.12 - LingSi 正文脚注 + anima-base 增量筛选（已完成）
+- [x] `lingsiTrace.ts`：把来源脚注编号插入回答正文首个自然段，并避免重复插入
+- [x] `AnswerModalSubcomponents.tsx`：脚注面板来源项增加锚点 id，支持正文编号跳转
+- [x] 核查 `anima-base origin/main` 新增 `12` 个提交，确认以下文件值得纳入下一轮数据层补充：
+  - `people/product/lenny-rachitsky/decision-cases/case-01-superhuman-pmf-survey-decision.md`
+  - `people/product/lenny-rachitsky/articles/uncertainty-decision-framework.md`
+  - `people/product/lenny-rachitsky/frameworks/product-roadmap-planning-framework.md`
+  - `people/product/lenny-rachitsky/articles/pm-career-path-decision-framework.md`
+- [ ] 下一轮数据层：把上述高价值材料转成新的 `DecisionUnit` / `source manifest` 条目
+
 #### v0.5.11 - LingSi 证据展示层（已完成）
 - [x] `AnswerModal.tsx`：根据 `decisionTrace` 展示当前对话的灵思证据面板
 - [x] `AnswerModalSubcomponents.tsx`：新增 `LingSiTracePanel`，展示 DecisionUnit 命中与 `sourceRefs.locator / excerpt`

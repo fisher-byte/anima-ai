@@ -1,6 +1,6 @@
 # Anima 测试手册
 
-*最后更新: 2026-03-17 | 版本: v0.5.11*
+*最后更新: 2026-03-17 | 版本: v0.5.12*
 
 ## 测试策略
 
@@ -38,8 +38,9 @@
   - 无数据返回 reason、clusters 数组格式、边界条件
 - ✅ `appToken.test.ts` — 启动期 token 修复（4 个用例）
   - 失效 `anima_user_token` 回退到默认库、无 key 时保持原 token、空 token 直接跳过
-- ✅ `lingsiTrace.test.ts` — 灵思证据展示辅助函数（3 个用例）
+- ✅ `lingsiTrace.test.ts` — 灵思证据展示辅助函数（5 个用例）
   - DecisionUnit 标题回退、source label 格式化、matched ids -> 标题解析
+  - 正文脚注插入、重复脚注保护
 
 **运行命令**:
 ```bash
@@ -94,7 +95,7 @@ npm run test:watch    # 监听模式（开发时用）
 
 - ✅ `memory.test.ts` — 记忆路由集成测试（含 FTS5 trigger、引用块过滤、decayPreferences、语义边 by-id）
 
-**总测试数**: **569 个用例，25 个测试文件，全部通过**
+**总测试数**: **571 个用例，25 个测试文件，全部通过**
 
 ---
 

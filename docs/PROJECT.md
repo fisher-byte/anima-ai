@@ -1,7 +1,7 @@
 # Anima — 项目计划
 
 > 唯一入口：每次发版、每次决策都在这里留记录。
-> 最后更新：2026-03-17 | 当前版本：v0.5.11
+> 最后更新：2026-03-17 | 当前版本：v0.5.12
 
 ---
 
@@ -17,7 +17,9 @@
 | 4 | Lenny 决策模式接入 | 已完成 | 已接入 `normal / 灵思` 切换、extraContext 注入、decisionTrace 持久化 |
 | 5 | 验证与对照 | 已完成 | 已跑 `15` 个真实问题对照，`decision` 赢 `15` 题，结果沉淀到 `docs/lingsi-eval-m4.md` |
 | 6 | 脚注展示与决策轨迹 | 已完成 | AnswerModal 已展示当前对话的 DecisionUnit 命中、来源 locator/excerpt 与灵思证据面板 |
-| 7 | SOP 闭环 | 已完成 | 文档同步、`npm test`、`npm run typecheck`、`npm run build`、`npm run test:e2e`、code review、GitHub 备份已完成；部署验证待后续 |
+| 7 | 正文内脚注编号 | 已完成 | 回答正文首段已插入 `[1][2]...` 锚点，脚注面板可直接跳转到对应来源 |
+| 8 | anima-base 增量评估 | 已完成 | 已核对远端 `12` 个新提交，确认 Lenny `decision-cases` / `uncertainty` / `roadmap` / `career-path` 等材料值得进入下一轮数据补充 |
+| 9 | SOP 闭环 | 已完成 | 文档同步、`npm test`、`npm run typecheck`、`npm run build`、`npm run test:e2e`、code review、GitHub 备份已完成；部署验证待后续 |
 
 ---
 
@@ -87,6 +89,7 @@
 
 | 版本 | 日期 | 核心内容 |
 |------|------|----------|
+| v0.5.12 | 2026-03-17 | 灵思正文脚注：在回答正文插入 `[1][2]` 锚点，并完成 anima-base 远端增量价值评估，锁定下一轮高价值来源 |
 | v0.5.11 | 2026-03-17 | 灵思证据展示：AnswerModal 新增脚注与决策轨迹面板，展示 DecisionUnit 命中和真实来源摘录 |
 | v0.5.10 | 2026-03-17 | 稳定性补丁：修复 Lenny/Custom Space 切换残留 onboarding 状态；清理失效本地 token 以恢复浏览器真实提问链路 |
 | v0.5.4 | 2026-03-14 | bootstrap-facts 幂等判断修复：改用 agent_tasks.payload.conversationId，彻底消除重复入队 |

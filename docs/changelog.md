@@ -1,5 +1,26 @@
 # Anima 变更日志
 
+## [0.5.12] - 2026-03-17
+
+### feat: LingSi 正文脚注编号 + anima-base 增量评估
+
+**新增能力：**
+- `lingsiTrace.ts`：把来源编号 `[1][2]...` 注入回答正文的首个自然段，并避免重复插入
+- `AnswerModalSubcomponents.tsx`：来源面板条目增加锚点 id，正文编号可直接跳转到对应来源
+- `anima-base` 远端增量评估：确认 `decision-cases`、`uncertainty-decision-framework`、`product-roadmap-planning-framework`、`pm-career-path-decision-framework` 是下一轮最值得导入的 Lenny 材料
+
+**测试与验证：**
+- `lingsiTrace.test.ts` 新增 2 个用例，覆盖正文脚注插入和重复保护
+- `npm test`：571/571 通过
+- `npm run typecheck`：通过
+- `npm run build`：通过
+- `npm run test:e2e`：45 passed / 3 skipped
+
+**代码审查结论：**
+- 本轮 diff 无新增阻塞项；正文脚注仅作为前端展示增强，不改服务端存储结构
+
+---
+
 ## [0.5.11] - 2026-03-17
 
 ### feat: LingSi 脚注与决策轨迹展示
