@@ -2,8 +2,25 @@
 
 ## 计划中版本
 
+#### v0.5.16 - LingSi 主页入口 + @mention 重构（计划中）
+- [ ] `Canvas.tsx`：在主页左侧 Space 入口直接标识哪些 persona 支持 `灵思`
+- [ ] `InputBox.tsx`：主页 `@` 联想支持选择 `普通` / `灵思` 的 persona mention，而不只是普通 Space 提示
+- [ ] `InputBox.tsx` / `canvasStore.ts`：把当前 `@name + pill` 模式重构为结构化 mention token，支持整块删除与稳定回退
+- [ ] `AnswerModal.tsx` / `AnswerModalSubcomponents.tsx`：把当前 evidence panel 扩成独立“决策轨迹视图”，支持 `personaId / mode / matchedDecisionUnitIds / sourceRefs` 回放
+- [ ] 持续同步 `anima-base` 最新高价值案例到人工审核链路
+- [ ] 验证：`npm run lingsi:extract`、`npm run lingsi:evaluate`、`npm test`、`npm run typecheck`、`npm run build`、`npm run test:e2e`
+
+## 已完成版本
+
+#### v0.5.15 - LingSi 最新数据层 refresh（已完成）
+- [x] `anima-base`：同步到 `eb83d12`，纳入 Lenny 最新留存/rollout/设计评审案例与张小龙最新运营/社交/治理案例
+- [x] `scripts/extract-lingsi-seeds.ts`：新增 8 条 source manifest 与 13 条 approved units
+- [x] `seeds/lingsi/*`：刷新为 `2 personas / 25 sources / 41 approved units`
+- [x] `lingsiSeeds.test.ts` / `lingsiDecisionEngine.test.ts`：更新基线并补充 Lenny 留存、张小龙运营克制命中断言
+- [x] 验证：`npm run lingsi:extract`、`npm test`（577/577）、`npm run typecheck`、`npm run build`、`npm run test:e2e`（44 passed / 4 skipped）、`LINGSI_EVAL_CASE=pmf-before-growth npm run lingsi:evaluate`
+
 #### v0.5.14 - LingSi 张小龙 persona + anima-base 同步（已完成）
-- [x] `anima-base`：同步到 `65ca4c7`，纳入张小龙最新 `decision-cases` / `frameworks` 增量
+- [x] `anima-base`：同步到 `65ca4c7`，纳入张小龙首批 `decision-cases` / `frameworks` 增量
 - [x] `scripts/extract-lingsi-seeds.ts`：从单 persona 扩展到多 persona，新增 `zhang` persona、6 条来源、8 条 approved units
 - [x] `AnswerModal.tsx` / `canvasStore.ts` / `PublicSpaceCanvas.tsx`：张小龙 Space 接入 `normal / 灵思` 模式切换与 `decisionTrace.personaId` 持久化
 - [x] `scripts/evaluate-lingsi.ts`：Lenny 评测改为 persona scoped，避免被张小龙 units 污染
@@ -51,8 +68,6 @@
 - [x] 验证：`15` 个真实问题对照测试已完成，`decision` 赢 `15` 题；详见 `docs/lingsi-eval-m4.md`
 - [x] 匹配修正：补充 `segment / growth / DACI / two-way-door` 触发词，并阻断仅靠泛标签的误命中
 - [x] 交付节奏：按里程碑执行文档同步、测试、code review、GitHub 备份
-
-## 已完成版本
 
 #### v0.5.4 - bootstrap-facts 幂等修复（已完成）
 - [x] `memory.ts`：幂等判断改为基于 `agent_tasks.payload.conversationId`，不再重复入队历史对话

@@ -23,6 +23,14 @@ describe('lingsiDecisionEngine', () => {
     expect(matched.map(unit => unit.id)).toContain('lenny-roadmap-cutline-before-stakeholder-pull')
   })
 
+  it('matches retention-first prompts to the retention unit', () => {
+    const matched = matchDecisionUnits(
+      '我们增长还行，但留存只有 20%，现在还要不要继续加大买量？',
+      units,
+    )
+    expect(matched.map(unit => unit.id)).toContain('lenny-retention-before-acquisition')
+  })
+
   it('builds decision payload with trace and source refs', () => {
     const payload = buildLingSiDecisionPayloadFromUnits(
       'B2B AI 工具应该按 seat 还是按使用量定价？',
@@ -60,5 +68,16 @@ describe('lingsiDecisionEngine', () => {
     expect(payload.decisionTrace.matchedDecisionUnitIds?.some(id => id.startsWith('zhang-'))).toBe(true)
     expect(payload.decisionTrace.matchedDecisionUnitIds?.some(id => id.startsWith('lenny-'))).toBe(false)
     expect(payload.extraContext).toContain('以 张小龙 的方式回答')
+  })
+
+  it('matches Zhang restraint prompts to Zhang-only governance units', () => {
+    const payload = buildLingSiDecisionPayloadFromUnits(
+      '为了拉活跃，我们要不要给发现页和内容流都加红点和 push？',
+      'decision',
+      units,
+      { personaId: 'zhang', personaName: '张小龙' },
+    )
+    expect(payload.decisionTrace.matchedDecisionUnitIds).toContain('zhang-operate-with-restraint-not-kpi-anxiety')
+    expect(payload.decisionTrace.matchedDecisionUnitIds?.some(id => id.startsWith('lenny-'))).toBe(false)
   })
 })

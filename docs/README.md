@@ -15,14 +15,14 @@
 | [部署运维](./deployment.md) | 发布、配置 | 📝 |
 | [变更日志](./changelog.md) | 版本迭代记录 | ✅ |
 | [问题排查](./troubleshooting.md) | 常见问题解决 | 📝 |
-| [代码审查](./code-review-report-v0.5.14-zhang-persona.md) | 最新审查报告 | ✅ |
+| [代码审查](./code-review-report-v0.5.15-lingsi-source-refresh.md) | 最新审查报告 | ✅ |
 | [路线图](./ROADMAP.md) | 近期/远期规划 | ✅ |
 
 ## 项目状态
 
-- **当前版本**: v0.5.14
+- **当前版本**: v0.5.15
 - **开发状态**: Active
-- **最后更新**: 2026-03-17（含张小龙 persona 接入与 anima-base 最新同步）
+- **最后更新**: 2026-03-17（含 Lenny / 张小龙最新案例同步与 LingSi 数据层 refresh）
 - **GitHub**: https://github.com/fisher-byte/anima-ai
 
 ## 核心功能

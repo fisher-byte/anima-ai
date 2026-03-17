@@ -1,5 +1,29 @@
 # Anima 变更日志
 
+## [0.5.15] - 2026-03-17
+
+### feat: LingSi 最新 Lenny / 张小龙案例同步
+
+**新增能力：**
+- `scripts/extract-lingsi-seeds.ts`：新增 8 条最新来源，纳入 Lenny 留存优先、分阶段 rollout、设计评审，以及张小龙运营克制、功能生命周期、社交设计、平台治理
+- `seeds/lingsi/decision-source-manifest.json`：来源基线扩充到 `25` 条 manifest，绑定 `anima-base@eb83d12`
+- `seeds/lingsi/decision-units.json`：批准单元扩充到 `41` 条，新增留存优先、magic moment、流失召回、风险 rollout、3W 设计评审、运营克制、功能降级、平台规则治理等覆盖
+- `src/shared/__tests__/lingsiDecisionEngine.test.ts`：补充 Lenny 留存场景与张小龙运营克制场景命中断言
+
+**测试与验证：**
+- `npm run lingsi:extract`：通过，刷新为 `2 personas / 25 sources / 41 approved units`
+- `LINGSI_EVAL_CASE=pmf-before-growth npm run lingsi:evaluate`：通过，`decision=1 / normal=0`
+- `npm test`：577/577 通过
+- `npm run typecheck`：通过
+- `npm run build`：通过
+- `npm run test:e2e`：44 passed / 4 skipped
+
+**代码审查结论：**
+- 本轮 diff 已完成正式审查；新增案例均可回溯到 `anima-base` 实际文件与 locator/excerpt 片段。
+
+---
+
+
 ## [0.5.14] - 2026-03-17
 
 ### feat: LingSi 扩到张小龙 persona + anima-base 最新同步
@@ -9,7 +33,7 @@
 - `ZhangSpaceCanvas.tsx` / `PublicSpaceCanvas.tsx` / `AnswerModal.tsx` / `canvasStore.ts`：张小龙 Space 接入 `normal / 灵思` 切换、persona scoped `decisionTrace` 与证据展示
 - `services/lingsi.ts` / `lingsiDecisionEngine.ts`：按 persona 过滤 DecisionUnit，`extraContext` 不再硬编码 Lenny
 - `scripts/evaluate-lingsi.ts`：Lenny 基线评测改为只读 `personaId='lenny'` 的 units，避免第二 persona 干扰 M4 报告
-- `anima-base`：同步到 `65ca4c7`，纳入张小龙微信立项、春节红包、朋友圈广告、订阅号改版等决策材料
+- `anima-base`：同步到 `65ca4c7`，纳入张小龙微信立项、春节红包、朋友圈广告、订阅号改版等首批决策材料
 
 **测试与验证：**
 - `npm run lingsi:extract`：通过，刷新为 `2 personas / 17 sources / 28 approved units`

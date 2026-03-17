@@ -1449,6 +1449,430 @@
     "updatedAt": "2026-03-17T12:41:17.326Z"
   },
   {
+    "id": "lenny-retention-before-acquisition",
+    "personaId": "lenny",
+    "title": "留存还漏得厉害时，先停获客冲动",
+    "summary": "当团队获客增长不错但留存持续偏弱时，默认不要先加大渠道和预算，而要先把留存漏洞补上。",
+    "scenario": "SaaS 或产品团队在增长停滞时讨论先砸获客还是先修留存。",
+    "goal": "避免用更多流量掩盖产品留存问题。",
+    "constraints": [
+      "获客压力大",
+      "团队容易把新增当成增长主引擎"
+    ],
+    "tags": [
+      "retention",
+      "growth",
+      "acquisition"
+    ],
+    "triggerKeywords": [
+      "留存优先",
+      "留存",
+      "获客",
+      "买量",
+      "churn",
+      "获客预算",
+      "漏桶"
+    ],
+    "preferredPath": "先把资源向留存倾斜，再决定是否继续扩大获客。",
+    "antiPatterns": [
+      "留存差时继续线性加大获客",
+      "把增长问题全归因于流量不够"
+    ],
+    "reasoningSteps": [
+      "先看留存是否健康",
+      "再判断新增是否被流失抵消",
+      "最后决定预算顺序"
+    ],
+    "reasons": [
+      "当桶底还在漏时，继续加水只会放大浪费。",
+      "留存提升带来的增长通常有复利效应，比单纯买量更可持续。",
+      "先修留存会让后续每一份获客预算都更值钱。"
+    ],
+    "followUpQuestions": [
+      "你们最近几个 cohort 的留存是在改善还是恶化？",
+      "如果今天新增翻倍，真实留下来的用户会多多少？"
+    ],
+    "nextActions": [
+      "先把近 2-3 个 cohort 的留存曲线拉出来，而不是只看总新增。",
+      "把本月新增预算的一部分转去留存和 activation 修复。",
+      "在留存没有止跌前，暂停扩大最贵的获客渠道。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-lenny-retention-first",
+        "label": "Retention First Decision Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-13-elena-verna-retention-first.md",
+        "person": "Lenny Rachitsky",
+        "title": "Elena Verna 留存优先策略",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "A",
+        "notes": "Retention before acquisition, magic moment, churn resurrection",
+        "locator": "L66",
+        "excerpt": "Retention is the new Acquisition"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.89,
+    "createdAt": "2026-03-17T14:52:58.116Z",
+    "updatedAt": "2026-03-17T14:54:28.398Z"
+  },
+  {
+    "id": "lenny-find-magic-moment-before-scaling-onboarding",
+    "personaId": "lenny",
+    "title": "先找 Magic Moment，再优化激活和 onboarding",
+    "summary": "不要平均优化整个 onboarding；先识别真正把用户带进长期留存的关键行为，再围绕它重排激活路径。",
+    "scenario": "团队知道激活有问题，但不确定该优化哪个动作或步骤。",
+    "goal": "把 onboarding 优化锚定到真实留存信号。",
+    "constraints": [
+      "新手流程很长",
+      "可优化点很多"
+    ],
+    "tags": [
+      "retention",
+      "activation",
+      "onboarding"
+    ],
+    "triggerKeywords": [
+      "Magic Moment",
+      "激活",
+      "onboarding",
+      "关键行为",
+      "留存信号"
+    ],
+    "preferredPath": "先识别高留存用户共同完成的关键行为，再把新手引导压缩到这个动作上。",
+    "antiPatterns": [
+      "把 onboarding 做得很完整但不对准关键行为",
+      "只按直觉改新手流程"
+    ],
+    "reasoningSteps": [
+      "先找高留存用户共同动作",
+      "定义 magic moment",
+      "重排 onboarding 到该动作"
+    ],
+    "reasons": [
+      "真正决定留存的往往不是“完成注册”，而是体验到核心价值的瞬间。",
+      "围绕 magic moment 优化，比平均修补整条激活路径更有效。",
+      "一旦关键动作定义清楚，团队就知道该砍掉哪些无关步骤。"
+    ],
+    "followUpQuestions": [
+      "长期留存用户在前 7 天做了哪些共同动作？",
+      "你们当前 onboarding 是否把用户尽快带到这个动作？"
+    ],
+    "nextActions": [
+      "筛出留存超过 3-6 个月的用户，反推他们前期关键行为。",
+      "把这个行为定义成内部 magic moment，并写成明确阈值。",
+      "重做 onboarding，让用户更快到达这个阈值。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-lenny-retention-first",
+        "label": "Retention First Decision Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-13-elena-verna-retention-first.md",
+        "person": "Lenny Rachitsky",
+        "title": "Elena Verna 留存优先策略",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "A",
+        "notes": "Retention before acquisition, magic moment, churn resurrection",
+        "locator": "L135",
+        "excerpt": "Magic Moment定义：创建3个Board"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.88,
+    "createdAt": "2026-03-17T14:52:58.116Z",
+    "updatedAt": "2026-03-17T14:52:58.116Z"
+  },
+  {
+    "id": "lenny-resurrect-recently-churned-before-cold-acquisition",
+    "personaId": "lenny",
+    "title": "预算吃紧时，优先复活近期流失用户",
+    "summary": "如果要在复购召回和新获客之间取舍，先看近期流失用户的唤回 ROI，通常比冷启动获客更划算。",
+    "scenario": "团队需要在有限预算下选择增长动作。",
+    "goal": "用更高 ROI 的动作恢复有效增长。",
+    "constraints": [
+      "预算有限",
+      "已有一定规模的流失用户池"
+    ],
+    "tags": [
+      "retention",
+      "resurrection",
+      "budget"
+    ],
+    "triggerKeywords": [
+      "召回",
+      "复活用户",
+      "流失用户",
+      "获客太贵",
+      "ROI"
+    ],
+    "preferredPath": "优先用低成本方式召回近期流失用户，再决定是否扩大新获客。",
+    "antiPatterns": [
+      "忽略已有流失用户池，只盯新流量",
+      "对所有流失用户一视同仁"
+    ],
+    "reasoningSteps": [
+      "先按流失时间分层",
+      "优先测试近期流失召回",
+      "再对比与新获客的 ROI"
+    ],
+    "reasons": [
+      "近期流失用户对产品仍有记忆和上下文，唤回成本通常更低。",
+      "把复活策略按时间分层，会比无差别召回有效得多。",
+      "先吃掉低垂果实，再去买更贵的新用户更理性。"
+    ],
+    "followUpQuestions": [
+      "你们最近 1-3 个月流失的用户里，哪些人曾经是高价值用户？",
+      "相比新客 CAC，近期流失召回的真实成本是多少？"
+    ],
+    "nextActions": [
+      "把流失用户按 1-3 个月、3-6 个月、6 个月以上分层。",
+      "先为近期流失用户做一轮最低成本召回实验。",
+      "把召回 ROI 和新获客 CAC 放到同一张表里比较后再分预算。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-lenny-retention-first",
+        "label": "Retention First Decision Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-13-elena-verna-retention-first.md",
+        "person": "Lenny Rachitsky",
+        "title": "Elena Verna 留存优先策略",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "A",
+        "notes": "Retention before acquisition, magic moment, churn resurrection",
+        "locator": "L205",
+        "excerpt": "结论：复活近期流失用户ROI最高"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.84,
+    "createdAt": "2026-03-17T14:52:58.116Z",
+    "updatedAt": "2026-03-17T14:52:58.116Z"
+  },
+  {
+    "id": "lenny-stage-risky-monetization-before-scale",
+    "personaId": "lenny",
+    "title": "高风险商业化改动，先分阶段验证再全面放量",
+    "summary": "当商业模式调整会伤到既有用户习惯时，不要一次性全量切换，先设计分阶段 rollout、迁移工具和低价替代方案。",
+    "scenario": "团队准备做高争议的定价、账号、权限或商业化策略变更。",
+    "goal": "在控制用户反弹的同时验证长期收入逻辑。",
+    "constraints": [
+      "改动争议大",
+      "短期舆论压力高",
+      "执行风险高"
+    ],
+    "tags": [
+      "pricing",
+      "rollout",
+      "monetization"
+    ],
+    "triggerKeywords": [
+      "高风险改动",
+      "商业化调整",
+      "密码共享",
+      "分阶段推广",
+      "定价改革"
+    ],
+    "preferredPath": "先小范围试点和补齐迁移工具，再逐步推广，而不是一次全量切换。",
+    "antiPatterns": [
+      "高争议改动直接全量推开",
+      "没有迁移方案就要求用户立即切换"
+    ],
+    "reasoningSteps": [
+      "先判断长期价值是否足够大",
+      "再设计阶段 rollout",
+      "补上迁移和低价缓冲方案"
+    ],
+    "reasons": [
+      "长期价值清晰，不代表可以忽略执行阶段的风险。",
+      "分阶段 rollout 能让团队更早发现技术、客服和舆论问题。",
+      "迁移工具和低价替代方案能显著降低用户反弹强度。"
+    ],
+    "followUpQuestions": [
+      "这次调整的长期价值是否足够大，值得承担短期负反馈？",
+      "如果先小范围试点，你们最该观察哪几个风险指标？"
+    ],
+    "nextActions": [
+      "先定义试点市场或试点用户群，而不是默认全量上线。",
+      "上线前补齐迁移工具、FAQ 和低价替代方案。",
+      "把扩量节奏绑定到试点数据和负反馈阈值，而不是绑定到既定日期。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-lenny-netflix-password-sharing",
+        "label": "Netflix Password Sharing Decision Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-13-netflix-password-sharing.md",
+        "person": "Lenny Rachitsky",
+        "title": "Netflix 密码共享限制决策",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "A",
+        "notes": "Short-term pain for long-term growth, phased rollout, profile transfer",
+        "locator": "L77",
+        "excerpt": "3. 分阶段推广："
+      },
+      {
+        "id": "src-lenny-netflix-password-sharing",
+        "label": "Netflix Password Sharing Decision Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-13-netflix-password-sharing.md",
+        "person": "Lenny Rachitsky",
+        "title": "Netflix 密码共享限制决策",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "A",
+        "notes": "Short-term pain for long-term growth, phased rollout, profile transfer",
+        "locator": "L82",
+        "excerpt": "\"Profile Transfer\"功能：让共享用户轻松迁移自己的观看记录"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.85,
+    "createdAt": "2026-03-17T14:52:58.116Z",
+    "updatedAt": "2026-03-17T14:52:58.116Z"
+  },
+  {
+    "id": "lenny-design-critique-starts-with-3w",
+    "personaId": "lenny",
+    "title": "设计评审前，先把 3W 说清楚",
+    "summary": "评审效率低往往不是大家不会提意见，而是设计师没有先说清目标、阶段和需要什么反馈。",
+    "scenario": "团队要开设计评审，但讨论经常发散或变成主观审美争论。",
+    "goal": "把反馈拉回到具体问题和当前阶段。",
+    "constraints": [
+      "参会者多",
+      "反馈容易发散",
+      "设计成熟度不同"
+    ],
+    "tags": [
+      "design",
+      "critique",
+      "collaboration"
+    ],
+    "triggerKeywords": [
+      "设计评审",
+      "critique",
+      "设计反馈",
+      "评审会",
+      "3W"
+    ],
+    "preferredPath": "评审前先说明 What、Where、Want，再让参与者围绕当前问题给反馈。",
+    "antiPatterns": [
+      "直接让大家“随便看看”",
+      "早期稿就被拿去做像素级争论"
+    ],
+    "reasoningSteps": [
+      "先定义问题",
+      "说明所处阶段",
+      "明确想要的反馈类型"
+    ],
+    "reasons": [
+      "没有上下文的评审，几乎一定会滑向主观偏好对撞。",
+      "把反馈范围收紧，能让团队更快给出有用意见。",
+      "评审先说清阶段，才能避免在错误粒度上浪费时间。"
+    ],
+    "followUpQuestions": [
+      "这次评审到底是要解决哪个问题，而不是单纯展示方案？",
+      "当前属于概念、原型还是定稿阶段？"
+    ],
+    "nextActions": [
+      "每次评审前固定写一段 3W 简报：What / Where / Want。",
+      "把不相关的反馈推迟到下一轮，而不是这次一起讨论。",
+      "会前把 3W 贴到议程顶部，防止讨论发散。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-lenny-design-critique",
+        "label": "Design Critique Decision Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-15-julie-zhuo-design-critique.md",
+        "person": "Lenny Rachitsky",
+        "title": "Julie Zhuo 设计评审方法",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "A",
+        "notes": "3W critique framing, level-3 feedback, stage-aware critique",
+        "locator": "L28",
+        "excerpt": "1. **目标是什么？**（解决什么问题？）"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.83,
+    "createdAt": "2026-03-17T14:52:58.116Z",
+    "updatedAt": "2026-03-17T14:52:58.116Z"
+  },
+  {
+    "id": "lenny-feedback-must-reach-level-three",
+    "personaId": "lenny",
+    "title": "反馈至少给到 Level 3，不要只说喜欢或不喜欢",
+    "summary": "如果反馈停留在“我不喜欢”，团队只会争审美。更有效的标准是指出问题、解释原因，最好再给建议。",
+    "scenario": "团队在设计评审或方案评审里，经常给出低质量主观反馈。",
+    "goal": "提升反馈的可讨论性和可执行性。",
+    "constraints": [
+      "参与者表达随意",
+      "容易把会议变成喜好投票"
+    ],
+    "tags": [
+      "feedback",
+      "design",
+      "review"
+    ],
+    "triggerKeywords": [
+      "我不喜欢",
+      "反馈不 actionable",
+      "Level 3",
+      "设计讨论"
+    ],
+    "preferredPath": "要求反馈至少包含“哪里有问题 + 为什么”，更理想的是再补建议方案。",
+    "antiPatterns": [
+      "只给审美判断",
+      "只指出问题不解释原因"
+    ],
+    "reasoningSteps": [
+      "先指出具体问题",
+      "解释问题为什么成立",
+      "尽量补建议方案"
+    ],
+    "reasons": [
+      "Level 1 反馈只会制造对立，几乎不能转成行动。",
+      "把原因说清楚，团队才能判断问题是否真实存在。",
+      "建议方案不一定要被采纳，但能显著提高讨论质量。"
+    ],
+    "followUpQuestions": [
+      "你指出的是具体问题，还是只在表达个人偏好？",
+      "如果这是个问题，为什么它会伤到用户或目标？"
+    ],
+    "nextActions": [
+      "在评审会里明确禁止只有“喜欢/不喜欢”的反馈。",
+      "把反馈模板改成“问题 + 原因 + 建议”。",
+      "复盘一次最近的低效评审，标出多少反馈低于 Level 3。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-lenny-design-critique",
+        "label": "Design Critique Decision Case",
+        "type": "decision_case",
+        "path": "people/product/lenny-rachitsky/decision-cases/case-15-julie-zhuo-design-critique.md",
+        "person": "Lenny Rachitsky",
+        "title": "Julie Zhuo 设计评审方法",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "A",
+        "notes": "3W critique framing, level-3 feedback, stage-aware critique",
+        "locator": "L91",
+        "excerpt": "### 2. 梯子法则（Level 3+）"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.82,
+    "createdAt": "2026-03-17T14:52:58.116Z",
+    "updatedAt": "2026-03-17T14:52:58.116Z"
+  },
+  {
     "id": "zhang-new-relation-chain-before-old-assets",
     "personaId": "zhang",
     "title": "移动转折点上，优先押新关系链，不要被旧资产绑住",
@@ -1993,5 +2417,482 @@
     "confidence": 0.83,
     "createdAt": "2026-03-17T14:06:39.805Z",
     "updatedAt": "2026-03-17T14:06:39.805Z"
+  },
+  {
+    "id": "zhang-operate-with-restraint-not-kpi-anxiety",
+    "personaId": "zhang",
+    "title": "运营要先保护用户，再保护 KPI",
+    "summary": "当增长、活跃或导流压力很大时，默认不要用制造焦虑的方式拉指标，而要先守住用户不被打扰的边界。",
+    "scenario": "团队在讨论是否加 push、热点位、活动入口或导流红点。",
+    "goal": "在长期留存和短期活跃之间做更稳的选择。",
+    "constraints": [
+      "内部 KPI 压力强",
+      "业务部门希望导流"
+    ],
+    "tags": [
+      "operations",
+      "restraint",
+      "retention"
+    ],
+    "triggerKeywords": [
+      "红点",
+      "push",
+      "导流",
+      "热点推送",
+      "拉活跃",
+      "运营克制"
+    ],
+    "preferredPath": "先问动作是否在制造虚假紧迫感；如果是，宁可不做。",
+    "antiPatterns": [
+      "为了短期活跃加运营红点",
+      "把用户注意力当作内部流量池"
+    ],
+    "reasoningSteps": [
+      "先判断是否是真实需求",
+      "再检查是否在制造焦虑",
+      "最后决定是否上线运营动作"
+    ],
+    "reasons": [
+      "短期活跃可以被操纵，但长期信任一旦受损很难修复。",
+      "用户打开高频产品时，默认希望被服务，而不是被内部 KPI 利用。",
+      "克制运营会牺牲部分短期指标，但通常换来更稳的留存和信任。"
+    ],
+    "followUpQuestions": [
+      "这个运营动作是在响应真实用户需求，还是只是在满足内部 KPI？",
+      "如果去掉这次提醒，用户真的会错过重要价值吗？"
+    ],
+    "nextActions": [
+      "把当前计划中的 push、红点、推荐位按“真实需求 / 诱导需求”二分。",
+      "先砍掉纯诱导型运营动作，再保留真实消息类提醒。",
+      "对剩余动作加频次上限和负反馈监控，不把活跃增长当唯一指标。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-zhang-operation-restraint",
+        "label": "Operation Restraint Decision Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-18-operation-restraint.md",
+        "person": "Zhang Xiaolong",
+        "title": "运营克制决策",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "A",
+        "notes": "Operational restraint, no fake urgency, protect users from KPI noise",
+        "locator": "L71",
+        "excerpt": "**核心原则**: \"不打扰是最好的运营\""
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.9,
+    "createdAt": "2026-03-17T14:52:58.116Z",
+    "updatedAt": "2026-03-17T14:52:58.116Z"
+  },
+  {
+    "id": "zhang-no-fake-urgency-red-dots",
+    "personaId": "zhang",
+    "title": "红点只给真实消息，不给运营欲望",
+    "summary": "如果红点不是为了提醒真实未读或真实待处理事项，就不该出现。用红点刺激回访，本质是在透支用户注意力。",
+    "scenario": "团队争论是否给功能入口、内容流或活动页加红点。",
+    "goal": "避免用界面焦虑驱动回访。",
+    "constraints": [
+      "红点很容易提升点击",
+      "业务对短期回访有强诉求"
+    ],
+    "tags": [
+      "notifications",
+      "ux",
+      "attention"
+    ],
+    "triggerKeywords": [
+      "红点",
+      "提醒",
+      "未读",
+      "功能入口",
+      "提高点击"
+    ],
+    "preferredPath": "把红点限定在真实消息和真实待处理事项，不把它当运营工具。",
+    "antiPatterns": [
+      "用红点制造“我是不是错过了什么”",
+      "把所有重要功能都塞进红点逻辑"
+    ],
+    "reasoningSteps": [
+      "先判断是否有真实待处理",
+      "再看是否必须立即提醒",
+      "不满足就取消红点"
+    ],
+    "reasons": [
+      "红点的本质是稀缺提醒，一旦泛化就会迅速贬值。",
+      "用户会因为被不断挑动焦虑而逐渐失去信任和注意力。",
+      "让红点只对应真实消息，会让产品的提醒机制更有信用。"
+    ],
+    "followUpQuestions": [
+      "这个红点在提醒什么真实待处理事项？",
+      "如果用户晚一点看到，会造成实际损失还是只是业务担心转化？"
+    ],
+    "nextActions": [
+      "把现有红点分类成真实消息类和运营刺激类。",
+      "直接删除运营刺激类红点，只保留真实待处理提醒。",
+      "为保留的红点写清使用原则，防止后续再次泛化。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-zhang-operation-restraint",
+        "label": "Operation Restraint Decision Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-18-operation-restraint.md",
+        "person": "Zhang Xiaolong",
+        "title": "运营克制决策",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "A",
+        "notes": "Operational restraint, no fake urgency, protect users from KPI noise",
+        "locator": "L88",
+        "excerpt": "❌ 运营红点: 一律禁止"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.89,
+    "createdAt": "2026-03-17T14:52:58.116Z",
+    "updatedAt": "2026-03-17T14:52:58.116Z"
+  },
+  {
+    "id": "zhang-degrade-aging-features-before-deleting",
+    "personaId": "zhang",
+    "title": "功能衰退时先降级入口，再决定是否下线",
+    "summary": "低频功能不一定要马上砍掉，但也不该继续占一级入口。先降级观察，是更稳的减法路径。",
+    "scenario": "产品里有历史功能使用率显著下滑，但仍有少量用户在用。",
+    "goal": "在减轻产品负担的同时控制下线风险。",
+    "constraints": [
+      "仍有小部分用户依赖",
+      "团队担心下线引发反弹"
+    ],
+    "tags": [
+      "lifecycle",
+      "cleanup",
+      "product"
+    ],
+    "triggerKeywords": [
+      "下线功能",
+      "弱化入口",
+      "低频功能",
+      "产品臃肿",
+      "摇一摇"
+    ],
+    "preferredPath": "先把低频功能从一级入口降级，再依据真实使用变化决定保留或下线。",
+    "antiPatterns": [
+      "所有历史功能永久保留在高优先级入口",
+      "一上来就强制下线所有衰退功能"
+    ],
+    "reasoningSteps": [
+      "先识别衰退信号",
+      "再降级入口",
+      "最后基于数据决定保留还是下线"
+    ],
+    "reasons": [
+      "入口层级本身就是产品资源，不该长期让低频功能占位。",
+      "降级比直接删除更适合验证真实需求是否还存在。",
+      "把“死亡”纳入生命周期，产品才能持续保持清爽。"
+    ],
+    "followUpQuestions": [
+      "这个功能目前的真实使用率和新用户渗透率是多少？",
+      "如果先降级入口，是否还有人会主动去用它？"
+    ],
+    "nextActions": [
+      "给历史功能补一张生命周期表，标明增长、成熟、衰退状态。",
+      "先把明显衰退功能从一级入口降级到二级或搜索入口。",
+      "观察一个周期后，再决定继续保留还是正式下线。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-zhang-feature-lifecycle",
+        "label": "Feature Lifecycle Philosophy Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-19-feature-evolution-philosophy.md",
+        "person": "Zhang Xiaolong",
+        "title": "功能演进哲学",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "A",
+        "notes": "Feature lifecycle, degrade before delete, quiet death, kill with intent",
+        "locator": "L142",
+        "excerpt": "1. **弱化入口**（从一级入口降至二级）"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.86,
+    "createdAt": "2026-03-17T14:52:58.116Z",
+    "updatedAt": "2026-03-17T14:52:58.116Z"
+  },
+  {
+    "id": "zhang-design-social-for-real-relationships",
+    "personaId": "zhang",
+    "title": "社交产品先服务真实关系，不先服务表演传播",
+    "summary": "如果一个社交设计能更快扩散，但会把关系从真实互动变成公开表演，默认应优先保护真实关系。",
+    "scenario": "团队在设计社交关系链、可见性或内容传播机制。",
+    "goal": "避免社交产品变成表演型内容广场。",
+    "constraints": [
+      "公开传播更容易带来增长",
+      "真实关系模式增长更慢"
+    ],
+    "tags": [
+      "social",
+      "relationships",
+      "distribution"
+    ],
+    "triggerKeywords": [
+      "社交设计",
+      "朋友圈",
+      "好友关系",
+      "公开广场",
+      "关注关系"
+    ],
+    "preferredPath": "优先采用双向确认、私密可见和关系边界清晰的机制。",
+    "antiPatterns": [
+      "为了增长改成公开表演场",
+      "把不认识的人强行拉进同一社交上下文"
+    ],
+    "reasoningSteps": [
+      "先看产品服务的是关系还是内容分发",
+      "再确定可见性边界",
+      "最后决定传播机制"
+    ],
+    "reasons": [
+      "真实关系的增长慢，但更能支撑长期信任和高频使用。",
+      "公开表演型机制虽然更容易爆发，但也更容易引发疲劳和人设表演。",
+      "社交边界越清晰，用户越敢表达真实内容。"
+    ],
+    "followUpQuestions": [
+      "你们现在设计的是帮助熟人互动，还是在鼓励用户对陌生人表演？",
+      "传播效率提高的代价，是否是关系边界被打散？"
+    ],
+    "nextActions": [
+      "先明确这条社交链路服务的是熟人关系还是公开内容分发。",
+      "如果核心是关系，优先使用双向确认和私密可见性。",
+      "把容易破坏关系边界的公开传播机制单独隔离测试。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-zhang-social-design",
+        "label": "Social Design Principles Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-20-social-design-principles.md",
+        "person": "Zhang Xiaolong",
+        "title": "社交设计原则",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "A",
+        "notes": "Real relationships, private sharing, reduce social pressure",
+        "locator": "L81",
+        "excerpt": "**微信选择**: \"双向验证\"（加好友需对方同意）"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.87,
+    "createdAt": "2026-03-17T14:52:58.116Z",
+    "updatedAt": "2026-03-17T14:52:58.116Z"
+  },
+  {
+    "id": "zhang-reduce-social-pressure-signals",
+    "personaId": "zhang",
+    "title": "能制造社交压力的信号，默认少做或不做",
+    "summary": "如果一个机制会引发攀比、被迫回复或持续焦虑，就算它能提升互动，也要谨慎甚至不做。",
+    "scenario": "团队讨论是否显示点赞数、已读状态、公开评论关系或历史暴露度。",
+    "goal": "降低社交压力，保护真实表达。",
+    "constraints": [
+      "这些信号能显著抬高互动数据",
+      "用户对压力感知往往滞后"
+    ],
+    "tags": [
+      "social",
+      "privacy",
+      "stress"
+    ],
+    "triggerKeywords": [
+      "已读回执",
+      "点赞数",
+      "三天可见",
+      "社交压力",
+      "焦虑"
+    ],
+    "preferredPath": "优先隐藏会触发攀比和负担的信号，保留用户的社交回旋空间。",
+    "antiPatterns": [
+      "把互动指标最大化当成唯一目标",
+      "用公开信号制造回复压力和比较压力"
+    ],
+    "reasoningSteps": [
+      "先识别信号会带来什么压力",
+      "再判断是否真有必要公开",
+      "能不公开就不公开"
+    ],
+    "reasons": [
+      "很多互动信号带来的不是连接，而是压力和表演。",
+      "用户需要的是表达空间，而不是被每个信号追着做社交回应。",
+      "减少社交压力通常会牺牲部分互动数据，但能换来更真实的使用。"
+    ],
+    "followUpQuestions": [
+      "这个信号公开后，用户会更自在，还是会更有负担？",
+      "你们是在提升连接质量，还是只是在提升可量化互动？"
+    ],
+    "nextActions": [
+      "梳理当前会制造社交压力的公开信号：点赞数、已读、公开评论关系等。",
+      "优先隐藏或弱化最容易引发攀比和负担的那一类信号。",
+      "上线后不仅看互动率，也看负反馈和长期表达频次。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-zhang-social-design",
+        "label": "Social Design Principles Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-20-social-design-principles.md",
+        "person": "Zhang Xiaolong",
+        "title": "社交设计原则",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "A",
+        "notes": "Real relationships, private sharing, reduce social pressure",
+        "locator": "L203",
+        "excerpt": "**微信选择**: 不做已读回执"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.88,
+    "createdAt": "2026-03-17T14:52:58.116Z",
+    "updatedAt": "2026-03-17T14:52:58.116Z"
+  },
+  {
+    "id": "zhang-govern-platform-with-rules-not-manual-traffic",
+    "personaId": "zhang",
+    "title": "平台治理先定规则，不先人工分流量",
+    "summary": "平台型产品应优先制定透明规则和基础设施，让生态自我演化，而不是靠手工推荐、流量扶持和个案干预维持增长。",
+    "scenario": "平台团队在讨论是否做中心化推荐、扶持头部或手动调控分发。",
+    "goal": "在治理和生态活力之间保持更稳的长期平衡。",
+    "constraints": [
+      "新生态冷启动难",
+      "头部扶持短期看起来更有效"
+    ],
+    "tags": [
+      "platform",
+      "governance",
+      "distribution"
+    ],
+    "triggerKeywords": [
+      "平台治理",
+      "流量扶持",
+      "推荐机制",
+      "规则透明",
+      "去中心化"
+    ],
+    "preferredPath": "成熟生态优先用透明规则和用户选择做分发，少做手工干预。",
+    "antiPatterns": [
+      "平台决定谁该成功",
+      "长期依赖头部扶持和编辑推荐"
+    ],
+    "reasoningSteps": [
+      "先判断生态是否已成熟",
+      "成熟则优先规则治理",
+      "只在冷启动期允许有限中心化扶持"
+    ],
+    "reasons": [
+      "长期人工分流量会让生态越来越依赖平台意志，而不是依赖用户选择。",
+      "透明规则能提升创作者和开发者的可预期性。",
+      "平台真正该建设的是土壤，而不是代替生态做选择。"
+    ],
+    "followUpQuestions": [
+      "这个生态现在处于冷启动期，还是已经足够成熟可以承受更去中心化的分发？",
+      "你们当前的推荐和扶持是在补冷启动，还是已经变成常态依赖？"
+    ],
+    "nextActions": [
+      "先把当前平台干预动作区分成“冷启动必要”与“长期习惯性干预”。",
+      "对成熟生态逐步把编辑推荐和人工扶持退回到规则治理。",
+      "把平台规则写清并公开，减少个案式例外处理。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-zhang-platform-governance",
+        "label": "Platform Governance Philosophy Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-21-platform-governance-philosophy.md",
+        "person": "Zhang Xiaolong",
+        "title": "平台治理哲学",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "A",
+        "notes": "Decentralized distribution, rule-based governance, temporary centralization only for cold start",
+        "locator": "L85",
+        "excerpt": "4. **制定规则，而非干预个体**: 定规则，让生态自我演化"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.86,
+    "createdAt": "2026-03-17T14:52:58.116Z",
+    "updatedAt": "2026-03-17T14:52:58.116Z"
+  },
+  {
+    "id": "zhang-use-temporary-centralization-only-for-cold-start",
+    "personaId": "zhang",
+    "title": "去中心化不是宗教，冷启动期可以暂时中心化",
+    "summary": "平台早期内容和供给不足时，可以短期引入适度中心化机制，但要明确它只是冷启动工具，不是长期模式。",
+    "scenario": "平台或内容生态早期供给不足，完全去中心化导致增长过慢。",
+    "goal": "在增长与原则之间找到过渡路径。",
+    "constraints": [
+      "生态早期供给不足",
+      "完全去中心化会导致冷启动困难"
+    ],
+    "tags": [
+      "platform",
+      "cold-start",
+      "governance"
+    ],
+    "triggerKeywords": [
+      "冷启动",
+      "适度中心化",
+      "推荐",
+      "供给不足",
+      "平台早期"
+    ],
+    "preferredPath": "冷启动期允许有限中心化推荐，但要明确退出条件，长期仍回到去中心化规则。",
+    "antiPatterns": [
+      "把冷启动手段永久化",
+      "在早期完全拒绝任何中心化导致生态起不来"
+    ],
+    "reasoningSteps": [
+      "先判断是否供给不足",
+      "短期引入有限中心化",
+      "预设回归去中心化的退出条件"
+    ],
+    "reasons": [
+      "完全去中心化在供给极少时可能根本没有足够内容让用户形成使用习惯。",
+      "适度中心化能帮助生态跨过最初的供给鸿沟。",
+      "如果不设退出条件，临时手段很容易演变成平台常态依赖。"
+    ],
+    "followUpQuestions": [
+      "你们遇到的是原则问题，还是供给不足导致的冷启动问题？",
+      "如果引入中心化推荐，何时应当撤回并回到规则分发？"
+    ],
+    "nextActions": [
+      "先定义当前生态是否真的处于供给不足的冷启动阶段。",
+      "如需中心化扶持，明确范围、时限和退出指标。",
+      "一旦供给达到阈值，就逐步把分发重心交回用户选择和平台规则。"
+    ],
+    "evidenceLevel": "A",
+    "sourceRefs": [
+      {
+        "id": "src-zhang-platform-governance",
+        "label": "Platform Governance Philosophy Case",
+        "type": "decision_case",
+        "path": "people/product/zhang-xiaolong/decision-cases/case-21-platform-governance-philosophy.md",
+        "person": "Zhang Xiaolong",
+        "title": "平台治理哲学",
+        "publishedAt": "2026-03-17",
+        "evidenceLevel": "A",
+        "notes": "Decentralized distribution, rule-based governance, temporary centralization only for cold start",
+        "locator": "L214",
+        "excerpt": "完全去中心化在早期内容供给不足时不可行。需要适度中心化冷启动，但长期依然走向去中心化。"
+      }
+    ],
+    "status": "approved",
+    "confidence": 0.84,
+    "createdAt": "2026-03-17T14:52:58.116Z",
+    "updatedAt": "2026-03-17T14:52:58.116Z"
   }
 ]
