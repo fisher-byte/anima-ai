@@ -2,6 +2,12 @@
 
 ## 计划中版本
 
+#### v0.5.11 - LingSi 证据展示层（已完成）
+- [x] `AnswerModal.tsx`：根据 `decisionTrace` 展示当前对话的灵思证据面板
+- [x] `AnswerModalSubcomponents.tsx`：新增 `LingSiTracePanel`，展示 DecisionUnit 命中与 `sourceRefs.locator / excerpt`
+- [x] `lingsiTrace.ts`：抽出来源标签与 DecisionUnit 标题解析，避免 UI 内联硬编码
+- [x] 验证：`npm test` 569/569、`npm run typecheck`、`npm run build`、`npm run test:e2e`（45 passed / 3 skipped）
+
 #### v0.5.10 - LingSi 稳定性补丁（已完成）
 - [x] `App.tsx`：启动时修复失效 `anima_user_token`，默认库已配置可用 key 时自动回退，恢复浏览器真实提问链路
 - [x] `canvasStore.ts`：切换 Lenny / PG / 张 / 王 / Custom Space 时清空 onboarding residue、modal、当前对话和历史，避免状态串扰

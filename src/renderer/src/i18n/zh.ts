@@ -245,6 +245,11 @@ export interface Translations {
   modal: {
     onboardingHint: string
     memorized: string
+    lingsiEvidence: string
+    lingsiMode: string
+    lingsiDecisionTrace: string
+    lingsiUnits: (n: number) => string
+    lingsiSources: (n: number) => string
     exportMd: string
     exportJson: string
     connecting: string
@@ -607,6 +612,11 @@ export const zh: Translations = {
   modal: {
     onboardingHint: '随时可以关闭，下次点击「新手教程」继续',
     memorized: '已记住：',
+    lingsiEvidence: '灵思依据',
+    lingsiMode: '灵思模式',
+    lingsiDecisionTrace: '当前回答所依据的决策单元与真实来源片段。',
+    lingsiUnits: (n: number) => `命中 ${n} 个 Decision Unit`,
+    lingsiSources: (n: number) => `${n} 条来源`,
     exportMd: '导出对话 (MD)',
     exportJson: '导出全量数据 (JSON)',
     connecting: '正在连接…',

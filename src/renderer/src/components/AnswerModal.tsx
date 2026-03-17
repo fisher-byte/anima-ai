@@ -30,7 +30,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useAI } from '../hooks/useAI'
-import type { FileAttachment, Conversation } from '@shared/types'
+import type { FileAttachment, Conversation, DecisionTrace } from '@shared/types'
 import type { AIMessage } from '@shared/types'
 import { parseFiles, formatFilesForAI } from '../../../services/fileParsing'
 import { ThinkingSection } from './ThinkingSection'
@@ -48,13 +48,15 @@ import {
   buildAIHistory,
 } from '../utils/conversationUtils'
 import { getAuthToken } from '../services/storageService'
-import { buildLingSiDecisionPayload, ensureLingSiStorageSeeded, mergeDecisionTrace } from '../services/lingsi'
+import { buildLingSiDecisionPayload, ensureLingSiStorageSeeded, loadDecisionUnits, mergeDecisionTrace } from '../services/lingsi'
 import { FEEDBACK_TRIGGERS, LENNY_SYSTEM_PROMPT, PG_SYSTEM_PROMPT, ZHANG_SYSTEM_PROMPT, WANG_SYSTEM_PROMPT } from '@shared/constants'
 import {
   UserMessageContent,
   ClosingAnimation,
   InputArea,
+  LingSiTracePanel,
 } from './AnswerModalSubcomponents'
+import { resolveDecisionUnitLabels } from '../utils/lingsiTrace'
 import { useT } from '../i18n'
 
 function authFetch(url: string, init?: RequestInit): Promise<Response> {
@@ -144,6 +146,7 @@ export function AnswerModal() {
   const [editingContent, setEditingContent] = useState('')
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [decisionUnitLabels, setDecisionUnitLabels] = useState<string[]>([])
   const lastDeepSearchContextRef = useRef<{
     conversationId?: string
     messages: AIMessage[]
@@ -228,6 +231,31 @@ export function AnswerModal() {
   const onboardingStreamTimerRef2 = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onboardingStreamTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onboardingStreamTimerRef3 = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const activeDecisionTrace: DecisionTrace | undefined = currentConversation?.decisionTrace
+  const shouldShowLingSiTrace =
+    !!activeDecisionTrace &&
+    activeDecisionTrace.mode === 'decision' &&
+    isPureLennySpace &&
+    ((activeDecisionTrace.sourceRefs?.length ?? 0) > 0 || decisionUnitLabels.length > 0)
+
+  useEffect(() => {
+    let cancelled = false
+    const matchedIds = currentConversation?.decisionTrace?.matchedDecisionUnitIds
+    if (!matchedIds?.length) {
+      setDecisionUnitLabels([])
+      return
+    }
+
+    ;(async () => {
+      const units = await loadDecisionUnits()
+      if (cancelled) return
+      setDecisionUnitLabels(resolveDecisionUnitLabels(matchedIds, units))
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentConversation?.decisionTrace?.matchedDecisionUnitIds])
 
   // ── 文件上传（本地解析 + 上传后端）──────────────────────────────────────────
   // Embedding 由后端 Agent 自动处理（embed_file 任务队列），不在前端触发
@@ -1517,6 +1545,13 @@ export function AnswerModal() {
                                     </button>
                                   )}
                                 </div>
+                              )}
+                              {idx === turns.length - 1 && shouldShowLingSiTrace && (
+                                <LingSiTracePanel
+                                  mode={activeDecisionTrace.mode}
+                                  matchedUnitLabels={decisionUnitLabels}
+                                  sourceRefs={activeDecisionTrace.sourceRefs ?? []}
+                                />
                               )}
                             </div>
                           </div>

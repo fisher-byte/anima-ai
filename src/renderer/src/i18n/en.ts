@@ -263,6 +263,11 @@ export const en: Translations = {
   modal: {
     onboardingHint: 'Close anytime — click "Tutorial" to resume later',
     memorized: 'Remembered: ',
+    lingsiEvidence: 'LingSi Evidence',
+    lingsiMode: 'Decision mode',
+    lingsiDecisionTrace: 'Decision units and source passages used for the current answer.',
+    lingsiUnits: (n: number) => `${n} decision unit${n === 1 ? '' : 's'}`,
+    lingsiSources: (n: number) => `${n} source${n === 1 ? '' : 's'}`,
     exportMd: 'Export chat (MD)',
     exportJson: 'Export all data (JSON)',
     connecting: 'Connecting…',
