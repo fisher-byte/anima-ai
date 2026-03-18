@@ -48,9 +48,9 @@ import {
   buildAIHistory,
   stripLinkedContextHints,
 } from '../utils/conversationUtils'
-import { getAuthToken } from '../services/storageService'
+import { getAuthToken, storageService } from '../services/storageService'
 import { buildLingSiDecisionPayload, ensureLingSiStorageSeeded, loadDecisionUnits, mergeDecisionTrace } from '../services/lingsi'
-import { FEEDBACK_TRIGGERS, LENNY_SYSTEM_PROMPT, PG_SYSTEM_PROMPT, ZHANG_SYSTEM_PROMPT, WANG_SYSTEM_PROMPT } from '@shared/constants'
+import { FEEDBACK_TRIGGERS, LENNY_SYSTEM_PROMPT, PG_SYSTEM_PROMPT, STORAGE_FILES, ZHANG_SYSTEM_PROMPT, WANG_SYSTEM_PROMPT } from '@shared/constants'
 import {
   UserMessageContent,
   ClosingAnimation,
@@ -385,6 +385,32 @@ export function AnswerModal() {
     autoSavedSigRef.current = null
     await useCanvasStore.getState().appendConversation(nextConversation)
 
+    const decisionSource = isCustomSpaceMode && activeCustomSpaceId
+      ? (`custom-${activeCustomSpaceId}` as const)
+      : isPGMode
+        ? ('pg' as const)
+        : isZhangMode
+          ? ('zhang' as const)
+          : isWangMode
+            ? ('wang' as const)
+            : isLennyMode
+              ? ('lenny' as const)
+              : ('main' as const)
+
+    // Write a lightweight decision ledger line so the decision hub doesn't have to scan huge conversations.jsonl.
+    // Best-effort only: failures should not block the user's action.
+    try {
+      await storageService.append(STORAGE_FILES.DECISION_LEDGER, JSON.stringify({
+        conversationId: nextConversation.id,
+        source: decisionSource,
+        title: normalizedRecord.userQuestion || nextConversation.userMessage,
+        decisionRecord: normalizedRecord,
+        updatedAt: normalizedRecord.updatedAt,
+      }))
+    } catch {
+      // ignore
+    }
+
     if ((isLennyMode || isCustomSpaceMode) && assistantMessage.trim()) {
       try {
         await authFetch('/api/memory/sync-lenny-conv', {
@@ -395,15 +421,7 @@ export function AnswerModal() {
             assistantMessage,
             decisionTrace: nextConversation.decisionTrace,
             decisionRecord: normalizedRecord,
-            source: isCustomSpaceMode && activeCustomSpaceId
-              ? `custom-${activeCustomSpaceId}`
-              : isPGMode
-                ? 'pg'
-                : isZhangMode
-                  ? 'zhang'
-                  : isWangMode
-                    ? 'wang'
-                    : 'lenny',
+            source: decisionSource,
           }),
         })
       } catch {
