@@ -67,7 +67,7 @@ const ANSWER_MODAL_HEIGHT_KEY = 'anima_answer_modal_height_px_v1'
 const ANSWER_MODAL_MIN_HEIGHT = 560
 const ANSWER_MODAL_TEXTAREA_MAX_HEIGHT = 220
 
-function MarkdownLink({ href, children }: { href?: string; children: ReactNode }) {
+function MarkdownLink({ href, children }: { href?: string; children?: ReactNode }) {
   if (!href) return <a>{children}</a>
 
   const isLingSiAnchor = href.startsWith('#lingsi-source-')

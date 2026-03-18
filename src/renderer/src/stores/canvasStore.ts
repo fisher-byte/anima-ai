@@ -2089,7 +2089,7 @@ export const useCanvasStore = create<CanvasState>()(
       }
 
       for (const line of iterLinesFromEnd(content, scanLimit)) {
-        if (scanned++ > scanLimit) break
+        scanned++
         // 协作式让步：每 60 行释放主线程，避免超大文件 parsing 期间 UI 无响应
         if (scanned % 60 === 0) {
           await new Promise<void>((resolve) => setTimeout(resolve, 0))
@@ -2142,7 +2142,7 @@ export const useCanvasStore = create<CanvasState>()(
           const want = new Set(childConvs.map(c => c.id))
           scanned = 0
           for (const line of iterLinesFromEnd(content, scanLimit)) {
-            if (scanned++ > scanLimit) break
+            scanned++
             if (scanned % 60 === 0) {
               await new Promise<void>((resolve) => setTimeout(resolve, 0))
               if (token !== _openModalToken) return
