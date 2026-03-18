@@ -39,7 +39,7 @@ describe('decisionRecords service', () => {
               nextActions: ['做三次实验'],
               evidenceRefs: [],
               status: 'adopted',
-              outcome: { revisitAt: '2026-03-25T00:00:00.000Z' },
+              outcome: { adoptedAt: '2026-03-18T06:00:00.000Z', revisitAt: '2026-03-25T00:00:00.000Z' },
               createdAt: '2026-03-18T00:00:00.000Z',
               updatedAt: '2026-03-18T10:00:00.000Z',
             },
@@ -70,7 +70,7 @@ describe('decisionRecords service', () => {
               nextActions: [],
               evidenceRefs: [],
               status: 'revisited',
-              outcome: { revisitAt: '2026-03-20T00:00:00.000Z', result: 'mixed' },
+              outcome: { revisitAt: '2026-03-20T00:00:00.000Z', result: 'mixed', notes: '用户执行了一半。' },
               createdAt: '2026-03-18T00:00:00.000Z',
               updatedAt: '2026-03-18T08:00:00.000Z',
             },
@@ -87,5 +87,77 @@ describe('decisionRecords service', () => {
     expect(items[0].conversation.invokedAssistant?.id).toBe('zhang')
     expect(items[1].conversation.invokedAssistant?.id).toBe('lenny')
     expect(items[1].title).toContain('Lenny Rachitsky')
+    expect(items[0].notes).toBe('用户执行了一半。')
+    expect(items[1].adoptedAt).toBe('2026-03-18T06:00:00.000Z')
+  })
+
+  it('marks adopted decisions as due when revisit time has passed and sorts ledger by freshness', async () => {
+    mockStorageRead.mockImplementation(async (filename: string) => {
+      if (filename === 'conversations.jsonl') {
+        return [
+          JSON.stringify({
+            id: 'conv-old',
+            createdAt: '2026-03-18T00:00:00.000Z',
+            userMessage: '旧决策',
+            assistantMessage: '旧建议',
+            decisionRecord: {
+              id: 'decision-old',
+              personaId: 'lenny',
+              mode: 'decision',
+              decisionType: 'career',
+              userQuestion: '旧决策',
+              knowns: [],
+              unknowns: [],
+              options: [],
+              recommendationSummary: '旧建议',
+              keyTradeoffs: [],
+              assumptions: [],
+              followUpQuestions: [],
+              nextActions: [],
+              evidenceRefs: [],
+              status: 'adopted',
+              outcome: { revisitAt: '2026-03-10T00:00:00.000Z' },
+              createdAt: '2026-03-18T00:00:00.000Z',
+              updatedAt: '2026-03-18T01:00:00.000Z',
+            },
+          }),
+          JSON.stringify({
+            id: 'conv-new',
+            createdAt: '2026-03-18T00:00:00.000Z',
+            userMessage: '新复盘',
+            assistantMessage: '新建议',
+            decisionRecord: {
+              id: 'decision-new',
+              personaId: 'zhang',
+              mode: 'decision',
+              decisionType: 'product_strategy',
+              userQuestion: '新复盘',
+              knowns: [],
+              unknowns: [],
+              options: [],
+              recommendationSummary: '新建议',
+              keyTradeoffs: [],
+              assumptions: [],
+              followUpQuestions: [],
+              nextActions: [],
+              evidenceRefs: [],
+              status: 'revisited',
+              outcome: { revisitAt: '2026-03-19T00:00:00.000Z', result: 'working' },
+              createdAt: '2026-03-18T00:00:00.000Z',
+              updatedAt: '2026-03-18T12:00:00.000Z',
+            },
+          }),
+        ].join('\n')
+      }
+      return null
+    })
+
+    const { listDecisionLedgerItems } = await import('../decisionRecords')
+    const items = await listDecisionLedgerItems()
+
+    expect(items).toHaveLength(2)
+    expect(items[0].conversation.id).toBe('conv-old')
+    expect(items[0].isDue).toBe(true)
+    expect(items[1].conversation.id).toBe('conv-new')
   })
 })

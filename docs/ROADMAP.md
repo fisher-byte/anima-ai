@@ -2,7 +2,7 @@
 
 ## 计划中版本
 
-#### v0.5.28 - LingSi first closed-loop UI（最小闭环第一批前端）
+#### v0.5.29 - LingSi loop tracking + validation ledger（最小闭环第二批前端）
 - [x] `docs/lingsi-v2-decision-system.md`：补齐完整决策系统 v2 设计，明确四层能力：persona profile / decision protocol / decision object / closed-loop learning
 - [x] `src/shared/types.ts`：新增 `DecisionPersonaProfile`、`DecisionTrace.reasoningRoute`、`DecisionRecord`，把 v2 的骨架先进入共享类型
 - [x] 方案收敛：心理学层采用 `Big Five + Jungian Archetypes + Decision Style + Bias Risks` 混合框架，用于解构 persona 的决策偏好，不做用户人格诊断
@@ -10,6 +10,8 @@
 - [x] `DecisionRecord` 持久化：回答前先生成结构化决策对象，回答后会自动标记为 `answered` 并随对话保存
 - [x] 决策采纳闭环（第一批）：回答下方新增 `Decision Card`，支持采纳建议、设置 3/7/14 天回访和记录结果
 - [x] 主页进行中决策入口：在左侧 Spaces 下新增 `进行中决策` 聚合，按回访时间展示进行中 / 已回访的 LingSi 决策
+- [x] 决策追踪面板：新增 `DecisionHubPanel`，按“今天该回访 / 进行中 / 验证台账”分组，支持从主页继续推进单条决策
+- [x] 结果备注与验证台账：回访结果支持备注，已复盘决策自动进入验证台账，成为后续沉淀案例和 eval 的基础素材
 - [ ] 真实用户验证台账：补首批非团队用户的真实问题、采纳、执行与结果记录
 - [ ] `Lenny / 张小龙` 决策协议层：把“何时先追问、何时先给判断、如何给 kill criteria”从 prompt 提示升级成显式协议，但排在最小闭环后
 

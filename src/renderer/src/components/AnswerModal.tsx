@@ -415,13 +415,17 @@ export function AnswerModal() {
     }))
   }, [persistDecisionRecord])
 
-  const handleDecisionOutcome = useCallback(async (result: NonNullable<DecisionRecord['outcome']>['result']) => {
+  const handleDecisionOutcome = useCallback(async (
+    result: NonNullable<DecisionRecord['outcome']>['result'],
+    notes?: string,
+  ) => {
     await persistDecisionRecord((record) => ({
       ...record,
       status: 'revisited',
       outcome: {
         ...record.outcome,
         result,
+        notes: notes?.trim() || undefined,
       },
     }))
   }, [persistDecisionRecord])

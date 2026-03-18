@@ -337,6 +337,7 @@ export const en: Translations = {
     decisionCardOutcomeMixed: 'Mixed',
     decisionCardOutcomeNotWorking: 'Did not work',
     decisionCardOutcomeUnknown: 'Not yet',
+    decisionCardOutcomeNotesPlaceholder: 'Add a short note: what happened, what worked, what did not?',
   },
 
   // ── TimelineView ──────────────────────────────────────────────────────────
