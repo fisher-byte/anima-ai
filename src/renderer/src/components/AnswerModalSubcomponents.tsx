@@ -516,7 +516,9 @@ export function LingSiDecisionCard({
   onOutcome: (result: NonNullable<DecisionRecord['outcome']>['result'], notes?: string) => void
 }) {
   const { t } = useT()
-  const [showSchedule, setShowSchedule] = useState(record.status === 'draft' || record.status === 'answered')
+  // Default collapsed — user sees the answer first, action card is opt-in
+  const [expanded, setExpanded] = useState(false)
+  const [showSchedule, setShowSchedule] = useState(false)
   const [outcomeNotes, setOutcomeNotes] = useState(record.outcome?.notes ?? '')
   const nextActions = record.nextActions.slice(0, 3)
   const followUps = record.followUpQuestions.slice(0, 2)
@@ -529,128 +531,147 @@ export function LingSiDecisionCard({
   }, [canSchedule])
 
   // P3-B: sync outcomeNotes when record prop changes (e.g. after onAdopt persists)
-  // Guard: only update if textarea is empty or matches the previous saved value to avoid clobbering mid-edit
   useEffect(() => {
     const saved = record.outcome?.notes ?? ''
     setOutcomeNotes(prev => (prev === '' || prev === saved) ? saved : prev)
   }, [record.outcome?.notes])
 
+  const statusTone = getDecisionStatusTone(record.status)
+  const statusLabel = getDecisionStatusLabel(record.status, t)
+
   return (
-    <div className="mt-4 rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-50/60 to-orange-50/30 overflow-hidden">
-      {/* Header */}
-      <div className="flex items-start gap-3 px-4 py-3.5">
-        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 mt-0.5">
-          <BookOpen className="h-4 w-4" />
+    <div className="mt-3 rounded-2xl border border-amber-200/50 bg-amber-50/40 overflow-hidden">
+      {/* Collapsed summary row — always visible */}
+      <button
+        type="button"
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center gap-2.5 px-4 py-3 text-left hover:bg-amber-50/60 transition-colors"
+      >
+        <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+          <BookOpen className="h-3.5 w-3.5" />
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">
-              {t.modal.decisionCardTitle}
+        <div className="flex min-w-0 flex-1 items-center gap-2 flex-wrap">
+          <span className="text-[11px] font-semibold uppercase tracking-widest text-amber-700">
+            {t.modal.decisionCardTitle}
+          </span>
+          <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${statusTone}`}>
+            {statusLabel}
+          </span>
+          <span className="text-[10px] text-amber-600/50">{personaName}</span>
+          {!expanded && (
+            <span className="text-[12px] text-gray-600 truncate max-w-[280px]">
+              {record.recommendationSummary}
             </span>
-            <span className={`rounded-md border px-2 py-0.5 text-[10px] font-medium ${getDecisionStatusTone(record.status)}`}>
-              {getDecisionStatusLabel(record.status, t)}
-            </span>
-            <span className="text-[10px] text-amber-600/60">{personaName}</span>
-          </div>
-          <div className="mt-1.5 text-[16px] font-semibold leading-6 text-gray-900">
-            {record.recommendationSummary}
-          </div>
-          {record.keyTradeoffs.length > 0 && (
-            <div className="mt-1 text-[12px] leading-5 text-gray-500">
-              {record.keyTradeoffs[0]}
-            </div>
           )}
         </div>
-      </div>
+        <ChevronDown className={`h-3.5 w-3.5 text-amber-500 flex-shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+      </button>
 
-      {/* Next actions */}
-      {nextActions.length > 0 && (
-        <div className="mx-4 mb-3 rounded-xl bg-white/60 px-3 py-2.5 ring-1 ring-amber-200/50">
-          <div className="flex items-center gap-1.5 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-amber-600">
-            <CircleDot className="h-3 w-3" />
-            {t.modal.decisionCardNextActions}
-          </div>
-          <ul className="space-y-1 pl-3.5 text-[12px] leading-[1.6] text-gray-700">
-            {nextActions.map((action, idx) => (
-              <li key={`${action}-${idx}`} className="list-disc marker:text-amber-400">{action}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Follow-ups */}
-      {followUps.length > 0 && (
-        <div className="mx-4 mb-3 flex flex-wrap gap-1.5">
-          {followUps.map((question, idx) => (
-            <span
-              key={`${question}-${idx}`}
-              className="rounded-lg border border-amber-200/70 bg-white/60 px-2.5 py-1 text-[11px] text-amber-800"
-            >
-              {question}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Adopt block */}
-      {canSchedule && (
-        <div className="border-t border-amber-200/50 px-4 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-[12px] font-semibold text-amber-900">{t.modal.decisionCardAdoptTitle}</div>
-              <div className="mt-0.5 text-[11px] leading-5 text-amber-700/70">{t.modal.decisionCardAdoptBody}</div>
+      {/* Expanded content */}
+      {expanded && (
+        <div className="border-t border-amber-200/40">
+          {/* Recommendation */}
+          <div className="px-4 py-3">
+            <div className="text-[15px] font-semibold leading-6 text-gray-900">
+              {record.recommendationSummary}
             </div>
-            <button
-              type="button"
-              onClick={() => setShowSchedule((v) => !v)}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-3.5 py-2 text-[12px] font-semibold text-white shadow-sm hover:bg-amber-700 transition-colors"
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              {t.modal.decisionCardAdopt}
-            </button>
+            {record.keyTradeoffs.length > 0 && (
+              <div className="mt-1.5 text-[12px] leading-5 text-gray-500">
+                {record.keyTradeoffs[0]}
+              </div>
+            )}
           </div>
-          {showSchedule && (
-            <div className="mt-2.5 flex flex-wrap gap-2">
-              {[3, 7, 14].map((days) => (
-                <button
-                  key={days}
-                  type="button"
-                  onClick={() => onAdopt(days)}
-                  className="rounded-xl border border-amber-300/80 bg-white px-3.5 py-1.5 text-[12px] font-medium text-amber-800 hover:border-amber-400 hover:bg-amber-50 transition-colors"
+
+          {/* Next actions */}
+          {nextActions.length > 0 && (
+            <div className="mx-4 mb-3 rounded-xl bg-white/60 px-3 py-2.5 ring-1 ring-amber-200/40">
+              <div className="flex items-center gap-1.5 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-amber-600">
+                <CircleDot className="h-3 w-3" />
+                {t.modal.decisionCardNextActions}
+              </div>
+              <ul className="space-y-1 pl-3.5 text-[12px] leading-[1.6] text-gray-700">
+                {nextActions.map((action, idx) => (
+                  <li key={`${action}-${idx}`} className="list-disc marker:text-amber-400">{action}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Follow-ups */}
+          {followUps.length > 0 && (
+            <div className="mx-4 mb-3 flex flex-wrap gap-1.5">
+              {followUps.map((question, idx) => (
+                <span
+                  key={`${question}-${idx}`}
+                  className="rounded-lg border border-amber-200/60 bg-white/60 px-2.5 py-1 text-[11px] text-amber-800"
                 >
-                  {t.modal.decisionCardAdoptDays(days)}
-                </button>
+                  {question}
+                </span>
               ))}
             </div>
           )}
-        </div>
-      )}
 
-      {/* Revisit time */}
-      {revisitAt && (
-        <div className="border-t border-amber-200/50 px-4 py-2.5 flex items-center gap-1.5 text-[11px] text-amber-700/70">
-          <Clock3 className="h-3.5 w-3.5 flex-shrink-0" />
-          <span>{t.modal.decisionCardRevisitAt(formatDecisionDate(revisitAt))}</span>
-        </div>
-      )}
+          {/* Adopt block */}
+          {canSchedule && (
+            <div className="border-t border-amber-200/40 px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-[12px] font-semibold text-amber-900">{t.modal.decisionCardAdoptTitle}</div>
+                  <div className="mt-0.5 text-[11px] leading-5 text-amber-700/70">{t.modal.decisionCardAdoptBody}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSchedule((v) => !v)}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-3.5 py-2 text-[12px] font-semibold text-white shadow-sm hover:bg-amber-700 transition-colors"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  {t.modal.decisionCardAdopt}
+                </button>
+              </div>
+              {showSchedule && (
+                <div className="mt-2.5 flex flex-wrap gap-2">
+                  {[3, 7, 14].map((days) => (
+                    <button
+                      key={days}
+                      type="button"
+                      onClick={() => onAdopt(days)}
+                      className="rounded-xl border border-amber-300/80 bg-white px-3.5 py-1.5 text-[12px] font-medium text-amber-800 hover:border-amber-400 hover:bg-amber-50 transition-colors"
+                    >
+                      {t.modal.decisionCardAdoptDays(days)}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
-      {/* Outcome block */}
-      {canMarkOutcome && (
-        <div className="border-t border-amber-200/50 px-4 py-3">
-          <div className="text-[12px] font-semibold text-gray-700">{t.modal.decisionCardOutcomeTitle}</div>
-          <textarea
-            value={outcomeNotes}
-            onChange={(event) => setOutcomeNotes(event.target.value)}
-            rows={2}
-            placeholder={t.modal.decisionCardOutcomeNotesPlaceholder}
-            className="mt-2 min-h-[64px] w-full resize-none rounded-xl border border-amber-200/70 bg-white/70 px-3 py-2 text-[12px] leading-6 text-gray-700 outline-none placeholder:text-gray-400 focus:border-amber-400 focus:ring-1 focus:ring-amber-200"
-          />
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            <button type="button" onClick={() => onOutcome('working', outcomeNotes)} className="rounded-xl border border-emerald-200 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 transition-colors">{t.modal.decisionCardOutcomeWorking}</button>
-            <button type="button" onClick={() => onOutcome('mixed', outcomeNotes)} className="rounded-xl border border-amber-200 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-amber-700 hover:bg-amber-50 transition-colors">{t.modal.decisionCardOutcomeMixed}</button>
-            <button type="button" onClick={() => onOutcome('not_working', outcomeNotes)} className="rounded-xl border border-rose-200 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-rose-700 hover:bg-rose-50 transition-colors">{t.modal.decisionCardOutcomeNotWorking}</button>
-            <button type="button" onClick={() => onOutcome('unknown', outcomeNotes)} className="rounded-xl border border-gray-200 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-gray-600 hover:bg-gray-50 transition-colors">{t.modal.decisionCardOutcomeUnknown}</button>
-          </div>
+          {/* Revisit time */}
+          {revisitAt && (
+            <div className="border-t border-amber-200/40 px-4 py-2.5 flex items-center gap-1.5 text-[11px] text-amber-700/70">
+              <Clock3 className="h-3.5 w-3.5 flex-shrink-0" />
+              <span>{t.modal.decisionCardRevisitAt(formatDecisionDate(revisitAt))}</span>
+            </div>
+          )}
+
+          {/* Outcome block */}
+          {canMarkOutcome && (
+            <div className="border-t border-amber-200/40 px-4 py-3">
+              <div className="text-[12px] font-semibold text-gray-700">{t.modal.decisionCardOutcomeTitle}</div>
+              <textarea
+                value={outcomeNotes}
+                onChange={(event) => setOutcomeNotes(event.target.value)}
+                rows={2}
+                placeholder={t.modal.decisionCardOutcomeNotesPlaceholder}
+                className="mt-2 min-h-[64px] w-full resize-none rounded-xl border border-amber-200/70 bg-white/70 px-3 py-2 text-[12px] leading-6 text-gray-700 outline-none placeholder:text-gray-400 focus:border-amber-400 focus:ring-1 focus:ring-amber-200"
+              />
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <button type="button" onClick={() => onOutcome('working', outcomeNotes)} className="rounded-xl border border-emerald-200 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 transition-colors">{t.modal.decisionCardOutcomeWorking}</button>
+                <button type="button" onClick={() => onOutcome('mixed', outcomeNotes)} className="rounded-xl border border-amber-200 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-amber-700 hover:bg-amber-50 transition-colors">{t.modal.decisionCardOutcomeMixed}</button>
+                <button type="button" onClick={() => onOutcome('not_working', outcomeNotes)} className="rounded-xl border border-rose-200 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-rose-700 hover:bg-rose-50 transition-colors">{t.modal.decisionCardOutcomeNotWorking}</button>
+                <button type="button" onClick={() => onOutcome('unknown', outcomeNotes)} className="rounded-xl border border-gray-200 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-gray-600 hover:bg-gray-50 transition-colors">{t.modal.decisionCardOutcomeUnknown}</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

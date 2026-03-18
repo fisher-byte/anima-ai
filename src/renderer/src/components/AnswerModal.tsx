@@ -20,7 +20,7 @@
  * 特殊模式：
  *   isOnboardingMode — 新手引导流程，使用固定脚本回复，不调用真实 AI
  */
-import { useState, useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
+import { useState, useCallback, useEffect, useRef, memo, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   CheckCircle2, Copy, RefreshCw,
@@ -130,6 +130,22 @@ function authFetch(url: string, init?: RequestInit): Promise<Response> {
   if (token) headers.set('Authorization', `Bearer ${token}`)
   return fetch(url, { ...init, headers })
 }
+
+/**
+ * Memoized Markdown renderer — prevents re-parsing when parent state changes.
+ * Only re-renders when `content` prop actually changes.
+ * This is the key fix for the hang: ReactMarkdown was re-parsing ALL turns
+ * on every SSE token update or any AnswerModal setState call.
+ */
+const AssistantMarkdown = memo(function AssistantMarkdown({ content }: { content: string }) {
+  return (
+    <div className="prose prose-slate max-w-none prose-sm prose-p:my-1.5 prose-headings:my-2">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: MarkdownLink }}>
+        {content}
+      </ReactMarkdown>
+    </div>
+  )
+})
 
 /** 从用户自我介绍消息中提取姓名/职业关键词，用于 toast 展示 */
 function extractUserInfo(message: string): string {
@@ -1861,11 +1877,7 @@ export function AnswerModal() {
                                   )}
                                 </div>
                               ) : (
-                                <div className="prose prose-slate max-w-none prose-sm prose-p:my-1.5 prose-headings:my-2">
-                                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: MarkdownLink }}>
-                                    {renderAssistantMarkdown(turn.assistant || '', idx)}
-                                  </ReactMarkdown>
-                                </div>
+                                <AssistantMarkdown content={renderAssistantMarkdown(turn.assistant || '', idx)} />
                               )}
                               {turn.assistant && !isStreaming && (
                                 <div className="flex items-center gap-0.5 mt-2 opacity-0 group-hover/aimsg:opacity-100 transition-opacity duration-150">
@@ -1879,14 +1891,7 @@ export function AnswerModal() {
                                   )}
                                 </div>
                               )}
-                              {idx === turns.length - 1 && !isStreaming && activeDecisionRecord && activeDecisionTrace?.mode === 'decision' && (
-                                <LingSiDecisionCard
-                                  record={activeDecisionRecord}
-                                  personaName={activeDecisionPersona?.name ?? invokedAssistant?.name ?? 'LingSi'}
-                                  onAdopt={handleAdoptDecision}
-                                  onOutcome={handleDecisionOutcome}
-                                />
-                              )}
+                              {/* 决策模块：仅最后一轮且完成后展示，轨迹在上（内容相关），采纳卡在下（行动引导） */}
                               {idx === turns.length - 1 && shouldShowLingSiTrace && (
                                 <LingSiTracePanel
                                   mode={activeDecisionTrace.mode}
@@ -1896,6 +1901,14 @@ export function AnswerModal() {
                                   productStateDocRefs={activeDecisionTrace.productStateDocRefs ?? []}
                                   isStreaming={isStreaming}
                                   onOpenTrace={setTraceData}
+                                />
+                              )}
+                              {idx === turns.length - 1 && !isStreaming && activeDecisionRecord && activeDecisionTrace?.mode === 'decision' && (
+                                <LingSiDecisionCard
+                                  record={activeDecisionRecord}
+                                  personaName={activeDecisionPersona?.name ?? invokedAssistant?.name ?? 'LingSi'}
+                                  onAdopt={handleAdoptDecision}
+                                  onOutcome={handleDecisionOutcome}
                                 />
                               )}
                             </div>
