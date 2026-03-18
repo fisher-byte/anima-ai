@@ -365,6 +365,35 @@ describe('canvasStore — endConversation in lenny mode', () => {
           evidenceLevel: 'B',
         }],
       },
+      decisionRecord: {
+        id: 'decision-1',
+        personaId: 'lenny',
+        mode: 'decision',
+        decisionType: 'product_strategy',
+        stage: 'iteration',
+        userQuestion: 'How should I prioritize this roadmap?',
+        knowns: ['已命中 1 条相关 DecisionUnit'],
+        unknowns: ['目标函数还不清楚'],
+        options: [],
+        recommendationSummary: 'Use RICE and make confidence explicit.',
+        keyTradeoffs: ['只谈影响不谈成本'],
+        assumptions: [],
+        followUpQuestions: ['现在最关键的目标是什么？'],
+        nextActions: ['列出每条需求的 confidence 和 downside。'],
+        killCriteria: [],
+        evidenceRefs: [{
+          id: 'src-lenny-rice',
+          label: 'RICE Prioritization Framework',
+          type: 'framework',
+          path: 'people/product/lenny-rachitsky/frameworks/rice-prioritization-framework.md',
+          locator: 'L101',
+          excerpt: '- **50% = Low Confidence（低信心）**: 主要基于直觉或假设',
+          evidenceLevel: 'B',
+        }],
+        status: 'draft',
+        createdAt: '2026-03-18T00:00:00.000Z',
+        updatedAt: '2026-03-18T00:00:00.000Z',
+      },
     })
 
     useCanvasStore.setState({
@@ -383,6 +412,8 @@ describe('canvasStore — endConversation in lenny mode', () => {
     expect(body.decisionTrace?.mode).toBe('decision')
     expect(body.decisionTrace?.matchedDecisionUnitIds).toContain('lenny-rice-prioritize-with-confidence')
     expect(body.decisionTrace?.sourceRefs?.[0]?.locator).toBe('L101')
+    expect(body.decisionRecord?.personaId).toBe('lenny')
+    expect(body.decisionRecord?.recommendationSummary).toBe('Use RICE and make confidence explicit.')
   })
 
   it('does nothing when currentConversation is null', async () => {

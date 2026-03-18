@@ -1,6 +1,6 @@
 # LingSi V2 决策系统
 
-*最后更新: 2026-03-18 | 状态: 设计定稿，开始进入数据层与协议层落地*
+*最后更新: 2026-03-18 | 状态: 设计收缩，先做最小闭环与真实用户验证*
 
 ## 为什么进入 V2
 
@@ -16,6 +16,21 @@ V2 的目标，不是继续堆 persona 数量，而是把 LingSi 升级成：
 **有证据、有判断协议、有结构化决策对象、还能复盘学习的决策系统。**
 
 ---
+
+## 当前收缩判断
+
+在本轮真实 LingSi 自评里，`Lenny` 和 `张小龙` 给出了非常一致的结论：
+
+- 当前最大风险不是 persona 不够多，而是**还没有真实用户**
+- 当前最大陷阱不是系统不够复杂，而是**用系统建设替代用户验证**
+- 因此 V2 不能按“完整蓝图”平推，必须先收缩成一个**最小可验证闭环**
+
+这意味着：
+
+- 暂停第三 persona
+- 暂停更深的 UI 扩张
+- 暂停过度扩 product state pack
+- 先把 `DecisionRecord -> 采纳 -> 回访 -> 结果记录` 这条链路做通
 
 ## V2 目标
 
@@ -242,7 +257,18 @@ V2 的回答只是展示层；系统底层应先形成一个结构化 `DecisionR
 
 ## 落地优先级
 
-### P0 - 决策协议层
+### P0 - 最小闭环
+
+先把 LingSi 从“更聪明的 persona 回答”推进成“可被采纳、可被回访的决策对象”。
+
+交付：
+
+- `DecisionRecord` 持久化
+- 回答前形成 `DecisionRecord draft`
+- 回答后写入 `answered`
+- 为后续 `采纳 / 回访` 预留稳定字段
+
+### P1 - 决策协议层
 
 先把 persona 变成“有判断协议的人”，而不是“会模仿说话的人”。
 
@@ -253,7 +279,7 @@ V2 的回答只是展示层；系统底层应先形成一个结构化 `DecisionR
 - `question sufficiency` 判断函数
 - `decision type` 分类函数
 
-### P1 - Persona 心理学画像层
+### P2 - Persona 心理学画像层
 
 先只做 `Lenny / 张小龙`。
 
@@ -262,14 +288,6 @@ V2 的回答只是展示层；系统底层应先形成一个结构化 `DecisionR
 - `DecisionPersona.profile` 真正填充
 - `Big Five + Jungian + Decision Style + Bias Risk`
 - profile 字段进入 prompt / extraContext 链路
-
-### P2 - 结构化决策对象
-
-交付：
-
-- `DecisionRecord` 持久化
-- 对话回答前先形成 `DecisionRecord draft`
-- 回答完成后写入 `answered`
 
 ### P3 - 闭环系统
 
@@ -281,6 +299,25 @@ V2 的回答只是展示层；系统底层应先形成一个结构化 `DecisionR
 - 反哺 candidate unit / eval case
 
 ---
+
+## 30 天落地顺序
+
+### 第 1 阶段：最小可记录闭环
+
+- `DecisionRecord` draft 持久化
+- `decisionTrace` 与 `DecisionRecord` 同步保存
+- 建立真实用户验证台账
+
+### 第 2 阶段：采纳与回访
+
+- 给关键建议增加“采纳这条建议”
+- 支持设置回访时间
+- 记录结果：`working / mixed / not_working`
+
+### 第 3 阶段：结果反哺
+
+- 只把“被采纳且有结果”的建议升格成 candidate
+- 再进入新的 `DecisionUnit / eval case`
 
 ## 成功标准
 

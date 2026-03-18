@@ -1,22 +1,23 @@
 # Anima — 项目计划
 
 > 唯一入口：每次发版、每次决策都在这里留记录。
-> 最后更新：2026-03-18 | 当前版本：v0.5.26
+> 最后更新：2026-03-18 | 当前版本：v0.5.27
 
 ---
 
-## 当前冲刺（v0.5.26 进行中）
+## 当前冲刺（v0.5.27 进行中）
 
-*本轮正式把 LingSi 往“完整决策系统”推进：不再只靠案例和 prompt，而是开始引入 persona 心理画像、决策协议与结构化决策对象。*
+*本轮先收缩 LingSi v2 范围：不继续平推“大而全”，而是优先做最小决策闭环与真实用户验证准备。*
 
 | # | 任务 | 状态 | 说明 |
 |---|------|------|------|
-| 1 | V2 总体设计文档 | 已完成 | 新增 `docs/lingsi-v2-decision-system.md`，明确四层能力：persona profile / decision protocol / decision object / closed-loop learning |
+| 1 | V2 总体设计文档 | 已完成 | 新增 `docs/lingsi-v2-decision-system.md`，明确四层能力，并根据 `Lenny / 张小龙` 的真实批评意见收缩到“最小闭环先行” |
 | 2 | persona 心理学画像方案 | 已完成 | 采用 `Big Five + Jungian Archetypes + Decision Style + Bias Risks` 混合框架；心理学用于解构 persona 的决策偏好，不做用户人格诊断 |
 | 3 | persona profile 数据层落地 | 已完成 | `decision-personas.json` 已为 `Lenny / 张小龙` 补齐 profile，包含 `bigFive / jungianArchetypes / decisionStyle / biasRisks / questionProtocol` |
 | 4 | 决策协议基础接入 | 已完成 | `lingsiDecisionEngine.ts` 已开始显式判断 `decisionType / stage / keyUnknowns / chosenFrameworks / followUpRequired`，并写入 `decisionTrace.reasoningRoute` |
-| 5 | v2 schema/type 基线 | 已完成 | `DecisionPersona.profile`、`DecisionTrace.reasoningRoute`、`DecisionRecord` 已进入 `/src/shared/types.ts`，为下一阶段实现留稳定接口 |
-| 6 | 文档与发布收口 | 进行中 | 正在同步 changelog / ROADMAP / testing / dev-guide / review report，并准备跑 full test、build、e2e、deploy 与 GitHub 备份 |
+| 5 | 最小闭环：DecisionRecord 持久化 | 进行中 | 先把回答前的结构化决策对象存下来，后续再接“采纳 / 回访 / 结果” |
+| 6 | 真实用户验证台账 | 待做 | 为首批非团队用户记录“问题 -> 建议 -> 采纳 -> 结果”，避免继续用系统建设替代用户验证 |
+| 7 | 文档与发布收口 | 待做 | 在最小闭环代码落地后统一跑 test / build / e2e / deploy / GitHub 备份 |
 
 ---
 
@@ -84,16 +85,17 @@
 | 3 | 遗留 eval 产物规范化 | 已完成 | 重新生成 `docs/lingsi-eval-m4.md` / `reports/lingsi-m4-eval.json`，当前 Lenny 基线为 `decision 14 : normal 1` |
 | 4 | 发布收口 | 已完成 | 已完成版本号同步、文档同步、full test / typecheck / build / e2e、code review、GitHub 备份与服务器部署验证 |
 
-## 下一阶段（v0.5.26 计划）
+## 下一阶段（v0.5.27 计划）
 
-*下一阶段正式进入完整决策系统 v2 的第一段实现：先把“更像 Lenny / 更像张小龙”的判断协议做出来，而不是继续只靠案例和 prompt。*
+*下一阶段先把 LingSi 变成“可记录、可采纳、可回访”的决策系统；协议和更深 persona 建模继续做，但不再抢在真实用户闭环前面。*
 
 | # | 任务 | 状态 | 说明 |
 |---|------|------|------|
-| 1 | Lenny / 张小龙决策协议层 | 待做 | 把“先判断还是先追问、怎么分阶段、怎么给 kill criteria”做成显式协议，不再只依赖 prompt 自由发挥 |
-| 2 | persona 心理学画像接入 | 待做 | 让 `DecisionPersona.profile` 真正进入 `extraContext` / reasoningRoute 链路，先服务 `Lenny / 张小龙` |
-| 3 | 结构化决策对象 | 待做 | 让回答前先生成 `DecisionRecord draft`，为回放、采纳和回访打底 |
-| 4 | 决策采纳闭环 | 待做 | 给决策回答增加“采纳这条建议 / 设提醒 / 回访结果”链路，把灵思从“聪明回答”推进到“可执行决策操作系统” |
+| 1 | 结构化决策对象 | 进行中 | 让回答前先生成 `DecisionRecord draft`，并随 `decisionTrace` 一起持久化 |
+| 2 | 决策采纳闭环 | 待做 | 给决策回答增加“采纳这条建议 / 设提醒 / 回访结果”链路，把灵思从“聪明回答”推进到“可执行决策操作系统” |
+| 3 | Lenny / 张小龙决策协议层 | 待做 | 把“先判断还是先追问、怎么分阶段、怎么给 kill criteria”做成显式协议，不再只依赖 prompt 自由发挥 |
+| 4 | persona 心理学画像接入 | 待做 | 让 `DecisionPersona.profile` 真正进入 `extraContext` / reasoningRoute 链路，但以支持真实用户闭环为前提 |
+| 5 | 真实用户验证台账 | 待做 | 补第一批非团队用户的真实采纳记录，作为 v2 后续是否继续扩系统的判断依据 |
 
 
 ### 范围判断
