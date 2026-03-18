@@ -40,7 +40,7 @@ import { ClusterLabel } from './ClusterLabel'
 import { useToast } from './GlobalUI'
 import { TimelineView } from './TimelineView'
 import { getAuthToken } from '../services/storageService'
-import { DECISION_RECORDS_UPDATED_EVENT, listDecisionLedgerItems, listOngoingDecisionItems, type OngoingDecisionItem } from '../services/decisionRecords'
+import { DECISION_RECORDS_UPDATED_EVENT, listOngoingDecisionItems, type OngoingDecisionItem } from '../services/decisionRecords'
 import { useT } from '../i18n'
 import type { Node as CanvasNode } from '@shared/types'
 
@@ -397,10 +397,14 @@ export function Canvas() {
     let cancelled = false
 
     const load = async () => {
-      const [items, ledgerItems] = await Promise.all([
-        listOngoingDecisionItems(),
-        listDecisionLedgerItems(),
-      ])
+      const items = await listOngoingDecisionItems()
+      const ledgerItems = [...items].sort((a, b) => {
+        if (a.decisionRecord.status !== b.decisionRecord.status) {
+          if (a.decisionRecord.status === 'adopted') return -1
+          if (b.decisionRecord.status === 'adopted') return 1
+        }
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      })
       if (!cancelled) {
         setOngoingDecisions(items.slice(0, 4))
         setDecisionLedger(ledgerItems)
