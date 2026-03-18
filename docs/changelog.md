@@ -1,19 +1,19 @@
-## [0.5.22] - 2026-03-18
+## [0.5.23] - 2026-03-18
 
-### fix: decision trace modal freeze
+### fix: decision trace visibility + modal usability
 
-**修复：**
-- `src/renderer/src/components/AnswerModalSubcomponents.tsx`：把 `查看轨迹` 弹层从 `AnimatePresence + motion portal` 收敛为更直接的 portal modal，移除这段路径上的额外动画与退出编排，避免点击决策轨迹时主线程卡死
-- `src/renderer/src/components/AnswerModalSubcomponents.tsx`：新增 `Escape` 关闭和 `body overflow` 锁定/恢复，避免嵌套滚动与遮罩态残留
-- `src/renderer/src/components/AnswerModalSubcomponents.tsx`：modal 容器显式 `stopPropagation`，点击内容区不再把事件冒泡到遮罩层
+**修复与增强：**
+- `src/shared/types.ts` / `src/shared/lingsiDecisionEngine.ts`：`DecisionTrace` 新增 `productStateUsed / productStateDocRefs`，当回答主要依赖产品状态包而不是命中 `DecisionUnit` 时，决策轨迹仍会显示，不再出现“明明是决策模式但轨迹没了”
+- `src/renderer/src/components/AnswerModal.tsx` / `src/renderer/src/components/AnswerModalSubcomponents.tsx`：决策轨迹面板支持展示“当前产品状态包”来源，并把 trace 展示条件扩到 `productStateUsed`
+- `src/renderer/src/components/AnswerModal.tsx`：对话弹窗输入框改为和首页一致的自动增高逻辑，长文本粘贴后会扩到 `220px`，超出后再滚动
+- `src/renderer/src/components/AnswerModal.tsx`：对话弹窗顶部新增可拖拽高度调节条，并把用户调节后的高度持久化到本地，下次打开继续沿用
 
 **测试与验证：**
 - `npm run typecheck`：通过
-- `npx vitest run src/renderer/src/components/__tests__/AnswerModalSubcomponents.test.tsx`：通过
-- `npm test`：604/604 通过
+- `npx vitest run src/shared/__tests__/lingsiDecisionEngine.test.ts src/renderer/src/components/__tests__/AnswerModalSubcomponents.test.tsx`：通过
+- `npm test`：606/606 通过
 - `npm run build`：通过
 - `npm run test:e2e`：44 passed / 4 skipped
-- deploy：通过，线上 `pm2` 版本 `0.5.22`
 
 ---
 

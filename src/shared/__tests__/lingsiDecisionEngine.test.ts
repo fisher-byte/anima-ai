@@ -82,6 +82,8 @@ describe('lingsiDecisionEngine', () => {
     expect(payload.extraContext).toContain('知识基线')
     expect(payload.extraContext).toContain('npm run lingsi:state-pack')
     expect(payload.extraContext).toContain('anima-base: 083974d')
+    expect(payload.decisionTrace.productStateUsed).toBe(true)
+    expect(payload.decisionTrace.productStateDocRefs?.length).toBeGreaterThan(0)
   })
 
   it('does not inject the product state pack for unrelated generic prompts', () => {
@@ -96,6 +98,7 @@ describe('lingsiDecisionEngine', () => {
       },
     )
     expect(payload.extraContext).not.toContain('当前产品状态包')
+    expect(payload.decisionTrace.productStateUsed).toBeFalsy()
   })
 
   it('merges traces without duplicating unit ids', () => {
@@ -105,6 +108,24 @@ describe('lingsiDecisionEngine', () => {
     expect(merged.mode).toBe('decision')
     expect(merged.personaId).toBe('lenny')
     expect(merged.matchedDecisionUnitIds?.filter(id => id === 'lenny-rice-prioritize-with-confidence')).toHaveLength(1)
+  })
+
+  it('merges product state trace metadata without duplicating doc refs', () => {
+    const first = buildLingSiDecisionPayloadFromUnits(
+      'Anima 当前这个项目最该先做什么？',
+      'decision',
+      units,
+      { personaId: 'lenny', personaName: 'Lenny', productState },
+    ).decisionTrace
+    const second = buildLingSiDecisionPayloadFromUnits(
+      'Anima 这个项目的下一步产品节奏怎么排？',
+      'decision',
+      units,
+      { personaId: 'lenny', personaName: 'Lenny', productState },
+    ).decisionTrace
+    const merged = mergeDecisionTrace(first, second)
+    expect(merged.productStateUsed).toBe(true)
+    expect(new Set(merged.productStateDocRefs ?? []).size).toBe(merged.productStateDocRefs?.length)
   })
 
   it('scopes matching to the selected persona', () => {

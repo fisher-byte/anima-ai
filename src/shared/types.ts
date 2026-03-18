@@ -208,6 +208,8 @@ export interface DecisionTrace {
   personaId?: string
   matchedDecisionUnitIds?: string[]
   sourceRefs?: DecisionSourceRef[]
+  productStateUsed?: boolean
+  productStateDocRefs?: string[]
 }
 
 /**

@@ -52,4 +52,19 @@ describe('LingSiTracePanel', () => {
     expect(html).toContain('决策依据')
     expect(html).toContain('查看轨迹')
   })
+
+  it('renders product-state trace even without matched source refs', () => {
+    const html = renderToStaticMarkup(
+      <LingSiTracePanel
+        mode="decision"
+        personaName="Lenny Rachitsky"
+        matchedUnits={[]}
+        sourceRefs={[]}
+        productStateDocRefs={['docs/PROJECT.md', 'docs/lingsi-flywheel.md']}
+      />,
+    )
+
+    expect(html).toContain('当前产品状态包')
+    expect(html).toContain('docs/PROJECT.md')
+  })
 })
