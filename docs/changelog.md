@@ -1,3 +1,27 @@
+## [0.5.30] - 2026-03-18
+
+### fix: 决策模块卡死架构级修复 + 决策面板 UI 重设计
+
+**修复：**
+- `src/renderer/src/components/AnswerModal.tsx` / `src/renderer/src/components/AnswerModalSubcomponents.tsx`：**架构级修复「查看轨迹/决策依据」点击卡死**。根因是 `LingSiTracePanel` 内部持有 `createPortal` + `document.body.overflow` 逻辑，整个 Portal 子树嵌在 turns 渲染循环里，SSE streaming 每个 token 都会触发该子树的 VDOM diff，主线程被大量同步工作饱和后页面卡死。修复方案：将 `LingSiTraceModal` 提取为独立组件，提升到 `AnswerModal` 根层渲染，彻底脱离 turns 高频渲染树；`LingSiTracePanel` 改为通过 `onOpenTrace(data)` 回调上报，`AnswerModal` 在顶层持有 `traceData` 状态，streaming 期间不再有任何 Portal 运行
+- `src/renderer/src/stores/canvasStore.ts`：**修复 `openModalById` 超大 JSONL 同步阻塞**。原实现对 `conversations.jsonl` 整体调用 `split('\n')`，文件较大时一次性占满主线程。改用 `iterLinesFromEnd` generator 从末尾逐行读取，并在每 60 行处插入 `cooperative yield`（`await new Promise(r => setTimeout(r, 0))`），确保解析过程不阻塞 UI
+- `src/renderer/src/components/AnswerModal.tsx`：**修复 streaming 期间缩小/展开按钮未 disabled 导致并发重渲染**。streaming 进行时禁用 expand/collapse 与 trace-view 按钮，防止并发 React state 更新饿死主线程
+- `src/renderer/src/services/decisionRecords.ts`：**修复 `compareItems` 去重逻辑错误**。去重函数错误地复用了按 `revisitAt` 排序的 `compareItems`，导致已更新 `revisitAt` 的决策在 Hub 中展示旧值。改为使用 `updatedAt` 比较，保留最近更新的条目
+- `src/renderer/src/components/AnswerModal.tsx`：**修复 `MarkdownLink` TypeScript 类型错误**。`children` 改为可选（`children?: ReactNode`），与 `react-markdown` 的 `components.a` 签名对齐，消除 `tsc --noEmit` 报错
+- `src/renderer/src/stores/canvasStore.ts`：**移除 `openModalById` 中冗余的 `scanLimit` dead code**。`iterLinesFromEnd` generator 已在内部按 `scanLimit` 截断，循环体内的 `if (scanned++ > scanLimit) break` 判断永远不会触发，予以清除
+
+**UI：**
+- `src/renderer/src/components/AnswerModalSubcomponents.tsx`：**决策依据（LingSiTracePanel）面板重设计**。更紧凑的标题栏（小图标 + inline 模式徽章 + 知识单元/来源计数）；section 卡片改用 `ring-1 + bg-white/60` 替换原有重边框+背景组合；决策单元标签改为 `rounded-lg`；来源引用标题单行截断，徽章右对齐；全面减少纵向间距，整体更简洁
+- `src/renderer/src/components/AnswerModalSubcomponents.tsx`：**决策卡（DecisionCard）重设计**。「采纳建议」按钮由黑色 `bg-gray-900` 改为 `amber-600`，与决策 UI 暖色调主题统一；所有按钮变体改用 `rounded-xl`；结果输入框使用 amber 色系 focus ring；布局更紧凑
+
+**测试与验证：**
+- `npm run typecheck`：通过（0 TypeScript 错误）
+- `npm test`：613/613 通过
+- `npm run build`：通过
+- `npm run test:e2e`：45 passed / 3 skipped
+
+---
+
 ## [0.5.29] - 2026-03-18
 
 ### feat: LingSi loop tracking and validation ledger
