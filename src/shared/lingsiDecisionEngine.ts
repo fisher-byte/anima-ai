@@ -153,13 +153,23 @@ export function shouldInjectDecisionProductState(
   return productState.keywords.some(keyword => normalizedQuery.includes(normalizeText(keyword)))
 }
 
-export function buildDecisionTrace(mode: DecisionMode, matchedUnits: DecisionUnit[], personaId?: string): DecisionTrace {
+export function buildDecisionTrace(
+  mode: DecisionMode,
+  matchedUnits: DecisionUnit[],
+  personaId?: string,
+  options?: {
+    productStateUsed?: boolean
+    productStateDocRefs?: string[]
+  },
+): DecisionTrace {
   if (mode === 'normal') return { mode: 'normal', personaId }
   return {
     mode: 'decision',
     personaId,
     matchedDecisionUnitIds: matchedUnits.map(unit => unit.id),
     sourceRefs: dedupeSourceRefs(matchedUnits.flatMap(unit => unit.sourceRefs)),
+    productStateUsed: options?.productStateUsed,
+    productStateDocRefs: options?.productStateDocRefs?.slice(0, 6) ?? [],
   }
 }
 
@@ -191,7 +201,10 @@ export function buildLingSiDecisionPayloadFromUnits(
   const decisionContext = buildDecisionExtraContext(query, matchedUnits, options?.personaName)
   return {
     extraContext: [productStateContext, decisionContext].filter(Boolean).join('\n\n'),
-    decisionTrace: buildDecisionTrace('decision', matchedUnits, options?.personaId),
+    decisionTrace: buildDecisionTrace('decision', matchedUnits, options?.personaId, {
+      productStateUsed: shouldInjectProductState,
+      productStateDocRefs: shouldInjectProductState ? options?.productState?.docRefs : undefined,
+    }),
   }
 }
 
@@ -205,5 +218,7 @@ export function mergeDecisionTrace(
     personaId: next.personaId ?? existing?.personaId,
     matchedDecisionUnitIds: [...new Set([...(existing?.matchedDecisionUnitIds ?? []), ...(next.matchedDecisionUnitIds ?? [])])],
     sourceRefs: dedupeSourceRefs([...(existing?.sourceRefs ?? []), ...(next.sourceRefs ?? [])]),
+    productStateUsed: existing?.productStateUsed || next.productStateUsed,
+    productStateDocRefs: [...new Set([...(existing?.productStateDocRefs ?? []), ...(next.productStateDocRefs ?? [])])].slice(0, 6),
   }
 }

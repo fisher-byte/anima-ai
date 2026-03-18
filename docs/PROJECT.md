@@ -1,19 +1,20 @@
 # Anima — 项目计划
 
 > 唯一入口：每次发版、每次决策都在这里留记录。
-> 最后更新：2026-03-18 | 当前版本：v0.5.22
+> 最后更新：2026-03-18 | 当前版本：v0.5.23
 
 ---
 
-## 当前冲刺（v0.5.22 已完成）
+## 当前冲刺（v0.5.23 已完成）
 
-*本轮先收掉线上阻塞：决策轨迹弹层从动画 portal 收敛为更直接的 modal，修复点击“查看轨迹”时页面卡死的问题。*
+*本轮收口的是 modal 体验缺口：主页 `@persona` 决策回答恢复可见轨迹，弹窗输入框支持长文本自增高，对话窗口顶部支持拖拽调高并持久化。*
 
 | # | 任务 | 状态 | 说明 |
 |---|------|------|------|
-| 1 | 决策轨迹卡死修复 | 已完成 | `AnswerModalSubcomponents.tsx` 的 trace modal 改为轻量 portal modal，移除导致卡死的动画编排路径 |
-| 2 | 交互收口 | 已完成 | 新增 `Escape` 关闭、`body overflow` 锁定恢复，以及内容区点击防冒泡 |
-| 3 | 文档与发布收口 | 已完成 | 已完成 docs 同步、review、`npm run typecheck`、`npm test`、`npm run build`、`npm run test:e2e`，并已部署到线上 |
+| 1 | `@persona` 决策轨迹恢复 | 已完成 | `DecisionTrace` 记录产品状态包来源，主页 `@Lenny / @张小龙` 走决策模式但未命中 unit 时，轨迹面板仍然展示 |
+| 2 | 弹窗输入框自增高 | 已完成 | `AnswerModal` 底部输入框改成和主页一致的 auto-grow，长文本粘贴后不再挤在单行里 |
+| 3 | 对话窗口高度可调 | 已完成 | 顶部新增拖拽手柄，用户可以自由调高/调低窗口高度，并持久化到本地 |
+| 4 | 文档与发布收口 | 已完成 | 已完成 docs 同步、review、`npm run typecheck`、`npm test`、`npm run build`、`npm run test:e2e`，并准备部署到线上 |
 
 ---
 
@@ -81,7 +82,7 @@
 | 3 | 遗留 eval 产物规范化 | 已完成 | 重新生成 `docs/lingsi-eval-m4.md` / `reports/lingsi-m4-eval.json`，当前 Lenny 基线为 `decision 14 : normal 1` |
 | 4 | 发布收口 | 已完成 | 已完成版本号同步、文档同步、full test / typecheck / build / e2e、code review、GitHub 备份与服务器部署验证 |
 
-## 下一阶段（v0.5.22 计划）
+## 下一阶段（v0.5.23 计划）
 
 *继续把 persona 评测体系和主页决策调用做得更稳。*
 

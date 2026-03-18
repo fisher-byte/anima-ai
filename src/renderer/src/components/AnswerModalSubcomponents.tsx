@@ -119,12 +119,14 @@ export function LingSiTracePanel({
   personaName,
   matchedUnits,
   sourceRefs,
+  productStateDocRefs = [],
   isStreaming = false,
 }: {
   mode: DecisionMode
   personaName: string
   matchedUnits: DecisionUnit[]
   sourceRefs: DecisionSourceRef[]
+  productStateDocRefs?: string[]
   isStreaming?: boolean
 }) {
   const { t } = useT()
@@ -159,7 +161,9 @@ export function LingSiTracePanel({
     }
   }, [showTraceView])
 
-  if (mode !== 'decision' || (matchedUnitLabels.length === 0 && sourceRefs.length === 0)) return null
+  const hasProductStateTrace = productStateDocRefs.length > 0
+
+  if (mode !== 'decision' || (matchedUnitLabels.length === 0 && sourceRefs.length === 0 && !hasProductStateTrace)) return null
 
   const traceView = showTraceView && typeof document !== 'undefined'
     ? createPortal(
@@ -233,6 +237,22 @@ export function LingSiTracePanel({
                   </section>
                 )}
 
+                {hasProductStateTrace && (
+                  <section>
+                    <div className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">
+                      当前产品状态包
+                    </div>
+                    <div className="mt-3 rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+                      <div className="text-[12px] font-medium text-gray-900">当前回答引用了产品状态包，而不只是 Decision Unit。</div>
+                      <ul className="mt-3 space-y-2 pl-4 text-[12px] leading-5 text-gray-700">
+                        {productStateDocRefs.map((ref, idx) => (
+                          <li key={`${ref}-${idx}`}>{ref}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </section>
+                )}
+
                 <section>
                   <div className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">
                     {t.modal.lingsiSources(sourceRefs.length)}
@@ -283,7 +303,7 @@ export function LingSiTracePanel({
               {t.modal.lingsiMode}
             </span>
             <span className="text-[11px] text-amber-700/80">
-              {t.modal.lingsiUnits(matchedUnitLabels.length)} · {t.modal.lingsiSources(sourceRefs.length)}
+              {t.modal.lingsiUnits(matchedUnitLabels.length)} · {t.modal.lingsiSources(sourceRefs.length)}{hasProductStateTrace ? ' · 产品状态包' : ''}
             </span>
           </div>
           <div className="mt-1 text-[12px] leading-5 text-amber-900/80">
@@ -336,6 +356,19 @@ export function LingSiTracePanel({
               <ul className="mt-2 space-y-1.5 pl-4 text-[12px] leading-5 text-gray-700">
                 {nextActions.slice(0, 3).map((action, idx) => (
                   <li key={`${action}-${idx}`}>{action}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {hasProductStateTrace && (
+            <div className="rounded-xl border border-amber-200/70 bg-white/75 px-3 py-2.5">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+                当前产品状态包
+              </div>
+              <ul className="mt-2 space-y-1.5 pl-4 text-[12px] leading-5 text-gray-700">
+                {productStateDocRefs.map((ref, idx) => (
+                  <li key={`${ref}-${idx}`}>{ref}</li>
                 ))}
               </ul>
             </div>
@@ -498,7 +531,7 @@ export function InputArea({
               value={feedbackMessage}
               onChange={onFeedbackChange}
               placeholder={isOnboardingMode ? t.modal.onboardingIntroPlaceholder : t.modal.replyPlaceholder}
-              className="w-full bg-transparent border-none outline-none resize-none py-3 text-[15px] max-h-[120px]"
+              className="w-full bg-transparent border-none outline-none resize-none py-3 text-[15px] max-h-[220px]"
               rows={1}
               onPaste={handlePaste}
               onKeyDown={e => {

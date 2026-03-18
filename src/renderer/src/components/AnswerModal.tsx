@@ -20,7 +20,7 @@
  * 特殊模式：
  *   isOnboardingMode — 新手引导流程，使用固定脚本回复，不调用真实 AI
  */
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   CheckCircle2, Copy, RefreshCw,
@@ -59,6 +59,21 @@ import {
 import { injectLingSiInlineCitations } from '../utils/lingsiTrace'
 import { getDecisionPersonaForPublicSpace, getSystemPromptForPublicSpace, resolveDecisionModeForPersona } from '../utils/personaSpaces'
 import { useT } from '../i18n'
+
+const ANSWER_MODAL_HEIGHT_KEY = 'anima_answer_modal_height_px_v1'
+const ANSWER_MODAL_MIN_HEIGHT = 560
+const ANSWER_MODAL_TEXTAREA_MAX_HEIGHT = 220
+
+function clampAnswerModalHeight(height: number): number {
+  if (typeof window === 'undefined') return Math.max(height, ANSWER_MODAL_MIN_HEIGHT)
+  const viewportMax = Math.max(ANSWER_MODAL_MIN_HEIGHT, Math.floor(window.innerHeight * 0.94))
+  return Math.min(Math.max(Math.round(height), ANSWER_MODAL_MIN_HEIGHT), viewportMax)
+}
+
+function getDefaultAnswerModalHeight(): number {
+  if (typeof window === 'undefined') return 760
+  return clampAnswerModalHeight(window.innerHeight * 0.85)
+}
 
 function authFetch(url: string, init?: RequestInit): Promise<Response> {
   const token = getAuthToken()
@@ -156,6 +171,15 @@ export function AnswerModal() {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [matchedDecisionUnits, setMatchedDecisionUnits] = useState<DecisionUnit[]>([])
+  const [modalHeight, setModalHeight] = useState<number>(() => {
+    if (typeof window === 'undefined') return 760
+    try {
+      const saved = Number(window.localStorage.getItem(ANSWER_MODAL_HEIGHT_KEY) ?? '')
+      return Number.isFinite(saved) && saved > 0 ? clampAnswerModalHeight(saved) : getDefaultAnswerModalHeight()
+    } catch {
+      return getDefaultAnswerModalHeight()
+    }
+  })
   const lastDeepSearchContextRef = useRef<{
     conversationId?: string
     messages: AIMessage[]
@@ -167,6 +191,7 @@ export function AnswerModal() {
   } | null>(null)
   const networkHandoffOnceRef = useRef<string | null>(null) // 避免同一 convId 重复转后台
   const autoSavedSigRef = useRef<string | null>(null)
+  const modalResizeRef = useRef<{ startY: number; startHeight: number } | null>(null)
 
   const serializeTurnsForStorage = useCallback((ts: Turn[]) => {
     const stillStreaming = false
@@ -275,7 +300,11 @@ export function AnswerModal() {
     !!activeDecisionTrace &&
     activeDecisionTrace.mode === 'decision' &&
     !!activeDecisionPersona &&
-    ((activeDecisionTrace.sourceRefs?.length ?? 0) > 0 || matchedDecisionUnits.length > 0)
+    (
+      (activeDecisionTrace.sourceRefs?.length ?? 0) > 0 ||
+      matchedDecisionUnits.length > 0 ||
+      !!activeDecisionTrace.productStateUsed
+    )
 
   const renderAssistantMarkdown = useCallback((assistant: string, turnIndex: number) => {
     const base = stripLeadingNumberHeading(assistant || (isStreaming && turnIndex === turns.length - 1 ? '...' : ''))
@@ -308,6 +337,61 @@ export function AnswerModal() {
       cancelled = true
     }
   }, [activeDecisionPersona, currentConversation?.decisionTrace?.matchedDecisionUnitIds])
+
+  const resizeFeedbackTextarea = useCallback(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    textarea.style.height = 'auto'
+    const nextHeight = Math.min(textarea.scrollHeight, ANSWER_MODAL_TEXTAREA_MAX_HEIGHT)
+    textarea.style.height = `${nextHeight}px`
+    textarea.style.overflowY = textarea.scrollHeight > ANSWER_MODAL_TEXTAREA_MAX_HEIGHT ? 'auto' : 'hidden'
+  }, [])
+
+  useEffect(() => {
+    resizeFeedbackTextarea()
+  }, [feedbackMessage, resizeFeedbackTextarea])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handleResize = () => setModalHeight((current) => clampAnswerModalHeight(current))
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      window.localStorage.setItem(ANSWER_MODAL_HEIGHT_KEY, String(clampAnswerModalHeight(modalHeight)))
+    } catch {}
+  }, [modalHeight])
+
+  useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
+      const state = modalResizeRef.current
+      if (!state) return
+      const deltaY = state.startY - event.clientY
+      setModalHeight(clampAnswerModalHeight(state.startHeight + deltaY))
+    }
+
+    const handleMouseUp = () => {
+      modalResizeRef.current = null
+      document.body.style.userSelect = ''
+      document.body.style.cursor = ''
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [])
+
+  const handleModalResizeStart = useCallback((event: ReactMouseEvent<HTMLButtonElement>) => {
+    modalResizeRef.current = { startY: event.clientY, startHeight: modalHeight }
+    document.body.style.userSelect = 'none'
+    document.body.style.cursor = 'ns-resize'
+  }, [modalHeight])
 
   // ── 文件上传（本地解析 + 上传后端）──────────────────────────────────────────
   // Embedding 由后端 Agent 自动处理（embed_file 任务队列），不在前端触发
@@ -902,7 +986,8 @@ export function AnswerModal() {
   // ── 反馈输入 ──────────────────────────────────────────────────────────────
   const handleFeedbackChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setFeedbackMessage(e.target.value)
-  }, [])
+    requestAnimationFrame(() => resizeFeedbackTextarea())
+  }, [resizeFeedbackTextarea])
 
   const handleFeedbackSubmit = useCallback(async () => {
     const trimmed = feedbackMessage.trim()
@@ -963,7 +1048,10 @@ export function AnswerModal() {
     setPendingImages([])
     setPendingFiles([])
     setPendingReferenceBlocks([])
-    if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.overflowY = 'hidden'
+    }
 
     // ── 引导 phase 2：用户给出风格反馈 → Agent 后台提取 + 流式输出 GENE_SAVED ──
     if (isOnboardingMode && onboardingPhaseRef.current === 2) {
@@ -1389,8 +1477,17 @@ export function AnswerModal() {
                   : { opacity: 1, borderRadius: 24, y: 0 }
                 }
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="w-full h-[85vh] bg-white shadow-[0_-8px_40px_rgba(0,0,0,0.08)] border-t border-gray-200 flex flex-col overflow-hidden rounded-t-3xl"
+                style={{ height: modalHeight, maxHeight: '94vh' }}
+                className="w-full bg-white shadow-[0_-8px_40px_rgba(0,0,0,0.08)] border-t border-gray-200 flex flex-col overflow-hidden rounded-t-3xl"
               >
+                <button
+                  type="button"
+                  aria-label="Resize conversation window"
+                  onMouseDown={handleModalResizeStart}
+                  className="flex h-6 w-full cursor-row-resize items-center justify-center border-b border-gray-100 bg-white"
+                >
+                  <span className="h-1.5 w-14 rounded-full bg-gray-200" />
+                </button>
                 {/* 头部 */}
                 <div className="flex items-center justify-end px-6 py-3 border-b border-gray-100 bg-white gap-2">
                   {/* 引导模式提示（未完成时显示） */}
@@ -1600,6 +1697,7 @@ export function AnswerModal() {
                                   personaName={activeDecisionPersona?.name ?? invokedAssistant?.name ?? 'LingSi'}
                                   matchedUnits={matchedDecisionUnits}
                                   sourceRefs={activeDecisionTrace.sourceRefs ?? []}
+                                  productStateDocRefs={activeDecisionTrace.productStateDocRefs ?? []}
                                   isStreaming={isStreaming}
                                 />
                               )}
