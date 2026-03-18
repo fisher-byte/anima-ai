@@ -20,7 +20,7 @@
  * 特殊模式：
  *   isOnboardingMode — 新手引导流程，使用固定脚本回复，不调用真实 AI
  */
-import { useState, useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react'
+import { useState, useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   CheckCircle2, Copy, RefreshCw,
@@ -66,6 +66,37 @@ import { useT } from '../i18n'
 const ANSWER_MODAL_HEIGHT_KEY = 'anima_answer_modal_height_px_v1'
 const ANSWER_MODAL_MIN_HEIGHT = 560
 const ANSWER_MODAL_TEXTAREA_MAX_HEIGHT = 220
+
+function MarkdownLink({ href, children }: { href?: string; children: ReactNode }) {
+  if (!href) return <a>{children}</a>
+
+  const isLingSiAnchor = href.startsWith('#lingsi-source-')
+  if (isLingSiAnchor) {
+    return (
+      <a
+        href={href}
+        onClick={(event) => {
+          // Don't mutate the URL hash (can cause confusing navigation and hangs when the anchor
+          // element is later collapsed/unmounted). Instead, scroll to the target if it exists.
+          event.preventDefault()
+          const id = href.slice(1)
+          const el = typeof document !== 'undefined' ? document.getElementById(id) : null
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }}
+        className="underline underline-offset-2"
+      >
+        {children}
+      </a>
+    )
+  }
+
+  const isExternal = /^https?:\/\//i.test(href)
+  return (
+    <a href={href} target={isExternal ? '_blank' : undefined} rel={isExternal ? 'noreferrer' : undefined}>
+      {children}
+    </a>
+  )
+}
 
 function clampAnswerModalHeight(height: number): number {
   if (typeof window === 'undefined') return Math.max(height, ANSWER_MODAL_MIN_HEIGHT)
@@ -1806,7 +1837,7 @@ export function AnswerModal() {
                                 </div>
                               ) : (
                                 <div className="prose prose-slate max-w-none prose-sm prose-p:my-1.5 prose-headings:my-2">
-                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: MarkdownLink }}>
                                     {renderAssistantMarkdown(turn.assistant || '', idx)}
                                   </ReactMarkdown>
                                 </div>

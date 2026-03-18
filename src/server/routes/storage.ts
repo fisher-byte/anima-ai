@@ -31,6 +31,27 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024
 const MAX_TEXT_SIZE = 10 * 1024 * 1024
 // 追加行上限：1 MB（POST /:filename/append，防止单行过大）
 const MAX_APPEND_SIZE = 1 * 1024 * 1024
+// tailLines 上限（GET /:filename?tailLines=N），避免极端值
+const MAX_TAIL_LINES = 20000
+
+function tailTextByLines(content: string, lines: number): string {
+  if (lines <= 0) return ''
+  if (!content.includes('\n')) return content
+
+  let count = 0
+  let i = content.length - 1
+  // Skip trailing newlines
+  while (i >= 0 && content[i] === '\n') i--
+  for (; i >= 0; i--) {
+    if (content[i] === '\n') {
+      count++
+      if (count >= lines) {
+        return content.slice(i + 1)
+      }
+    }
+  }
+  return content
+}
 
 // 允许的 MIME 类型白名单（魔数校验的辅助）
 const ALLOWED_MIME_PREFIXES = [
@@ -284,6 +305,15 @@ storageRoutes.get('/:filename', (c) => {
       return c.text('[]')
     }
     return c.text('', 404)
+  }
+
+  const tailLinesRaw = c.req.query('tailLines')
+  if (tailLinesRaw) {
+    const parsed = Number.parseInt(tailLinesRaw, 10)
+    const tailLines = Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), MAX_TAIL_LINES) : 0
+    if (tailLines > 0) {
+      return c.text(tailTextByLines(row.content, tailLines))
+    }
   }
 
   return c.text(row.content)
