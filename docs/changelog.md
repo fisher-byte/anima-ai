@@ -1,3 +1,21 @@
+## [0.5.27] - 2026-03-18
+
+### feat: shrink LingSi v2 scope to the minimum decision loop
+
+**新增与调整：**
+- `docs/lingsi-v2-decision-system.md` / `docs/PROJECT.md` / `docs/ROADMAP.md`：根据真实 `Lenny / 张小龙` 批评意见，明确 V2 先暂停大而全扩张，优先 `DecisionRecord -> 采纳 -> 回访 -> 真实用户验证`
+- `src/shared/lingsiDecisionEngine.ts`：新增最小版 `DecisionRecord draft` 构建逻辑，让决策请求在回答前就形成结构化对象，而不是只留下自然语言与 trace
+- `src/shared/types.ts`：`Conversation` 正式增加 `decisionRecord`，为后续采纳、回访与结果闭环打底
+- `src/renderer/src/services/lingsi.ts` / `src/renderer/src/components/AnswerModal.tsx`：LingSi payload 现在会返回并持久化 `decisionRecord`，决策回答链路首次具备“结构化对象先于文案”的基础
+- `src/renderer/src/stores/canvasStore.ts` / `src/server/routes/memory.ts`：Space / Custom Space / 主空间同步链路开始携带 `decisionRecord`，确保回放、同步与后续闭环使用同一份底层对象
+- `src/shared/__tests__/lingsiDecisionEngine.test.ts` / `src/renderer/src/stores/__tests__/canvasStore.lennyMode.test.ts`：新增 `DecisionRecord draft` 与 sync 持久化断言
+
+**测试与验证：**
+- `npx vitest run src/shared/__tests__/lingsiDecisionEngine.test.ts src/renderer/src/stores/__tests__/canvasStore.lennyMode.test.ts`：35/35 通过
+- `npm run typecheck`：通过
+
+---
+
 ## [0.5.26] - 2026-03-18
 
 ### feat: LingSi v2 decision protocol foundation

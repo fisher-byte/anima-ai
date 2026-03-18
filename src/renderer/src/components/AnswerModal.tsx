@@ -257,6 +257,7 @@ export function AnswerModal() {
     if (currentConversation?.id) {
       await updateConversation(currentConversation.id, {
         decisionTrace: mergeDecisionTrace(currentConversation.decisionTrace, payload.decisionTrace),
+        decisionRecord: payload.decisionRecord,
       })
     }
 

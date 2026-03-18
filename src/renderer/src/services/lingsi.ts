@@ -6,7 +6,7 @@ import {
   BUNDLED_DECISION_UNITS,
 } from '@shared/lingsiSeedData'
 import { buildLingSiDecisionPayloadFromUnits, mergeDecisionTrace } from '@shared/lingsiDecisionEngine'
-import type { DecisionMode, DecisionPersona, DecisionProductStatePack, DecisionTrace, DecisionUnit } from '@shared/types'
+import type { DecisionMode, DecisionPersona, DecisionProductStatePack, DecisionRecord, DecisionTrace, DecisionUnit } from '@shared/types'
 import { storageService } from './storageService'
 
 let seedPromise: Promise<void> | null = null
@@ -119,6 +119,7 @@ export async function buildLingSiDecisionPayload(
 ): Promise<{
   extraContext?: string
   decisionTrace: DecisionTrace
+  decisionRecord?: DecisionRecord
 }> {
   const [units, personas, productState] = await Promise.all([loadDecisionUnits(), loadDecisionPersonas(), loadDecisionProductState()])
   const persona = options?.personaId ? personas.find(item => item.id === options.personaId) : undefined

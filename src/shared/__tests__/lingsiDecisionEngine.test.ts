@@ -72,6 +72,10 @@ describe('lingsiDecisionEngine', () => {
     expect(payload.decisionTrace.sourceRefs?.[0]?.locator).toBeTruthy()
     expect(payload.decisionTrace.reasoningRoute?.decisionType).toBeTruthy()
     expect(payload.decisionTrace.reasoningRoute?.chosenFrameworks?.length).toBeGreaterThan(0)
+    expect(payload.decisionRecord?.personaId).toBe('lenny')
+    expect(payload.decisionRecord?.decisionType).toBe(payload.decisionTrace.reasoningRoute?.decisionType)
+    expect(payload.decisionRecord?.status).toBe('draft')
+    expect(payload.decisionRecord?.followUpQuestions?.length).toBeGreaterThan(0)
   })
 
   it('injects the product state pack for current-project prompts', () => {
@@ -92,6 +96,7 @@ describe('lingsiDecisionEngine', () => {
     expect(payload.extraContext).toContain('anima-base: 083974d')
     expect(payload.decisionTrace.productStateUsed).toBe(true)
     expect(payload.decisionTrace.productStateDocRefs?.length).toBeGreaterThan(0)
+    expect(payload.decisionRecord?.knowns).toContain('已注入当前项目状态作为判断背景')
   })
 
   it('does not inject the product state pack for unrelated generic prompts', () => {

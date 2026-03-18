@@ -18,12 +18,12 @@
 | [部署运维](./deployment.md) | 发布、配置 | 📝 |
 | [变更日志](./changelog.md) | 版本迭代记录 | ✅ |
 | [问题排查](./troubleshooting.md) | 常见问题解决 | 📝 |
-| [代码审查](./code-review-report-v0.5.26-decision-protocol-foundation.md) | 最新审查报告 | ✅ |
+| [代码审查](./code-review-report-v0.5.27-minimum-loop.md) | 最新审查报告 | ✅ |
 | [路线图](./ROADMAP.md) | 近期/远期规划 | ✅ |
 
 ## 项目状态
 
-- **当前版本**: v0.5.26
+- **当前版本**: v0.5.27
 - **开发状态**: Active
 - **最后更新**: 2026-03-18（含 LingSi v2 决策协议基础、persona 心理画像接入与 reasoningRoute 基线）
 - **GitHub**: https://github.com/fisher-byte/anima-ai

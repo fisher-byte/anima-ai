@@ -1,4 +1,5 @@
 import type {
+  DecisionRecord,
   DecisionMode,
   DecisionPersona,
   DecisionProductStatePack,
@@ -127,6 +128,61 @@ function dedupeSourceRefs(sourceRefs: DecisionSourceRef[]): DecisionSourceRef[] 
     if (deduped.length >= MAX_TRACE_SOURCES) break
   }
   return deduped
+}
+
+function dedupeStrings(values: Array<string | undefined | null>, max = 4): string[] {
+  const seen = new Set<string>()
+  const deduped: string[] = []
+  for (const value of values) {
+    const normalized = value?.trim()
+    if (!normalized || seen.has(normalized)) continue
+    seen.add(normalized)
+    deduped.push(normalized)
+    if (deduped.length >= max) break
+  }
+  return deduped
+}
+
+function buildFallbackFollowUps(reasoningRoute?: DecisionTrace['reasoningRoute']): string[] {
+  const unknowns = reasoningRoute?.keyUnknowns ?? []
+  if (unknowns.length === 0) return []
+  return unknowns.slice(0, 3).map((item) => `先补充：${item}`)
+}
+
+function buildFallbackNextActions(
+  personaName: string,
+  reasoningRoute?: DecisionTrace['reasoningRoute'],
+  productStateUsed?: boolean,
+): string[] {
+  const actions: string[] = []
+  if (reasoningRoute?.followUpRequired) {
+    actions.push('先回答上面的关键追问，再继续给出高置信判断。')
+  }
+  if (reasoningRoute?.decisionType === 'product_strategy') {
+    actions.push(`请先写出 2 个候选路径，并用 ${personaName} 的标准比较 tradeoff。`)
+  }
+  if (productStateUsed) {
+    actions.push('把这次判断和当前项目状态核对，确认它解决的是当前阶段最关键的问题。')
+  }
+  return dedupeStrings(actions, 3)
+}
+
+function summarizeDraftRecommendation(
+  matchedUnits: DecisionUnit[],
+  reasoningRoute?: DecisionTrace['reasoningRoute'],
+  productStateUsed?: boolean,
+): string {
+  if (matchedUnits.length > 0) {
+    const first = matchedUnits[0]
+    return first.preferredPath || first.summary || first.title
+  }
+  if (reasoningRoute?.followUpRequired) {
+    return '当前信息不足，先澄清关键未知项，再给出更高置信的推荐路径。'
+  }
+  if (productStateUsed) {
+    return '这次判断主要依据当前项目状态，先聚焦当前阶段最关键的决策，再决定是否扩系统。'
+  }
+  return '先形成初步倾向，再补充关键信息和验证动作。'
 }
 
 export function scoreDecisionUnit(query: string, unit: DecisionUnit): number {
@@ -298,6 +354,67 @@ export function buildDecisionTrace(
   }
 }
 
+export function buildDecisionRecordDraft(
+  query: string,
+  decisionTrace: DecisionTrace,
+  matchedUnits: DecisionUnit[],
+  options?: {
+    persona?: DecisionPersona
+  },
+): DecisionRecord | undefined {
+  if (decisionTrace.mode !== 'decision' || !decisionTrace.personaId) return undefined
+
+  const now = new Date().toISOString()
+  const personaName = options?.persona?.name ?? decisionTrace.personaId
+  const recommendationSummary = summarizeDraftRecommendation(
+    matchedUnits,
+    decisionTrace.reasoningRoute,
+    decisionTrace.productStateUsed,
+  )
+  const followUpQuestions = dedupeStrings(
+    [
+      ...matchedUnits.flatMap((unit) => unit.followUpQuestions ?? []),
+      ...buildFallbackFollowUps(decisionTrace.reasoningRoute),
+    ],
+    3,
+  )
+  const nextActions = dedupeStrings(
+    [
+      ...matchedUnits.flatMap((unit) => unit.nextActions ?? []),
+      ...buildFallbackNextActions(personaName, decisionTrace.reasoningRoute, decisionTrace.productStateUsed),
+    ],
+    3,
+  )
+
+  return {
+    id: `decision-${crypto.randomUUID()}`,
+    personaId: decisionTrace.personaId,
+    mode: decisionTrace.mode,
+    decisionType: decisionTrace.reasoningRoute?.decisionType ?? 'general_decision',
+    stage: decisionTrace.reasoningRoute?.stage,
+    userQuestion: query.trim(),
+    knowns: dedupeStrings([
+      matchedUnits.length > 0 ? `已命中 ${matchedUnits.length} 条相关 DecisionUnit` : undefined,
+      decisionTrace.productStateUsed ? '已注入当前项目状态作为判断背景' : undefined,
+    ], 3),
+    unknowns: decisionTrace.reasoningRoute?.keyUnknowns?.slice(0, 4) ?? [],
+    options: [],
+    recommendationSummary,
+    keyTradeoffs: decisionTrace.reasoningRoute?.tradeoffs?.slice(0, 4) ?? [],
+    assumptions: dedupeStrings([
+      decisionTrace.productStateUsed ? '当前项目状态包仍然代表最新事实' : undefined,
+      matchedUnits.length === 0 ? '当前没有高置信命中的具体案例' : undefined,
+    ], 3),
+    followUpQuestions,
+    nextActions,
+    killCriteria: [],
+    evidenceRefs: decisionTrace.sourceRefs?.slice(0, 5) ?? [],
+    status: 'draft',
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
 export function buildLingSiDecisionPayloadFromUnits(
   query: string,
   mode: DecisionMode,
@@ -311,6 +428,7 @@ export function buildLingSiDecisionPayloadFromUnits(
 ): {
   extraContext?: string
   decisionTrace: DecisionTrace
+  decisionRecord?: DecisionRecord
 } {
   if (mode !== 'decision') {
     return { decisionTrace: { mode: 'normal', personaId: options?.personaId } }
@@ -333,19 +451,24 @@ export function buildLingSiDecisionPayloadFromUnits(
   const followUpRequired = shouldClarifyFirst(query, matchedUnits, persona)
   const tradeoffs = matchedUnits.flatMap(unit => unit.antiPatterns ?? []).slice(0, 3)
   const decisionContext = buildDecisionExtraContext(query, matchedUnits, persona)
+  const decisionTrace = buildDecisionTrace('decision', matchedUnits, options?.personaId, {
+    productStateUsed: shouldInjectProductState,
+    productStateDocRefs: shouldInjectProductState ? options?.productState?.docRefs : undefined,
+    reasoningRoute: {
+      decisionType,
+      stage,
+      keyUnknowns,
+      tradeoffs,
+      chosenFrameworks,
+      followUpRequired,
+    },
+  })
+
   return {
     extraContext: [productStateContext, decisionContext].filter(Boolean).join('\n\n'),
-    decisionTrace: buildDecisionTrace('decision', matchedUnits, options?.personaId, {
-      productStateUsed: shouldInjectProductState,
-      productStateDocRefs: shouldInjectProductState ? options?.productState?.docRefs : undefined,
-      reasoningRoute: {
-        decisionType,
-        stage,
-        keyUnknowns,
-        tradeoffs,
-        chosenFrameworks,
-        followUpRequired,
-      },
+    decisionTrace,
+    decisionRecord: buildDecisionRecordDraft(query, decisionTrace, matchedUnits, {
+      persona,
     }),
   }
 }

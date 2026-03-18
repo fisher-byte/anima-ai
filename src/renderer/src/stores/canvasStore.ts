@@ -1637,6 +1637,7 @@ export const useCanvasStore = create<CanvasState>()(
         userMessage: currentConversation.userMessage,
         assistantMessage,
         decisionTrace: currentConversation.decisionTrace,
+        decisionRecord: currentConversation.decisionRecord,
         images: [],
         files: [],
       }
@@ -1697,6 +1698,7 @@ export const useCanvasStore = create<CanvasState>()(
               conversationId: conv.id,
               userMessage: conv.userMessage,
               assistantMessage,
+              decisionRecord: currentConversation.decisionRecord,
               source: `custom-${activeCustomSpaceId}`,
             }),
           })
@@ -1728,6 +1730,8 @@ export const useCanvasStore = create<CanvasState>()(
         createdAt: new Date().toISOString(),
         userMessage: currentConversation.userMessage,
         assistantMessage,
+        decisionTrace: currentConversation.decisionTrace,
+        decisionRecord: currentConversation.decisionRecord,
         images: [],
         files: [],
       }
@@ -1794,6 +1798,7 @@ export const useCanvasStore = create<CanvasState>()(
               userMessage: conv.userMessage,
               assistantMessage,
               decisionTrace: currentConversation.decisionTrace,
+              decisionRecord: currentConversation.decisionRecord,
               source: isPGMode ? 'pg' : isZhangMode ? 'zhang' : isWangMode ? 'wang' : 'lenny',
             }),
           })
@@ -1927,6 +1932,8 @@ export const useCanvasStore = create<CanvasState>()(
         reasoning_content: isFirst ? reasoning_content : undefined, // 简单起见，只在第一话题保留全量推理
         appliedPreferences,
         appliedMemoryIds: isFirst ? appliedMemoryIds : [],
+        decisionTrace: isFirst ? currentConversation.decisionTrace : undefined,
+        decisionRecord: isFirst ? currentConversation.decisionRecord : undefined,
         images: isFirst ? currentConversation.images : [], // 文件通常只在第一轮
         files: isFirst ? currentConversation.files : []
       }
