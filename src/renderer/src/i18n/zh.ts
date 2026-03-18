@@ -319,6 +319,7 @@ export interface Translations {
     decisionCardOutcomeMixed: string
     decisionCardOutcomeNotWorking: string
     decisionCardOutcomeUnknown: string
+    decisionCardOutcomeNotesPlaceholder: string
   }
   timeline: {
     noNodes: string
@@ -723,6 +724,7 @@ export const zh: Translations = {
     decisionCardOutcomeMixed: '部分有效',
     decisionCardOutcomeNotWorking: '没效果',
     decisionCardOutcomeUnknown: '还没做',
+    decisionCardOutcomeNotesPlaceholder: '补一条结果备注：发生了什么，哪里有效，哪里没跑通？',
   },
 
   // ── TimelineView ──────────────────────────────────────────────────────────

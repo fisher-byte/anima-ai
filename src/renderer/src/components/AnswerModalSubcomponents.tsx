@@ -500,10 +500,11 @@ export function LingSiDecisionCard({
   record: DecisionRecord
   personaName: string
   onAdopt: (days: number) => void
-  onOutcome: (result: NonNullable<DecisionRecord['outcome']>['result']) => void
+  onOutcome: (result: NonNullable<DecisionRecord['outcome']>['result'], notes?: string) => void
 }) {
   const { t } = useT()
   const [showSchedule, setShowSchedule] = useState(record.status === 'draft' || record.status === 'answered')
+  const [outcomeNotes, setOutcomeNotes] = useState(record.outcome?.notes ?? '')
   const nextActions = record.nextActions.slice(0, 3)
   const followUps = record.followUpQuestions.slice(0, 2)
   const revisitAt = record.outcome?.revisitAt
@@ -611,11 +612,18 @@ export function LingSiDecisionCard({
       {canMarkOutcome && (
         <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50/70 px-4 py-3">
           <div className="text-[13px] font-medium text-gray-900">{t.modal.decisionCardOutcomeTitle}</div>
+          <textarea
+            value={outcomeNotes}
+            onChange={(event) => setOutcomeNotes(event.target.value)}
+            rows={2}
+            placeholder={t.modal.decisionCardOutcomeNotesPlaceholder}
+            className="mt-3 min-h-[74px] w-full resize-none rounded-2xl border border-gray-200 bg-white px-3 py-2 text-[13px] leading-6 text-gray-700 outline-none ring-0 placeholder:text-gray-400 focus:border-gray-300"
+          />
           <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" onClick={() => onOutcome('working')} className="rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-[12px] font-medium text-emerald-700 hover:bg-emerald-50">{t.modal.decisionCardOutcomeWorking}</button>
-            <button type="button" onClick={() => onOutcome('mixed')} className="rounded-full border border-amber-200 bg-white px-3 py-1.5 text-[12px] font-medium text-amber-700 hover:bg-amber-50">{t.modal.decisionCardOutcomeMixed}</button>
-            <button type="button" onClick={() => onOutcome('not_working')} className="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-[12px] font-medium text-rose-700 hover:bg-rose-50">{t.modal.decisionCardOutcomeNotWorking}</button>
-            <button type="button" onClick={() => onOutcome('unknown')} className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-[12px] font-medium text-gray-700 hover:bg-gray-100">{t.modal.decisionCardOutcomeUnknown}</button>
+            <button type="button" onClick={() => onOutcome('working', outcomeNotes)} className="rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-[12px] font-medium text-emerald-700 hover:bg-emerald-50">{t.modal.decisionCardOutcomeWorking}</button>
+            <button type="button" onClick={() => onOutcome('mixed', outcomeNotes)} className="rounded-full border border-amber-200 bg-white px-3 py-1.5 text-[12px] font-medium text-amber-700 hover:bg-amber-50">{t.modal.decisionCardOutcomeMixed}</button>
+            <button type="button" onClick={() => onOutcome('not_working', outcomeNotes)} className="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-[12px] font-medium text-rose-700 hover:bg-rose-50">{t.modal.decisionCardOutcomeNotWorking}</button>
+            <button type="button" onClick={() => onOutcome('unknown', outcomeNotes)} className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-[12px] font-medium text-gray-700 hover:bg-gray-100">{t.modal.decisionCardOutcomeUnknown}</button>
           </div>
         </div>
       )}

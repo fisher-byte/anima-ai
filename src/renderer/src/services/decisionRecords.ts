@@ -13,6 +13,11 @@ export interface OngoingDecisionItem {
   source: 'main' | 'lenny' | 'zhang' | 'pg' | 'wang'
   title: string
   revisitAt?: string
+  adoptedAt?: string
+  result?: NonNullable<DecisionRecord['outcome']>['result']
+  notes?: string
+  updatedAt: string
+  isDue: boolean
 }
 
 type DecisionSource = OngoingDecisionItem['source']
@@ -58,6 +63,12 @@ function compareItems(a: OngoingDecisionItem, b: OngoingDecisionItem): number {
   return new Date(b.decisionRecord.updatedAt).getTime() - new Date(a.decisionRecord.updatedAt).getTime()
 }
 
+function isDueDate(revisitAt?: string): boolean {
+  if (!revisitAt) return false
+  const dueAt = new Date(revisitAt).getTime()
+  return Number.isFinite(dueAt) && dueAt <= Date.now()
+}
+
 export function emitDecisionRecordsUpdated(): void {
   if (typeof window === 'undefined') return
   window.dispatchEvent(new CustomEvent(DECISION_RECORDS_UPDATED_EVENT))
@@ -87,6 +98,11 @@ export async function listOngoingDecisionItems(): Promise<OngoingDecisionItem[]>
           source,
           title: sanitizeTitle(parsed.decisionRecord.userQuestion || parsed.userMessage),
           revisitAt: parsed.decisionRecord.outcome?.revisitAt,
+          adoptedAt: parsed.decisionRecord.outcome?.adoptedAt,
+          result: parsed.decisionRecord.outcome?.result,
+          notes: parsed.decisionRecord.outcome?.notes,
+          updatedAt: parsed.decisionRecord.updatedAt,
+          isDue: status === 'adopted' && isDueDate(parsed.decisionRecord.outcome?.revisitAt),
         }
 
         const existing = latestByConversationId.get(parsed.id)
@@ -100,4 +116,15 @@ export async function listOngoingDecisionItems(): Promise<OngoingDecisionItem[]>
   }
 
   return Array.from(latestByConversationId.values()).sort(compareItems)
+}
+
+export async function listDecisionLedgerItems(): Promise<OngoingDecisionItem[]> {
+  const items = await listOngoingDecisionItems()
+  return items.sort((a, b) => {
+    if (a.decisionRecord.status !== b.decisionRecord.status) {
+      if (a.decisionRecord.status === 'adopted') return -1
+      if (b.decisionRecord.status === 'adopted') return 1
+    }
+    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  })
 }

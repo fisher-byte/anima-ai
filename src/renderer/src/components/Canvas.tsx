@@ -33,13 +33,14 @@ import { WangSpaceCanvas } from './WangSpaceCanvas'
 import { CustomSpaceCanvas } from './CustomSpaceCanvas'
 import { CreateCustomSpaceModal } from './CreateCustomSpaceModal'
 import { FileBrowserPanel } from './FileBrowserPanel'
+import { DecisionHubPanel } from './DecisionHubPanel'
 
 import { AmbientBackground } from './AmbientBackground'
 import { ClusterLabel } from './ClusterLabel'
 import { useToast } from './GlobalUI'
 import { TimelineView } from './TimelineView'
 import { getAuthToken } from '../services/storageService'
-import { DECISION_RECORDS_UPDATED_EVENT, listOngoingDecisionItems, type OngoingDecisionItem } from '../services/decisionRecords'
+import { DECISION_RECORDS_UPDATED_EVENT, listDecisionLedgerItems, listOngoingDecisionItems, type OngoingDecisionItem } from '../services/decisionRecords'
 import { useT } from '../i18n'
 import type { Node as CanvasNode } from '@shared/types'
 
@@ -382,11 +383,13 @@ export function Canvas() {
   const [openCustomSpaceId, setOpenCustomSpaceId] = useState<string | null>(null)
   const [deleteConfirmSpaceId, setDeleteConfirmSpaceId] = useState<string | null>(null)
   const [isFileBrowserOpen, setIsFileBrowserOpen] = useState(false)
+  const [isDecisionHubOpen, setIsDecisionHubOpen] = useState(false)
   // 左侧 Spaces 侧边栏折叠状态（localStorage 持久化）
   const [isSpacesSidebarVisible, setIsSpacesSidebarVisible] = useState(() => {
     return localStorage.getItem('evo_spaces_sidebar_visible') !== 'false'
   })
   const [ongoingDecisions, setOngoingDecisions] = useState<OngoingDecisionItem[]>([])
+  const [decisionLedger, setDecisionLedger] = useState<OngoingDecisionItem[]>([])
   const prevNodeCountRef = useRef(0)
   const prevRulesCountRef = useRef(profileRulesCount)
 
@@ -394,8 +397,14 @@ export function Canvas() {
     let cancelled = false
 
     const load = async () => {
-      const items = await listOngoingDecisionItems()
-      if (!cancelled) setOngoingDecisions(items.slice(0, 4))
+      const [items, ledgerItems] = await Promise.all([
+        listOngoingDecisionItems(),
+        listDecisionLedgerItems(),
+      ])
+      if (!cancelled) {
+        setOngoingDecisions(items.slice(0, 4))
+        setDecisionLedger(ledgerItems)
+      }
     }
 
     void load()
@@ -834,6 +843,8 @@ export function Canvas() {
     }
   }, [t.canvas])
 
+  const dueDecisionCount = decisionLedger.filter((item) => item.decisionRecord.status === 'adopted' && item.isDue).length
+
   return (
     <ForceSimContext.Provider value={forceSim}>
     <>
@@ -1211,13 +1222,43 @@ export function Canvas() {
                   : t.canvas.ongoingDecisionsEmpty}
               </div>
             </div>
-            <div className="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-semibold text-gray-500">
-              {ongoingDecisions.length}
+            <button
+              type="button"
+              onClick={() => setIsDecisionHubOpen(true)}
+              className="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-semibold text-gray-500 transition hover:bg-gray-200"
+            >
+              {dueDecisionCount > 0 ? `${dueDecisionCount} 待回访` : ongoingDecisions.length}
+            </button>
+          </div>
+
+          {dueDecisionCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsDecisionHubOpen(true)}
+              className="mt-3 w-full rounded-2xl border border-amber-100 bg-amber-50/80 px-3 py-2 text-left"
+            >
+              <div className="text-[11px] font-semibold text-amber-800">今天该回访 {dueDecisionCount} 条</div>
+              <div className="mt-1 text-[11px] leading-5 text-amber-700/80">
+                结果一旦记录下来，LingSi 才能开始判断哪些建议真的有效。
+              </div>
+            </button>
+          )}
+
+          <div className="mt-3 flex items-center justify-between">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400">
+              决策时间线
             </div>
+            <button
+              type="button"
+              onClick={() => setIsDecisionHubOpen(true)}
+              className="text-[11px] font-medium text-gray-500 transition hover:text-gray-800"
+            >
+              查看全部
+            </button>
           </div>
 
           {ongoingDecisions.length > 0 ? (
-            <div className="mt-3 space-y-2">
+            <div className="mt-2 space-y-2">
               {ongoingDecisions.map((item) => (
                 <button
                   key={item.conversation.id}
@@ -1482,6 +1523,19 @@ export function Canvas() {
       </AnimatePresence>
 
       <ImportMemoryModal />
+
+      <AnimatePresence>
+        {isDecisionHubOpen && (
+          <DecisionHubPanel
+            items={decisionLedger}
+            onClose={() => setIsDecisionHubOpen(false)}
+            onOpenDecision={(item) => {
+              setIsDecisionHubOpen(false)
+              openModal(item.conversation)
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       <FileBrowserPanel
         isOpen={isFileBrowserOpen}
