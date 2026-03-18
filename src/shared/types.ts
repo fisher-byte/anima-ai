@@ -94,6 +94,50 @@ export type DecisionSourceType =
 export type DecisionMode = 'normal' | 'decision'
 
 /**
+ * v2 里用于解构 persona 决策风格的心理学/行为学框架。
+ * 注意：这些框架用于建模“如何做决策”，不是给用户做人格诊断。
+ */
+export interface DecisionPersonaProfile {
+  /**
+   * Big Five 提供稳定的人格底盘，比“荣格五维”更适合作为可比较的 trait 结构。
+   * 取值建议 0-1。
+   */
+  bigFive?: Partial<Record<'openness' | 'conscientiousness' | 'extraversion' | 'agreeableness' | 'neuroticism', number>>
+  /**
+   * 保留 Jung/原型视角，但只作为叙事标签，不作为诊断结论。
+   */
+  jungianArchetypes?: string[]
+  /**
+   * 决策风格维度，比人格标签更贴近产品能力。
+   * 取值建议 0-1。
+   */
+  decisionStyle?: Partial<Record<
+    | 'ambiguityTolerance'
+    | 'speedBias'
+    | 'evidenceDemand'
+    | 'peopleOrientation'
+    | 'systemsThinking'
+    | 'restraint'
+    | 'experimentation'
+    | 'intuitionReliance',
+    number
+  >>
+  /**
+   * 常见偏差与失真点，用于回答时提示“在哪些情况下更容易偏”。
+   */
+  biasRisks?: string[]
+  /**
+   * 该 persona 常用的判断协议，用于决定先追问、先给结论还是先给框架。
+   */
+  questionProtocol?: {
+    clarifyFirstWhen?: string[]
+    decideFirstWhen?: string[]
+    preferredFrameworks?: string[]
+    killCriteriaStyle?: string[]
+  }
+}
+
+/**
  * 单条来源线索
  */
 export interface DecisionSourceRef {
@@ -148,6 +192,7 @@ export interface DecisionPersona {
   archetypeTags?: string[]
   drives?: Record<string, number>
   heuristics: string[]
+  profile?: DecisionPersonaProfile
   domainBoundaries?: {
     strong: string[]
     weak: string[]
@@ -210,6 +255,53 @@ export interface DecisionTrace {
   sourceRefs?: DecisionSourceRef[]
   productStateUsed?: boolean
   productStateDocRefs?: string[]
+  reasoningRoute?: {
+    decisionType?: string
+    stage?: string
+    keyUnknowns?: string[]
+    tradeoffs?: string[]
+    chosenFrameworks?: string[]
+    followUpRequired?: boolean
+  }
+}
+
+/**
+ * v2 的结构化决策对象。
+ * 回答文本是展示层；真正的决策系统需要先形成一个可回放、可复盘、可回访的对象。
+ */
+export interface DecisionRecord {
+  id: string
+  personaId: string
+  mode: DecisionMode
+  decisionType: string
+  stage?: string
+  userQuestion: string
+  knowns: string[]
+  unknowns: string[]
+  options: Array<{
+    id: string
+    label: string
+    description?: string
+    pros?: string[]
+    cons?: string[]
+  }>
+  recommendedOptionId?: string
+  recommendationSummary: string
+  keyTradeoffs: string[]
+  assumptions: string[]
+  followUpQuestions: string[]
+  nextActions: string[]
+  killCriteria?: string[]
+  evidenceRefs: DecisionSourceRef[]
+  status: 'draft' | 'answered' | 'adopted' | 'revisited' | 'archived'
+  outcome?: {
+    adoptedAt?: string
+    revisitAt?: string
+    result?: 'working' | 'not_working' | 'mixed' | 'unknown'
+    notes?: string
+  }
+  createdAt: string
+  updatedAt: string
 }
 
 /**

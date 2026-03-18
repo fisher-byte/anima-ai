@@ -1,3 +1,23 @@
+## [0.5.26] - 2026-03-18
+
+### feat: LingSi v2 decision protocol foundation
+
+**新增与增强：**
+- `docs/lingsi-v2-decision-system.md`：正式定义 LingSi v2 的四层能力：`persona profile / decision protocol / decision object / closed-loop learning`，把“完整决策系统”从概念收敛成可交付路线
+- `src/shared/types.ts`：新增 `DecisionPersonaProfile`、`DecisionTrace.reasoningRoute` 与 `DecisionRecord`，把 persona 心理画像、协议路由和结构化决策对象纳入共享 schema
+- `seeds/lingsi/decision-personas.json`：为 `Lenny / 张小龙` 补齐 `Big Five + Jungian Archetypes + Decision Style + Bias Risks + questionProtocol`，心理学框架用于解构 persona 决策偏好，不做用户人格诊断
+- `src/shared/lingsiDecisionEngine.ts`：补第一版决策协议层，开始显式判断 `decisionType / stage / keyUnknowns / chosenFrameworks / followUpRequired`，让 persona 更像“稳定判断系统”而不是只靠风格和案例
+- `src/renderer/src/services/lingsi.ts`：LingSi payload 构建现在会加载 persona profile，并把 profile 与 reasoningRoute 一并送入决策链路
+- `src/shared/__tests__/lingsiDecisionEngine.test.ts` / `src/shared/__tests__/lingsiSeeds.test.ts`：补 persona 画像、框架选择、follow-up 路由与 reasoningRoute 回归测试
+
+**测试与验证：**
+- `npm run typecheck`：通过
+- `npm test`：609/609 通过
+- `npm run build`：通过
+- `npm run test:e2e`：44 passed / 4 skipped
+
+---
+
 ## [0.5.25] - 2026-03-18
 
 ### fix: linked persona context sanitization + trace relevance polish

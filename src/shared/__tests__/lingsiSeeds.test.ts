@@ -52,4 +52,15 @@ describe('LingSi seed outputs', () => {
     expect(units.filter(unit => unit.personaId === 'lenny')).toHaveLength(37)
     expect(units.filter(unit => unit.personaId === 'zhang')).toHaveLength(22)
   })
+
+  it('keeps v2 persona profiles populated for active personas', () => {
+    for (const persona of personas) {
+      expect(persona.profile).toBeTruthy()
+      expect(persona.profile?.bigFive).toBeTruthy()
+      expect(persona.profile?.jungianArchetypes?.length).toBeGreaterThan(0)
+      expect(persona.profile?.decisionStyle).toBeTruthy()
+      expect(persona.profile?.biasRisks?.length).toBeGreaterThan(0)
+      expect(persona.profile?.questionProtocol?.preferredFrameworks?.length).toBeGreaterThan(0)
+    }
+  })
 })

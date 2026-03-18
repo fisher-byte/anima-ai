@@ -13,6 +13,7 @@
 - 来源必须可追溯
 - 首批数据支持“自动提候选 + 人工审核上线”
 - `Lenny` 与 `张小龙` 已接入，后续 persona 继续沿同一结构扩展
+- v2 开始把 `persona profile`、`reasoningRoute`、`DecisionRecord` 纳入稳定 schema 规划
 
 ---
 
@@ -70,6 +71,13 @@
   }
 ]
 ```
+
+v2 扩展：
+- `profile.bigFive`：稳定人格底盘
+- `profile.jungianArchetypes`：只作叙事标签，不作人格诊断
+- `profile.decisionStyle`：真正影响回答协议的决策维度
+- `profile.biasRisks`：该 persona 在高压/低信息下容易出现的判断偏差
+- `profile.questionProtocol`：何时先追问、何时先给结论、偏好的判断框架
 
 字段说明：
 - `heuristics`：该 persona 常用判断启发式，偏自然语言
@@ -173,6 +181,14 @@
 }
 ```
 
+v2 扩展：
+- `reasoningRoute.decisionType`
+- `reasoningRoute.stage`
+- `reasoningRoute.keyUnknowns`
+- `reasoningRoute.tradeoffs`
+- `reasoningRoute.chosenFrameworks`
+- `reasoningRoute.followUpRequired`
+
 用途：
 - 区分 `normal` / `decision`
 - 统计哪些 unit 命中频率高
@@ -180,6 +196,30 @@
 
 注意：
 - 这里记录的是“本轮命中的证据元数据”，不是把全部引用块原文直接写进会话
+
+---
+
+## `DecisionRecord`（v2 新增）
+
+v2 不再只保存“回答文本 + trace”，而是引入结构化决策对象：
+
+- `decisionType`
+- `stage`
+- `knowns`
+- `unknowns`
+- `options`
+- `recommendedOptionId`
+- `keyTradeoffs`
+- `assumptions`
+- `followUpQuestions`
+- `nextActions`
+- `killCriteria`
+- `evidenceRefs`
+- `outcome`
+
+用途：
+- 支撑“先形成决策对象，再渲染自然语言回答”
+- 为采纳、回访、复盘和反哺新 `DecisionUnit` 提供统一容器
 
 ---
 
