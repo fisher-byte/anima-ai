@@ -1,3 +1,22 @@
+## [0.5.22] - 2026-03-18
+
+### fix: decision trace modal freeze
+
+**修复：**
+- `src/renderer/src/components/AnswerModalSubcomponents.tsx`：把 `查看轨迹` 弹层从 `AnimatePresence + motion portal` 收敛为更直接的 portal modal，移除这段路径上的额外动画与退出编排，避免点击决策轨迹时主线程卡死
+- `src/renderer/src/components/AnswerModalSubcomponents.tsx`：新增 `Escape` 关闭和 `body overflow` 锁定/恢复，避免嵌套滚动与遮罩态残留
+- `src/renderer/src/components/AnswerModalSubcomponents.tsx`：modal 容器显式 `stopPropagation`，点击内容区不再把事件冒泡到遮罩层
+
+**测试与验证：**
+- `npm run typecheck`：通过
+- `npx vitest run src/renderer/src/components/__tests__/AnswerModalSubcomponents.test.tsx`：通过
+- `npm test`：604/604 通过
+- `npm run build`：通过
+- `npm run test:e2e`：44 passed / 4 skipped
+- deploy：通过，线上 `pm2` 版本 `0.5.22`
+
+---
+
 ## [0.5.21] - 2026-03-18
 
 ### feat: decision state refresh + source sync + deploy verification
