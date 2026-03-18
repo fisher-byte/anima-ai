@@ -1,3 +1,23 @@
+## [0.5.31] - 2026-03-19
+
+### fix: 决策模式 UI 卡死彻底修复 — 打断级联重渲染风暴
+
+**根因**：v0.5.30 修复了 Portal 嵌套和大 JSONL 解析的卡死，但未彻底消除「点击决策 UI 后级联重渲染」的根因。点击任何决策相关 UI → `currentConversation` 或相关 state 变化 → `renderAssistantMarkdown` callback 的 deps 变化导致身份更新 → 所有 `<AssistantMarkdown>` 收到新 content prop → ReactMarkdown 对所有轮次做完整 markdown 重新解析 → 主线程同步阻塞 → 卡死。
+
+**修复：**
+- `src/renderer/src/components/AnswerModal.tsx`：**删除 `renderAssistantMarkdown` useCallback**，替换为 `lastTurnCitationText` useMemo。仅当最后一轮的 assistant 文本或 sourceRefs 实际变化时才重新计算 citation 注入，非末尾轮直接调用 `stripLeadingNumberHeading`（纯函数，零开销）
+- `src/renderer/src/components/AnswerModal.tsx`：**将 `LingSiTracePanel` 和 `LingSiDecisionCard` 从 `turns.map()` 循环内移到循环外**（仍在 scrollRef + `max-w-2xl` 容器内）。视觉位置不变，但彻底脱离 turns 高频重渲染树
+- `src/renderer/src/components/AnswerModalSubcomponents.tsx`：**`LingSiTracePanel` 和 `LingSiDecisionCard` 包裹 `React.memo()`**，配合稳定 props 阻止不必要重渲染
+- `src/renderer/src/components/AnswerModal.tsx`：**`handleAdoptDecision` / `handleDecisionOutcome` 改用 ref-forwarding 模式**。通过 `persistDecisionRecordRef` 持有最新值，两个 callback 的 deps 为空 `[]` → 引用永不变化 → 不触发 memo 子组件重渲染
+- `src/renderer/src/components/AnswerModal.tsx`：**`shouldShowLingSiTrace` 改为 `useMemo`**；新增 `stableSourceRefs`、`stableProductStateDocRefs`、`stablePersonaName` 三个 `useMemo`，避免每次渲染创建新的 `?? []` 数组
+- `src/renderer/src/stores/canvasStore.ts`：**`setLennyDecisionMode` / `setZhangDecisionMode` 增加 early-return guard**，mode 未变时不调用 `set()`，避免创建冗余的 `currentConversation` 新对象
+
+**测试与验证：**
+- `npx tsc --noEmit`：通过（0 TypeScript 错误）
+- Code review：见 `docs/code-review-report-v0.5.31-cascade-rerender-fix.md`
+
+---
+
 ## [0.5.30] - 2026-03-18
 
 ### fix: 决策模块卡死架构级修复 + 决策面板 UI 重设计
