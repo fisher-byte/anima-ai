@@ -57,6 +57,8 @@ import {
   InputArea,
   LingSiDecisionCard,
   LingSiTracePanel,
+  LingSiTraceModal,
+  type LingSiTraceData,
 } from './AnswerModalSubcomponents'
 import { injectLingSiInlineCitations } from '../utils/lingsiTrace'
 import { getDecisionPersonaForPublicSpace, getSystemPromptForPublicSpace, resolveDecisionModeForPersona } from '../utils/personaSpaces'
@@ -215,6 +217,8 @@ export function AnswerModal() {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [matchedDecisionUnits, setMatchedDecisionUnits] = useState<DecisionUnit[]>([])
+  // 轨迹弹窗数据：存在顶层，完全脱离 turns 高频更新树，避免 Portal 在 streaming 中 hang
+  const [traceData, setTraceData] = useState<LingSiTraceData | null>(null)
   const [modalHeight, setModalHeight] = useState<number>(() => {
     if (typeof window === 'undefined') return 760
     try {
@@ -1888,6 +1892,7 @@ export function AnswerModal() {
                                   sourceRefs={activeDecisionTrace.sourceRefs ?? []}
                                   productStateDocRefs={activeDecisionTrace.productStateDocRefs ?? []}
                                   isStreaming={isStreaming}
+                                  onOpenTrace={setTraceData}
                                 />
                               )}
                             </div>
@@ -1976,6 +1981,9 @@ export function AnswerModal() {
           <OnboardingCompletePopup onDismiss={() => setShowOnboardingComplete(false)} />
         )}
       </AnimatePresence>
+
+      {/* 决策轨迹弹窗：渲染在顶层，完全脱离 turns 高频更新树，避免 streaming 中 hang */}
+      <LingSiTraceModal data={traceData} onClose={() => setTraceData(null)} />
     </>
   )
 }
