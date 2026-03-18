@@ -11,7 +11,7 @@
  *   LingSiTraceModal    — 轨迹详情弹窗（由 AnswerModal 顶层渲染，脱离 turns 高频更新树）
  */
 
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -316,7 +316,7 @@ export function LingSiTraceModal({
 // 轻量级 inline 面板，只做折叠展示 + 触发 onOpenTrace 回调。
 // 不再持有 Portal，不再操作 document.body.overflow，完全安全在高频渲染树中使用。
 
-export function LingSiTracePanel({
+export const LingSiTracePanel = memo(function LingSiTracePanel({
   mode,
   personaName,
   matchedUnits,
@@ -465,7 +465,7 @@ export function LingSiTracePanel({
       )}
     </div>
   )
-}
+})
 
 function formatDecisionDate(date: string): string {
   try {
@@ -504,7 +504,7 @@ function getDecisionStatusLabel(status: DecisionRecord['status'], t: ReturnType<
   }
 }
 
-export function LingSiDecisionCard({
+export const LingSiDecisionCard = memo(function LingSiDecisionCard({
   record,
   personaName,
   onAdopt,
@@ -676,7 +676,7 @@ export function LingSiDecisionCard({
       )}
     </div>
   )
-}
+})
 
 // ── InputArea ─────────────────────────────────────────────────────────────────
 

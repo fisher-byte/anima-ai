@@ -418,28 +418,34 @@ export const useCanvasStore = create<CanvasState>()(
     } catch { /* ignore */ }
   },
   setOnboardingPhase: (phase) => set({ onboardingPhase: phase }),
-  setLennyDecisionMode: (mode) => set((state) => ({
-    lennyDecisionMode: mode,
-    currentConversation: state.isLennyMode && !state.isPGMode && !state.isZhangMode && !state.isWangMode && state.currentConversation
-      ? {
-          ...state.currentConversation,
-          decisionTrace: mode === 'decision'
-            ? { ...(state.currentConversation.decisionTrace ?? {}), mode: 'decision', personaId: 'lenny' }
-            : { mode: 'normal', personaId: 'lenny' },
-        }
-      : state.currentConversation,
-  })),
-  setZhangDecisionMode: (mode) => set((state) => ({
-    zhangDecisionMode: mode,
-    currentConversation: state.isLennyMode && state.isZhangMode && state.currentConversation
-      ? {
-          ...state.currentConversation,
-          decisionTrace: mode === 'decision'
-            ? { ...(state.currentConversation.decisionTrace ?? {}), mode: 'decision', personaId: 'zhang' }
-            : { mode: 'normal', personaId: 'zhang' },
-        }
-      : state.currentConversation,
-  })),
+  setLennyDecisionMode: (mode) => {
+    if (mode === get().lennyDecisionMode) return
+    set((state) => ({
+      lennyDecisionMode: mode,
+      currentConversation: state.isLennyMode && !state.isPGMode && !state.isZhangMode && !state.isWangMode && state.currentConversation
+        ? {
+            ...state.currentConversation,
+            decisionTrace: mode === 'decision'
+              ? { ...(state.currentConversation.decisionTrace ?? {}), mode: 'decision', personaId: 'lenny' }
+              : { mode: 'normal', personaId: 'lenny' },
+          }
+        : state.currentConversation,
+    }))
+  },
+  setZhangDecisionMode: (mode) => {
+    if (mode === get().zhangDecisionMode) return
+    set((state) => ({
+      zhangDecisionMode: mode,
+      currentConversation: state.isLennyMode && state.isZhangMode && state.currentConversation
+        ? {
+            ...state.currentConversation,
+            decisionTrace: mode === 'decision'
+              ? { ...(state.currentConversation.decisionTrace ?? {}), mode: 'decision', personaId: 'zhang' }
+              : { mode: 'normal', personaId: 'zhang' },
+          }
+        : state.currentConversation,
+    }))
+  },
   openLennyMode: () => set({
     isLennyMode: true,
     isPGMode: false,
