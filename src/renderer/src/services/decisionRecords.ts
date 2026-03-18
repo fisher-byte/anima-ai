@@ -2,7 +2,7 @@ import type { AssistantInvocation, Conversation, DecisionRecord } from '@shared/
 import { STORAGE_FILES } from '@shared/constants'
 
 import { stripLinkedContextHints } from '../utils/conversationUtils'
-import { storageService } from './storageService'
+import { storageService, getAuthToken } from './storageService'
 
 export const DECISION_RECORDS_UPDATED_EVENT = 'anima:decision-records-updated'
 
@@ -35,6 +35,51 @@ const PERSONA_NAME_BY_ID: Record<string, string> = {
   zhang: '张小龙',
   pg: 'Paul Graham',
   wang: '王慧文',
+}
+
+const TAIL_LINES_PER_FILE = 4000
+const MAX_ITEMS_RETURNED = 500
+
+function isElectron(): boolean {
+  return typeof window !== 'undefined' && typeof (window as any).electronAPI !== 'undefined'
+}
+
+async function readStorageMaybeTail(filename: string): Promise<string | null> {
+  if (!isElectron() && typeof fetch !== 'undefined') {
+    try {
+      const token = getAuthToken()
+      const res = await fetch(`/api/storage/${encodeURIComponent(filename)}?tailLines=${TAIL_LINES_PER_FILE}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (res.status === 404) return null
+      if (!res.ok) return null
+      return await res.text()
+    } catch {
+      // fall through to storageService
+    }
+  }
+  return storageService.read(filename)
+}
+
+function* iterJsonlLinesFromEnd(content: string, maxLines: number): Generator<string> {
+  if (!content) return
+  let end = content.length
+  let count = 0
+  // Skip trailing newlines
+  while (end > 0 && content[end - 1] === '\n') end--
+  for (let i = end - 1; i >= 0; i--) {
+    if (content[i] === '\n') {
+      const line = content.slice(i + 1, end).trim()
+      end = i
+      if (line) {
+        yield line
+        count++
+        if (count >= maxLines) return
+      }
+    }
+  }
+  const first = content.slice(0, end).trim()
+  if (first) yield first
 }
 
 function buildInvokedAssistant(source: DecisionSource, decisionRecord?: DecisionRecord): AssistantInvocation | undefined {
@@ -78,11 +123,11 @@ export async function listOngoingDecisionItems(): Promise<OngoingDecisionItem[]>
   const latestByConversationId = new Map<string, OngoingDecisionItem>()
 
   for (const { filename, source } of DECISION_FILES) {
-    const content = await storageService.read(filename)
+    const content = await readStorageMaybeTail(filename)
     if (!content) continue
 
-    const lines = content.split('\n').filter(Boolean)
-    for (const line of lines) {
+    // Parse from the end: recent decisions matter most, and avoids splitting huge JSONL into arrays.
+    for (const line of iterJsonlLinesFromEnd(content, TAIL_LINES_PER_FILE)) {
       try {
         const parsed = JSON.parse(line) as Conversation
         if (!parsed.decisionRecord) continue
@@ -115,7 +160,7 @@ export async function listOngoingDecisionItems(): Promise<OngoingDecisionItem[]>
     }
   }
 
-  return Array.from(latestByConversationId.values()).sort(compareItems)
+  return Array.from(latestByConversationId.values()).sort(compareItems).slice(0, MAX_ITEMS_RETURNED)
 }
 
 export async function listDecisionLedgerItems(): Promise<OngoingDecisionItem[]> {
