@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import decisionUnitsSeed from '../../../seeds/lingsi/decision-units.json'
+import decisionPersonasSeed from '../../../seeds/lingsi/decision-personas.json'
 import decisionProductStateSeed from '../../../seeds/lingsi/decision-product-state.json'
 import {
   buildLingSiDecisionPayloadFromUnits,
@@ -7,9 +8,10 @@ import {
   mergeDecisionTrace,
   shouldInjectDecisionProductState,
 } from '../lingsiDecisionEngine'
-import type { DecisionProductStatePack, DecisionUnit } from '../types'
+import type { DecisionPersona, DecisionProductStatePack, DecisionUnit } from '../types'
 
 const units = decisionUnitsSeed as DecisionUnit[]
+const personas = decisionPersonasSeed as DecisionPersona[]
 const productState = decisionProductStateSeed as DecisionProductStatePack
 
 describe('lingsiDecisionEngine', () => {
@@ -58,13 +60,18 @@ describe('lingsiDecisionEngine', () => {
       {
         personaId: 'lenny',
         personaName: 'Lenny Rachitsky',
+        persona: personas.find(item => item.id === 'lenny'),
       },
     )
     expect(payload.extraContext).toContain('LingSi 决策模式')
+    expect(payload.extraContext).toContain('Persona 决策画像')
+    expect(payload.extraContext).toContain('优先框架')
     expect(payload.decisionTrace.mode).toBe('decision')
     expect(payload.decisionTrace.personaId).toBe('lenny')
     expect(payload.decisionTrace.matchedDecisionUnitIds).toContain('lenny-pricing-start-with-value-metric')
     expect(payload.decisionTrace.sourceRefs?.[0]?.locator).toBeTruthy()
+    expect(payload.decisionTrace.reasoningRoute?.decisionType).toBeTruthy()
+    expect(payload.decisionTrace.reasoningRoute?.chosenFrameworks?.length).toBeGreaterThan(0)
   })
 
   it('injects the product state pack for current-project prompts', () => {
@@ -75,12 +82,13 @@ describe('lingsiDecisionEngine', () => {
       {
         personaId: 'lenny',
         personaName: 'Lenny Rachitsky',
+        persona: personas.find(item => item.id === 'lenny'),
         productState,
       },
     )
     expect(payload.extraContext).toContain('当前产品状态包')
     expect(payload.extraContext).toContain('知识基线')
-    expect(payload.extraContext).toContain('npm run lingsi:state-pack')
+    expect(payload.extraContext).toContain('当前关注')
     expect(payload.extraContext).toContain('anima-base: 083974d')
     expect(payload.decisionTrace.productStateUsed).toBe(true)
     expect(payload.decisionTrace.productStateDocRefs?.length).toBeGreaterThan(0)
@@ -94,6 +102,7 @@ describe('lingsiDecisionEngine', () => {
       {
         personaId: 'lenny',
         personaName: 'Lenny Rachitsky',
+        persona: personas.find(item => item.id === 'lenny'),
         productState,
       },
     )
@@ -109,11 +118,14 @@ describe('lingsiDecisionEngine', () => {
       {
         personaId: 'lenny',
         personaName: 'Lenny Rachitsky',
+        persona: personas.find(item => item.id === 'lenny'),
         productState,
       },
     )
     expect(payload.extraContext).not.toContain('当前产品状态包')
     expect(payload.decisionTrace.productStateUsed).toBeFalsy()
+    expect(payload.decisionTrace.reasoningRoute?.followUpRequired).toBe(true)
+    expect(payload.decisionTrace.reasoningRoute?.keyUnknowns?.length).toBeGreaterThan(0)
   })
 
   it('merges traces without duplicating unit ids', () => {
@@ -154,6 +166,7 @@ describe('lingsiDecisionEngine', () => {
     expect(payload.decisionTrace.matchedDecisionUnitIds?.some(id => id.startsWith('zhang-'))).toBe(true)
     expect(payload.decisionTrace.matchedDecisionUnitIds?.some(id => id.startsWith('lenny-'))).toBe(false)
     expect(payload.extraContext).toContain('以 张小龙 的方式回答')
+    expect(payload.decisionTrace.reasoningRoute?.chosenFrameworks).toContain('scene-before-feature')
   })
 
   it('matches Zhang restraint prompts to Zhang-only governance units', () => {

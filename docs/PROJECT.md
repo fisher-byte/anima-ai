@@ -1,21 +1,22 @@
 # Anima — 项目计划
 
 > 唯一入口：每次发版、每次决策都在这里留记录。
-> 最后更新：2026-03-18 | 当前版本：v0.5.25
+> 最后更新：2026-03-18 | 当前版本：v0.5.26
 
 ---
 
-## 当前冲刺（v0.5.25 已完成）
+## 当前冲刺（v0.5.26 进行中）
 
-*本轮收口的是“历史对话窗里的 persona 决策调用体验”：内部关联空间提示不再污染用户输入和轨迹判断，产品状态 fallback 也只保留真正与当前 persona 相关、用户看得懂的依据。*
+*本轮正式把 LingSi 往“完整决策系统”推进：不再只靠案例和 prompt，而是开始引入 persona 心理画像、决策协议与结构化决策对象。*
 
 | # | 任务 | 状态 | 说明 |
 |---|------|------|------|
-| 1 | 历史对话重发去内部提示 | 已完成 | 历史窗里的编辑、复制、重发与再次发送会先剥离 `【已关联空间：...】`，避免用户看到内部提示，也避免历史重发链路因增强提示而偏离原问题 |
-| 2 | 产品状态误触发修复 | 已完成 | `@persona` 决策请求在做 state-pack 注入判断前会去掉关联空间提示，并忽略 `@ / mention / space / 卡片 / badge` 这类低信号词，避免职业/泛问题误落到当前项目状态包 |
-| 3 | persona 相关性过滤 | 已完成 | Lenny 的 fallback 不再展示“张小龙决策评测基线”，用户可见状态依据也不再直接暴露 `LingSi 飞轮` 这类内部闭环文档 |
-| 4 | 历史窗顶部视觉收敛 | 已完成 | 可拖拽调高功能保留，但顶部横线改成悬浮小手柄，减少视觉噪音 |
-| 5 | 文档与发布收口 | 已完成 | 已完成 docs 同步、review、`npm run typecheck`、`npm test`、`npm run build`、`npm run test:e2e`，并准备按 `v0.5.25` 部署收口 |
+| 1 | V2 总体设计文档 | 已完成 | 新增 `docs/lingsi-v2-decision-system.md`，明确四层能力：persona profile / decision protocol / decision object / closed-loop learning |
+| 2 | persona 心理学画像方案 | 已完成 | 采用 `Big Five + Jungian Archetypes + Decision Style + Bias Risks` 混合框架；心理学用于解构 persona 的决策偏好，不做用户人格诊断 |
+| 3 | persona profile 数据层落地 | 已完成 | `decision-personas.json` 已为 `Lenny / 张小龙` 补齐 profile，包含 `bigFive / jungianArchetypes / decisionStyle / biasRisks / questionProtocol` |
+| 4 | 决策协议基础接入 | 已完成 | `lingsiDecisionEngine.ts` 已开始显式判断 `decisionType / stage / keyUnknowns / chosenFrameworks / followUpRequired`，并写入 `decisionTrace.reasoningRoute` |
+| 5 | v2 schema/type 基线 | 已完成 | `DecisionPersona.profile`、`DecisionTrace.reasoningRoute`、`DecisionRecord` 已进入 `/src/shared/types.ts`，为下一阶段实现留稳定接口 |
+| 6 | 文档与发布收口 | 进行中 | 正在同步 changelog / ROADMAP / testing / dev-guide / review report，并准备跑 full test、build、e2e、deploy 与 GitHub 备份 |
 
 ---
 
@@ -85,14 +86,14 @@
 
 ## 下一阶段（v0.5.26 计划）
 
-*下一阶段不再优先堆更多 persona，而是把“决策建议 -> 采纳 -> 结果回流”闭环做成用户能感知的爆点。*
+*下一阶段正式进入完整决策系统 v2 的第一段实现：先把“更像 Lenny / 更像张小龙”的判断协议做出来，而不是继续只靠案例和 prompt。*
 
 | # | 任务 | 状态 | 说明 |
 |---|------|------|------|
-| 1 | 决策采纳闭环 | 待做 | 给决策回答增加“采纳这条建议 / 设提醒 / 回访结果”链路，把灵思从“聪明回答”推进到“可执行决策操作系统” |
-| 2 | persona case-based eval 扩展 | 待做 | 在张小龙基线之外继续扩更多 persona / 更多题型，并把主页 `@persona` 纳入统一评测套件 |
-| 3 | 持续同步 anima-base 增量 | 待做 | 保持 `anima-base` 独立仓库持续同步，优先筛选高价值 Lenny / 张小龙决策案例进入人工审核链路 |
-| 4 | 决策轨迹视图增强 | 待做 | 把 trace 里的“为什么这样建议 / 你该先做什么 / 之后怎么回看”做成更可复盘的操作视图，而不是只看证据卡片 |
+| 1 | Lenny / 张小龙决策协议层 | 待做 | 把“先判断还是先追问、怎么分阶段、怎么给 kill criteria”做成显式协议，不再只依赖 prompt 自由发挥 |
+| 2 | persona 心理学画像接入 | 待做 | 让 `DecisionPersona.profile` 真正进入 `extraContext` / reasoningRoute 链路，先服务 `Lenny / 张小龙` |
+| 3 | 结构化决策对象 | 待做 | 让回答前先生成 `DecisionRecord draft`，为回放、采纳和回访打底 |
+| 4 | 决策采纳闭环 | 待做 | 给决策回答增加“采纳这条建议 / 设提醒 / 回访结果”链路，把灵思从“聪明回答”推进到“可执行决策操作系统” |
 
 
 ### 范围判断

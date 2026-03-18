@@ -2,6 +2,14 @@
 
 ## 计划中版本
 
+#### v0.5.26 - LingSi complete decision system v2（设计完成，开始落地）
+- [x] `docs/lingsi-v2-decision-system.md`：补齐完整决策系统 v2 设计，明确四层能力：persona profile / decision protocol / decision object / closed-loop learning
+- [x] `src/shared/types.ts`：新增 `DecisionPersonaProfile`、`DecisionTrace.reasoningRoute`、`DecisionRecord`，把 v2 的骨架先进入共享类型
+- [x] 方案收敛：心理学层采用 `Big Five + Jungian Archetypes + Decision Style + Bias Risks` 混合框架，用于解构 persona 的决策偏好，不做用户人格诊断
+- [ ] `Lenny / 张小龙` 决策协议层：把“何时先追问、何时先给判断、如何给 kill criteria”从 prompt 提示升级成显式协议
+- [ ] `DecisionRecord` 持久化：回答前先生成结构化决策对象，回答后再渲染成自然语言
+- [ ] 决策采纳闭环：补“采纳建议 / 回访结果 / 反哺 candidate unit & eval case”
+
 #### v0.5.25 - Linked context sanitization + trace relevance polish（已完成）
 - [x] `AnswerModal.tsx` / `conversationUtils.ts`：历史对话里的编辑、复制、重发与再次发送都会剥离 `【已关联空间：...】` 这类内部提示，避免用户在历史窗里看到内部增强提示，也避免重发链路被污染
 - [x] `lingsiDecisionEngine.ts`：Decision matching 与产品状态包注入前会先去掉关联空间提示，并忽略 `@ / mention / space / 卡片 / badge` 等低信号关键词，修复 `@Lenny` 泛问题误触发产品状态包

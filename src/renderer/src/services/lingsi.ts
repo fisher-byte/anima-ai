@@ -6,10 +6,11 @@ import {
   BUNDLED_DECISION_UNITS,
 } from '@shared/lingsiSeedData'
 import { buildLingSiDecisionPayloadFromUnits, mergeDecisionTrace } from '@shared/lingsiDecisionEngine'
-import type { DecisionMode, DecisionProductStatePack, DecisionTrace, DecisionUnit } from '@shared/types'
+import type { DecisionMode, DecisionPersona, DecisionProductStatePack, DecisionTrace, DecisionUnit } from '@shared/types'
 import { storageService } from './storageService'
 
 let seedPromise: Promise<void> | null = null
+let cachedPersonas: DecisionPersona[] | null = null
 let cachedUnits: DecisionUnit[] | null = null
 let cachedProductState: DecisionProductStatePack | null = null
 
@@ -26,7 +27,7 @@ export async function ensureLingSiStorageSeeded(): Promise<void> {
 
     if (personasRaw && manifestRaw && productStateRaw && unitsRaw) {
       try {
-        JSON.parse(personasRaw)
+        cachedPersonas = JSON.parse(personasRaw) as DecisionPersona[]
         JSON.parse(manifestRaw)
         cachedProductState = JSON.parse(productStateRaw) as DecisionProductStatePack
         cachedUnits = JSON.parse(unitsRaw) as DecisionUnit[]
@@ -42,6 +43,7 @@ export async function ensureLingSiStorageSeeded(): Promise<void> {
       storageService.write(STORAGE_FILES.DECISION_PRODUCT_STATE, JSON.stringify(BUNDLED_DECISION_PRODUCT_STATE, null, 2)),
       storageService.write(STORAGE_FILES.DECISION_UNITS, JSON.stringify(BUNDLED_DECISION_UNITS, null, 2)),
     ])
+    cachedPersonas = BUNDLED_DECISION_PERSONAS
     cachedProductState = BUNDLED_DECISION_PRODUCT_STATE
     cachedUnits = BUNDLED_DECISION_UNITS
   })()
@@ -69,6 +71,24 @@ export async function loadDecisionUnits(personaId?: string): Promise<DecisionUni
     cachedUnits = BUNDLED_DECISION_UNITS
   }
   return personaId ? cachedUnits.filter(unit => unit.personaId === personaId) : cachedUnits
+}
+
+export async function loadDecisionPersonas(): Promise<DecisionPersona[]> {
+  if (cachedPersonas) return cachedPersonas
+
+  await ensureLingSiStorageSeeded()
+  const raw = await storageService.read(STORAGE_FILES.DECISION_PERSONAS)
+  if (!raw) {
+    cachedPersonas = BUNDLED_DECISION_PERSONAS
+    return cachedPersonas
+  }
+
+  try {
+    cachedPersonas = JSON.parse(raw) as DecisionPersona[]
+  } catch {
+    cachedPersonas = BUNDLED_DECISION_PERSONAS
+  }
+  return cachedPersonas
 }
 
 export async function loadDecisionProductState(): Promise<DecisionProductStatePack> {
@@ -100,9 +120,11 @@ export async function buildLingSiDecisionPayload(
   extraContext?: string
   decisionTrace: DecisionTrace
 }> {
-  const [units, productState] = await Promise.all([loadDecisionUnits(), loadDecisionProductState()])
+  const [units, personas, productState] = await Promise.all([loadDecisionUnits(), loadDecisionPersonas(), loadDecisionProductState()])
+  const persona = options?.personaId ? personas.find(item => item.id === options.personaId) : undefined
   return buildLingSiDecisionPayloadFromUnits(query, mode, units, {
     ...options,
+    persona,
     productState,
   })
 }
