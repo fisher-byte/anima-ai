@@ -2,6 +2,13 @@
 
 ## 计划中版本
 
+#### v0.5.20 - Product state pack + decision context sync（已完成）
+- [x] `seeds/lingsi/decision-product-state.json`：新增结构化产品状态包，沉淀当前版本、完成项、风险、评测结果与待决策
+- [x] `constants.ts` / `main/index.ts` / `lingsiSeedData.ts` / `services/lingsi.ts`：把 `decision-product-state.json` 接入 storage 白名单、bundled seed 与首次写入/读取链路
+- [x] `lingsiDecisionEngine.ts`：新增“当前项目问题”识别与状态包注入逻辑；仅对 `Anima / 首页 / @ / 轨迹 / 决策模式` 等当前项目问题注入，避免污染泛问题
+- [x] `lingsi.test.ts` / `lingsiDecisionEngine.test.ts` / `lingsiProductState.test.ts`：补充状态包注入、过滤与 seed 基线测试
+- [x] 验证：`npm run lingsi:extract`（`2 personas / 37 sources / 59 approved units`）、`npm run lingsi:evaluate`（`decision 15 : normal 0`）、`npm run lingsi:evaluate:zhang`（`decision 6 : normal 0 : tie 1`）、`npm test`（597/597）、`npm run typecheck`、`npm run build`、`npm run test:e2e`（44 passed / 4 skipped）、deploy
+
 #### v0.5.19 - Decision UX + flywheel + latest source sync（已完成）
 - [x] `Canvas.tsx`：首页 Lenny / 张小龙卡片改为 badge 绝对定位，标题完整显示，不再被 `决策` 标签挤压或截断
 - [x] `InputBox.tsx` / `inputMentions.ts`：主页 `@persona` 对支持决策的 persona 改成 decision-only suggestion，不再暴露普通模式；token 文本保持纯 `@名字`

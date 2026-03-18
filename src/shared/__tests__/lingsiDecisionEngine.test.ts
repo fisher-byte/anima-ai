@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import decisionUnitsSeed from '../../../seeds/lingsi/decision-units.json'
+import decisionProductStateSeed from '../../../seeds/lingsi/decision-product-state.json'
 import {
   buildLingSiDecisionPayloadFromUnits,
   matchDecisionUnits,
   mergeDecisionTrace,
+  shouldInjectDecisionProductState,
 } from '../lingsiDecisionEngine'
-import type { DecisionUnit } from '../types'
+import type { DecisionProductStatePack, DecisionUnit } from '../types'
 
 const units = decisionUnitsSeed as DecisionUnit[]
+const productState = decisionProductStateSeed as DecisionProductStatePack
 
 describe('lingsiDecisionEngine', () => {
   it('matches expected units for aligned prompts', () => {
@@ -64,6 +67,35 @@ describe('lingsiDecisionEngine', () => {
     expect(payload.decisionTrace.sourceRefs?.[0]?.locator).toBeTruthy()
   })
 
+  it('injects the product state pack for current-project prompts', () => {
+    const payload = buildLingSiDecisionPayloadFromUnits(
+      'Anima 现在主页上的 @persona 决策入口和查看轨迹设计，你觉得还应该怎么改？',
+      'decision',
+      units,
+      {
+        personaId: 'lenny',
+        personaName: 'Lenny Rachitsky',
+        productState,
+      },
+    )
+    expect(payload.extraContext).toContain('当前产品状态包')
+    expect(payload.extraContext).toContain('主页 @persona 对支持决策的 persona 已改成 decision-only')
+  })
+
+  it('does not inject the product state pack for unrelated generic prompts', () => {
+    const payload = buildLingSiDecisionPayloadFromUnits(
+      '我们给 B2B AI 工具按 seat 还是按使用量收费？',
+      'decision',
+      units,
+      {
+        personaId: 'lenny',
+        personaName: 'Lenny Rachitsky',
+        productState,
+      },
+    )
+    expect(payload.extraContext).not.toContain('当前产品状态包')
+  })
+
   it('merges traces without duplicating unit ids', () => {
     const first = buildLingSiDecisionPayloadFromUnits('路线图优先级怎么排？', 'decision', units, { personaId: 'lenny' }).decisionTrace
     const second = buildLingSiDecisionPayloadFromUnits('路线图优先级还是用 RICE 吗？', 'decision', units, { personaId: 'lenny' }).decisionTrace
@@ -117,5 +149,11 @@ describe('lingsiDecisionEngine', () => {
     )
     expect(payload.decisionTrace.matchedDecisionUnitIds).toContain('zhang-no-tips-means-the-interaction-is-natural')
     expect(payload.decisionTrace.matchedDecisionUnitIds?.some(id => id.startsWith('lenny-'))).toBe(false)
+  })
+
+  it('detects whether a prompt should receive the product state pack', () => {
+    expect(shouldInjectDecisionProductState('Anima 首页 Space 卡片和决策轨迹还有什么交互问题？', productState)).toBe(true)
+    expect(shouldInjectDecisionProductState('企业软件怎么缩短续费反馈回路？', productState)).toBe(false)
+    expect(shouldInjectDecisionProductState('这个功能交互不好，该怎么设计？', productState)).toBe(false)
   })
 })

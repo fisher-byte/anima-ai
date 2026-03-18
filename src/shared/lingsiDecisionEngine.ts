@@ -1,4 +1,10 @@
-import type { DecisionMode, DecisionSourceRef, DecisionTrace, DecisionUnit } from './types'
+import type {
+  DecisionMode,
+  DecisionProductStatePack,
+  DecisionSourceRef,
+  DecisionTrace,
+  DecisionUnit,
+} from './types'
 
 const MAX_MATCHED_UNITS = 3
 const MAX_TRACE_SOURCES = 5
@@ -107,6 +113,43 @@ export function buildDecisionExtraContext(
   return [...header, '命中的 DecisionUnit：', ...unitBlocks].join('\n\n')
 }
 
+function buildDecisionProductStateContext(
+  productState: DecisionProductStatePack,
+  personaId?: string,
+): string {
+  const scopedPersonaId = personaId === 'lenny' || personaId === 'zhang' ? personaId : undefined
+  const personaFocus = scopedPersonaId && productState.personaFocus?.[scopedPersonaId]
+    ? productState.personaFocus[scopedPersonaId]
+    : []
+
+  const sections = [
+    '【当前产品状态包】',
+    `版本：${productState.version}`,
+    `摘要：${productState.summary}`,
+    `最近完成：${productState.completedChanges.slice(0, 4).map(item => `- ${item}`).join('\n')}`,
+    `当前关注：${productState.currentFocus.slice(0, 3).map(item => `- ${item}`).join('\n')}`,
+    `已验证方向：${productState.validatedDirections.slice(0, 3).map(item => `- ${item}`).join('\n')}`,
+    `已知风险：${productState.knownRisks.slice(0, 3).map(item => `- ${item}`).join('\n')}`,
+    `评测结果：${Object.values(productState.evalSummary).map((item) => `- ${item}`).join('\n')}`,
+    `待决策：${productState.nextDecisions.slice(0, 3).map(item => `- ${item}`).join('\n')}`,
+    personaFocus.length > 0
+      ? `当前 persona 视角：${personaFocus.slice(0, 2).map(item => `- ${item}`).join('\n')}`
+      : undefined,
+    `参考文档：${productState.docRefs.join('、')}`,
+  ]
+
+  return sections.filter(Boolean).join('\n\n')
+}
+
+export function shouldInjectDecisionProductState(
+  query: string,
+  productState: DecisionProductStatePack | undefined,
+): boolean {
+  if (!productState) return false
+  const normalizedQuery = normalizeText(query)
+  return productState.keywords.some(keyword => normalizedQuery.includes(normalizeText(keyword)))
+}
+
 export function buildDecisionTrace(mode: DecisionMode, matchedUnits: DecisionUnit[], personaId?: string): DecisionTrace {
   if (mode === 'normal') return { mode: 'normal', personaId }
   return {
@@ -124,6 +167,7 @@ export function buildLingSiDecisionPayloadFromUnits(
   options?: {
     personaId?: string
     personaName?: string
+    productState?: DecisionProductStatePack
   },
 ): {
   extraContext?: string
@@ -137,8 +181,13 @@ export function buildLingSiDecisionPayloadFromUnits(
     ? units.filter(unit => unit.personaId === options.personaId)
     : units
   const matchedUnits = matchDecisionUnits(query, scopedUnits)
+  const shouldInjectProductState = shouldInjectDecisionProductState(query, options?.productState)
+  const productStateContext = shouldInjectProductState && options?.productState
+    ? buildDecisionProductStateContext(options.productState, options.personaId)
+    : undefined
+  const decisionContext = buildDecisionExtraContext(query, matchedUnits, options?.personaName)
   return {
-    extraContext: buildDecisionExtraContext(query, matchedUnits, options?.personaName),
+    extraContext: [productStateContext, decisionContext].filter(Boolean).join('\n\n'),
     decisionTrace: buildDecisionTrace('decision', matchedUnits, options?.personaId),
   }
 }

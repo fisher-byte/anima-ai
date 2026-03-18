@@ -174,6 +174,26 @@ export interface DecisionSourceManifestEntry {
 }
 
 /**
+ * 面向当前产品/版本状态的轻量状态包
+ * 用于让支持决策模式的 persona 在回答当前项目问题时具备同一套事实基线
+ */
+export interface DecisionProductStatePack {
+  id: string
+  version: string
+  updatedAt: string
+  summary: string
+  keywords: string[]
+  completedChanges: string[]
+  currentFocus: string[]
+  validatedDirections: string[]
+  knownRisks: string[]
+  nextDecisions: string[]
+  evalSummary: Partial<Record<'lenny' | 'zhang', string>>
+  personaFocus?: Partial<Record<'lenny' | 'zhang', string[]>>
+  docRefs: string[]
+}
+
+/**
  * 单轮对话中灵思决策模式的命中信息
  */
 export interface DecisionTrace {

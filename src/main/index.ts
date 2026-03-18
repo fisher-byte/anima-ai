@@ -30,6 +30,7 @@ const ALLOWED_FILENAMES = [
   'decision-personas.json',
   'decision-units.json',
   'decision-source-manifest.json',
+  'decision-product-state.json',
   'settings.json',
   'semantic-edges.json',
   'logical-edges.json',

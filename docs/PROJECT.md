@@ -1,24 +1,22 @@
 # Anima — 项目计划
 
 > 唯一入口：每次发版、每次决策都在这里留记录。
-> 最后更新：2026-03-18 | 当前版本：v0.5.19
+> 最后更新：2026-03-18 | 当前版本：v0.5.20
 
 ---
 
-## 当前冲刺（v0.5.19 已完成）
+## 当前冲刺（v0.5.20 已完成）
 
-*本轮把 LingSi 前台表达和稳定性继续收口：统一用户可见命名为“决策”，主页 persona 调用改成 decision-only，同步最新 Lenny / 张小龙来源，并补上产品飞轮文档。*
+*本轮把飞轮文档真正落到链路里：新增结构化产品状态包，并让 Lenny / 张小龙在回答当前项目问题时共享这套事实基线。*
 
 | # | 任务 | 状态 | 说明 |
 |---|------|------|------|
-| 1 | 首页 persona 卡片样式修复 | 已完成 | `Canvas.tsx` 改为 badge 绝对定位，标题支持完整显示，不再被 `决策` 标签挤压或截断 |
-| 2 | 主页 `@persona` 决策单轨化 | 已完成 | 支持决策模式的 persona 在主页 `@` 联想中只暴露决策版本，输入框 token 保持普通名字显示，但内部 metadata 仍记录 `mode='decision'` |
-| 3 | 决策命名澄清 | 已完成 | 前端用户可见文案从 `灵思` 统一为 `决策`，降低首次理解成本；系统内部仍保留 `LingSi` 作为工程名 |
-| 4 | 决策轨迹稳定性修复 | 已完成 | `查看轨迹` 在流式生成期间禁用；trace modal 改为 portal 渲染，并拆掉嵌套 button，避免页面卡死 |
-| 5 | anima-base 最新同步 | 已完成 | 已同步 `anima-base@a6c1078`，把最新 Lenny AI eval / velocity 与张小龙产品哲学 / 组织领导材料纳入人工审核链路 |
-| 6 | DecisionUnit 扩充 | 已完成 | `seeds/lingsi` 刷新到 `2 personas / 37 sources / 59 approved units`，其中 `lenny=37`、`zhang=22` |
-| 7 | Flywheel 文档补齐 | 已完成 | 新增 `docs/lingsi-flywheel.md`，定义产品状态包、persona 消费链路、人工审核与评测闭环 |
-| 8 | SOP 闭环 | 已完成 | 已完成 live eval、文档同步、code review、GitHub 备份、部署验证与本地/线上健康检查 |
+| 1 | 产品状态包资产落地 | 已完成 | 新增 `seeds/lingsi/decision-product-state.json`，沉淀当前版本、已完成改动、已验证方向、风险、评测结果与待决策项 |
+| 2 | Storage / bundled seed 接入 | 已完成 | `decision-product-state.json` 已加入 storage 白名单、bundled seed 导出和首次写入链路 |
+| 3 | 决策链路接入状态包 | 已完成 | `buildLingSiDecisionPayload` 现在会在“当前项目 / 当前版本 / 首页 / @ / 轨迹”等问题上自动注入产品状态包 |
+| 4 | Space / 主页 @persona 统一 | 已完成 | Space 内决策模式与主页 `@persona` 决策调用共享同一套产品事实基线，不再只依赖用户手工补上下文 |
+| 5 | 测试补齐 | 已完成 | 新增 `lingsiProductState.test.ts`，并补 service / engine 断言，确保状态包只在当前项目问题上注入 |
+| 6 | 文档与发布收口 | 已完成 | 已完成 docs 同步、full test / build / e2e、code review、GitHub 备份与服务器部署验证 |
 
 ---
 
@@ -56,7 +54,7 @@
 | 3 | 遗留 eval 产物规范化 | 已完成 | 重新生成 `docs/lingsi-eval-m4.md` / `reports/lingsi-m4-eval.json`，当前 Lenny 基线为 `decision 14 : normal 1` |
 | 4 | 发布收口 | 已完成 | 已完成版本号同步、文档同步、full test / typecheck / build / e2e、code review、GitHub 备份与服务器部署验证 |
 
-## 下一阶段（v0.5.20 计划）
+## 下一阶段（v0.5.21 计划）
 
 *继续把 persona 评测体系和主页决策调用做得更稳。*
 

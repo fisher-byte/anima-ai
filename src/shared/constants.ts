@@ -8,7 +8,7 @@
  * 应用信息
  */
 export const APP_NAME = 'Anima'
-export const APP_VERSION = '0.5.19'
+export const APP_VERSION = '0.5.20'
 
 /**
  * 存储文件名
@@ -20,6 +20,7 @@ export const STORAGE_FILES = {
   DECISION_PERSONAS: 'decision-personas.json',
   DECISION_UNITS: 'decision-units.json',
   DECISION_SOURCE_MANIFEST: 'decision-source-manifest.json',
+  DECISION_PRODUCT_STATE: 'decision-product-state.json',
   SEMANTIC_EDGES: 'semantic-edges.json',
   LOGICAL_EDGES: 'logical-edges.json',
   LENNY_NODES: 'lenny-nodes.json',
@@ -537,6 +538,7 @@ export const ALLOWED_FILENAMES = [
   'decision-personas.json',
   'decision-units.json',
   'decision-source-manifest.json',
+  'decision-product-state.json',
   'settings.json',
   'semantic-edges.json',
   'logical-edges.json',
