@@ -6,6 +6,8 @@
 - `src/renderer/src/components/DecisionHubPanel.tsx` / `src/renderer/src/components/Canvas.tsx`：主页新增 `决策追踪` 面板，把 LingSi 闭环收敛成“今天该回访 / 进行中 / 验证台账”三层，不再只靠回答下方卡片推进
 - `src/renderer/src/components/AnswerModalSubcomponents.tsx` / `src/renderer/src/components/AnswerModal.tsx`：决策回访结果现在支持记录备注，并把结果一起写回 `DecisionRecord.outcome.notes`
 - `src/renderer/src/services/decisionRecords.ts`：进行中决策聚合新增 `isDue / adoptedAt / result / notes` 等字段，并补充验证台账排序逻辑
+- `src/renderer/src/services/decisionRecords.ts` / `src/server/routes/storage.ts`：为超大 `conversations.jsonl` 增加 `tailLines` 读取能力（`GET /api/storage/:filename?tailLines=N`），并在决策聚合侧只解析末尾行，修复点击「采纳/回访」后主线程解析全量 JSONL 导致页面卡死的问题
+- `src/renderer/src/components/AnswerModal.tsx`：LingSi inline citation（`#lingsi-source-*`）改为不写入 URL hash，避免 hash 变化与折叠/卸载锚点元素叠加时造成页面卡死
 - `src/renderer/src/components/__tests__/DecisionHubPanel.test.tsx` / `src/renderer/src/services/__tests__/decisionRecords.test.ts`：补充回访提醒、验证台账和结果备注相关回归测试
 
 **测试与验证：**
