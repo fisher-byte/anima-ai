@@ -162,7 +162,7 @@ export async function listOngoingDecisionItems(): Promise<OngoingDecisionItem[]>
         }
 
         const existing = latestByConversationId.get(entry.conversationId)
-        if (!existing || compareItems(item, existing) < 0) {
+        if (!existing || new Date(item.updatedAt) > new Date(existing.updatedAt)) {
           latestByConversationId.set(entry.conversationId, item)
         }
       } catch {
@@ -212,7 +212,7 @@ export async function listOngoingDecisionItems(): Promise<OngoingDecisionItem[]>
         }
 
         const existing = latestByConversationId.get(conv.id)
-        if (!existing || compareItems(item, existing) < 0) {
+        if (!existing || new Date(item.updatedAt) > new Date(existing.updatedAt)) {
           latestByConversationId.set(conv.id, item)
         }
       } catch {
