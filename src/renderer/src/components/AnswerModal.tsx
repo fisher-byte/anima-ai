@@ -219,6 +219,8 @@ export function AnswerModal() {
   const [matchedDecisionUnits, setMatchedDecisionUnits] = useState<DecisionUnit[]>([])
   // 轨迹弹窗数据：存在顶层，完全脱离 turns 高频更新树，避免 Portal 在 streaming 中 hang
   const [traceData, setTraceData] = useState<LingSiTraceData | null>(null)
+  // P2: stable callback reference — prevents useEffect in LingSiTraceModal from re-running every SSE token
+  const handleTraceClose = useCallback(() => setTraceData(null), [])
   const [modalHeight, setModalHeight] = useState<number>(() => {
     if (typeof window === 'undefined') return 760
     try {
@@ -1484,6 +1486,7 @@ export function AnswerModal() {
       setDeepSearchState(null)
       setShowXPulse(false)
       setOnboardingDone(false)
+      setTraceData(null)  // P1: clear stale trace data between conversations
 
       if (onboardingCompleted) {
         // 引导全量完成：将每段真实对话独立保存为节点
@@ -1983,7 +1986,7 @@ export function AnswerModal() {
       </AnimatePresence>
 
       {/* 决策轨迹弹窗：渲染在顶层，完全脱离 turns 高频更新树，避免 streaming 中 hang */}
-      <LingSiTraceModal data={traceData} onClose={() => setTraceData(null)} />
+      <LingSiTraceModal data={traceData} onClose={handleTraceClose} />
     </>
   )
 }

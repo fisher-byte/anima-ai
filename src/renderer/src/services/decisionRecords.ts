@@ -64,7 +64,14 @@ async function readStorageMaybeTail(filename: string): Promise<string | null> {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       if (res.status === 404) return null
-      if (!res.ok) return null
+      if (res.status === 401) {
+        console.warn(`[decisionRecords] auth error reading ${filename} — token may be expired`)
+        return null
+      }
+      if (!res.ok) {
+        console.warn(`[decisionRecords] unexpected ${res.status} reading ${filename}`)
+        return null
+      }
       return await res.text()
     } catch {
       // fall through to storageService
