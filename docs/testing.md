@@ -1,6 +1,6 @@
 # Anima 测试手册
 
-*最后更新: 2026-03-18 | 版本: v0.5.27*
+*最后更新: 2026-03-18 | 版本: v0.5.28*
 
 ## 测试策略
 
@@ -20,6 +20,7 @@
   - `buildAIHistory`：空消息过滤、用户/AI 交替构建
 - ✅ `services/ai.ts` — 前端 AI 服务（20 个用例）
 - ✅ `services/lingsi.ts` — LingSi seed 初始化、加载与 persona 过滤（3 个用例）
+- ✅ `services/decisionRecords.ts` — 进行中决策聚合与 persona 元数据补全（1 个用例）
 - ✅ `canvasStore.nodeConsolidation.test.ts` — 节点聚合逻辑（25 个用例）
   - 节点合并阈值、相似度判断、聚合后数据一致性
 - ✅ `canvasStore.lennyMode.test.ts` — Lenny Space 模式（19 个用例）
@@ -47,8 +48,9 @@
   - 支持决策的 persona 在主页 `@` 中只暴露决策 suggestion，但输入框只展示纯 `@名字`
 - ✅ `personaSpaces.test.ts` — 主页 persona mode 解析（3 个用例）
   - Space toggle / homepage `invokedAssistant` / `decisionTrace` 三种 mode 来源的优先级
-- ✅ `AnswerModalSubcomponents.test.tsx` — 决策轨迹面板稳定性（1 个用例）
+- ✅ `AnswerModalSubcomponents.test.tsx` — 决策卡与轨迹面板稳定性（4 个用例）
   - streaming 中禁用 `查看轨迹`，避免流式阶段打开 trace modal 导致卡死
+  - `Decision Card` 渲染建议摘要、采纳 CTA 与回访时间快捷入口
 - ✅ `lingsiProductState.test.ts` — 产品状态包基线（1 个用例）
   - 当前版本、docRefs、personaFocus 与 shipped state pack 保持一致
 - ✅ `lingsiProductStateHelpers.test.ts` — 产品状态包生成辅助函数（3 个用例）
@@ -109,13 +111,15 @@ npm run test:watch    # 监听模式（开发时用）
 
 - ✅ `memory.test.ts` — 记忆路由集成测试（含 FTS5 trigger、引用块过滤、decayPreferences、语义边 by-id）
 
-**总测试数**: **608 个用例，31 个测试文件，全部通过**
+**总测试数**: **611 个用例，32 个测试文件，全部通过**
 
 ---
 
 ### 3. E2E 测试 (Playwright)
 
 **框架**：`@playwright/test ^1.58.2`，配置文件 `playwright.config.ts`
+
+**当前基线**：`48` 个用例，`45 passed / 3 skipped`
 
 **运行命令**：
 ```bash

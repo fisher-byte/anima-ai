@@ -39,6 +39,7 @@ import { ClusterLabel } from './ClusterLabel'
 import { useToast } from './GlobalUI'
 import { TimelineView } from './TimelineView'
 import { getAuthToken } from '../services/storageService'
+import { DECISION_RECORDS_UPDATED_EVENT, listOngoingDecisionItems, type OngoingDecisionItem } from '../services/decisionRecords'
 import { useT } from '../i18n'
 import type { Node as CanvasNode } from '@shared/types'
 
@@ -172,6 +173,7 @@ export function Canvas() {
   // 订阅 profile.rules 长度，用于进化基因红点（不用节点数量，避免虚触发）
   const profileRulesCount = useCanvasStore(state => state.profile?.rules?.length ?? 0)
   const customSpaces = useCanvasStore(state => state.customSpaces)
+  const openModal = useCanvasStore(state => state.openModal)
 
   // 空画布欢迎语（个性化，当天缓存）
   const [welcomeText, setWelcomeText] = useState<string | null>(null)
@@ -384,8 +386,30 @@ export function Canvas() {
   const [isSpacesSidebarVisible, setIsSpacesSidebarVisible] = useState(() => {
     return localStorage.getItem('evo_spaces_sidebar_visible') !== 'false'
   })
+  const [ongoingDecisions, setOngoingDecisions] = useState<OngoingDecisionItem[]>([])
   const prevNodeCountRef = useRef(0)
   const prevRulesCountRef = useRef(profileRulesCount)
+
+  useEffect(() => {
+    let cancelled = false
+
+    const load = async () => {
+      const items = await listOngoingDecisionItems()
+      if (!cancelled) setOngoingDecisions(items.slice(0, 4))
+    }
+
+    void load()
+
+    const handleDecisionUpdate = () => {
+      void load()
+    }
+
+    window.addEventListener(DECISION_RECORDS_UPDATED_EVENT, handleDecisionUpdate)
+    return () => {
+      cancelled = true
+      window.removeEventListener(DECISION_RECORDS_UPDATED_EVENT, handleDecisionUpdate)
+    }
+  }, [])
 
   // 节点数量增加时做物理 kick；初始加载启动公转动画
   // （红点改为由进化基因规则数量变化触发，不再与节点数绑定）
@@ -791,6 +815,25 @@ export function Canvas() {
     Promise.resolve().then(() => { isLocalWriteRef.current = false })
   }, [setOffset, setScale])
 
+  const formatDecisionDue = useCallback((date?: string) => {
+    if (!date) return t.canvas.ongoingDecisionNoDate
+    try {
+      return new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric' }).format(new Date(date))
+    } catch {
+      return date
+    }
+  }, [t.canvas])
+
+  const getDecisionStatusLabel = useCallback((status: OngoingDecisionItem['decisionRecord']['status']) => {
+    switch (status) {
+      case 'revisited':
+        return t.canvas.ongoingDecisionStatusRevisited
+      case 'adopted':
+      default:
+        return t.canvas.ongoingDecisionStatusActive
+    }
+  }, [t.canvas])
+
   return (
     <ForceSimContext.Provider value={forceSim}>
     <>
@@ -1155,6 +1198,54 @@ export function Canvas() {
           </div>
           <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
         </motion.button>
+
+        <div className="mt-2 w-[196px] rounded-2xl border border-gray-100 bg-white/85 px-3 py-3 shadow-sm backdrop-blur-md">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400">
+                {t.canvas.ongoingDecisions}
+              </div>
+              <div className="mt-1 text-[11px] text-gray-500">
+                {ongoingDecisions.length > 0
+                  ? t.canvas.ongoingDecisionsCount(ongoingDecisions.length)
+                  : t.canvas.ongoingDecisionsEmpty}
+              </div>
+            </div>
+            <div className="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-semibold text-gray-500">
+              {ongoingDecisions.length}
+            </div>
+          </div>
+
+          {ongoingDecisions.length > 0 ? (
+            <div className="mt-3 space-y-2">
+              {ongoingDecisions.map((item) => (
+                <button
+                  key={item.conversation.id}
+                  type="button"
+                  onClick={() => openModal(item.conversation)}
+                  className="w-full rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2 text-left transition-all hover:border-gray-200 hover:bg-white"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-[11px] font-semibold text-gray-700">{item.personaName}</div>
+                    <span className="rounded-full bg-white px-2 py-0.5 text-[10px] text-gray-500">
+                      {getDecisionStatusLabel(item.decisionRecord.status)}
+                    </span>
+                  </div>
+                  <div className="mt-1 line-clamp-2 text-[12px] leading-5 text-gray-800">
+                    {item.title}
+                  </div>
+                  <div className="mt-1.5 text-[10px] text-gray-400">
+                    {t.canvas.ongoingDecisionDue(formatDecisionDue(item.revisitAt))}
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-3 rounded-xl border border-dashed border-gray-200 px-3 py-3 text-[11px] leading-5 text-gray-400">
+              {t.canvas.ongoingDecisionsHint}
+            </div>
+          )}
+        </div>
             </motion.div>
           )}
         </AnimatePresence>

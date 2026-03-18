@@ -30,7 +30,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useAI } from '../hooks/useAI'
-import type { AssistantInvocation, DecisionTrace, DecisionUnit, FileAttachment, Conversation } from '@shared/types'
+import type { AssistantInvocation, DecisionRecord, DecisionTrace, DecisionUnit, FileAttachment, Conversation } from '@shared/types'
 import type { AIMessage } from '@shared/types'
 import { parseFiles, formatFilesForAI } from '../../../services/fileParsing'
 import { ThinkingSection } from './ThinkingSection'
@@ -55,10 +55,12 @@ import {
   UserMessageContent,
   ClosingAnimation,
   InputArea,
+  LingSiDecisionCard,
   LingSiTracePanel,
 } from './AnswerModalSubcomponents'
 import { injectLingSiInlineCitations } from '../utils/lingsiTrace'
 import { getDecisionPersonaForPublicSpace, getSystemPromptForPublicSpace, resolveDecisionModeForPersona } from '../utils/personaSpaces'
+import { emitDecisionRecordsUpdated } from '../services/decisionRecords'
 import { useT } from '../i18n'
 
 const ANSWER_MODAL_HEIGHT_KEY = 'anima_answer_modal_height_px_v1'
@@ -78,6 +80,12 @@ function getDefaultAnswerModalHeight(): number {
 
 function stripInjectedSpaceHints(content: string): string {
   return stripLinkedContextHints(content)
+}
+
+function addDaysToIso(days: number): string {
+  const date = new Date()
+  date.setDate(date.getDate() + days)
+  return date.toISOString()
 }
 
 function authFetch(url: string, init?: RequestInit): Promise<Response> {
@@ -303,6 +311,7 @@ export function AnswerModal() {
   const onboardingStreamTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onboardingStreamTimerRef3 = useRef<ReturnType<typeof setTimeout> | null>(null)
   const activeDecisionTrace: DecisionTrace | undefined = currentConversation?.decisionTrace
+  const activeDecisionRecord: DecisionRecord | undefined = currentConversation?.decisionRecord
   const shouldShowLingSiTrace =
     !!activeDecisionTrace &&
     activeDecisionTrace.mode === 'decision' &&
@@ -312,6 +321,110 @@ export function AnswerModal() {
       matchedDecisionUnits.length > 0 ||
       !!activeDecisionTrace.productStateUsed
     )
+
+  const persistDecisionRecord = useCallback(async (
+    mutate: (record: DecisionRecord) => DecisionRecord,
+  ) => {
+    if (!currentConversation?.id || !currentConversation.decisionRecord) return
+
+    const now = new Date().toISOString()
+    const nextDecisionRecord = mutate(currentConversation.decisionRecord)
+    const normalizedRecord: DecisionRecord = {
+      ...nextDecisionRecord,
+      updatedAt: now,
+      outcome: nextDecisionRecord.outcome
+        ? {
+            ...currentConversation.decisionRecord.outcome,
+            ...nextDecisionRecord.outcome,
+          }
+        : nextDecisionRecord.outcome,
+    }
+
+    const assistantMessage = serializeTurnsForStorage(turns)
+    const nextConversation: Conversation = {
+      ...currentConversation,
+      assistantMessage,
+      reasoning_content: turns.length > 0 ? (turns[turns.length - 1].reasoning || undefined) : undefined,
+      appliedPreferences: [...appliedPreferences],
+      decisionRecord: normalizedRecord,
+    }
+
+    await updateConversation(currentConversation.id, { decisionRecord: normalizedRecord })
+    didMutateRef.current = true
+    autoSavedSigRef.current = null
+    await useCanvasStore.getState().appendConversation(nextConversation)
+
+    if ((isLennyMode || isCustomSpaceMode) && assistantMessage.trim()) {
+      try {
+        await authFetch('/api/memory/sync-lenny-conv', {
+          method: 'POST',
+          body: JSON.stringify({
+            conversationId: nextConversation.id,
+            userMessage: nextConversation.userMessage,
+            assistantMessage,
+            decisionTrace: nextConversation.decisionTrace,
+            decisionRecord: normalizedRecord,
+            source: isCustomSpaceMode && activeCustomSpaceId
+              ? `custom-${activeCustomSpaceId}`
+              : isPGMode
+                ? 'pg'
+                : isZhangMode
+                  ? 'zhang'
+                  : isWangMode
+                    ? 'wang'
+                    : 'lenny',
+          }),
+        })
+      } catch {
+        // keep local record even if sync fails
+      }
+    }
+
+    emitDecisionRecordsUpdated()
+  }, [
+    activeCustomSpaceId,
+    appliedPreferences,
+    currentConversation,
+    isCustomSpaceMode,
+    isLennyMode,
+    isPGMode,
+    isWangMode,
+    isZhangMode,
+    serializeTurnsForStorage,
+    turns,
+    updateConversation,
+  ])
+
+  const markDecisionAnswered = useCallback(async () => {
+    if (!activeDecisionRecord || activeDecisionRecord.status !== 'draft') return
+    await persistDecisionRecord((record) => ({
+      ...record,
+      status: 'answered',
+    }))
+  }, [activeDecisionRecord, persistDecisionRecord])
+
+  const handleAdoptDecision = useCallback(async (days: number) => {
+    await persistDecisionRecord((record) => ({
+      ...record,
+      status: 'adopted',
+      outcome: {
+        ...record.outcome,
+        adoptedAt: record.outcome?.adoptedAt ?? new Date().toISOString(),
+        revisitAt: addDaysToIso(days),
+      },
+    }))
+  }, [persistDecisionRecord])
+
+  const handleDecisionOutcome = useCallback(async (result: NonNullable<DecisionRecord['outcome']>['result']) => {
+    await persistDecisionRecord((record) => ({
+      ...record,
+      status: 'revisited',
+      outcome: {
+        ...record.outcome,
+        result,
+      },
+    }))
+  }, [persistDecisionRecord])
 
   const renderAssistantMarkdown = useCallback((assistant: string, turnIndex: number) => {
     const base = stripLeadingNumberHeading(assistant || (isStreaming && turnIndex === turns.length - 1 ? '...' : ''))
@@ -499,6 +612,7 @@ export function AnswerModal() {
     },
     onComplete: () => {
       setIsStreaming(false)
+      void markDecisionAnswered()
       // 回答完成即自动保存：避免“没点×直接刷新导致消息丢失”
       void autoSaveIfNeeded()
       // 若深度搜索已转入后台，不清空提示条；让用户看到“仍在进行中”
@@ -1704,6 +1818,14 @@ export function AnswerModal() {
                                     </button>
                                   )}
                                 </div>
+                              )}
+                              {idx === turns.length - 1 && !isStreaming && activeDecisionRecord && activeDecisionTrace?.mode === 'decision' && (
+                                <LingSiDecisionCard
+                                  record={activeDecisionRecord}
+                                  personaName={activeDecisionPersona?.name ?? invokedAssistant?.name ?? 'LingSi'}
+                                  onAdopt={handleAdoptDecision}
+                                  onOutcome={handleDecisionOutcome}
+                                />
                               )}
                               {idx === turns.length - 1 && shouldShowLingSiTrace && (
                                 <LingSiTracePanel
