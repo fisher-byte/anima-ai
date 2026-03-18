@@ -20,7 +20,7 @@
  * 特殊模式：
  *   isOnboardingMode — 新手引导流程，使用固定脚本回复，不调用真实 AI
  */
-import { useState, useCallback, useEffect, useRef, memo, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo, memo, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   CheckCircle2, Copy, RefreshCw,
@@ -365,7 +365,7 @@ export function AnswerModal() {
   const onboardingStreamTimerRef3 = useRef<ReturnType<typeof setTimeout> | null>(null)
   const activeDecisionTrace: DecisionTrace | undefined = currentConversation?.decisionTrace
   const activeDecisionRecord: DecisionRecord | undefined = currentConversation?.decisionRecord
-  const shouldShowLingSiTrace =
+  const shouldShowLingSiTrace = useMemo(() =>
     !!activeDecisionTrace &&
     activeDecisionTrace.mode === 'decision' &&
     !!activeDecisionPersona &&
@@ -373,7 +373,22 @@ export function AnswerModal() {
       (activeDecisionTrace.sourceRefs?.length ?? 0) > 0 ||
       matchedDecisionUnits.length > 0 ||
       !!activeDecisionTrace.productStateUsed
-    )
+    ),
+  [activeDecisionTrace, activeDecisionPersona, matchedDecisionUnits.length])
+
+  // Stable array references for memo-wrapped child components
+  const stableSourceRefs = useMemo(
+    () => activeDecisionTrace?.sourceRefs ?? [],
+    [activeDecisionTrace?.sourceRefs],
+  )
+  const stableProductStateDocRefs = useMemo(
+    () => activeDecisionTrace?.productStateDocRefs ?? [],
+    [activeDecisionTrace?.productStateDocRefs],
+  )
+  const stablePersonaName = useMemo(
+    () => activeDecisionPersona?.name ?? invokedAssistant?.name ?? 'LingSi',
+    [activeDecisionPersona?.name, invokedAssistant?.name],
+  )
 
   const persistDecisionRecord = useCallback(async (
     mutate: (record: DecisionRecord) => DecisionRecord,
@@ -466,16 +481,21 @@ export function AnswerModal() {
     updateConversation,
   ])
 
+  // Keep a ref to the latest persistDecisionRecord so downstream callbacks
+  // can call it without adding it to their deps (→ stable identity → memo children don't re-render).
+  const persistDecisionRecordRef = useRef(persistDecisionRecord)
+  useEffect(() => { persistDecisionRecordRef.current = persistDecisionRecord }, [persistDecisionRecord])
+
   const markDecisionAnswered = useCallback(async () => {
     if (!activeDecisionRecord || activeDecisionRecord.status !== 'draft') return
-    await persistDecisionRecord((record) => ({
+    await persistDecisionRecordRef.current((record) => ({
       ...record,
       status: 'answered',
     }))
-  }, [activeDecisionRecord, persistDecisionRecord])
+  }, [activeDecisionRecord])
 
   const handleAdoptDecision = useCallback(async (days: number) => {
-    await persistDecisionRecord((record) => ({
+    await persistDecisionRecordRef.current((record) => ({
       ...record,
       status: 'adopted',
       outcome: {
@@ -484,13 +504,13 @@ export function AnswerModal() {
         revisitAt: addDaysToIso(days),
       },
     }))
-  }, [persistDecisionRecord])
+  }, [])
 
   const handleDecisionOutcome = useCallback(async (
     result: NonNullable<DecisionRecord['outcome']>['result'],
     notes?: string,
   ) => {
-    await persistDecisionRecord((record) => ({
+    await persistDecisionRecordRef.current((record) => ({
       ...record,
       status: 'revisited',
       outcome: {
@@ -499,19 +519,19 @@ export function AnswerModal() {
         notes: notes?.trim() || undefined,
       },
     }))
-  }, [persistDecisionRecord])
+  }, [])
 
-  const renderAssistantMarkdown = useCallback((assistant: string, turnIndex: number) => {
-    const base = stripLeadingNumberHeading(assistant || (isStreaming && turnIndex === turns.length - 1 ? '...' : ''))
-    if (
-      turnIndex !== turns.length - 1 ||
-      !shouldShowLingSiTrace ||
-      !activeDecisionTrace?.sourceRefs?.length
-    ) {
-      return base
-    }
+  // Pre-compute citation-injected text for the last turn only.
+  // By using useMemo the identity only changes when the actual assistant text,
+  // source refs, or trace visibility flag changes — not on every turns array mutation.
+  // Non-last turns always use plain stripLeadingNumberHeading (inline in JSX).
+  const lastTurnAssistant = turns[turns.length - 1]?.assistant
+  const lastTurnCitationText = useMemo(() => {
+    if (!shouldShowLingSiTrace || !activeDecisionTrace?.sourceRefs?.length) return null
+    if (!lastTurnAssistant) return null
+    const base = stripLeadingNumberHeading(lastTurnAssistant)
     return injectLingSiInlineCitations(base, activeDecisionTrace.sourceRefs)
-  }, [activeDecisionTrace?.sourceRefs, isStreaming, shouldShowLingSiTrace, turns.length])
+  }, [lastTurnAssistant, activeDecisionTrace?.sourceRefs, shouldShowLingSiTrace])
 
   useEffect(() => {
     let cancelled = false
@@ -1877,7 +1897,11 @@ export function AnswerModal() {
                                   )}
                                 </div>
                               ) : (
-                                <AssistantMarkdown content={renderAssistantMarkdown(turn.assistant || '', idx)} />
+                                <AssistantMarkdown content={
+                                  idx === turns.length - 1 && lastTurnCitationText != null
+                                    ? lastTurnCitationText
+                                    : stripLeadingNumberHeading(turn.assistant || (isStreaming && idx === turns.length - 1 ? '...' : ''))
+                                } />
                               )}
                               {turn.assistant && !isStreaming && (
                                 <div className="flex items-center gap-0.5 mt-2 opacity-0 group-hover/aimsg:opacity-100 transition-opacity duration-150">
@@ -1891,31 +1915,32 @@ export function AnswerModal() {
                                   )}
                                 </div>
                               )}
-                              {/* 决策模块：仅最后一轮且完成后展示，轨迹在上（内容相关），采纳卡在下（行动引导） */}
-                              {idx === turns.length - 1 && shouldShowLingSiTrace && (
-                                <LingSiTracePanel
-                                  mode={activeDecisionTrace.mode}
-                                  personaName={activeDecisionPersona?.name ?? invokedAssistant?.name ?? 'LingSi'}
-                                  matchedUnits={matchedDecisionUnits}
-                                  sourceRefs={activeDecisionTrace.sourceRefs ?? []}
-                                  productStateDocRefs={activeDecisionTrace.productStateDocRefs ?? []}
-                                  isStreaming={isStreaming}
-                                  onOpenTrace={setTraceData}
-                                />
-                              )}
-                              {idx === turns.length - 1 && !isStreaming && activeDecisionRecord && activeDecisionTrace?.mode === 'decision' && (
-                                <LingSiDecisionCard
-                                  record={activeDecisionRecord}
-                                  personaName={activeDecisionPersona?.name ?? invokedAssistant?.name ?? 'LingSi'}
-                                  onAdopt={handleAdoptDecision}
-                                  onOutcome={handleDecisionOutcome}
-                                />
-                              )}
                             </div>
                           </div>
                         </div>
                       </div>
                     ))}
+
+                    {/* 决策模块：移到 turns 循环外，脱离高频重渲染树 */}
+                    {shouldShowLingSiTrace && activeDecisionTrace && (
+                      <LingSiTracePanel
+                        mode={activeDecisionTrace.mode}
+                        personaName={stablePersonaName}
+                        matchedUnits={matchedDecisionUnits}
+                        sourceRefs={stableSourceRefs}
+                        productStateDocRefs={stableProductStateDocRefs}
+                        isStreaming={isStreaming}
+                        onOpenTrace={setTraceData}
+                      />
+                    )}
+                    {!isStreaming && activeDecisionRecord && activeDecisionTrace?.mode === 'decision' && (
+                      <LingSiDecisionCard
+                        record={activeDecisionRecord}
+                        personaName={stablePersonaName}
+                        onAdopt={handleAdoptDecision}
+                        onOutcome={handleDecisionOutcome}
+                      />
+                    )}
                   </div>
                 </div>
 
