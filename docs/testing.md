@@ -142,11 +142,11 @@ LingSi 评测补充：
 | `e2e/features.spec.ts` | 33 | 引用块/文件标记/FTS5/decayPreferences/碰撞检测/多租户鉴权/semantic search/logical-edges/NodeTimeline/extract-topic/节点聚合 rebuild/Lenny/PG Space 入口与白名单 |
 | `e2e/journey.spec.ts` | 5 | 主空间 / PG / Lenny 对话闭环、回放追问、ESC 幂等保存 |
 
-**总 E2E 结果**：48 个场景，`44 passed / 4 skipped`
+**总 E2E 结果**：48 个场景，`45 passed / 3 skipped`
 
 **环境要求**：需设置 `ACCESS_TOKEN` 环境变量（或在 `.env` 中配置）；无 token 时多租户鉴权相关测试自动跳过。
 
-#### 关键测试覆盖（v0.5.10 现状）
+#### 关键测试覆盖（v0.5.29 现状）
 
 | 场景 | 测试文件 | 测试编号 |
 |------|---------|---------|
