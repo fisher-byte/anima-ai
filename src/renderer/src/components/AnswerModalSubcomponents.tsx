@@ -156,9 +156,6 @@ export function LingSiTracePanel({
     return true
   })
   const productStateLabels = Array.from(new Set(filteredProductStateDocRefs.map(formatProductStateDocRef)))
-  const traceSummary = hasProductStateTrace && matchedUnitLabels.length === 0 && sourceRefs.length === 0
-    ? t.modal.lingsiStatePackSummary
-    : t.modal.lingsiDecisionTrace
 
   useEffect(() => {
     if (isStreaming && showTraceView) {
@@ -324,36 +321,30 @@ export function LingSiTracePanel({
     : null
 
   return (
-    <div className="mt-4 rounded-2xl border border-amber-200/80 bg-amber-50/70 px-4 py-3">
-      <div className="flex w-full items-start gap-3 text-left">
-        <div className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-          <BookOpen className="h-4 w-4" />
+    <div className="mt-4 rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-50/80 to-orange-50/40 overflow-hidden">
+      {/* ── 标题栏 ── */}
+      <div className="flex items-center gap-2.5 px-4 py-2.5">
+        <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+          <BookOpen className="h-3.5 w-3.5" />
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[12px] font-semibold text-amber-900">{t.modal.lingsiEvidence}</span>
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
-              {t.modal.lingsiMode}
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+          <span className="text-[12px] font-semibold text-amber-900">{t.modal.lingsiEvidence}</span>
+          <span className="rounded-md bg-amber-100/80 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-amber-700">
+            {t.modal.lingsiMode}
+          </span>
+          {(matchedUnitLabels.length > 0 || sourceRefs.length > 0) && (
+            <span className="text-[11px] text-amber-600/70">
+              {t.modal.lingsiUnits(matchedUnitLabels.length)} · {t.modal.lingsiSources(sourceRefs.length)}
             </span>
-            <span className="text-[11px] text-amber-700/80">
-              {matchedUnitLabels.length > 0 || sourceRefs.length > 0
-                ? `${t.modal.lingsiUnits(matchedUnitLabels.length)} · ${t.modal.lingsiSources(sourceRefs.length)}`
-                : t.modal.lingsiStatePack}
-            </span>
-          </div>
-          <div className="mt-1 text-[12px] leading-5 text-amber-900/80">
-            {traceSummary}
-          </div>
+          )}
         </div>
-        <div className="flex items-center gap-2 pt-1 text-amber-500">
+        <div className="flex flex-shrink-0 items-center gap-1">
           <button
             type="button"
-            onClick={() => {
-              setShowTraceView(true)
-            }}
+            onClick={() => setShowTraceView(true)}
             disabled={isStreaming}
-            title={isStreaming ? t.modal.lingsiTraceWaitForCompletion : undefined}
-            className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-1 text-[11px] font-medium text-amber-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+            title={isStreaming ? t.modal.lingsiTraceWaitForCompletion : t.modal.lingsiOpenTrace}
+            className="inline-flex items-center gap-1 rounded-lg bg-white/70 px-2 py-1 text-[11px] font-medium text-amber-700 transition-colors hover:bg-white hover:text-amber-900 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Route className="h-3 w-3" />
             {t.modal.lingsiOpenTrace}
@@ -361,21 +352,23 @@ export function LingSiTracePanel({
           <button
             type="button"
             onClick={() => setExpanded(v => !v)}
-            className="rounded-full p-1 hover:bg-white/80"
+            disabled={isStreaming}
+            className="rounded-lg p-1 text-amber-500 transition-colors hover:bg-white/70 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
         </div>
       </div>
 
       {expanded && (
-        <div className="mt-3 space-y-3 border-t border-amber-200/70 pt-3">
+        <div className="border-t border-amber-200/50 px-4 py-3 space-y-2.5">
+          {/* 决策单元 tags */}
           {matchedUnitLabels.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {matchedUnits.map((unit, idx) => (
                 <span
                   key={`${unit.id}-${idx}`}
-                  className="rounded-full border border-amber-200 bg-white/70 px-2.5 py-1 text-[11px] text-amber-900"
+                  className="rounded-lg border border-amber-200/80 bg-white/60 px-2.5 py-1 text-[11px] font-medium text-amber-800"
                 >
                   {unit.title}
                 </span>
@@ -383,32 +376,32 @@ export function LingSiTracePanel({
             </div>
           )}
 
+          {/* 下一步行动 */}
           {nextActions.length > 0 && (
-            <div className="rounded-xl border border-amber-200/70 bg-white/75 px-3 py-2.5">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+            <div className="rounded-xl bg-white/60 px-3 py-2.5 ring-1 ring-amber-200/50">
+              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-amber-600">
                 {t.modal.lingsiNextActions}
               </div>
-              <ul className="mt-2 space-y-1.5 pl-4 text-[12px] leading-5 text-gray-700">
+              <ul className="space-y-1 pl-3.5 text-[12px] leading-[1.6] text-gray-700">
                 {nextActions.slice(0, 3).map((action, idx) => (
-                  <li key={`${action}-${idx}`}>{action}</li>
+                  <li key={`${action}-${idx}`} className="list-disc marker:text-amber-400">{action}</li>
                 ))}
               </ul>
             </div>
           )}
 
+          {/* 产品状态包 */}
           {hasProductStateTrace && (
-            <div className="rounded-xl border border-amber-200/70 bg-white/75 px-3 py-2.5">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+            <div className="rounded-xl bg-white/60 px-3 py-2.5 ring-1 ring-amber-200/50">
+              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-amber-600">
                 {t.modal.lingsiStatePack}
               </div>
-              <div className="mt-2 text-[12px] leading-5 text-gray-700">
-                {t.modal.lingsiStatePackSummary}
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
+              <p className="mb-2 text-[11px] leading-[1.5] text-amber-700/70">{t.modal.lingsiStatePackSummary}</p>
+              <div className="flex flex-wrap gap-1.5">
                 {productStateLabels.map((ref, idx) => (
                   <span
                     key={`${ref}-${idx}`}
-                    className="rounded-full border border-amber-200 bg-white/80 px-2.5 py-1 text-[11px] text-amber-900"
+                    className="rounded-md border border-amber-200/70 bg-white/80 px-2 py-0.5 text-[11px] text-amber-800"
                   >
                     {ref}
                   </span>
@@ -417,35 +410,32 @@ export function LingSiTracePanel({
             </div>
           )}
 
+          {/* 来源引用 */}
           {sourceRefs.length > 0 && (
-            <ol className="space-y-2.5">
+            <div className="space-y-1.5">
               {sourceRefs.map((ref, idx) => (
-                <li
+                <div
                   key={`${ref.id}-${ref.locator ?? idx}`}
                   id={`lingsi-source-${idx + 1}`}
-                  className="rounded-xl border border-amber-200/70 bg-white/75 px-3 py-2.5"
+                  className="rounded-xl bg-white/60 px-3 py-2.5 ring-1 ring-amber-200/50"
                 >
-                  <div className="flex items-start gap-2">
-                    <span className="pt-0.5 text-[11px] font-semibold text-amber-700">[{idx + 1}]</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[12px] font-medium text-gray-800">
-                          {formatLingSiSourceLabel(ref)}
-                        </span>
-                        <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-gray-500">
-                          {ref.evidenceLevel}
-                        </span>
-                      </div>
-                      {ref.excerpt && (
-                        <blockquote className="mt-1.5 border-l-2 border-amber-300 pl-2.5 text-[12px] leading-5 text-gray-600">
-                          {ref.excerpt}
-                        </blockquote>
-                      )}
-                    </div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-bold text-amber-600">[{idx + 1}]</span>
+                    <span className="text-[12px] font-medium text-gray-800 flex-1 min-w-0 truncate">
+                      {formatLingSiSourceLabel(ref)}
+                    </span>
+                    <span className="flex-shrink-0 rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-gray-400">
+                      {ref.evidenceLevel}
+                    </span>
                   </div>
-                </li>
+                  {ref.excerpt && (
+                    <blockquote className="border-l-2 border-amber-300 pl-2.5 text-[11.5px] leading-5 text-gray-500 italic">
+                      {ref.excerpt}
+                    </blockquote>
+                  )}
+                </div>
               ))}
-            </ol>
+            </div>
           )}
         </div>
       )}
