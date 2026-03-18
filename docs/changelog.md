@@ -1,3 +1,22 @@
+## [0.5.28] - 2026-03-18
+
+### feat: first LingSi decision loop UI
+
+**新增与调整：**
+- `src/renderer/src/components/AnswerModal.tsx` / `src/renderer/src/components/AnswerModalSubcomponents.tsx`：回答完成后会显示新的 `Decision Card`，把建议摘要、下一步动作、采纳与回访时间收敛成轻量闭环入口，不再只剩证据/轨迹
+- `src/renderer/src/components/AnswerModal.tsx`：决策回答完成后会把 `DecisionRecord` 从 `draft` 自动标记为 `answered`；用户采纳建议、设置回访时间、记录结果都会回写到当前对话并持久化
+- `src/renderer/src/services/decisionRecords.ts` / `src/renderer/src/components/Canvas.tsx`：主页左侧新增 `进行中决策` 入口，按回访时间聚合已采纳/已回访的决策，支持直接点开继续推进
+- `src/renderer/src/components/AnswerModalSubcomponents.tsx`：产品状态 fallback 标签进一步收敛成用户可读的项目状态标签，不再暴露 `LingSi 飞轮` 这类内部文档名
+- `src/renderer/src/services/__tests__/decisionRecords.test.ts` / `src/renderer/src/components/__tests__/AnswerModalSubcomponents.test.tsx`：补充 ongoing decision 聚合与 `Decision Card` 回归测试
+
+**测试与验证：**
+- `npm run typecheck`：通过
+- `npm test`：611/611 通过
+- `npm run build`：通过
+- `npm run test:e2e`：45 passed / 3 skipped
+
+---
+
 ## [0.5.27] - 2026-03-18
 
 ### feat: shrink LingSi v2 scope to the minimum decision loop

@@ -39,6 +39,14 @@ export interface Translations {
     skills: string
     hideSpaces: string
     showSpaces: string
+    ongoingDecisions: string
+    ongoingDecisionsCount: (n: number) => string
+    ongoingDecisionsEmpty: string
+    ongoingDecisionsHint: string
+    ongoingDecisionDue: (date: string) => string
+    ongoingDecisionNoDate: string
+    ongoingDecisionStatusActive: string
+    ongoingDecisionStatusRevisited: string
   }
   input: {
     placeholder: string
@@ -294,6 +302,23 @@ export interface Translations {
     onboardingIntroPlaceholder: string
     replyPlaceholder: string
     chars: (n: number) => string
+    decisionCardTitle: string
+    decisionCardStatusDraft: string
+    decisionCardStatusAnswered: string
+    decisionCardStatusAdopted: string
+    decisionCardStatusRevisited: string
+    decisionCardStatusArchived: string
+    decisionCardNextActions: string
+    decisionCardAdoptTitle: string
+    decisionCardAdoptBody: string
+    decisionCardAdopt: string
+    decisionCardAdoptDays: (days: number) => string
+    decisionCardRevisitAt: (date: string) => string
+    decisionCardOutcomeTitle: string
+    decisionCardOutcomeWorking: string
+    decisionCardOutcomeMixed: string
+    decisionCardOutcomeNotWorking: string
+    decisionCardOutcomeUnknown: string
   }
   timeline: {
     noNodes: string
@@ -402,6 +427,14 @@ export const zh: Translations = {
     skills: '技能',
     hideSpaces: '收起空间列',
     showSpaces: '展开空间列',
+    ongoingDecisions: '进行中决策',
+    ongoingDecisionsCount: (n: number) => `${n} 条需要继续推进`,
+    ongoingDecisionsEmpty: '还没有进行中的决策',
+    ongoingDecisionsHint: '当你采纳一条决策建议后，它会出现在这里，方便后续回访。',
+    ongoingDecisionDue: (date: string) => `回访时间 · ${date}`,
+    ongoingDecisionNoDate: '待设置',
+    ongoingDecisionStatusActive: '进行中',
+    ongoingDecisionStatusRevisited: '已回访',
   },
 
   // ── InputBox ─────────────────────────────────────────────────────────────
@@ -673,6 +706,23 @@ export const zh: Translations = {
     onboardingIntroPlaceholder: '在这里介绍你自己…',
     replyPlaceholder: '回复…',
     chars: (n: number) => `${n} 字`,
+    decisionCardTitle: '决策卡',
+    decisionCardStatusDraft: '待整理',
+    decisionCardStatusAnswered: '待采纳',
+    decisionCardStatusAdopted: '进行中',
+    decisionCardStatusRevisited: '已回访',
+    decisionCardStatusArchived: '已归档',
+    decisionCardNextActions: '下一步动作',
+    decisionCardAdoptTitle: '把这次建议变成一个会被追踪的决策',
+    decisionCardAdoptBody: '先选一个回访时间。Anima 会记住这条建议，之后再回来问你结果。',
+    decisionCardAdopt: '采纳建议',
+    decisionCardAdoptDays: (days: number) => `${days} 天后回访`,
+    decisionCardRevisitAt: (date: string) => `下次回访：${date}`,
+    decisionCardOutcomeTitle: '后来怎么样了？',
+    decisionCardOutcomeWorking: '有效',
+    decisionCardOutcomeMixed: '部分有效',
+    decisionCardOutcomeNotWorking: '没效果',
+    decisionCardOutcomeUnknown: '还没做',
   },
 
   // ── TimelineView ──────────────────────────────────────────────────────────

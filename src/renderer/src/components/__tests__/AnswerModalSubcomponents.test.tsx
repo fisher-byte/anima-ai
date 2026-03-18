@@ -1,8 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
-import type { DecisionSourceRef, DecisionUnit } from '@shared/types'
-import { LingSiTracePanel, UserMessageContent } from '../AnswerModalSubcomponents'
+import type { DecisionRecord, DecisionSourceRef, DecisionUnit } from '@shared/types'
+import { LingSiDecisionCard, LingSiTracePanel, UserMessageContent } from '../AnswerModalSubcomponents'
 
 const matchedUnit: DecisionUnit = {
   id: 'lenny-pre-mortem-needs-kill-criteria',
@@ -34,6 +34,29 @@ const sourceRef: DecisionSourceRef = {
   locator: 'L418',
   excerpt: 'Use the pre-mortem to set up kill criteria.',
   evidenceLevel: 'A',
+}
+
+const decisionRecord: DecisionRecord = {
+  id: 'decision-1',
+  personaId: 'lenny',
+  mode: 'decision',
+  decisionType: 'career',
+  stage: 'early',
+  userQuestion: '怎么想职业方向？',
+  knowns: ['第一份工作'],
+  unknowns: ['还没做过足够多的探索'],
+  options: [],
+  recommendedOptionId: undefined,
+  recommendationSummary: '先去做三次真实的小实验，再决定长期方向。',
+  keyTradeoffs: ['确定性 vs 探索空间'],
+  assumptions: [],
+  followUpQuestions: ['你已经试过哪些方向？'],
+  nextActions: ['做 3 个小实验', '和 3 个相关岗位的人聊聊'],
+  killCriteria: [],
+  evidenceRefs: [sourceRef],
+  status: 'answered',
+  createdAt: '2026-03-18T00:00:00.000Z',
+  updatedAt: '2026-03-18T00:00:00.000Z',
 }
 
 describe('LingSiTracePanel', () => {
@@ -76,7 +99,23 @@ describe('LingSiTracePanel', () => {
 
     expect(html).toContain('当前项目状态')
     expect(html).toContain('这次没有命中具体案例')
-    expect(html).toContain('当前冲刺与项目进展')
+    expect(html).toContain('当前项目状态')
     expect(html).not.toContain('docs/PROJECT.md')
+  })
+
+  it('renders the decision card with adopt actions', () => {
+    const html = renderToStaticMarkup(
+      <LingSiDecisionCard
+        record={decisionRecord}
+        personaName="Lenny Rachitsky"
+        onAdopt={() => {}}
+        onOutcome={() => {}}
+      />,
+    )
+
+    expect(html).toContain('决策卡')
+    expect(html).toContain('先去做三次真实的小实验，再决定长期方向。')
+    expect(html).toContain('采纳建议')
+    expect(html).toContain('7 天后回访')
   })
 })

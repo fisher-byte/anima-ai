@@ -1,11 +1,11 @@
 # Anima — 项目计划
 
 > 唯一入口：每次发版、每次决策都在这里留记录。
-> 最后更新：2026-03-18 | 当前版本：v0.5.27
+> 最后更新：2026-03-18 | 当前版本：v0.5.28
 
 ---
 
-## 当前冲刺（v0.5.27 进行中）
+## 当前冲刺（v0.5.28 进行中）
 
 *本轮先收缩 LingSi v2 范围：不继续平推“大而全”，而是优先做最小决策闭环与真实用户验证准备。*
 
@@ -15,9 +15,11 @@
 | 2 | persona 心理学画像方案 | 已完成 | 采用 `Big Five + Jungian Archetypes + Decision Style + Bias Risks` 混合框架；心理学用于解构 persona 的决策偏好，不做用户人格诊断 |
 | 3 | persona profile 数据层落地 | 已完成 | `decision-personas.json` 已为 `Lenny / 张小龙` 补齐 profile，包含 `bigFive / jungianArchetypes / decisionStyle / biasRisks / questionProtocol` |
 | 4 | 决策协议基础接入 | 已完成 | `lingsiDecisionEngine.ts` 已开始显式判断 `decisionType / stage / keyUnknowns / chosenFrameworks / followUpRequired`，并写入 `decisionTrace.reasoningRoute` |
-| 5 | 最小闭环：DecisionRecord 持久化 | 进行中 | 先把回答前的结构化决策对象存下来，后续再接“采纳 / 回访 / 结果” |
-| 6 | 真实用户验证台账 | 待做 | 为首批非团队用户记录“问题 -> 建议 -> 采纳 -> 结果”，避免继续用系统建设替代用户验证 |
-| 7 | 文档与发布收口 | 待做 | 在最小闭环代码落地后统一跑 test / build / e2e / deploy / GitHub 备份 |
+| 5 | 最小闭环：DecisionRecord 持久化 | 已完成 | `DecisionRecord draft` 已随对话持久化，并成为闭环前端的底层对象 |
+| 6 | 决策卡 + 采纳/回访入口 | 已完成 | 回答下方新增 `Decision Card`，支持采纳建议、选择 3/7/14 天回访，并记录回访结果 |
+| 7 | 主页进行中决策入口 | 已完成 | 主页左侧新增 `进行中决策` 聚合，按回访时间显示已采纳/已回访的 LingSi 决策 |
+| 8 | 真实用户验证台账 | 待做 | 为首批非团队用户记录“问题 -> 建议 -> 采纳 -> 结果”，避免继续用系统建设替代用户验证 |
+| 9 | 文档与发布收口 | 已完成 | 已完成 typecheck / test / build / e2e、docs 同步、review、GitHub 备份与部署验证 |
 
 ---
 

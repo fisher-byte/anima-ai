@@ -15,9 +15,9 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Sparkles, Square, Paperclip, X, ArrowUp,
-  File as FileIcon, Quote, ChevronDown, ChevronUp, BookOpen, Route, ExternalLink
+  File as FileIcon, Quote, ChevronDown, ChevronUp, BookOpen, Route, ExternalLink, CheckCircle2, Clock3, CircleDot
 } from 'lucide-react'
-import type { DecisionMode, DecisionSourceRef, DecisionUnit, FileAttachment } from '@shared/types'
+import type { DecisionMode, DecisionRecord, DecisionSourceRef, DecisionUnit, FileAttachment } from '@shared/types'
 import { stripFileBlocksOnly, stripLinkedContextHints } from '../utils/conversationUtils'
 import { formatLingSiSourceLabel } from '../utils/lingsiTrace'
 import { useT } from '../i18n'
@@ -139,12 +139,11 @@ export function LingSiTracePanel({
 
   const formatProductStateDocRef = (ref: string) => {
     const labels: Record<string, string> = {
-      'docs/PROJECT.md': '当前冲刺与项目进展',
-      'docs/ROADMAP.md': '路线图与阶段计划',
-      'docs/changelog.md': '最近变更记录',
-      'docs/lingsi-flywheel.md': 'LingSi 飞轮与闭环设计',
-      'docs/lingsi-eval-m4.md': 'Lenny 决策评测基线',
-      'docs/lingsi-eval-zhang.md': '张小龙决策评测基线',
+      'docs/PROJECT.md': '当前项目状态',
+      'docs/ROADMAP.md': '路线图阶段',
+      'docs/changelog.md': '最近迭代记录',
+      'docs/lingsi-eval-m4.md': '决策评测基线',
+      'docs/lingsi-eval-zhang.md': '决策评测基线',
     }
     return labels[ref] ?? ref.replace(/^docs\//, '').replace(/\.md$/i, '')
   }
@@ -451,6 +450,175 @@ export function LingSiTracePanel({
         </div>
       )}
       {traceView}
+    </div>
+  )
+}
+
+function formatDecisionDate(date: string): string {
+  try {
+    return new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(date))
+  } catch {
+    return date
+  }
+}
+
+function getDecisionStatusTone(status: DecisionRecord['status']): string {
+  switch (status) {
+    case 'adopted':
+      return 'bg-blue-50 text-blue-700 border-blue-200'
+    case 'revisited':
+      return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    case 'archived':
+      return 'bg-gray-100 text-gray-500 border-gray-200'
+    default:
+      return 'bg-amber-50 text-amber-700 border-amber-200'
+  }
+}
+
+function getDecisionStatusLabel(status: DecisionRecord['status'], t: ReturnType<typeof useT>['t']): string {
+  switch (status) {
+    case 'answered':
+      return t.modal.decisionCardStatusAnswered
+    case 'adopted':
+      return t.modal.decisionCardStatusAdopted
+    case 'revisited':
+      return t.modal.decisionCardStatusRevisited
+    case 'archived':
+      return t.modal.decisionCardStatusArchived
+    case 'draft':
+    default:
+      return t.modal.decisionCardStatusDraft
+  }
+}
+
+export function LingSiDecisionCard({
+  record,
+  personaName,
+  onAdopt,
+  onOutcome,
+}: {
+  record: DecisionRecord
+  personaName: string
+  onAdopt: (days: number) => void
+  onOutcome: (result: NonNullable<DecisionRecord['outcome']>['result']) => void
+}) {
+  const { t } = useT()
+  const [showSchedule, setShowSchedule] = useState(record.status === 'draft' || record.status === 'answered')
+  const nextActions = record.nextActions.slice(0, 3)
+  const followUps = record.followUpQuestions.slice(0, 2)
+  const revisitAt = record.outcome?.revisitAt
+  const canSchedule = record.status === 'draft' || record.status === 'answered'
+  const canMarkOutcome = record.status === 'adopted' || record.status === 'revisited'
+
+  useEffect(() => {
+    if (!canSchedule) setShowSchedule(false)
+  }, [canSchedule])
+
+  return (
+    <div className="mt-4 rounded-[28px] border border-gray-200 bg-white/95 px-5 py-4 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+      <div className="flex flex-wrap items-start gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+          <BookOpen className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[12px] font-semibold uppercase tracking-[0.18em] text-amber-700">
+              {t.modal.decisionCardTitle}
+            </span>
+            <span className={`rounded-full border px-2.5 py-1 text-[11px] font-medium ${getDecisionStatusTone(record.status)}`}>
+              {getDecisionStatusLabel(record.status, t)}
+            </span>
+            <span className="text-[11px] text-gray-400">{personaName}</span>
+          </div>
+          <div className="mt-2 text-[18px] font-semibold leading-7 text-gray-900">
+            {record.recommendationSummary}
+          </div>
+          {record.keyTradeoffs.length > 0 && (
+            <div className="mt-2 text-[13px] leading-6 text-gray-600">
+              {record.keyTradeoffs[0]}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {nextActions.length > 0 && (
+        <div className="mt-4 rounded-2xl bg-gray-50 px-4 py-3">
+          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+            <CircleDot className="h-3.5 w-3.5" />
+            {t.modal.decisionCardNextActions}
+          </div>
+          <ul className="mt-2 space-y-1.5 pl-4 text-[13px] leading-6 text-gray-700">
+            {nextActions.map((action, idx) => (
+              <li key={`${action}-${idx}`}>{action}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {followUps.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {followUps.map((question, idx) => (
+            <span
+              key={`${question}-${idx}`}
+              className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-[12px] text-gray-600"
+            >
+              {question}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {canSchedule && (
+        <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50/60 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-[13px] font-medium text-amber-900">{t.modal.decisionCardAdoptTitle}</div>
+              <div className="mt-1 text-[12px] leading-5 text-amber-800/80">{t.modal.decisionCardAdoptBody}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowSchedule((value) => !value)}
+              className="inline-flex items-center gap-2 rounded-full bg-gray-900 px-3 py-2 text-[12px] font-medium text-white hover:bg-black"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              {t.modal.decisionCardAdopt}
+            </button>
+          </div>
+          {showSchedule && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {[3, 7, 14].map((days) => (
+                <button
+                  key={days}
+                  type="button"
+                  onClick={() => onAdopt(days)}
+                  className="rounded-full border border-amber-200 bg-white px-3 py-1.5 text-[12px] font-medium text-amber-800 hover:border-amber-300 hover:bg-amber-100"
+                >
+                  {t.modal.decisionCardAdoptDays(days)}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {revisitAt && (
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-[12px] text-gray-500">
+          <Clock3 className="h-4 w-4" />
+          <span>{t.modal.decisionCardRevisitAt(formatDecisionDate(revisitAt))}</span>
+        </div>
+      )}
+
+      {canMarkOutcome && (
+        <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50/70 px-4 py-3">
+          <div className="text-[13px] font-medium text-gray-900">{t.modal.decisionCardOutcomeTitle}</div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" onClick={() => onOutcome('working')} className="rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-[12px] font-medium text-emerald-700 hover:bg-emerald-50">{t.modal.decisionCardOutcomeWorking}</button>
+            <button type="button" onClick={() => onOutcome('mixed')} className="rounded-full border border-amber-200 bg-white px-3 py-1.5 text-[12px] font-medium text-amber-700 hover:bg-amber-50">{t.modal.decisionCardOutcomeMixed}</button>
+            <button type="button" onClick={() => onOutcome('not_working')} className="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-[12px] font-medium text-rose-700 hover:bg-rose-50">{t.modal.decisionCardOutcomeNotWorking}</button>
+            <button type="button" onClick={() => onOutcome('unknown')} className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-[12px] font-medium text-gray-700 hover:bg-gray-100">{t.modal.decisionCardOutcomeUnknown}</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
