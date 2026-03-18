@@ -229,6 +229,27 @@ let _completingOnboarding = false
 // 防止 openModalById 并发竞态：每次调用递增，异步回调中只有最新的令牌才被接受
 let _openModalToken = 0
 
+/** P3-C: module-level generator — avoids re-creating a function object on every openModalById call */
+function* _iterLinesFromEnd(text: string, maxLines: number): Generator<string> {
+  if (!text) return
+  let end = text.length
+  let count = 0
+  while (end > 0 && text[end - 1] === '\n') end--
+  for (let i = end - 1; i >= 0; i--) {
+    if (text[i] === '\n') {
+      const line = text.slice(i + 1, end).trim()
+      end = i
+      if (line) {
+        yield line
+        count++
+        if (count >= maxLines) return
+      }
+    }
+  }
+  const first = text.slice(0, end).trim()
+  if (first) yield first
+}
+
 // 防止同一节点重复进入语义边计算
 const _semanticBuildingSet = new Set<string>()
 
@@ -2028,27 +2049,6 @@ export const useCanvasStore = create<CanvasState>()(
       const scanLimit = 8000 // 防止超大文件导致卡顿；足够覆盖同一对话的多次回写
       let scanned = 0
 
-      // 从末尾逐行扫描，不一次性 split 整个文件（避免大文件主线程 hang）
-      function* iterLinesFromEnd(text: string, maxLines: number): Generator<string> {
-        if (!text) return
-        let end = text.length
-        let count = 0
-        while (end > 0 && text[end - 1] === '\n') end--
-        for (let i = end - 1; i >= 0; i--) {
-          if (text[i] === '\n') {
-            const line = text.slice(i + 1, end).trim()
-            end = i
-            if (line) {
-              yield line
-              count++
-              if (count >= maxLines) return
-            }
-          }
-        }
-        const first = text.slice(0, end).trim()
-        if (first) yield first
-      }
-
       const scoreAssistant = (a: string) => {
         const hasMulti = a.includes('#1\n') || a.includes('# 1\n')
         return (hasMulti ? 1_000_000_000 : 0) + a.length
@@ -2088,7 +2088,7 @@ export const useCanvasStore = create<CanvasState>()(
         return base ? `${base}\n\n${block}` : block
       }
 
-      for (const line of iterLinesFromEnd(content, scanLimit)) {
+      for (const line of _iterLinesFromEnd(content, scanLimit)) {
         scanned++
         // 协作式让步：每 60 行释放主线程，避免超大文件 parsing 期间 UI 无响应
         if (scanned % 60 === 0) {
@@ -2141,7 +2141,7 @@ export const useCanvasStore = create<CanvasState>()(
           // 再扫描一次，取出子对话正文（仅扫描窗口内，成本可控）
           const want = new Set(childConvs.map(c => c.id))
           scanned = 0
-          for (const line of iterLinesFromEnd(content, scanLimit)) {
+          for (const line of _iterLinesFromEnd(content, scanLimit)) {
             scanned++
             if (scanned % 60 === 0) {
               await new Promise<void>((resolve) => setTimeout(resolve, 0))

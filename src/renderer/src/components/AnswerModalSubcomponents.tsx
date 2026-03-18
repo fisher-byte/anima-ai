@@ -135,6 +135,17 @@ function formatProductStateDocRef(ref: string): string {
   return labels[ref] ?? ref.replace(/^docs\//, '').replace(/\.md$/i, '')
 }
 
+/** P2-B: shared filter — single source of truth for hidden internal docs */
+function filterProductStateDocRefs(refs: string[], personaName: string): string[] {
+  const personaKey = personaName.toLowerCase()
+  return refs.filter((ref) => {
+    if (ref === 'docs/lingsi-flywheel.md') return false
+    if (ref === 'docs/lingsi-eval-zhang.md' && (personaKey.includes('lenny') || personaName.includes('Lenny'))) return false
+    if (ref === 'docs/lingsi-eval-m4.md' && (personaKey.includes('zhang') || personaName.includes('张小龙'))) return false
+    return true
+  })
+}
+
 export function LingSiTraceModal({
   data,
   onClose,
@@ -161,14 +172,7 @@ export function LingSiTraceModal({
   const { personaName, matchedUnits, sourceRefs, productStateDocRefs } = data
   const followUpQuestions = Array.from(new Set(matchedUnits.flatMap(u => u.followUpQuestions))).slice(0, 6)
 
-  const personaKey = personaName.toLowerCase()
-  const filteredProductStateDocRefs = productStateDocRefs.filter((ref) => {
-    if (ref === 'docs/lingsi-flywheel.md') return false
-    if (ref === 'docs/lingsi-eval-zhang.md' && (personaKey.includes('lenny') || personaName.includes('Lenny'))) return false
-    if (ref === 'docs/lingsi-eval-m4.md' && (personaKey.includes('zhang') || personaName.includes('张小龙'))) return false
-    return true
-  })
-  const productStateLabels = Array.from(new Set(filteredProductStateDocRefs.map(formatProductStateDocRef)))
+  const productStateLabels = Array.from(new Set(filterProductStateDocRefs(productStateDocRefs, personaName).map(formatProductStateDocRef)))
   const hasProductStateTrace = productStateLabels.length > 0
 
   return createPortal(
@@ -335,14 +339,7 @@ export function LingSiTracePanel({
   const nextActions = Array.from(new Set(matchedUnits.flatMap((unit) => unit.nextActions))).slice(0, 6)
   const hasProductStateTrace = productStateDocRefs.length > 0
 
-  const personaKey = personaName.toLowerCase()
-  const filteredProductStateDocRefs = productStateDocRefs.filter((ref) => {
-    if (ref === 'docs/lingsi-flywheel.md') return false
-    if (ref === 'docs/lingsi-eval-zhang.md' && (personaKey.includes('lenny') || personaName.includes('Lenny'))) return false
-    if (ref === 'docs/lingsi-eval-m4.md' && (personaKey.includes('zhang') || personaName.includes('张小龙'))) return false
-    return true
-  })
-  const productStateLabels = Array.from(new Set(filteredProductStateDocRefs.map(formatProductStateDocRef)))
+  const productStateLabels = Array.from(new Set(filterProductStateDocRefs(productStateDocRefs, personaName).map(formatProductStateDocRef)))
 
   if (mode !== 'decision' || (matchedUnitLabels.length === 0 && sourceRefs.length === 0 && !hasProductStateTrace)) return null
 
@@ -530,6 +527,13 @@ export function LingSiDecisionCard({
   useEffect(() => {
     if (!canSchedule) setShowSchedule(false)
   }, [canSchedule])
+
+  // P3-B: sync outcomeNotes when record prop changes (e.g. after onAdopt persists)
+  // Guard: only update if textarea is empty or matches the previous saved value to avoid clobbering mid-edit
+  useEffect(() => {
+    const saved = record.outcome?.notes ?? ''
+    setOutcomeNotes(prev => (prev === '' || prev === saved) ? saved : prev)
+  }, [record.outcome?.notes])
 
   return (
     <div className="mt-4 rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-50/60 to-orange-50/30 overflow-hidden">
