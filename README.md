@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.5.24-black" alt="version"/>
+  <img src="https://img.shields.io/badge/version-0.5.25-black" alt="version"/>
   <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js" alt="node"/>
   <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react" alt="react"/>
   <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript" alt="typescript"/>

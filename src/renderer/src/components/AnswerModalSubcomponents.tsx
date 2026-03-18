@@ -18,7 +18,7 @@ import {
   File as FileIcon, Quote, ChevronDown, ChevronUp, BookOpen, Route, ExternalLink
 } from 'lucide-react'
 import type { DecisionMode, DecisionSourceRef, DecisionUnit, FileAttachment } from '@shared/types'
-import { stripFileBlocksOnly } from '../utils/conversationUtils'
+import { stripFileBlocksOnly, stripLinkedContextHints } from '../utils/conversationUtils'
 import { formatLingSiSourceLabel } from '../utils/lingsiTrace'
 import { useT } from '../i18n'
 
@@ -27,7 +27,7 @@ import { useT } from '../i18n'
 /** 解析并渲染用户消息，将 [REFERENCE_START]...[REFERENCE_END] 块展示为折叠胶囊，剥离文件内容标记 */
 export function UserMessageContent({ content }: { content: string }) {
   // 先剥离文件内容块（用共享工具函数，逻辑集中便于测试）
-  const stripped = stripFileBlocksOnly(content)
+  const stripped = stripLinkedContextHints(stripFileBlocksOnly(content))
 
   const parts: Array<{ type: 'text' | 'reference'; value: string }> = []
   const regex = /\[REFERENCE_START\]([\s\S]*?)\[REFERENCE_END\]/g
@@ -149,7 +149,14 @@ export function LingSiTracePanel({
     return labels[ref] ?? ref.replace(/^docs\//, '').replace(/\.md$/i, '')
   }
 
-  const productStateLabels = Array.from(new Set(productStateDocRefs.map(formatProductStateDocRef)))
+  const personaKey = personaName.toLowerCase()
+  const filteredProductStateDocRefs = productStateDocRefs.filter((ref) => {
+    if (ref === 'docs/lingsi-flywheel.md') return false
+    if (ref === 'docs/lingsi-eval-zhang.md' && (personaKey.includes('lenny') || personaName.includes('Lenny'))) return false
+    if (ref === 'docs/lingsi-eval-m4.md' && (personaKey.includes('zhang') || personaName.includes('张小龙'))) return false
+    return true
+  })
+  const productStateLabels = Array.from(new Set(filteredProductStateDocRefs.map(formatProductStateDocRef)))
   const traceSummary = hasProductStateTrace && matchedUnitLabels.length === 0 && sourceRefs.length === 0
     ? t.modal.lingsiStatePackSummary
     : t.modal.lingsiDecisionTrace

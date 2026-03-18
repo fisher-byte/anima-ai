@@ -46,6 +46,7 @@ import {
   parseTurnsFromAssistantMessage,
   stripLeadingNumberHeading,
   buildAIHistory,
+  stripLinkedContextHints,
 } from '../utils/conversationUtils'
 import { getAuthToken } from '../services/storageService'
 import { buildLingSiDecisionPayload, ensureLingSiStorageSeeded, loadDecisionUnits, mergeDecisionTrace } from '../services/lingsi'
@@ -73,6 +74,10 @@ function clampAnswerModalHeight(height: number): number {
 function getDefaultAnswerModalHeight(): number {
   if (typeof window === 'undefined') return 760
   return clampAnswerModalHeight(window.innerHeight * 0.85)
+}
+
+function stripInjectedSpaceHints(content: string): string {
+  return stripLinkedContextHints(content)
 }
 
 function authFetch(url: string, init?: RequestInit): Promise<Response> {
@@ -235,6 +240,7 @@ export function AnswerModal() {
     }
 
     await ensureLingSiStorageSeeded()
+    const sanitizedUserMessage = stripInjectedSpaceHints(userMessage)
     const currentMode = resolveDecisionModeForPersona({
       personaId: activeDecisionPersona.id,
       isPublicSpaceMode: isLennyMode,
@@ -243,7 +249,7 @@ export function AnswerModal() {
       invokedAssistant,
       decisionTrace: currentConversation?.decisionTrace,
     })
-    const payload = await buildLingSiDecisionPayload(userMessage, currentMode, {
+    const payload = await buildLingSiDecisionPayload(sanitizedUserMessage, currentMode, {
       personaId: activeDecisionPersona.id,
       personaName: activeDecisionPersona.name,
     })
@@ -925,7 +931,7 @@ export function AnswerModal() {
   // ── 编辑 / 重生成 / 复制 ────────────────────────────────────────────────────
   const handleStartEdit = (index: number, content: string) => {
     setEditingIndex(index)
-    setEditingContent(content)
+    setEditingContent(stripInjectedSpaceHints(content))
   }
 
   const handleSaveEdit = async () => {
@@ -935,7 +941,10 @@ export function AnswerModal() {
 
     const previousTurns = turns.slice(0, editingIndex)
     const currentTurn = turns[editingIndex]
-    const history = buildAIHistory(previousTurns)
+    const history = buildAIHistory(previousTurns.map((turn) => ({
+      ...turn,
+      user: stripInjectedSpaceHints(turn.user),
+    })))
     const newTurns = [...previousTurns, { user: newContent, assistant: '', images: currentTurn.images, files: currentTurn.files }]
     setTurns(newTurns)
     setEditingIndex(null)
@@ -960,24 +969,28 @@ export function AnswerModal() {
     const previousTurns = baseTurns.slice(0, index)
     const currentTurn = baseTurns[index]
     if (!currentTurn?.user) return
-    const history = buildAIHistory(previousTurns)
-    const newTurns = [...previousTurns, { user: currentTurn.user, assistant: '', images: currentTurn.images, files: currentTurn.files }]
+    const sanitizedUser = stripInjectedSpaceHints(currentTurn.user)
+    const history = buildAIHistory(previousTurns.map((turn) => ({
+      ...turn,
+      user: stripInjectedSpaceHints(turn.user),
+    })))
+    const newTurns = [...previousTurns, { user: sanitizedUser, assistant: '', images: currentTurn.images, files: currentTurn.files }]
     setTurns(newTurns)
     setIsStreaming(true)
     const preferences = (isLennyMode || isCustomSpaceMode) ? [] : getPreferencesForPrompt()
     const systemPromptOverride = resolveAssistantPromptOverride()
     if (systemPromptOverride) {
-      const decisionPayload = await buildLingSiRequest(currentTurn.user)
+      const decisionPayload = await buildLingSiRequest(sanitizedUser)
       const shouldPersistHistory = !isLennyMode && !isCustomSpaceMode
-      sendMessage(currentTurn.user, preferences, history, currentTurn.images, undefined, undefined, shouldPersistHistory ? currentConversation.id : undefined, systemPromptOverride, decisionPayload.extraContext)
+      sendMessage(sanitizedUser, preferences, history, currentTurn.images, undefined, undefined, shouldPersistHistory ? currentConversation.id : undefined, systemPromptOverride, decisionPayload.extraContext)
     } else {
-      sendMessage(currentTurn.user, preferences, history, currentTurn.images, undefined, undefined, currentConversation.id)
+      sendMessage(sanitizedUser, preferences, history, currentTurn.images, undefined, undefined, currentConversation.id)
     }
   }, [turns, currentConversation, sendMessage, getPreferencesForPrompt, isLennyMode, isCustomSpaceMode, buildLingSiRequest, resolveAssistantPromptOverride])
 
   const handleCopyMessage = useCallback(async (text: string, index: number) => {
     try {
-      await navigator.clipboard.writeText(text)
+      await navigator.clipboard.writeText(stripInjectedSpaceHints(text))
       setCopiedIndex(index)
       setTimeout(() => setCopiedIndex(null), 2000)
     } catch {}
@@ -1478,18 +1491,18 @@ export function AnswerModal() {
                 }
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
                 style={{ height: modalHeight, maxHeight: '94vh' }}
-                className="w-full bg-white shadow-[0_-8px_40px_rgba(0,0,0,0.08)] border-t border-gray-200 flex flex-col overflow-hidden rounded-t-3xl"
+                className="relative w-full bg-white shadow-[0_-8px_40px_rgba(0,0,0,0.08)] border-t border-gray-200 flex flex-col overflow-hidden rounded-t-3xl"
               >
                 <button
                   type="button"
                   aria-label="Resize conversation window"
                   onMouseDown={handleModalResizeStart}
-                  className="flex h-6 w-full cursor-row-resize items-center justify-center border-b border-gray-100 bg-white"
+                  className="absolute left-1/2 top-3 z-10 flex -translate-x-1/2 cursor-row-resize items-center justify-center rounded-full bg-white/95 px-3 py-1.5 shadow-sm"
                 >
-                  <span className="h-1.5 w-14 rounded-full bg-gray-200" />
+                  <span className="h-1.5 w-16 rounded-full bg-gray-200" />
                 </button>
                 {/* 头部 */}
-                <div className="flex items-center justify-end px-6 py-3 border-b border-gray-100 bg-white gap-2">
+                <div className="flex items-center justify-end px-6 py-3 pt-8 border-b border-gray-100 bg-white gap-2">
                   {/* 引导模式提示（未完成时显示） */}
                   {isOnboardingMode && !onboardingDone && (
                     <span className="flex-1 text-[12px] text-gray-400 font-medium pl-1">
