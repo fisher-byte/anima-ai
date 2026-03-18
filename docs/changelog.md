@@ -1,16 +1,16 @@
-## [0.5.23] - 2026-03-18
+## [0.5.24] - 2026-03-18
 
-### fix: decision trace visibility + modal usability
+### fix: product-state trace fallback readability
 
 **修复与增强：**
-- `src/shared/types.ts` / `src/shared/lingsiDecisionEngine.ts`：`DecisionTrace` 新增 `productStateUsed / productStateDocRefs`，当回答主要依赖产品状态包而不是命中 `DecisionUnit` 时，决策轨迹仍会显示，不再出现“明明是决策模式但轨迹没了”
-- `src/renderer/src/components/AnswerModal.tsx` / `src/renderer/src/components/AnswerModalSubcomponents.tsx`：决策轨迹面板支持展示“当前产品状态包”来源，并把 trace 展示条件扩到 `productStateUsed`
-- `src/renderer/src/components/AnswerModal.tsx`：对话弹窗输入框改为和首页一致的自动增高逻辑，长文本粘贴后会扩到 `220px`，超出后再滚动
-- `src/renderer/src/components/AnswerModal.tsx`：对话弹窗顶部新增可拖拽高度调节条，并把用户调节后的高度持久化到本地，下次打开继续沿用
+- `src/renderer/src/components/AnswerModalSubcomponents.tsx`：产品状态包 fallback 不再直接渲染 `docs/*.md` 路径，改成用户可读的“当前冲刺 / 路线图 / 变更记录 / 评测基线”等标签
+- `src/renderer/src/components/AnswerModalSubcomponents.tsx`：`0 Decision Unit / 0 source` 时的轨迹弹层不再留空白区，改成明确说明“本次没有命中具体案例，而是依据当前项目状态判断”
+- `src/renderer/src/i18n/zh.ts` / `src/renderer/src/i18n/en.ts`：新增产品状态 fallback 文案，避免用户看到“0 个 Decision Unit · 0 条来源”却不知道系统到底依据了什么
+- `src/renderer/src/components/__tests__/AnswerModalSubcomponents.test.tsx`：补充产品状态 fallback 展示断言，确保不再把原始文档路径直接渲染给用户
 
 **测试与验证：**
 - `npm run typecheck`：通过
-- `npx vitest run src/shared/__tests__/lingsiDecisionEngine.test.ts src/renderer/src/components/__tests__/AnswerModalSubcomponents.test.tsx`：通过
+- `npx vitest run src/renderer/src/components/__tests__/AnswerModalSubcomponents.test.tsx`：通过
 - `npm test`：606/606 通过
 - `npm run build`：通过
 - `npm run test:e2e`：44 passed / 4 skipped

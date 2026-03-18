@@ -2,12 +2,12 @@
 
 ## 计划中版本
 
-#### v0.5.23 - Decision trace visibility + modal usability（已完成）
-- [x] `types.ts` / `lingsiDecisionEngine.ts`：`DecisionTrace` 增加 `productStateUsed / productStateDocRefs`，主页 `@persona` 决策回答即使主要依赖产品状态包，也能稳定显示轨迹
-- [x] `AnswerModal.tsx` / `AnswerModalSubcomponents.tsx`：轨迹面板支持展示产品状态包来源
-- [x] `AnswerModal.tsx` / `AnswerModalSubcomponents.tsx`：底部输入框支持 auto-grow，长文本粘贴后先扩高再滚动
-- [x] `AnswerModal.tsx`：顶部新增拖拽手柄，允许调整对话窗口高度并持久化
-- [x] 验证：`npm run typecheck`、`npx vitest run src/shared/__tests__/lingsiDecisionEngine.test.ts src/renderer/src/components/__tests__/AnswerModalSubcomponents.test.tsx`、`npm test`（606/606）、`npm run build`、`npm run test:e2e`（44 passed / 4 skipped）
+#### v0.5.24 - Product-state trace fallback readability（已完成）
+- [x] `AnswerModalSubcomponents.tsx`：产品状态包 fallback 不再直接展示 `docs/*.md` 路径，改成用户可读标签
+- [x] `AnswerModalSubcomponents.tsx`：`0 Decision Unit / 0 source` 时的轨迹弹层不再留空白区，改成明确解释 fallback 原因
+- [x] `i18n/zh.ts` / `i18n/en.ts`：补充“当前项目状态”与 fallback 说明文案
+- [x] `AnswerModalSubcomponents.test.tsx`：补充产品状态 fallback 渲染断言
+- [x] 验证：`npm run typecheck`、`npx vitest run src/renderer/src/components/__tests__/AnswerModalSubcomponents.test.tsx`、`npm test`（606/606）、`npm run build`、`npm run test:e2e`（44 passed / 4 skipped）
 
 #### v0.5.21 - Decision state refresh + source sync + deploy verification（已完成）
 - [x] `scripts/generate-lingsi-product-state.ts` / `src/shared/lingsiProductState.ts`：新增产品状态包自动刷新链路，从 `changelog`、eval 报告和当前 seeds 基线生成动态字段

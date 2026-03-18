@@ -64,7 +64,9 @@ describe('LingSiTracePanel', () => {
       />,
     )
 
-    expect(html).toContain('当前产品状态包')
-    expect(html).toContain('docs/PROJECT.md')
+    expect(html).toContain('当前项目状态')
+    expect(html).toContain('这次没有命中具体案例')
+    expect(html).toContain('当前冲刺与项目进展')
+    expect(html).not.toContain('docs/PROJECT.md')
   })
 })

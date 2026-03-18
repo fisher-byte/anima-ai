@@ -135,6 +135,24 @@ export function LingSiTracePanel({
   const matchedUnitLabels = matchedUnits.map((unit) => unit.title)
   const nextActions = Array.from(new Set(matchedUnits.flatMap((unit) => unit.nextActions))).slice(0, 6)
   const followUpQuestions = Array.from(new Set(matchedUnits.flatMap((unit) => unit.followUpQuestions))).slice(0, 6)
+  const hasProductStateTrace = productStateDocRefs.length > 0
+
+  const formatProductStateDocRef = (ref: string) => {
+    const labels: Record<string, string> = {
+      'docs/PROJECT.md': '当前冲刺与项目进展',
+      'docs/ROADMAP.md': '路线图与阶段计划',
+      'docs/changelog.md': '最近变更记录',
+      'docs/lingsi-flywheel.md': 'LingSi 飞轮与闭环设计',
+      'docs/lingsi-eval-m4.md': 'Lenny 决策评测基线',
+      'docs/lingsi-eval-zhang.md': '张小龙决策评测基线',
+    }
+    return labels[ref] ?? ref.replace(/^docs\//, '').replace(/\.md$/i, '')
+  }
+
+  const productStateLabels = Array.from(new Set(productStateDocRefs.map(formatProductStateDocRef)))
+  const traceSummary = hasProductStateTrace && matchedUnitLabels.length === 0 && sourceRefs.length === 0
+    ? t.modal.lingsiStatePackSummary
+    : t.modal.lingsiDecisionTrace
 
   useEffect(() => {
     if (isStreaming && showTraceView) {
@@ -161,8 +179,6 @@ export function LingSiTracePanel({
     }
   }, [showTraceView])
 
-  const hasProductStateTrace = productStateDocRefs.length > 0
-
   if (mode !== 'decision' || (matchedUnitLabels.length === 0 && sourceRefs.length === 0 && !hasProductStateTrace)) return null
 
   const traceView = showTraceView && typeof document !== 'undefined'
@@ -182,7 +198,9 @@ export function LingSiTracePanel({
                   {personaName} · {t.space.decisionModeLingSi}
                 </div>
                 <div className="mt-2 text-[13px] text-gray-500">
-                  {t.modal.lingsiUnits(matchedUnits.length)} · {t.modal.lingsiSources(sourceRefs.length)}
+                  {matchedUnits.length > 0 || sourceRefs.length > 0
+                    ? `${t.modal.lingsiUnits(matchedUnits.length)} · ${t.modal.lingsiSources(sourceRefs.length)}`
+                    : t.modal.lingsiStatePack}
                 </div>
               </div>
               <button
@@ -200,26 +218,33 @@ export function LingSiTracePanel({
                   <div className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">
                     {t.modal.lingsiMatchedUnits}
                   </div>
-                  <div className="mt-3 space-y-3">
-                    {matchedUnits.map((unit) => (
-                      <div key={unit.id} className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
-                        <div className="text-[14px] font-semibold text-gray-900">{unit.title}</div>
-                        <div className="mt-1 text-[13px] leading-6 text-gray-600">{unit.summary}</div>
-                        {unit.preferredPath && (
-                          <div className="mt-3 rounded-xl bg-white px-3 py-2 text-[12px] leading-5 text-gray-700">
-                            <span className="font-medium text-gray-900">{t.modal.lingsiPreferredPath}:</span> {unit.preferredPath}
-                          </div>
-                        )}
-                        {unit.nextActions.length > 0 && (
-                          <ul className="mt-3 space-y-1.5 pl-4 text-[12px] leading-5 text-gray-700">
-                            {unit.nextActions.slice(0, 3).map((action, idx) => (
-                              <li key={`${unit.id}-action-${idx}`}>{action}</li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                  {matchedUnits.length > 0 ? (
+                    <div className="mt-3 space-y-3">
+                      {matchedUnits.map((unit) => (
+                        <div key={unit.id} className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+                          <div className="text-[14px] font-semibold text-gray-900">{unit.title}</div>
+                          <div className="mt-1 text-[13px] leading-6 text-gray-600">{unit.summary}</div>
+                          {unit.preferredPath && (
+                            <div className="mt-3 rounded-xl bg-white px-3 py-2 text-[12px] leading-5 text-gray-700">
+                              <span className="font-medium text-gray-900">{t.modal.lingsiPreferredPath}:</span> {unit.preferredPath}
+                            </div>
+                          )}
+                          {unit.nextActions.length > 0 && (
+                            <ul className="mt-3 space-y-1.5 pl-4 text-[12px] leading-5 text-gray-700">
+                              {unit.nextActions.slice(0, 3).map((action, idx) => (
+                                <li key={`${unit.id}-action-${idx}`}>{action}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-3 rounded-2xl border border-dashed border-gray-200 bg-gray-50/70 p-4">
+                      <div className="text-[14px] font-semibold text-gray-900">{t.modal.lingsiNoMatchedUnits}</div>
+                      <div className="mt-1 text-[13px] leading-6 text-gray-600">{t.modal.lingsiNoMatchedUnitsBody}</div>
+                    </div>
+                  )}
                 </section>
               </div>
 
@@ -240,12 +265,12 @@ export function LingSiTracePanel({
                 {hasProductStateTrace && (
                   <section>
                     <div className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">
-                      当前产品状态包
+                      {t.modal.lingsiStatePack}
                     </div>
                     <div className="mt-3 rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
-                      <div className="text-[12px] font-medium text-gray-900">当前回答引用了产品状态包，而不只是 Decision Unit。</div>
+                      <div className="text-[12px] font-medium text-gray-900">{t.modal.lingsiStatePackFallback}</div>
                       <ul className="mt-3 space-y-2 pl-4 text-[12px] leading-5 text-gray-700">
-                        {productStateDocRefs.map((ref, idx) => (
+                        {productStateLabels.map((ref, idx) => (
                           <li key={`${ref}-${idx}`}>{ref}</li>
                         ))}
                       </ul>
@@ -253,35 +278,37 @@ export function LingSiTracePanel({
                   </section>
                 )}
 
-                <section>
-                  <div className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">
-                    {t.modal.lingsiSources(sourceRefs.length)}
-                  </div>
-                  <div className="mt-3 space-y-3">
-                    {sourceRefs.map((ref, idx) => (
-                      <div key={`${ref.id}-${idx}`} className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
-                        <div className="flex items-center gap-2 text-[12px] font-medium text-gray-900">
-                          <span>[{idx + 1}]</span>
-                          <span>{formatLingSiSourceLabel(ref)}</span>
-                          <span className="rounded-full bg-white px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-gray-500">
-                            {ref.evidenceLevel}
-                          </span>
-                        </div>
-                        {ref.excerpt && (
-                          <blockquote className="mt-2 border-l-2 border-amber-300 pl-3 text-[12px] leading-5 text-gray-600">
-                            {ref.excerpt}
-                          </blockquote>
-                        )}
-                        {ref.path && (
-                          <div className="mt-2 inline-flex items-center gap-1 text-[11px] text-gray-500">
-                            <ExternalLink className="h-3 w-3" />
-                            <span>{ref.path}</span>
+                {sourceRefs.length > 0 && (
+                  <section>
+                    <div className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">
+                      {t.modal.lingsiSources(sourceRefs.length)}
+                    </div>
+                    <div className="mt-3 space-y-3">
+                      {sourceRefs.map((ref, idx) => (
+                        <div key={`${ref.id}-${idx}`} className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+                          <div className="flex items-center gap-2 text-[12px] font-medium text-gray-900">
+                            <span>[{idx + 1}]</span>
+                            <span>{formatLingSiSourceLabel(ref)}</span>
+                            <span className="rounded-full bg-white px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-gray-500">
+                              {ref.evidenceLevel}
+                            </span>
                           </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </section>
+                          {ref.excerpt && (
+                            <blockquote className="mt-2 border-l-2 border-amber-300 pl-3 text-[12px] leading-5 text-gray-600">
+                              {ref.excerpt}
+                            </blockquote>
+                          )}
+                          {ref.path && (
+                            <div className="mt-2 inline-flex items-center gap-1 text-[11px] text-gray-500">
+                              <ExternalLink className="h-3 w-3" />
+                              <span>{ref.path}</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
               </div>
             </div>
           </div>
@@ -303,11 +330,13 @@ export function LingSiTracePanel({
               {t.modal.lingsiMode}
             </span>
             <span className="text-[11px] text-amber-700/80">
-              {t.modal.lingsiUnits(matchedUnitLabels.length)} · {t.modal.lingsiSources(sourceRefs.length)}{hasProductStateTrace ? ' · 产品状态包' : ''}
+              {matchedUnitLabels.length > 0 || sourceRefs.length > 0
+                ? `${t.modal.lingsiUnits(matchedUnitLabels.length)} · ${t.modal.lingsiSources(sourceRefs.length)}`
+                : t.modal.lingsiStatePack}
             </span>
           </div>
           <div className="mt-1 text-[12px] leading-5 text-amber-900/80">
-            {t.modal.lingsiDecisionTrace}
+            {traceSummary}
           </div>
         </div>
         <div className="flex items-center gap-2 pt-1 text-amber-500">
@@ -364,13 +393,21 @@ export function LingSiTracePanel({
           {hasProductStateTrace && (
             <div className="rounded-xl border border-amber-200/70 bg-white/75 px-3 py-2.5">
               <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">
-                当前产品状态包
+                {t.modal.lingsiStatePack}
               </div>
-              <ul className="mt-2 space-y-1.5 pl-4 text-[12px] leading-5 text-gray-700">
-                {productStateDocRefs.map((ref, idx) => (
-                  <li key={`${ref}-${idx}`}>{ref}</li>
+              <div className="mt-2 text-[12px] leading-5 text-gray-700">
+                {t.modal.lingsiStatePackSummary}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {productStateLabels.map((ref, idx) => (
+                  <span
+                    key={`${ref}-${idx}`}
+                    className="rounded-full border border-amber-200 bg-white/80 px-2.5 py-1 text-[11px] text-amber-900"
+                  >
+                    {ref}
+                  </span>
                 ))}
-              </ul>
+              </div>
             </div>
           )}
 
