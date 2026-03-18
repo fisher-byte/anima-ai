@@ -2,12 +2,12 @@
 
 ## 计划中版本
 
-#### v0.5.24 - Product-state trace fallback readability（已完成）
-- [x] `AnswerModalSubcomponents.tsx`：产品状态包 fallback 不再直接展示 `docs/*.md` 路径，改成用户可读标签
-- [x] `AnswerModalSubcomponents.tsx`：`0 Decision Unit / 0 source` 时的轨迹弹层不再留空白区，改成明确解释 fallback 原因
-- [x] `i18n/zh.ts` / `i18n/en.ts`：补充“当前项目状态”与 fallback 说明文案
-- [x] `AnswerModalSubcomponents.test.tsx`：补充产品状态 fallback 渲染断言
-- [x] 验证：`npm run typecheck`、`npx vitest run src/renderer/src/components/__tests__/AnswerModalSubcomponents.test.tsx`、`npm test`（606/606）、`npm run build`、`npm run test:e2e`（44 passed / 4 skipped）
+#### v0.5.25 - Linked context sanitization + trace relevance polish（已完成）
+- [x] `AnswerModal.tsx` / `conversationUtils.ts`：历史对话里的编辑、复制、重发与再次发送都会剥离 `【已关联空间：...】` 这类内部提示，避免用户在历史窗里看到内部增强提示，也避免重发链路被污染
+- [x] `lingsiDecisionEngine.ts`：Decision matching 与产品状态包注入前会先去掉关联空间提示，并忽略 `@ / mention / space / 卡片 / badge` 等低信号关键词，修复 `@Lenny` 泛问题误触发产品状态包
+- [x] `AnswerModalSubcomponents.tsx`：产品状态 fallback 会按 persona 过滤用户可见标签；Lenny fallback 不再出现“张小龙决策评测基线”或 `LingSi 飞轮` 这类内部闭环文档
+- [x] `AnswerModal.tsx`：历史对话窗顶部拖拽手柄从整条横线改成悬浮小手柄，保留可调高度能力，同时减少视觉噪音
+- [x] 验证：`npm run typecheck`、`npx vitest run src/shared/__tests__/lingsiDecisionEngine.test.ts src/renderer/src/components/__tests__/AnswerModalSubcomponents.test.tsx src/renderer/src/utils/__tests__/conversationUtils.test.ts`、`npm test`（608/608）、`npm run build`、`npm run test:e2e`（44 passed / 4 skipped）
 
 #### v0.5.21 - Decision state refresh + source sync + deploy verification（已完成）
 - [x] `scripts/generate-lingsi-product-state.ts` / `src/shared/lingsiProductState.ts`：新增产品状态包自动刷新链路，从 `changelog`、eval 报告和当前 seeds 基线生成动态字段

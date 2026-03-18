@@ -1,17 +1,18 @@
-## [0.5.24] - 2026-03-18
+## [0.5.25] - 2026-03-18
 
-### fix: product-state trace fallback readability
+### fix: linked persona context sanitization + trace relevance polish
 
 **修复与增强：**
-- `src/renderer/src/components/AnswerModalSubcomponents.tsx`：产品状态包 fallback 不再直接渲染 `docs/*.md` 路径，改成用户可读的“当前冲刺 / 路线图 / 变更记录 / 评测基线”等标签
-- `src/renderer/src/components/AnswerModalSubcomponents.tsx`：`0 Decision Unit / 0 source` 时的轨迹弹层不再留空白区，改成明确说明“本次没有命中具体案例，而是依据当前项目状态判断”
-- `src/renderer/src/i18n/zh.ts` / `src/renderer/src/i18n/en.ts`：新增产品状态 fallback 文案，避免用户看到“0 个 Decision Unit · 0 条来源”却不知道系统到底依据了什么
-- `src/renderer/src/components/__tests__/AnswerModalSubcomponents.test.tsx`：补充产品状态 fallback 展示断言，确保不再把原始文档路径直接渲染给用户
+- `src/renderer/src/components/AnswerModal.tsx` / `src/renderer/src/utils/conversationUtils.ts`：历史对话窗里的编辑、重发、复制和 `@persona` 决策请求现在会先剥离 `【已关联空间：...】` 这类内部提示，避免把内部增强提示再次暴露给用户，也避免历史重发时“看起来没触发 @”
+- `src/shared/lingsiDecisionEngine.ts`：Decision matching 与产品状态包注入现在会忽略追加的关联空间提示，以及 `@ / mention / space / 卡片 / badge` 这类低信号关键词，修复“明明只问 Lenny 职业问题，却误落到当前项目状态包”的问题
+- `src/renderer/src/components/AnswerModalSubcomponents.tsx`：产品状态 fallback 会按 persona 过滤用户可见标签；Lenny 回答不再展示“张小龙决策评测基线”，也不再把 `LingSi 飞轮` 这类内部闭环文档直接暴露给用户
+- `src/renderer/src/components/AnswerModal.tsx`：弹窗顶部拖拽手柄从整条横线改成悬浮小手柄，保留可调高度能力，同时避免视觉上像“多画了一条线”
+- `src/renderer/src/components/__tests__/AnswerModalSubcomponents.test.tsx` / `src/shared/__tests__/lingsiDecisionEngine.test.ts`：补充历史提示剥离、产品状态误触发回归测试与 persona 过滤断言
 
 **测试与验证：**
 - `npm run typecheck`：通过
-- `npx vitest run src/renderer/src/components/__tests__/AnswerModalSubcomponents.test.tsx`：通过
-- `npm test`：606/606 通过
+- `npx vitest run src/shared/__tests__/lingsiDecisionEngine.test.ts src/renderer/src/components/__tests__/AnswerModalSubcomponents.test.tsx src/renderer/src/utils/__tests__/conversationUtils.test.ts`：通过
+- `npm test`：608/608 通过
 - `npm run build`：通过
 - `npm run test:e2e`：44 passed / 4 skipped
 

@@ -101,6 +101,21 @@ describe('lingsiDecisionEngine', () => {
     expect(payload.decisionTrace.productStateUsed).toBeFalsy()
   })
 
+  it('does not let appended space hints accidentally trigger the product state pack', () => {
+    const payload = buildLingSiDecisionPayloadFromUnits(
+      '@Lenny Rachitsky 怎么思考职业发展方向？\n\n【已关联空间：Lenny Rachitsky（灵思）—— 请以 Lenny Rachitsky 的视角和知识来回答，可调用 search_memory 检索相关记忆】',
+      'decision',
+      units,
+      {
+        personaId: 'lenny',
+        personaName: 'Lenny Rachitsky',
+        productState,
+      },
+    )
+    expect(payload.extraContext).not.toContain('当前产品状态包')
+    expect(payload.decisionTrace.productStateUsed).toBeFalsy()
+  })
+
   it('merges traces without duplicating unit ids', () => {
     const first = buildLingSiDecisionPayloadFromUnits('路线图优先级怎么排？', 'decision', units, { personaId: 'lenny' }).decisionTrace
     const second = buildLingSiDecisionPayloadFromUnits('路线图优先级还是用 RICE 吗？', 'decision', units, { personaId: 'lenny' }).decisionTrace
@@ -178,5 +193,6 @@ describe('lingsiDecisionEngine', () => {
     expect(shouldInjectDecisionProductState('Anima 首页 Space 卡片和决策轨迹还有什么交互问题？', productState)).toBe(true)
     expect(shouldInjectDecisionProductState('企业软件怎么缩短续费反馈回路？', productState)).toBe(false)
     expect(shouldInjectDecisionProductState('这个功能交互不好，该怎么设计？', productState)).toBe(false)
+    expect(shouldInjectDecisionProductState('@Lenny Rachitsky 怎么思考职业发展方向？\n\n【已关联空间：Lenny Rachitsky（灵思）—— 请以 Lenny Rachitsky 的视角和知识来回答，可调用 search_memory 检索相关记忆】', productState)).toBe(false)
   })
 })

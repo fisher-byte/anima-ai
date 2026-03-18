@@ -8,9 +8,15 @@ import type {
 
 const MAX_MATCHED_UNITS = 3
 const MAX_TRACE_SOURCES = 5
+const LINKED_CONTEXT_HINT_REGEX = /\s*【已关联(?:空间|文件)：[\s\S]*?】/g
+const LOW_SIGNAL_PRODUCT_STATE_KEYWORDS = new Set(['@', 'mention', 'space', '卡片', 'badge'])
 
 function normalizeText(text: string): string {
   return text.toLowerCase()
+}
+
+function stripLinkedContextHints(text: string): string {
+  return text.replace(LINKED_CONTEXT_HINT_REGEX, '').trim()
 }
 
 function dedupeSourceRefs(sourceRefs: DecisionSourceRef[]): DecisionSourceRef[] {
@@ -27,7 +33,7 @@ function dedupeSourceRefs(sourceRefs: DecisionSourceRef[]): DecisionSourceRef[] 
 }
 
 export function scoreDecisionUnit(query: string, unit: DecisionUnit): number {
-  const normalizedQuery = normalizeText(query)
+  const normalizedQuery = normalizeText(stripLinkedContextHints(query))
   let score = 0
   let hardSignalCount = 0
 
@@ -149,8 +155,12 @@ export function shouldInjectDecisionProductState(
   productState: DecisionProductStatePack | undefined,
 ): boolean {
   if (!productState) return false
-  const normalizedQuery = normalizeText(query)
-  return productState.keywords.some(keyword => normalizedQuery.includes(normalizeText(keyword)))
+  const normalizedQuery = normalizeText(stripLinkedContextHints(query))
+  return productState.keywords.some((keyword) => {
+    const normalizedKeyword = normalizeText(keyword)
+    if (LOW_SIGNAL_PRODUCT_STATE_KEYWORDS.has(normalizedKeyword)) return false
+    return normalizedQuery.includes(normalizedKeyword)
+  })
 }
 
 export function buildDecisionTrace(

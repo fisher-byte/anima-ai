@@ -198,3 +198,13 @@ export function stripFileBlocksOnly(content: string): string {
   const idx = content.indexOf(FILE_BLOCK_PREFIX)
   return idx >= 0 ? content.slice(0, idx).trim() : content
 }
+
+const LINKED_CONTEXT_HINT_REGEX = /\s*【已关联(?:空间|文件)：[\s\S]*?】/g
+
+/**
+ * 剥离前端为 @space / @file 注入的辅助提示，避免在历史回放、复制、重发时把内部提示再次暴露给用户。
+ * 不剥离引用块和正文内容。
+ */
+export function stripLinkedContextHints(content: string): string {
+  return content.replace(LINKED_CONTEXT_HINT_REGEX, '').trim()
+}

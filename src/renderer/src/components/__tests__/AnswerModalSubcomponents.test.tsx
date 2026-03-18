@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
 import type { DecisionSourceRef, DecisionUnit } from '@shared/types'
-import { LingSiTracePanel } from '../AnswerModalSubcomponents'
+import { LingSiTracePanel, UserMessageContent } from '../AnswerModalSubcomponents'
 
 const matchedUnit: DecisionUnit = {
   id: 'lenny-pre-mortem-needs-kill-criteria',
@@ -37,6 +37,16 @@ const sourceRef: DecisionSourceRef = {
 }
 
 describe('LingSiTracePanel', () => {
+  it('hides injected space hints from rendered user messages', () => {
+    const html = renderToStaticMarkup(
+      <UserMessageContent content="@Lenny Rachitsky 职业发展怎么想？\n\n【已关联空间：Lenny Rachitsky（灵思）—— 请以 Lenny Rachitsky 的视角和知识来回答，可调用 search_memory 检索相关记忆】" />,
+    )
+
+    expect(html).toContain('@Lenny Rachitsky 职业发展怎么想？')
+    expect(html).not.toContain('已关联空间')
+    expect(html).not.toContain('search_memory')
+  })
+
   it('renders a disabled trace action while the answer is still streaming', () => {
     const html = renderToStaticMarkup(
       <LingSiTracePanel
