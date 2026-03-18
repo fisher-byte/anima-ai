@@ -2017,9 +2017,9 @@ export const useCanvasStore = create<CanvasState>()(
         set({ isLoading: false })
         return
       }
-      const lines = content.trim().split('\n').filter(Boolean)
-      // 恢复策略：同一 conversationId 可能被多次 append（例如曾经被“短版本”覆盖）。
-      // 优先选择“最完整”的 assistantMessage（多轮 transcript/更长），同时保留最新记录的其他字段。
+      // 恢复策略：同一 conversationId 可能被多次 append（例如曾经被”短版本”覆盖）。
+      // 优先选择”最完整”的 assistantMessage（多轮 transcript/更长），同时保留最新记录的其他字段。
+      // 使用从末尾逐行扫描的 generator，避免对超大 JSONL 文件整体 split 导致主线程阻塞。
       let latest: Conversation | null = null
       let bestAssistantMessage = ''
       let bestReasoning: string | undefined
@@ -2027,6 +2027,27 @@ export const useCanvasStore = create<CanvasState>()(
       const childConvs: Array<{ id: string; assistantLen: number; hasMulti: boolean; createdAt?: string; userLen: number }> = []
       const scanLimit = 8000 // 防止超大文件导致卡顿；足够覆盖同一对话的多次回写
       let scanned = 0
+
+      // 从末尾逐行扫描，不一次性 split 整个文件（避免大文件主线程 hang）
+      function* iterLinesFromEnd(text: string, maxLines: number): Generator<string> {
+        if (!text) return
+        let end = text.length
+        let count = 0
+        while (end > 0 && text[end - 1] === '\n') end--
+        for (let i = end - 1; i >= 0; i--) {
+          if (text[i] === '\n') {
+            const line = text.slice(i + 1, end).trim()
+            end = i
+            if (line) {
+              yield line
+              count++
+              if (count >= maxLines) return
+            }
+          }
+        }
+        const first = text.slice(0, end).trim()
+        if (first) yield first
+      }
 
       const scoreAssistant = (a: string) => {
         const hasMulti = a.includes('#1\n') || a.includes('# 1\n')
@@ -2041,7 +2062,7 @@ export const useCanvasStore = create<CanvasState>()(
           const n = Number(m[1])
           if (Number.isFinite(n)) maxIdx = Math.max(maxIdx, n)
         }
-        // 兼容 "#1\n用户：" 这种没有独立行的情况
+        // 兼容 “#1\n用户：” 这种没有独立行的情况
         const re2 = /#\s*(\d+)\s*\n/g
         while ((m = re2.exec(text)) !== null) {
           const n = Number(m[1])
@@ -2067,11 +2088,16 @@ export const useCanvasStore = create<CanvasState>()(
         return base ? `${base}\n\n${block}` : block
       }
 
-      for (let i = lines.length - 1; i >= 0; i--) {
+      for (const line of iterLinesFromEnd(content, scanLimit)) {
         if (scanned++ > scanLimit) break
+        // 协作式让步：每 60 行释放主线程，避免超大文件 parsing 期间 UI 无响应
+        if (scanned % 60 === 0) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 0))
+          if (token !== _openModalToken) return
+        }
         try {
-          const conv = JSON.parse(lines[i]) as Conversation
-          // 收集“话题拆分”产生的子对话（parentId 指向当前对话 id）
+          const conv = JSON.parse(line) as Conversation
+          // 收集”话题拆分”产生的子对话（parentId 指向当前对话 id）
           if (conv.parentId === conversationId && conv.id !== conversationId) {
             const a = conv.assistantMessage || ''
             childConvs.push({
@@ -2098,8 +2124,8 @@ export const useCanvasStore = create<CanvasState>()(
         const latestA = latest.assistantMessage || ''
         const latestHasMulti = latestA.includes('#1\n') || latestA.includes('# 1\n')
         const bestHasMulti = bestAssistantMessage.includes('#1\n') || bestAssistantMessage.includes('# 1\n')
-        // 新策略：同 id 多条记录中，优先选择“最完整”的 transcript（多轮优先，其次更长）
-        // 仅当差异明显时触发“修复回写”，避免每次打开都无限 append
+        // 新策略：同 id 多条记录中，优先选择”最完整”的 transcript（多轮优先，其次更长）
+        // 仅当差异明显时触发”修复回写”，避免每次打开都无限 append
         const diffLen = bestAssistantMessage.length - latestA.length
         const shouldPreferBest = diffLen > 80
         const shouldRepair = shouldPreferBest && (bestHasMulti || latestHasMulti || bestAssistantMessage.trim().length > 0)
@@ -2107,7 +2133,7 @@ export const useCanvasStore = create<CanvasState>()(
           ? { ...latest, assistantMessage: bestAssistantMessage, reasoning_content: bestReasoning ?? latest.reasoning_content }
           : latest
 
-        // 线程展示：把 parentId==conversationId 的子对话追加到 transcript 末尾，避免“昨晚的内容在分支里看不到”
+        // 线程展示：把 parentId==conversationId 的子对话追加到 transcript 末尾，避免”昨晚的内容在分支里看不到”
         let mergedAssistant = ensureTranscript(mergedBase)
         let nextIdx = maxTurnIndexFromTranscript(mergedAssistant) + 1
         const childFull: Conversation[] = []
@@ -2115,10 +2141,14 @@ export const useCanvasStore = create<CanvasState>()(
           // 再扫描一次，取出子对话正文（仅扫描窗口内，成本可控）
           const want = new Set(childConvs.map(c => c.id))
           scanned = 0
-          for (let i = lines.length - 1; i >= 0; i--) {
+          for (const line of iterLinesFromEnd(content, scanLimit)) {
             if (scanned++ > scanLimit) break
+            if (scanned % 60 === 0) {
+              await new Promise<void>((resolve) => setTimeout(resolve, 0))
+              if (token !== _openModalToken) return
+            }
             try {
-              const conv = JSON.parse(lines[i]) as Conversation
+              const conv = JSON.parse(line) as Conversation
               if (want.has(conv.id)) childFull.push(conv)
             } catch { /* ignore */ }
           }
