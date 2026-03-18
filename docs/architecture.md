@@ -1,6 +1,6 @@
 # Anima 架构文档
 
-*最后更新: 2026-03-18 | 版本: v0.5.20*
+*最后更新: 2026-03-18 | 版本: v0.5.21*
 
 ---
 
@@ -214,9 +214,10 @@ index.ts 中间件: c.set('db', getDb('a1b2c3d4e5f6'))
 - 首次打开支持决策的 Space 时，前端会把真实 `seeds/lingsi/*` 资产写入 `storage` 表，包含 `decision-product-state.json`，避免依赖 mock
 - 主页 `@persona` 对支持决策的 persona 改为 decision-only 调用；结构化 mention token 会把 `invokedAssistant` 与 `decisionTrace` 写入对话元数据，但输入框只展示纯 `@名字`
 - 当问题命中当前项目关键词（如 `Anima / 首页 / @ / 轨迹 / 决策模式`）时，决策链路会额外注入结构化产品状态包，让 persona 理解当前版本与已知风险
+- `decision-product-state.json` 的动态字段由 `npm run lingsi:state-pack` 从 `changelog`、评测报告和 seeds 基线自动刷新，减少人工漂移
 - 命中的证据会进入对话元数据 `decisionTrace`：`mode`、`personaId`、`matchedDecisionUnitIds`、`sourceRefs`
 - `AnswerModal` 现已提供独立决策轨迹视图；trace modal 通过 portal 渲染，且在流式输出期间禁用打开，避免页面卡死
-- 来源真相库保留在独立仓库 `anima-base/`，主项目只导入必要子集；当前基线为 `2 personas / 37 sources / 59 approved units`，详见 `docs/lingsi-flywheel.md`
+- 来源真相库保留在独立仓库 `anima-base/`，主项目只导入必要子集；当前基线为 `2 personas / 37 sources / 59 approved units`，最新同步 head 为 `083974d`，详见 `docs/lingsi-flywheel.md`
 
 **v0.3.2 新增能力：**
 

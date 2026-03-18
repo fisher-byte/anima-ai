@@ -190,6 +190,13 @@ export interface DecisionProductStatePack {
   nextDecisions: string[]
   evalSummary: Partial<Record<'lenny' | 'zhang', string>>
   personaFocus?: Partial<Record<'lenny' | 'zhang', string[]>>
+  dataSnapshot?: {
+    personas: number
+    sources: number
+    approvedUnits: number
+    unitsByPersona: Partial<Record<'lenny' | 'zhang', number>>
+    animaBaseHead?: string
+  }
   docRefs: string[]
 }
 

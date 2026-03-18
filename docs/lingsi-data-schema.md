@@ -1,6 +1,6 @@
 # LingSi 数据 Schema
 
-*最后更新: 2026-03-17 | 状态: 多 persona 基线已完成，已同步 latest Lenny / 张小龙案例并补齐张小龙 eval*
+*最后更新: 2026-03-18 | 状态: 多 persona 基线已完成，产品状态包已接入自动刷新链路*
 
 ---
 
@@ -18,17 +18,18 @@
 
 ## 存储文件
 
-三份 LingSi 资产最终会存放在 SQLite `storage` 表中。
+四份 LingSi 资产最终会存放在 SQLite `storage` 表中。
 
 当前仓库内的基线 seed 文件已生成到：
 - `/Users/zhiyangyu/Desktop/试验项目集合/自进化产品/evocanvas/seeds/lingsi/decision-personas.json`
 - `/Users/zhiyangyu/Desktop/试验项目集合/自进化产品/evocanvas/seeds/lingsi/decision-source-manifest.json`
 - `/Users/zhiyangyu/Desktop/试验项目集合/自进化产品/evocanvas/seeds/lingsi/decision-units.json`
+- `/Users/zhiyangyu/Desktop/试验项目集合/自进化产品/evocanvas/seeds/lingsi/decision-product-state.json`
 
 当前 seed 统计：
 - `2` 个 persona
-- `33` 条来源 manifest
-- `53` 条 `approved` DecisionUnit
+- `37` 条来源 manifest
+- `59` 条 `approved` DecisionUnit
 
 正式接入产品时，再由导入链路写入 SQLite `storage` 表。
 
@@ -37,10 +38,11 @@
 | `decision-personas.json` | 决策 persona 的轻量结构化描述 |
 | `decision-units.json` | 可直接命中的决策证据单元 |
 | `decision-source-manifest.json` | 从独立 `anima-base` 导入的来源清单 |
+| `decision-product-state.json` | 当前版本/评测/风险/待决策的结构化产品状态包 |
 
 当前 `anima-base` 来源基线：
 - 仓库路径：`/Users/zhiyangyu/Desktop/试验项目集合/自进化产品/anima-base`
-- 仓库 commit：`851effb`
+- 仓库 commit：`083974d`
 
 ---
 
@@ -268,4 +270,10 @@
 
 ## Product State Pack
 
-新增 `seeds/lingsi/decision-product-state.json`，用于沉淀当前版本的产品状态包，并作为决策 persona 的当前产品事实基线。它不是自动抽取产物，当前按发版节奏人工维护；要求与 `docs/PROJECT.md`、`docs/ROADMAP.md`、`docs/changelog.md` 保持同步。
+新增 `seeds/lingsi/decision-product-state.json`，用于沉淀当前版本的产品状态包，并作为决策 persona 的当前产品事实基线。
+
+当前约束：
+- `currentFocus / validatedDirections / knownRisks / nextDecisions / personaFocus` 仍由人工策展
+- `version / updatedAt / completedChanges / evalSummary / dataSnapshot / docRefs` 由 `npm run lingsi:state-pack` 从 `docs/changelog.md`、评测报告与当前 seeds 基线自动刷新
+- 发版时如果 LingSi 链路有改动，先同步 `docs/PROJECT.md`、`docs/ROADMAP.md`、`docs/changelog.md`，再运行 `npm run lingsi:state-pack`
+- `npm run lingsi:refresh` 用于“状态包刷新 + seeds 刷新”的完整收口

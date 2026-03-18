@@ -79,7 +79,9 @@ describe('lingsiDecisionEngine', () => {
       },
     )
     expect(payload.extraContext).toContain('当前产品状态包')
-    expect(payload.extraContext).toContain('主页 @persona 对支持决策的 persona 已改成 decision-only')
+    expect(payload.extraContext).toContain('知识基线')
+    expect(payload.extraContext).toContain('npm run lingsi:state-pack')
+    expect(payload.extraContext).toContain('anima-base: 083974d')
   })
 
   it('does not inject the product state pack for unrelated generic prompts', () => {

@@ -17,14 +17,14 @@
 | [部署运维](./deployment.md) | 发布、配置 | 📝 |
 | [变更日志](./changelog.md) | 版本迭代记录 | ✅ |
 | [问题排查](./troubleshooting.md) | 常见问题解决 | 📝 |
-| [代码审查](./code-review-report-v0.5.20-product-state-pack.md) | 最新审查报告 | ✅ |
+| [代码审查](./code-review-report-v0.5.21-state-refresh-and-sync.md) | 最新审查报告 | ✅ |
 | [路线图](./ROADMAP.md) | 近期/远期规划 | ✅ |
 
 ## 项目状态
 
-- **当前版本**: v0.5.20
+- **当前版本**: v0.5.21
 - **开发状态**: Active
-- **最后更新**: 2026-03-18（含产品状态包接入、Space/@persona 共用当前产品事实基线，以及 v0.5.20 收口）
+- **最后更新**: 2026-03-18（含产品状态包自动刷新、最新 anima-base 同步确认与发布校验修复，以及 v0.5.21 收口）
 - **GitHub**: https://github.com/fisher-byte/anima-ai
 
 ## 核心功能
