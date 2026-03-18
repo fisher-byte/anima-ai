@@ -2,6 +2,11 @@
 
 ## 计划中版本
 
+#### v0.5.22 - Decision trace modal freeze fix（已完成）
+- [x] `AnswerModalSubcomponents.tsx`：把 `查看轨迹` 从 `AnimatePresence + motion portal` 收敛为更直接的 portal modal，移除这条路径上的动画编排
+- [x] `AnswerModalSubcomponents.tsx`：新增 `Escape` 关闭、`body overflow` 锁定/恢复，以及 modal 内容区点击防冒泡
+- [x] 验证：`npm run typecheck`、`npx vitest run src/renderer/src/components/__tests__/AnswerModalSubcomponents.test.tsx`、`npm run build`
+
 #### v0.5.21 - Decision state refresh + source sync + deploy verification（已完成）
 - [x] `scripts/generate-lingsi-product-state.ts` / `src/shared/lingsiProductState.ts`：新增产品状态包自动刷新链路，从 `changelog`、eval 报告和当前 seeds 基线生成动态字段
 - [x] `package.json`：新增 `npm run lingsi:state-pack` 与 `npm run lingsi:refresh`，把状态包刷新纳入 LingSi 标准收口命令

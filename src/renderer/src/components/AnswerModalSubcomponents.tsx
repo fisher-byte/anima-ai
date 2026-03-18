@@ -140,23 +140,34 @@ export function LingSiTracePanel({
     }
   }, [isStreaming, showTraceView])
 
+  useEffect(() => {
+    if (!showTraceView || typeof document === 'undefined') return
+
+    const previousOverflow = document.body.style.overflow
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowTraceView(false)
+      }
+    }
+
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [showTraceView])
+
   if (mode !== 'decision' || (matchedUnitLabels.length === 0 && sourceRefs.length === 0)) return null
 
   const traceView = showTraceView && typeof document !== 'undefined'
     ? createPortal(
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[130] bg-black/40"
-            onClick={() => setShowTraceView(false)}
-          />
-          <motion.div
-            initial={{ opacity: 0, y: 24, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 16, scale: 0.98 }}
-            className="fixed inset-x-0 top-8 z-[131] mx-auto max-h-[80vh] w-[min(880px,calc(100vw-32px))] overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-2xl"
+        <div className="fixed inset-0 z-[130] px-4 py-8" role="dialog" aria-modal="true" aria-label={t.modal.lingsiTraceView}>
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowTraceView(false)} />
+          <div
+            className="relative z-[131] mx-auto max-h-[80vh] w-[min(880px,calc(100vw-32px))] overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5">
               <div>
@@ -253,8 +264,8 @@ export function LingSiTracePanel({
                 </section>
               </div>
             </div>
-          </motion.div>
-        </>,
+          </div>
+        </div>,
         document.body,
       )
     : null
@@ -362,10 +373,7 @@ export function LingSiTracePanel({
           )}
         </div>
       )}
-
-      <AnimatePresence>
-        {traceView}
-      </AnimatePresence>
+      {traceView}
     </div>
   )
 }
