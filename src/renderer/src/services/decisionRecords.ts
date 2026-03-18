@@ -37,8 +37,10 @@ const PERSONA_NAME_BY_ID: Record<string, string> = {
   wang: '王慧文',
 }
 
-const TAIL_LINES_PER_FILE = 4000
-const MAX_ITEMS_RETURNED = 500
+// Keep this small: decision hub refresh runs on the UI thread.
+// If conversations.jsonl has huge assistantMessage payloads, large tails can freeze the page.
+const TAIL_LINES_PER_FILE = 400
+const MAX_ITEMS_RETURNED = 200
 
 function isElectron(): boolean {
   return typeof window !== 'undefined' && typeof (window as any).electronAPI !== 'undefined'
@@ -127,37 +129,47 @@ export async function listOngoingDecisionItems(): Promise<OngoingDecisionItem[]>
     if (!content) continue
 
     // Parse from the end: recent decisions matter most, and avoids splitting huge JSONL into arrays.
+    let parsedCount = 0
     for (const line of iterJsonlLinesFromEnd(content, TAIL_LINES_PER_FILE)) {
       try {
-        const parsed = JSON.parse(line) as Conversation
-        if (!parsed.decisionRecord) continue
-        const status = parsed.decisionRecord.status
+        const conv = JSON.parse(line) as Conversation
+        if (!conv.decisionRecord) continue
+        const status = conv.decisionRecord.status
         if (status !== 'adopted' && status !== 'revisited') continue
 
-        const conversation = normalizeConversation(parsed, source)
-        const personaName = PERSONA_NAME_BY_ID[parsed.decisionRecord.personaId] ?? parsed.decisionRecord.personaId
+        const conversation = normalizeConversation(conv, source)
+        const personaName = PERSONA_NAME_BY_ID[conv.decisionRecord.personaId] ?? conv.decisionRecord.personaId
         const item: OngoingDecisionItem = {
           conversation,
-          decisionRecord: parsed.decisionRecord,
+          decisionRecord: conv.decisionRecord,
           personaName,
           source,
-          title: sanitizeTitle(parsed.decisionRecord.userQuestion || parsed.userMessage),
-          revisitAt: parsed.decisionRecord.outcome?.revisitAt,
-          adoptedAt: parsed.decisionRecord.outcome?.adoptedAt,
-          result: parsed.decisionRecord.outcome?.result,
-          notes: parsed.decisionRecord.outcome?.notes,
-          updatedAt: parsed.decisionRecord.updatedAt,
-          isDue: status === 'adopted' && isDueDate(parsed.decisionRecord.outcome?.revisitAt),
+          title: sanitizeTitle(conv.decisionRecord.userQuestion || conv.userMessage),
+          revisitAt: conv.decisionRecord.outcome?.revisitAt,
+          adoptedAt: conv.decisionRecord.outcome?.adoptedAt,
+          result: conv.decisionRecord.outcome?.result,
+          notes: conv.decisionRecord.outcome?.notes,
+          updatedAt: conv.decisionRecord.updatedAt,
+          isDue: status === 'adopted' && isDueDate(conv.decisionRecord.outcome?.revisitAt),
         }
 
-        const existing = latestByConversationId.get(parsed.id)
+        const existing = latestByConversationId.get(conv.id)
         if (!existing || compareItems(item, existing) < 0) {
-          latestByConversationId.set(parsed.id, item)
+          latestByConversationId.set(conv.id, item)
         }
       } catch {
         // ignore invalid jsonl line
       }
+
+      parsedCount++
+      // Cooperative yielding to avoid UI hangs when JSONL lines are large.
+      if (parsedCount % 50 === 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0))
+      }
+      if (latestByConversationId.size >= MAX_ITEMS_RETURNED) break
     }
+
+    if (latestByConversationId.size >= MAX_ITEMS_RETURNED) break
   }
 
   return Array.from(latestByConversationId.values()).sort(compareItems).slice(0, MAX_ITEMS_RETURNED)
