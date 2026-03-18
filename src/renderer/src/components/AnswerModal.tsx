@@ -393,16 +393,30 @@ export function AnswerModal() {
   const persistDecisionRecord = useCallback(async (
     mutate: (record: DecisionRecord) => DecisionRecord,
   ) => {
+    // P5: Early guard using closure — but after yield, re-read from getState()
+    // to avoid stale closure data (P1-1 fix).
     if (!currentConversation?.id || !currentConversation.decisionRecord) return
+    const convId = currentConversation.id
+
+    // P4: Yield to the event loop BEFORE doing heavy work.
+    // This lets React commit any pending paints (streaming text, etc.)
+    // so the user doesn't see a freeze.
+    await new Promise<void>(r => setTimeout(r, 0))
+
+    // P5 (P1-1 fix): Re-read the LATEST conversation from the store after yield.
+    // The closure-captured `currentConversation` may be stale if autoSaveIfNeeded
+    // or markDecisionAnswered ran during the yield.
+    const freshConversation = useCanvasStore.getState().currentConversation
+    if (!freshConversation || freshConversation.id !== convId || !freshConversation.decisionRecord) return
 
     const now = new Date().toISOString()
-    const nextDecisionRecord = mutate(currentConversation.decisionRecord)
+    const nextDecisionRecord = mutate(freshConversation.decisionRecord)
     const normalizedRecord: DecisionRecord = {
       ...nextDecisionRecord,
       updatedAt: now,
       outcome: nextDecisionRecord.outcome
         ? {
-            ...currentConversation.decisionRecord.outcome,
+            ...freshConversation.decisionRecord.outcome,
             ...nextDecisionRecord.outcome,
           }
         : nextDecisionRecord.outcome,
@@ -410,16 +424,22 @@ export function AnswerModal() {
 
     const assistantMessage = serializeTurnsForStorage(turns)
     const nextConversation: Conversation = {
-      ...currentConversation,
+      ...freshConversation,
       assistantMessage,
       reasoning_content: turns.length > 0 ? (turns[turns.length - 1].reasoning || undefined) : undefined,
       appliedPreferences: [...appliedPreferences],
       decisionRecord: normalizedRecord,
     }
 
-    await updateConversation(currentConversation.id, { decisionRecord: normalizedRecord })
+    // P4: updateConversation triggers store set → AnswerModal re-render.
+    // We do this first so the UI shows the new status, then persist in background.
+    await updateConversation(convId, { decisionRecord: normalizedRecord })
     didMutateRef.current = true
     autoSavedSigRef.current = null
+
+    // P4: Yield again after the store update so React can paint before we hit the network.
+    await new Promise<void>(r => setTimeout(r, 0))
+
     await useCanvasStore.getState().appendConversation(nextConversation)
 
     const decisionSource = isCustomSpaceMode && activeCustomSpaceId
@@ -487,12 +507,21 @@ export function AnswerModal() {
   useEffect(() => { persistDecisionRecordRef.current = persistDecisionRecord }, [persistDecisionRecord])
 
   const markDecisionAnswered = useCallback(async () => {
-    if (!activeDecisionRecord || activeDecisionRecord.status !== 'draft') return
+    // P5 (P1-2 fix): Read fresh state instead of closure-captured `activeDecisionRecord`.
+    // The closure value may be stale if store was updated between render and call.
+    const freshRecord = useCanvasStore.getState().currentConversation?.decisionRecord
+    if (!freshRecord || freshRecord.status !== 'draft') return
+    // P4: Delay slightly so autoSaveIfNeeded finishes first and doesn't compete
+    // for the same store writes. This prevents the double-save cascade freeze.
+    await new Promise<void>(r => setTimeout(r, 200))
+    // P5: Re-check after delay — status may have changed during the wait.
+    const recheck = useCanvasStore.getState().currentConversation?.decisionRecord
+    if (!recheck || recheck.status !== 'draft') return
     await persistDecisionRecordRef.current((record) => ({
       ...record,
       status: 'answered',
     }))
-  }, [activeDecisionRecord])
+  }, [])
 
   const handleAdoptDecision = useCallback(async (days: number) => {
     await persistDecisionRecordRef.current((record) => ({
@@ -707,9 +736,12 @@ export function AnswerModal() {
     },
     onComplete: () => {
       setIsStreaming(false)
-      void markDecisionAnswered()
-      // 回答完成即自动保存：避免“没点×直接刷新导致消息丢失”
-      void autoSaveIfNeeded()
+      // P5 (P1-3 fix): Sequence saves — autoSave first, THEN markDecisionAnswered.
+      // Previously both were fire-and-forget which caused race conditions on JSONL writes.
+      void (async () => {
+        await autoSaveIfNeeded()
+        void markDecisionAnswered()
+      })()
       // 若深度搜索已转入后台，不清空提示条；让用户看到“仍在进行中”
       if (!deepSearchStateRef.current || (deepSearchStateRef.current.status !== 'pending' && deepSearchStateRef.current.status !== 'running')) {
         setSearchRoundMsg(null)

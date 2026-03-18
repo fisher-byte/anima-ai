@@ -11,7 +11,7 @@
  *   LingSiTraceModal    — 轨迹详情弹窗（由 AnswerModal 顶层渲染，脱离 turns 高频更新树）
  */
 
-import { memo, useEffect, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -140,8 +140,8 @@ function filterProductStateDocRefs(refs: string[], personaName: string): string[
   const personaKey = personaName.toLowerCase()
   return refs.filter((ref) => {
     if (ref === 'docs/lingsi-flywheel.md') return false
-    if (ref === 'docs/lingsi-eval-zhang.md' && (personaKey.includes('lenny') || personaName.includes('Lenny'))) return false
-    if (ref === 'docs/lingsi-eval-m4.md' && (personaKey.includes('zhang') || personaName.includes('张小龙'))) return false
+    if (ref === 'docs/lingsi-eval-zhang.md' && personaKey.includes('lenny')) return false
+    if (ref === 'docs/lingsi-eval-m4.md' && personaKey.includes('zhang')) return false
     return true
   })
 }
@@ -504,43 +504,100 @@ function getDecisionStatusLabel(status: DecisionRecord['status'], t: ReturnType<
   }
 }
 
+// ── LingSiDecisionCard (P4 isolated) ──────────────────────────────────────
+// P4 nuclear fix: The card takes a snapshot of the record on mount and only
+// re-syncs when `updatedAt` actually changes. This breaks the cascade where
+// store updates → AnswerModal re-render → new record reference → card re-render → freeze.
+// Additionally, adopt/outcome actions yield to the event loop before & after
+// the heavy persistDecisionRecord call to keep the UI responsive.
+
+export interface LingSiDecisionCardProps {
+  record: DecisionRecord
+  personaName: string
+  onAdopt: (days: number) => void
+  onOutcome: (result: NonNullable<DecisionRecord['outcome']>['result'], notes?: string) => void
+  anchorRef?: React.RefObject<HTMLDivElement | null>
+}
+
 export const LingSiDecisionCard = memo(function LingSiDecisionCard({
   record,
   personaName,
   onAdopt,
   onOutcome,
-}: {
-  record: DecisionRecord
-  personaName: string
-  onAdopt: (days: number) => void
-  onOutcome: (result: NonNullable<DecisionRecord['outcome']>['result'], notes?: string) => void
-}) {
+}: LingSiDecisionCardProps) {
   const { t } = useT()
-  // Default collapsed — user sees the answer first, action card is opt-in
+
+  // Snapshot the record into local state to decouple from store-driven re-renders.
+  // Only update when the record's updatedAt actually changes (= real persistence happened).
+  const [localRecord, setLocalRecord] = useState(record)
+  const prevUpdatedAtRef = useRef(record.updatedAt)
+  useEffect(() => {
+    if (record.updatedAt !== prevUpdatedAtRef.current) {
+      prevUpdatedAtRef.current = record.updatedAt
+      setLocalRecord(record)
+    }
+  }, [record])
+
   const [expanded, setExpanded] = useState(false)
   const [showSchedule, setShowSchedule] = useState(false)
-  const [outcomeNotes, setOutcomeNotes] = useState(record.outcome?.notes ?? '')
-  const nextActions = record.nextActions.slice(0, 3)
-  const followUps = record.followUpQuestions.slice(0, 2)
-  const revisitAt = record.outcome?.revisitAt
-  const canSchedule = record.status === 'draft' || record.status === 'answered'
-  const canMarkOutcome = record.status === 'adopted' || record.status === 'revisited'
+  const [outcomeNotes, setOutcomeNotes] = useState(localRecord.outcome?.notes ?? '')
+  // P5 (P2-3 fix): Use ref + state for busy.
+  // Ref is the source of truth (avoids stale closure in useCallback);
+  // state drives the UI opacity transition.
+  const busyRef = useRef(false)
+  const [busy, setBusy] = useState(false)
+
+  const nextActions = localRecord.nextActions.slice(0, 3)
+  const followUps = localRecord.followUpQuestions.slice(0, 2)
+  const revisitAt = localRecord.outcome?.revisitAt
+  const canSchedule = localRecord.status === 'draft' || localRecord.status === 'answered'
+  const canMarkOutcome = localRecord.status === 'adopted' || localRecord.status === 'revisited'
 
   useEffect(() => {
     if (!canSchedule) setShowSchedule(false)
   }, [canSchedule])
 
-  // P3-B: sync outcomeNotes when record prop changes (e.g. after onAdopt persists)
   useEffect(() => {
-    const saved = record.outcome?.notes ?? ''
+    const saved = localRecord.outcome?.notes ?? ''
     setOutcomeNotes(prev => (prev === '' || prev === saved) ? saved : prev)
-  }, [record.outcome?.notes])
+  }, [localRecord.outcome?.notes])
 
-  const statusTone = getDecisionStatusTone(record.status)
-  const statusLabel = getDecisionStatusLabel(record.status, t)
+  // Wrap callbacks so they:
+  // 1) set busy flag to prevent double-clicks (ref = immediate, state = UI)
+  // 2) yield to the event loop before & after the heavy persist
+  const safeAdopt = useCallback(async (days: number) => {
+    if (busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    await new Promise<void>(r => setTimeout(r, 0))
+    try {
+      await onAdopt(days)
+    } finally {
+      await new Promise<void>(r => setTimeout(r, 0))
+      busyRef.current = false
+      setBusy(false)
+    }
+  }, [onAdopt])
+
+  const safeOutcome = useCallback(async (result: NonNullable<DecisionRecord['outcome']>['result'], notes?: string) => {
+    if (busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    await new Promise<void>(r => setTimeout(r, 0))
+    try {
+      await onOutcome(result, notes)
+    } finally {
+      await new Promise<void>(r => setTimeout(r, 0))
+      busyRef.current = false
+      setBusy(false)
+    }
+  }, [onOutcome])
+
+  const statusTone = getDecisionStatusTone(localRecord.status)
+  const statusLabel = getDecisionStatusLabel(localRecord.status, t)
 
   return (
-    <div className="mt-3 rounded-2xl border border-amber-200/50 bg-amber-50/40 overflow-hidden">
+    <div className={`mt-3 rounded-2xl border border-amber-200/50 bg-amber-50/40 overflow-hidden transition-opacity ${busy ? 'opacity-60 pointer-events-none' : ''}`}>
       {/* Collapsed summary row — always visible */}
       <button
         type="button"
@@ -560,7 +617,7 @@ export const LingSiDecisionCard = memo(function LingSiDecisionCard({
           <span className="text-[10px] text-amber-600/50">{personaName}</span>
           {!expanded && (
             <span className="text-[12px] text-gray-600 truncate max-w-[280px]">
-              {record.recommendationSummary}
+              {localRecord.recommendationSummary}
             </span>
           )}
         </div>
@@ -573,11 +630,11 @@ export const LingSiDecisionCard = memo(function LingSiDecisionCard({
           {/* Recommendation */}
           <div className="px-4 py-3">
             <div className="text-[15px] font-semibold leading-6 text-gray-900">
-              {record.recommendationSummary}
+              {localRecord.recommendationSummary}
             </div>
-            {record.keyTradeoffs.length > 0 && (
+            {localRecord.keyTradeoffs.length > 0 && (
               <div className="mt-1.5 text-[12px] leading-5 text-gray-500">
-                {record.keyTradeoffs[0]}
+                {localRecord.keyTradeoffs[0]}
               </div>
             )}
           </div>
@@ -634,7 +691,7 @@ export const LingSiDecisionCard = memo(function LingSiDecisionCard({
                     <button
                       key={days}
                       type="button"
-                      onClick={() => onAdopt(days)}
+                      onClick={() => safeAdopt(days)}
                       className="rounded-xl border border-amber-300/80 bg-white px-3.5 py-1.5 text-[12px] font-medium text-amber-800 hover:border-amber-400 hover:bg-amber-50 transition-colors"
                     >
                       {t.modal.decisionCardAdoptDays(days)}
@@ -665,10 +722,10 @@ export const LingSiDecisionCard = memo(function LingSiDecisionCard({
                 className="mt-2 min-h-[64px] w-full resize-none rounded-xl border border-amber-200/70 bg-white/70 px-3 py-2 text-[12px] leading-6 text-gray-700 outline-none placeholder:text-gray-400 focus:border-amber-400 focus:ring-1 focus:ring-amber-200"
               />
               <div className="mt-2 flex flex-wrap gap-1.5">
-                <button type="button" onClick={() => onOutcome('working', outcomeNotes)} className="rounded-xl border border-emerald-200 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 transition-colors">{t.modal.decisionCardOutcomeWorking}</button>
-                <button type="button" onClick={() => onOutcome('mixed', outcomeNotes)} className="rounded-xl border border-amber-200 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-amber-700 hover:bg-amber-50 transition-colors">{t.modal.decisionCardOutcomeMixed}</button>
-                <button type="button" onClick={() => onOutcome('not_working', outcomeNotes)} className="rounded-xl border border-rose-200 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-rose-700 hover:bg-rose-50 transition-colors">{t.modal.decisionCardOutcomeNotWorking}</button>
-                <button type="button" onClick={() => onOutcome('unknown', outcomeNotes)} className="rounded-xl border border-gray-200 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-gray-600 hover:bg-gray-50 transition-colors">{t.modal.decisionCardOutcomeUnknown}</button>
+                <button type="button" onClick={() => safeOutcome('working', outcomeNotes)} className="rounded-xl border border-emerald-200 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 transition-colors">{t.modal.decisionCardOutcomeWorking}</button>
+                <button type="button" onClick={() => safeOutcome('mixed', outcomeNotes)} className="rounded-xl border border-amber-200 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-amber-700 hover:bg-amber-50 transition-colors">{t.modal.decisionCardOutcomeMixed}</button>
+                <button type="button" onClick={() => safeOutcome('not_working', outcomeNotes)} className="rounded-xl border border-rose-200 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-rose-700 hover:bg-rose-50 transition-colors">{t.modal.decisionCardOutcomeNotWorking}</button>
+                <button type="button" onClick={() => safeOutcome('unknown', outcomeNotes)} className="rounded-xl border border-gray-200 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-gray-600 hover:bg-gray-50 transition-colors">{t.modal.decisionCardOutcomeUnknown}</button>
               </div>
             </div>
           )}

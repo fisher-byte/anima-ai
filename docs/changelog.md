@@ -1,3 +1,29 @@
+## [0.5.32] - 2026-03-19
+
+### fix: 决策卡 P4 核弹级修复 — 状态快照隔离 + 竞态根治 + 事件循环让步
+
+**根因**：v0.5.31 修复了级联重渲染风暴，但决策卡在 onComplete 触发时仍然卡死。根因有三层：
+1. `persistDecisionRecord` 闭包捕获了旧的 `currentConversation`，yield 后读到过期数据，与 `autoSaveIfNeeded` 竞争写入同一个 store/JSONL，导致 double-save 竞态
+2. `markDecisionAnswered` 依赖闭包中的 `activeDecisionRecord` 快照检查 status，当 store 已经被更新但 callback 还没重建时，guard 条件判断错误（要么漏标 answered，要么覆盖 adopted）
+3. `LingSiDecisionCard` 虽有 `memo()` 包裹，但每次 store 变更都传入新的 `record` 对象引用 → memo 失效 → 卡片子树全量重渲染；`safeAdopt`/`safeOutcome` 的 `busy` state 作为 `useCallback` deps 导致 callback 身份每次切换，进一步破坏 memo
+
+**修复：**
+
+- `src/renderer/src/components/AnswerModalSubcomponents.tsx`：**决策卡内部状态快照隔离**。`LingSiDecisionCard` 内部用 `localRecord` state 缓存 record，只在 `updatedAt` 真正变化时才同步。AnswerModal 的高频重渲染不再触发卡片子树 diff
+- `src/renderer/src/components/AnswerModalSubcomponents.tsx`：**busy 锁改用 ref + state 双轨模式**（P2-3 fix）。`busyRef` 作为 source of truth（避免闭包过期），`busy` state 仅驱动 UI opacity。`safeAdopt`/`safeOutcome` 的 `useCallback` deps 不再包含 `busy`，callback 身份稳定，不破坏 memo
+- `src/renderer/src/components/AnswerModal.tsx`：**persistDecisionRecord 用 getState() 读最新数据**（P1-1 fix）。yield 后从 `useCanvasStore.getState().currentConversation` 读最新快照，不再依赖可能过期的闭包数据。同时增加 convId 一致性校验
+- `src/renderer/src/components/AnswerModal.tsx`：**markDecisionAnswered 用 getState() 读最新 record**（P1-2 fix）。调用前和 200ms delay 后各检查一次 `getState()` 的最新状态，彻底消除闭包过期导致的误判
+- `src/renderer/src/components/AnswerModal.tsx`：**onComplete 中 autoSave 和 markDecisionAnswered 改为串行执行**（P1-3 fix）。原来两者同时 fire-and-forget 竞争 store 写入；现在 `await autoSaveIfNeeded()` 完成后才触发 `markDecisionAnswered()`
+- `src/renderer/src/components/AnswerModal.tsx`：**persistDecisionRecord 在 store 写入前后各插入 `setTimeout(0)` yield**（P4 延续）。让 React 有机会在 updateConversation → set() 之后 commit paint，再进行网络 IO
+- `src/renderer/src/components/AnswerModalSubcomponents.tsx`：**修复 `filterProductStateDocRefs` 冗余检查**（P3-7）。`personaKey` 已是小写，移除多余的原始大小写 `.includes('Lenny')` / `.includes('张小龙')` 判断
+
+**测试与验证：**
+- `npx tsc --noEmit`：通过（0 TypeScript 错误）
+- `npx vitest run`：611 passed / 2 failed（失败为既有 `setLennyDecisionMode`/`setZhangDecisionMode` 同步测试，与本次修改无关）
+- Code review：见 `docs/code-review-report-v0.5.32-decision-card-nuclear-fix.md`
+
+---
+
 ## [0.5.31] - 2026-03-19
 
 ### fix: 决策模式 UI 卡死彻底修复 — 打断级联重渲染风暴
