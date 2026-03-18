@@ -8,6 +8,7 @@
  *   ReferenceBlockBubble — 单个引用块胶囊（折叠/展开）
  *   ClosingAnimation    — 关闭时左上角"已记下来了"动画
  *   InputArea           — 底部输入区（文件/引用块/发送按钮）
+ *   LingSiTraceModal    — 轨迹详情弹窗（由 AnswerModal 顶层渲染，脱离 turns 高频更新树）
  */
 
 import { useEffect, useState } from 'react'
@@ -112,7 +113,204 @@ export function ClosingAnimation({ isOnboarding, appliedPreferences }: { isOnboa
   )
 }
 
+// ── LingSiTraceModal ────────────────────────────────────────────────────────
+// 独立的轨迹详情弹窗，由 AnswerModal 顶层渲染（Portal 挂到 document.body）。
+// 完全脱离 turns 的高频更新渲染树，避免 streaming 时的 DOM hang。
+
+export interface LingSiTraceData {
+  personaName: string
+  matchedUnits: DecisionUnit[]
+  sourceRefs: DecisionSourceRef[]
+  productStateDocRefs: string[]
+}
+
+function formatProductStateDocRef(ref: string): string {
+  const labels: Record<string, string> = {
+    'docs/PROJECT.md': '当前项目状态',
+    'docs/ROADMAP.md': '路线图阶段',
+    'docs/changelog.md': '最近迭代记录',
+    'docs/lingsi-eval-m4.md': '决策评测基线',
+    'docs/lingsi-eval-zhang.md': '决策评测基线',
+  }
+  return labels[ref] ?? ref.replace(/^docs\//, '').replace(/\.md$/i, '')
+}
+
+export function LingSiTraceModal({
+  data,
+  onClose,
+}: {
+  data: LingSiTraceData | null
+  onClose: () => void
+}) {
+  const { t } = useT()
+
+  useEffect(() => {
+    if (!data || typeof document === 'undefined') return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = prev
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [data, onClose])
+
+  if (!data || typeof document === 'undefined') return null
+
+  const { personaName, matchedUnits, sourceRefs, productStateDocRefs } = data
+  const followUpQuestions = Array.from(new Set(matchedUnits.flatMap(u => u.followUpQuestions))).slice(0, 6)
+
+  const personaKey = personaName.toLowerCase()
+  const filteredProductStateDocRefs = productStateDocRefs.filter((ref) => {
+    if (ref === 'docs/lingsi-flywheel.md') return false
+    if (ref === 'docs/lingsi-eval-zhang.md' && (personaKey.includes('lenny') || personaName.includes('Lenny'))) return false
+    if (ref === 'docs/lingsi-eval-m4.md' && (personaKey.includes('zhang') || personaName.includes('张小龙'))) return false
+    return true
+  })
+  const productStateLabels = Array.from(new Set(filteredProductStateDocRefs.map(formatProductStateDocRef)))
+  const hasProductStateTrace = productStateLabels.length > 0
+
+  return createPortal(
+    <div className="fixed inset-0 z-[130] px-4 py-8" role="dialog" aria-modal="true" aria-label={t.modal.lingsiTraceView}>
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div
+        className="relative z-[131] mx-auto max-h-[80vh] w-[min(880px,calc(100vw-32px))] overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5">
+          <div>
+            <div className="text-[12px] font-semibold uppercase tracking-[0.18em] text-amber-600">
+              {t.modal.lingsiTraceView}
+            </div>
+            <div className="mt-1 text-[22px] font-semibold text-gray-900">
+              {personaName} · {t.space.decisionModeLingSi}
+            </div>
+            <div className="mt-2 text-[13px] text-gray-500">
+              {matchedUnits.length > 0 || sourceRefs.length > 0
+                ? `${t.modal.lingsiUnits(matchedUnits.length)} · ${t.modal.lingsiSources(sourceRefs.length)}`
+                : t.modal.lingsiStatePack}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="grid max-h-[calc(80vh-96px)] gap-0 overflow-y-auto md:grid-cols-[1.2fr_0.8fr]">
+          <div className="space-y-4 border-b border-gray-100 px-6 py-5 md:border-b-0 md:border-r">
+            <section>
+              <div className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">
+                {t.modal.lingsiMatchedUnits}
+              </div>
+              {matchedUnits.length > 0 ? (
+                <div className="mt-3 space-y-3">
+                  {matchedUnits.map((unit) => (
+                    <div key={unit.id} className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+                      <div className="text-[14px] font-semibold text-gray-900">{unit.title}</div>
+                      <div className="mt-1 text-[13px] leading-6 text-gray-600">{unit.summary}</div>
+                      {unit.preferredPath && (
+                        <div className="mt-3 rounded-xl bg-white px-3 py-2 text-[12px] leading-5 text-gray-700">
+                          <span className="font-medium text-gray-900">{t.modal.lingsiPreferredPath}:</span> {unit.preferredPath}
+                        </div>
+                      )}
+                      {unit.nextActions.length > 0 && (
+                        <ul className="mt-3 space-y-1.5 pl-4 text-[12px] leading-5 text-gray-700">
+                          {unit.nextActions.slice(0, 3).map((action, idx) => (
+                            <li key={`${unit.id}-action-${idx}`}>{action}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-3 rounded-2xl border border-dashed border-gray-200 bg-gray-50/70 p-4">
+                  <div className="text-[14px] font-semibold text-gray-900">{t.modal.lingsiNoMatchedUnits}</div>
+                  <div className="mt-1 text-[13px] leading-6 text-gray-600">{t.modal.lingsiNoMatchedUnitsBody}</div>
+                </div>
+              )}
+            </section>
+          </div>
+
+          <div className="space-y-4 px-6 py-5">
+            {followUpQuestions.length > 0 && (
+              <section>
+                <div className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">
+                  {t.modal.lingsiFollowUpQuestions}
+                </div>
+                <ul className="mt-3 space-y-2 pl-4 text-[12px] leading-5 text-gray-700">
+                  {followUpQuestions.map((q, idx) => (
+                    <li key={`${q}-${idx}`}>{q}</li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {hasProductStateTrace && (
+              <section>
+                <div className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">
+                  {t.modal.lingsiStatePack}
+                </div>
+                <div className="mt-3 rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+                  <div className="text-[12px] font-medium text-gray-900">{t.modal.lingsiStatePackFallback}</div>
+                  <ul className="mt-3 space-y-2 pl-4 text-[12px] leading-5 text-gray-700">
+                    {productStateLabels.map((ref, idx) => (
+                      <li key={`${ref}-${idx}`}>{ref}</li>
+                    ))}
+                  </ul>
+                </div>
+              </section>
+            )}
+
+            {sourceRefs.length > 0 && (
+              <section>
+                <div className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">
+                  {t.modal.lingsiSources(sourceRefs.length)}
+                </div>
+                <div className="mt-3 space-y-3">
+                  {sourceRefs.map((ref, idx) => (
+                    <div key={`${ref.id}-${idx}`} className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+                      <div className="flex items-center gap-2 text-[12px] font-medium text-gray-900">
+                        <span>[{idx + 1}]</span>
+                        <span className="flex-1 min-w-0 truncate">{formatLingSiSourceLabel(ref)}</span>
+                        <span className="flex-shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-gray-500">
+                          {ref.evidenceLevel}
+                        </span>
+                      </div>
+                      {ref.excerpt && (
+                        <blockquote className="mt-2 border-l-2 border-amber-300 pl-3 text-[12px] leading-5 text-gray-600">
+                          {ref.excerpt}
+                        </blockquote>
+                      )}
+                      {ref.path && (
+                        <div className="mt-2 inline-flex items-center gap-1 text-[11px] text-gray-500">
+                          <ExternalLink className="h-3 w-3" />
+                          <span>{ref.path}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
 // ── LingSiTracePanel ────────────────────────────────────────────────────────
+// 轻量级 inline 面板，只做折叠展示 + 触发 onOpenTrace 回调。
+// 不再持有 Portal，不再操作 document.body.overflow，完全安全在高频渲染树中使用。
 
 export function LingSiTracePanel({
   mode,
@@ -121,6 +319,7 @@ export function LingSiTracePanel({
   sourceRefs,
   productStateDocRefs = [],
   isStreaming = false,
+  onOpenTrace,
 }: {
   mode: DecisionMode
   personaName: string
@@ -128,25 +327,13 @@ export function LingSiTracePanel({
   sourceRefs: DecisionSourceRef[]
   productStateDocRefs?: string[]
   isStreaming?: boolean
+  onOpenTrace?: (data: LingSiTraceData) => void
 }) {
   const { t } = useT()
   const [expanded, setExpanded] = useState(true)
-  const [showTraceView, setShowTraceView] = useState(false)
   const matchedUnitLabels = matchedUnits.map((unit) => unit.title)
   const nextActions = Array.from(new Set(matchedUnits.flatMap((unit) => unit.nextActions))).slice(0, 6)
-  const followUpQuestions = Array.from(new Set(matchedUnits.flatMap((unit) => unit.followUpQuestions))).slice(0, 6)
   const hasProductStateTrace = productStateDocRefs.length > 0
-
-  const formatProductStateDocRef = (ref: string) => {
-    const labels: Record<string, string> = {
-      'docs/PROJECT.md': '当前项目状态',
-      'docs/ROADMAP.md': '路线图阶段',
-      'docs/changelog.md': '最近迭代记录',
-      'docs/lingsi-eval-m4.md': '决策评测基线',
-      'docs/lingsi-eval-zhang.md': '决策评测基线',
-    }
-    return labels[ref] ?? ref.replace(/^docs\//, '').replace(/\.md$/i, '')
-  }
 
   const personaKey = personaName.toLowerCase()
   const filteredProductStateDocRefs = productStateDocRefs.filter((ref) => {
@@ -157,168 +344,12 @@ export function LingSiTracePanel({
   })
   const productStateLabels = Array.from(new Set(filteredProductStateDocRefs.map(formatProductStateDocRef)))
 
-  useEffect(() => {
-    if (isStreaming && showTraceView) {
-      setShowTraceView(false)
-    }
-  }, [isStreaming, showTraceView])
-
-  useEffect(() => {
-    if (!showTraceView || typeof document === 'undefined') return
-
-    const previousOverflow = document.body.style.overflow
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setShowTraceView(false)
-      }
-    }
-
-    document.body.style.overflow = 'hidden'
-    window.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      document.body.style.overflow = previousOverflow
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [showTraceView])
-
   if (mode !== 'decision' || (matchedUnitLabels.length === 0 && sourceRefs.length === 0 && !hasProductStateTrace)) return null
 
-  const traceView = showTraceView && typeof document !== 'undefined'
-    ? createPortal(
-        <div className="fixed inset-0 z-[130] px-4 py-8" role="dialog" aria-modal="true" aria-label={t.modal.lingsiTraceView}>
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowTraceView(false)} />
-          <div
-            className="relative z-[131] mx-auto max-h-[80vh] w-[min(880px,calc(100vw-32px))] overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5">
-              <div>
-                <div className="text-[12px] font-semibold uppercase tracking-[0.18em] text-amber-600">
-                  {t.modal.lingsiTraceView}
-                </div>
-                <div className="mt-1 text-[22px] font-semibold text-gray-900">
-                  {personaName} · {t.space.decisionModeLingSi}
-                </div>
-                <div className="mt-2 text-[13px] text-gray-500">
-                  {matchedUnits.length > 0 || sourceRefs.length > 0
-                    ? `${t.modal.lingsiUnits(matchedUnits.length)} · ${t.modal.lingsiSources(sourceRefs.length)}`
-                    : t.modal.lingsiStatePack}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowTraceView(false)}
-                className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="grid max-h-[calc(80vh-96px)] gap-0 overflow-y-auto md:grid-cols-[1.2fr_0.8fr]">
-              <div className="space-y-4 border-b border-gray-100 px-6 py-5 md:border-b-0 md:border-r">
-                <section>
-                  <div className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">
-                    {t.modal.lingsiMatchedUnits}
-                  </div>
-                  {matchedUnits.length > 0 ? (
-                    <div className="mt-3 space-y-3">
-                      {matchedUnits.map((unit) => (
-                        <div key={unit.id} className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
-                          <div className="text-[14px] font-semibold text-gray-900">{unit.title}</div>
-                          <div className="mt-1 text-[13px] leading-6 text-gray-600">{unit.summary}</div>
-                          {unit.preferredPath && (
-                            <div className="mt-3 rounded-xl bg-white px-3 py-2 text-[12px] leading-5 text-gray-700">
-                              <span className="font-medium text-gray-900">{t.modal.lingsiPreferredPath}:</span> {unit.preferredPath}
-                            </div>
-                          )}
-                          {unit.nextActions.length > 0 && (
-                            <ul className="mt-3 space-y-1.5 pl-4 text-[12px] leading-5 text-gray-700">
-                              {unit.nextActions.slice(0, 3).map((action, idx) => (
-                                <li key={`${unit.id}-action-${idx}`}>{action}</li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="mt-3 rounded-2xl border border-dashed border-gray-200 bg-gray-50/70 p-4">
-                      <div className="text-[14px] font-semibold text-gray-900">{t.modal.lingsiNoMatchedUnits}</div>
-                      <div className="mt-1 text-[13px] leading-6 text-gray-600">{t.modal.lingsiNoMatchedUnitsBody}</div>
-                    </div>
-                  )}
-                </section>
-              </div>
-
-              <div className="space-y-4 px-6 py-5">
-                {followUpQuestions.length > 0 && (
-                  <section>
-                    <div className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">
-                      {t.modal.lingsiFollowUpQuestions}
-                    </div>
-                    <ul className="mt-3 space-y-2 pl-4 text-[12px] leading-5 text-gray-700">
-                      {followUpQuestions.map((question, idx) => (
-                        <li key={`${question}-${idx}`}>{question}</li>
-                      ))}
-                    </ul>
-                  </section>
-                )}
-
-                {hasProductStateTrace && (
-                  <section>
-                    <div className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">
-                      {t.modal.lingsiStatePack}
-                    </div>
-                    <div className="mt-3 rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
-                      <div className="text-[12px] font-medium text-gray-900">{t.modal.lingsiStatePackFallback}</div>
-                      <ul className="mt-3 space-y-2 pl-4 text-[12px] leading-5 text-gray-700">
-                        {productStateLabels.map((ref, idx) => (
-                          <li key={`${ref}-${idx}`}>{ref}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </section>
-                )}
-
-                {sourceRefs.length > 0 && (
-                  <section>
-                    <div className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">
-                      {t.modal.lingsiSources(sourceRefs.length)}
-                    </div>
-                    <div className="mt-3 space-y-3">
-                      {sourceRefs.map((ref, idx) => (
-                        <div key={`${ref.id}-${idx}`} className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
-                          <div className="flex items-center gap-2 text-[12px] font-medium text-gray-900">
-                            <span>[{idx + 1}]</span>
-                            <span>{formatLingSiSourceLabel(ref)}</span>
-                            <span className="rounded-full bg-white px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-gray-500">
-                              {ref.evidenceLevel}
-                            </span>
-                          </div>
-                          {ref.excerpt && (
-                            <blockquote className="mt-2 border-l-2 border-amber-300 pl-3 text-[12px] leading-5 text-gray-600">
-                              {ref.excerpt}
-                            </blockquote>
-                          )}
-                          {ref.path && (
-                            <div className="mt-2 inline-flex items-center gap-1 text-[11px] text-gray-500">
-                              <ExternalLink className="h-3 w-3" />
-                              <span>{ref.path}</span>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body,
-      )
-    : null
+  const handleOpenTrace = () => {
+    if (isStreaming || !onOpenTrace) return
+    onOpenTrace({ personaName, matchedUnits, sourceRefs, productStateDocRefs })
+  }
 
   return (
     <div className="mt-4 rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-50/80 to-orange-50/40 overflow-hidden">
@@ -341,7 +372,7 @@ export function LingSiTracePanel({
         <div className="flex flex-shrink-0 items-center gap-1">
           <button
             type="button"
-            onClick={() => setShowTraceView(true)}
+            onClick={handleOpenTrace}
             disabled={isStreaming}
             title={isStreaming ? t.modal.lingsiTraceWaitForCompletion : t.modal.lingsiOpenTrace}
             className="inline-flex items-center gap-1 rounded-lg bg-white/70 px-2 py-1 text-[11px] font-medium text-amber-700 transition-colors hover:bg-white hover:text-amber-900 disabled:cursor-not-allowed disabled:opacity-40"
@@ -362,7 +393,6 @@ export function LingSiTracePanel({
 
       {expanded && (
         <div className="border-t border-amber-200/50 px-4 py-3 space-y-2.5">
-          {/* 决策单元 tags */}
           {matchedUnitLabels.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {matchedUnits.map((unit, idx) => (
@@ -376,7 +406,6 @@ export function LingSiTracePanel({
             </div>
           )}
 
-          {/* 下一步行动 */}
           {nextActions.length > 0 && (
             <div className="rounded-xl bg-white/60 px-3 py-2.5 ring-1 ring-amber-200/50">
               <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-amber-600">
@@ -390,7 +419,6 @@ export function LingSiTracePanel({
             </div>
           )}
 
-          {/* 产品状态包 */}
           {hasProductStateTrace && (
             <div className="rounded-xl bg-white/60 px-3 py-2.5 ring-1 ring-amber-200/50">
               <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-amber-600">
@@ -410,7 +438,6 @@ export function LingSiTracePanel({
             </div>
           )}
 
-          {/* 来源引用 */}
           {sourceRefs.length > 0 && (
             <div className="space-y-1.5">
               {sourceRefs.map((ref, idx) => (
@@ -439,7 +466,6 @@ export function LingSiTracePanel({
           )}
         </div>
       )}
-      {traceView}
     </div>
   )
 }
@@ -506,52 +532,55 @@ export function LingSiDecisionCard({
   }, [canSchedule])
 
   return (
-    <div className="mt-4 rounded-[28px] border border-gray-200 bg-white/95 px-5 py-4 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
-      <div className="flex flex-wrap items-start gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
-          <BookOpen className="h-5 w-5" />
+    <div className="mt-4 rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-50/60 to-orange-50/30 overflow-hidden">
+      {/* Header */}
+      <div className="flex items-start gap-3 px-4 py-3.5">
+        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 mt-0.5">
+          <BookOpen className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[12px] font-semibold uppercase tracking-[0.18em] text-amber-700">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">
               {t.modal.decisionCardTitle}
             </span>
-            <span className={`rounded-full border px-2.5 py-1 text-[11px] font-medium ${getDecisionStatusTone(record.status)}`}>
+            <span className={`rounded-md border px-2 py-0.5 text-[10px] font-medium ${getDecisionStatusTone(record.status)}`}>
               {getDecisionStatusLabel(record.status, t)}
             </span>
-            <span className="text-[11px] text-gray-400">{personaName}</span>
+            <span className="text-[10px] text-amber-600/60">{personaName}</span>
           </div>
-          <div className="mt-2 text-[18px] font-semibold leading-7 text-gray-900">
+          <div className="mt-1.5 text-[16px] font-semibold leading-6 text-gray-900">
             {record.recommendationSummary}
           </div>
           {record.keyTradeoffs.length > 0 && (
-            <div className="mt-2 text-[13px] leading-6 text-gray-600">
+            <div className="mt-1 text-[12px] leading-5 text-gray-500">
               {record.keyTradeoffs[0]}
             </div>
           )}
         </div>
       </div>
 
+      {/* Next actions */}
       {nextActions.length > 0 && (
-        <div className="mt-4 rounded-2xl bg-gray-50 px-4 py-3">
-          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">
-            <CircleDot className="h-3.5 w-3.5" />
+        <div className="mx-4 mb-3 rounded-xl bg-white/60 px-3 py-2.5 ring-1 ring-amber-200/50">
+          <div className="flex items-center gap-1.5 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-amber-600">
+            <CircleDot className="h-3 w-3" />
             {t.modal.decisionCardNextActions}
           </div>
-          <ul className="mt-2 space-y-1.5 pl-4 text-[13px] leading-6 text-gray-700">
+          <ul className="space-y-1 pl-3.5 text-[12px] leading-[1.6] text-gray-700">
             {nextActions.map((action, idx) => (
-              <li key={`${action}-${idx}`}>{action}</li>
+              <li key={`${action}-${idx}`} className="list-disc marker:text-amber-400">{action}</li>
             ))}
           </ul>
         </div>
       )}
 
+      {/* Follow-ups */}
       {followUps.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mx-4 mb-3 flex flex-wrap gap-1.5">
           {followUps.map((question, idx) => (
             <span
               key={`${question}-${idx}`}
-              className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-[12px] text-gray-600"
+              className="rounded-lg border border-amber-200/70 bg-white/60 px-2.5 py-1 text-[11px] text-amber-800"
             >
               {question}
             </span>
@@ -559,30 +588,31 @@ export function LingSiDecisionCard({
         </div>
       )}
 
+      {/* Adopt block */}
       {canSchedule && (
-        <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50/60 px-4 py-3">
+        <div className="border-t border-amber-200/50 px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="text-[13px] font-medium text-amber-900">{t.modal.decisionCardAdoptTitle}</div>
-              <div className="mt-1 text-[12px] leading-5 text-amber-800/80">{t.modal.decisionCardAdoptBody}</div>
+              <div className="text-[12px] font-semibold text-amber-900">{t.modal.decisionCardAdoptTitle}</div>
+              <div className="mt-0.5 text-[11px] leading-5 text-amber-700/70">{t.modal.decisionCardAdoptBody}</div>
             </div>
             <button
               type="button"
-              onClick={() => setShowSchedule((value) => !value)}
-              className="inline-flex items-center gap-2 rounded-full bg-gray-900 px-3 py-2 text-[12px] font-medium text-white hover:bg-black"
+              onClick={() => setShowSchedule((v) => !v)}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-3.5 py-2 text-[12px] font-semibold text-white shadow-sm hover:bg-amber-700 transition-colors"
             >
-              <CheckCircle2 className="h-4 w-4" />
+              <CheckCircle2 className="h-3.5 w-3.5" />
               {t.modal.decisionCardAdopt}
             </button>
           </div>
           {showSchedule && (
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-2.5 flex flex-wrap gap-2">
               {[3, 7, 14].map((days) => (
                 <button
                   key={days}
                   type="button"
                   onClick={() => onAdopt(days)}
-                  className="rounded-full border border-amber-200 bg-white px-3 py-1.5 text-[12px] font-medium text-amber-800 hover:border-amber-300 hover:bg-amber-100"
+                  className="rounded-xl border border-amber-300/80 bg-white px-3.5 py-1.5 text-[12px] font-medium text-amber-800 hover:border-amber-400 hover:bg-amber-50 transition-colors"
                 >
                   {t.modal.decisionCardAdoptDays(days)}
                 </button>
@@ -592,28 +622,30 @@ export function LingSiDecisionCard({
         </div>
       )}
 
+      {/* Revisit time */}
       {revisitAt && (
-        <div className="mt-4 flex flex-wrap items-center gap-2 text-[12px] text-gray-500">
-          <Clock3 className="h-4 w-4" />
+        <div className="border-t border-amber-200/50 px-4 py-2.5 flex items-center gap-1.5 text-[11px] text-amber-700/70">
+          <Clock3 className="h-3.5 w-3.5 flex-shrink-0" />
           <span>{t.modal.decisionCardRevisitAt(formatDecisionDate(revisitAt))}</span>
         </div>
       )}
 
+      {/* Outcome block */}
       {canMarkOutcome && (
-        <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50/70 px-4 py-3">
-          <div className="text-[13px] font-medium text-gray-900">{t.modal.decisionCardOutcomeTitle}</div>
+        <div className="border-t border-amber-200/50 px-4 py-3">
+          <div className="text-[12px] font-semibold text-gray-700">{t.modal.decisionCardOutcomeTitle}</div>
           <textarea
             value={outcomeNotes}
             onChange={(event) => setOutcomeNotes(event.target.value)}
             rows={2}
             placeholder={t.modal.decisionCardOutcomeNotesPlaceholder}
-            className="mt-3 min-h-[74px] w-full resize-none rounded-2xl border border-gray-200 bg-white px-3 py-2 text-[13px] leading-6 text-gray-700 outline-none ring-0 placeholder:text-gray-400 focus:border-gray-300"
+            className="mt-2 min-h-[64px] w-full resize-none rounded-xl border border-amber-200/70 bg-white/70 px-3 py-2 text-[12px] leading-6 text-gray-700 outline-none placeholder:text-gray-400 focus:border-amber-400 focus:ring-1 focus:ring-amber-200"
           />
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" onClick={() => onOutcome('working', outcomeNotes)} className="rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-[12px] font-medium text-emerald-700 hover:bg-emerald-50">{t.modal.decisionCardOutcomeWorking}</button>
-            <button type="button" onClick={() => onOutcome('mixed', outcomeNotes)} className="rounded-full border border-amber-200 bg-white px-3 py-1.5 text-[12px] font-medium text-amber-700 hover:bg-amber-50">{t.modal.decisionCardOutcomeMixed}</button>
-            <button type="button" onClick={() => onOutcome('not_working', outcomeNotes)} className="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-[12px] font-medium text-rose-700 hover:bg-rose-50">{t.modal.decisionCardOutcomeNotWorking}</button>
-            <button type="button" onClick={() => onOutcome('unknown', outcomeNotes)} className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-[12px] font-medium text-gray-700 hover:bg-gray-100">{t.modal.decisionCardOutcomeUnknown}</button>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <button type="button" onClick={() => onOutcome('working', outcomeNotes)} className="rounded-xl border border-emerald-200 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 transition-colors">{t.modal.decisionCardOutcomeWorking}</button>
+            <button type="button" onClick={() => onOutcome('mixed', outcomeNotes)} className="rounded-xl border border-amber-200 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-amber-700 hover:bg-amber-50 transition-colors">{t.modal.decisionCardOutcomeMixed}</button>
+            <button type="button" onClick={() => onOutcome('not_working', outcomeNotes)} className="rounded-xl border border-rose-200 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-rose-700 hover:bg-rose-50 transition-colors">{t.modal.decisionCardOutcomeNotWorking}</button>
+            <button type="button" onClick={() => onOutcome('unknown', outcomeNotes)} className="rounded-xl border border-gray-200 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-gray-600 hover:bg-gray-50 transition-colors">{t.modal.decisionCardOutcomeUnknown}</button>
           </div>
         </div>
       )}
