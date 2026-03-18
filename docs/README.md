@@ -17,14 +17,14 @@
 | [部署运维](./deployment.md) | 发布、配置 | 📝 |
 | [变更日志](./changelog.md) | 版本迭代记录 | ✅ |
 | [问题排查](./troubleshooting.md) | 常见问题解决 | 📝 |
-| [代码审查](./code-review-report-v0.5.23-decision-trace-and-modal-usability.md) | 最新审查报告 | ✅ |
+| [代码审查](./code-review-report-v0.5.24-product-state-trace-readability.md) | 最新审查报告 | ✅ |
 | [路线图](./ROADMAP.md) | 近期/远期规划 | ✅ |
 
 ## 项目状态
 
-- **当前版本**: v0.5.23
+- **当前版本**: v0.5.24
 - **开发状态**: Active
-- **最后更新**: 2026-03-18（含决策轨迹恢复、弹窗输入框自增高与窗口高度调节，以及 v0.5.23 收口）
+- **最后更新**: 2026-03-18（含产品状态 fallback 去路径化、轨迹空白修复，以及 v0.5.24 收口）
 - **GitHub**: https://github.com/fisher-byte/anima-ai
 
 ## 核心功能

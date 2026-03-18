@@ -254,6 +254,11 @@ export interface Translations {
     lingsiTraceWaitForCompletion: string
     lingsiTraceView: string
     lingsiMatchedUnits: string
+    lingsiNoMatchedUnits: string
+    lingsiNoMatchedUnitsBody: string
+    lingsiStatePack: string
+    lingsiStatePackSummary: string
+    lingsiStatePackFallback: string
     lingsiPreferredPath: string
     lingsiNextActions: string
     lingsiFollowUpQuestions: string
@@ -628,6 +633,11 @@ export const zh: Translations = {
     lingsiTraceWaitForCompletion: '请等回答生成完成后再查看轨迹',
     lingsiTraceView: '决策轨迹',
     lingsiMatchedUnits: '命中单元',
+    lingsiNoMatchedUnits: '这次没有命中具体 Decision Unit',
+    lingsiNoMatchedUnitsBody: '这个问题更像在问当前项目的整体状态与下一步判断，所以这次主要依据当前项目状态生成回答。',
+    lingsiStatePack: '当前项目状态',
+    lingsiStatePackSummary: '这次没有命中具体案例，主要参考了当前冲刺、路线图、变更记录和评测基线。',
+    lingsiStatePackFallback: '当前回答引用了当前项目状态，而不只是具体的 Decision Unit。',
     lingsiPreferredPath: '推荐路径',
     lingsiNextActions: '下一步动作',
     lingsiFollowUpQuestions: '追问与校验',
