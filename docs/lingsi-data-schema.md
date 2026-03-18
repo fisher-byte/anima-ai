@@ -264,3 +264,8 @@
 - 已接入 `normal / decision` 模式切换、`extraContext` 注入与 `decisionTrace` 持久化
 - 已完成 `15` 个真实问题对照评测，结果见 `/Users/zhiyangyu/Desktop/试验项目集合/自进化产品/evocanvas/docs/lingsi-eval-m4.md`
 - 评测后已修正一轮匹配策略：补充关键触发词，并阻断仅凭泛标签的误命中
+
+
+## Product State Pack
+
+新增 `seeds/lingsi/decision-product-state.json`，用于沉淀当前版本的产品状态包，并作为决策 persona 的当前产品事实基线。它不是自动抽取产物，当前按发版节奏人工维护；要求与 `docs/PROJECT.md`、`docs/ROADMAP.md`、`docs/changelog.md` 保持同步。

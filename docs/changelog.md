@@ -1,3 +1,24 @@
+## [0.5.20] - 2026-03-18
+
+### feat: product state pack + decision context sync
+
+**新增与修复：**
+- `seeds/lingsi/decision-product-state.json`：新增结构化产品状态包，沉淀当前版本、完成项、已验证方向、风险、评测结果与待决策
+- `constants.ts` / `main/index.ts` / `lingsiSeedData.ts` / `services/lingsi.ts`：把 `decision-product-state.json` 接入 storage 白名单、bundled seed 与首次写入/读取链路
+- `lingsiDecisionEngine.ts`：新增“当前项目问题”识别与状态包注入逻辑；让 Lenny / 张小龙在回答当前项目问题时共享同一套产品事实基线
+- `lingsiDecisionEngine.test.ts` / `lingsi.test.ts` / `lingsiProductState.test.ts`：补充状态包注入、过滤与 seed 基线测试
+
+**测试与验证：**
+- `npm run lingsi:extract`：通过
+- `npm run lingsi:evaluate`：通过，`decision 15 : normal 0`
+- `npm run lingsi:evaluate:zhang`：通过，`decision 6 : normal 0 : tie 1`
+- `npm run typecheck`：通过
+- `npm test`：597/597 通过
+- `npm run build`：通过
+- `npm run test:e2e`：44 passed / 4 skipped
+
+---
+
 ## [0.5.19] - 2026-03-18
 
 ### feat: decision UX polish + flywheel + latest source sync

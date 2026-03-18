@@ -1,30 +1,34 @@
 import { STORAGE_FILES } from '@shared/constants'
 import {
   BUNDLED_DECISION_PERSONAS,
+  BUNDLED_DECISION_PRODUCT_STATE,
   BUNDLED_DECISION_SOURCE_MANIFEST,
   BUNDLED_DECISION_UNITS,
 } from '@shared/lingsiSeedData'
 import { buildLingSiDecisionPayloadFromUnits, mergeDecisionTrace } from '@shared/lingsiDecisionEngine'
-import type { DecisionMode, DecisionTrace, DecisionUnit } from '@shared/types'
+import type { DecisionMode, DecisionProductStatePack, DecisionTrace, DecisionUnit } from '@shared/types'
 import { storageService } from './storageService'
 
 let seedPromise: Promise<void> | null = null
 let cachedUnits: DecisionUnit[] | null = null
+let cachedProductState: DecisionProductStatePack | null = null
 
 export async function ensureLingSiStorageSeeded(): Promise<void> {
   if (seedPromise) return seedPromise
 
   seedPromise = (async () => {
-    const [personasRaw, manifestRaw, unitsRaw] = await Promise.all([
+    const [personasRaw, manifestRaw, productStateRaw, unitsRaw] = await Promise.all([
       storageService.read(STORAGE_FILES.DECISION_PERSONAS),
       storageService.read(STORAGE_FILES.DECISION_SOURCE_MANIFEST),
+      storageService.read(STORAGE_FILES.DECISION_PRODUCT_STATE),
       storageService.read(STORAGE_FILES.DECISION_UNITS),
     ])
 
-    if (personasRaw && manifestRaw && unitsRaw) {
+    if (personasRaw && manifestRaw && productStateRaw && unitsRaw) {
       try {
         JSON.parse(personasRaw)
         JSON.parse(manifestRaw)
+        cachedProductState = JSON.parse(productStateRaw) as DecisionProductStatePack
         cachedUnits = JSON.parse(unitsRaw) as DecisionUnit[]
         return
       } catch {
@@ -35,8 +39,10 @@ export async function ensureLingSiStorageSeeded(): Promise<void> {
     await Promise.all([
       storageService.write(STORAGE_FILES.DECISION_PERSONAS, JSON.stringify(BUNDLED_DECISION_PERSONAS, null, 2)),
       storageService.write(STORAGE_FILES.DECISION_SOURCE_MANIFEST, JSON.stringify(BUNDLED_DECISION_SOURCE_MANIFEST, null, 2)),
+      storageService.write(STORAGE_FILES.DECISION_PRODUCT_STATE, JSON.stringify(BUNDLED_DECISION_PRODUCT_STATE, null, 2)),
       storageService.write(STORAGE_FILES.DECISION_UNITS, JSON.stringify(BUNDLED_DECISION_UNITS, null, 2)),
     ])
+    cachedProductState = BUNDLED_DECISION_PRODUCT_STATE
     cachedUnits = BUNDLED_DECISION_UNITS
   })()
 
@@ -65,6 +71,24 @@ export async function loadDecisionUnits(personaId?: string): Promise<DecisionUni
   return personaId ? cachedUnits.filter(unit => unit.personaId === personaId) : cachedUnits
 }
 
+export async function loadDecisionProductState(): Promise<DecisionProductStatePack> {
+  if (cachedProductState) return cachedProductState
+
+  await ensureLingSiStorageSeeded()
+  const raw = await storageService.read(STORAGE_FILES.DECISION_PRODUCT_STATE)
+  if (!raw) {
+    cachedProductState = BUNDLED_DECISION_PRODUCT_STATE
+    return cachedProductState
+  }
+
+  try {
+    cachedProductState = JSON.parse(raw) as DecisionProductStatePack
+  } catch {
+    cachedProductState = BUNDLED_DECISION_PRODUCT_STATE
+  }
+  return cachedProductState
+}
+
 export async function buildLingSiDecisionPayload(
   query: string,
   mode: DecisionMode,
@@ -76,8 +100,11 @@ export async function buildLingSiDecisionPayload(
   extraContext?: string
   decisionTrace: DecisionTrace
 }> {
-  const units = await loadDecisionUnits()
-  return buildLingSiDecisionPayloadFromUnits(query, mode, units, options)
+  const [units, productState] = await Promise.all([loadDecisionUnits(), loadDecisionProductState()])
+  return buildLingSiDecisionPayloadFromUnits(query, mode, units, {
+    ...options,
+    productState,
+  })
 }
 
 export { mergeDecisionTrace }

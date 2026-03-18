@@ -1,6 +1,6 @@
 # LingSi 飞轮
 
-*最后更新: 2026-03-18 | 版本: v0.5.19*
+*最后更新: 2026-03-18 | 版本: v0.5.20*
 
 ## 目标
 
@@ -37,6 +37,8 @@ flowchart LR
 
 ### 1. 产品状态包
 
+当前落地载体：`seeds/lingsi/decision-product-state.json`。
+
 需要一份面向 persona 的轻量状态包，字段固定，不直接把整份文档原样塞进 prompt：
 
 - 当前版本
@@ -46,6 +48,8 @@ flowchart LR
 - 已知失败点 / 回归点
 - 当前评测结果
 - 下一步待判断事项
+
+同步要求：每次影响决策 persona 的发版，必须同步更新这份状态包，并在 changelog / PROJECT / ROADMAP 中留下对应记录。
 
 ### 2. Persona 消费方式
 

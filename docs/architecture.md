@@ -1,6 +1,6 @@
 # Anima 架构文档
 
-*最后更新: 2026-03-18 | 版本: v0.5.19*
+*最后更新: 2026-03-18 | 版本: v0.5.20*
 
 ---
 
@@ -209,10 +209,11 @@ index.ts 中间件: c.set('db', getDb('a1b2c3d4e5f6'))
 
 支持工具调用（`$web_search`，Kimi 2.5 原生联网），工具结果自动进入第二轮请求。
 
-**LingSi（v0.5.5 M4 已完成）**：
+**LingSi（当前已扩到产品状态包）**：
 - `Lenny` 与 `张小龙` 决策版沿用 `systemPromptOverride`，并新增 `extraContext` 注入 DecisionUnit 命中结果
-- 首次打开支持灵思的 Space 时，前端会把真实 `seeds/lingsi/*` 资产写入 `storage` 表，避免依赖 mock
+- 首次打开支持决策的 Space 时，前端会把真实 `seeds/lingsi/*` 资产写入 `storage` 表，包含 `decision-product-state.json`，避免依赖 mock
 - 主页 `@persona` 对支持决策的 persona 改为 decision-only 调用；结构化 mention token 会把 `invokedAssistant` 与 `decisionTrace` 写入对话元数据，但输入框只展示纯 `@名字`
+- 当问题命中当前项目关键词（如 `Anima / 首页 / @ / 轨迹 / 决策模式`）时，决策链路会额外注入结构化产品状态包，让 persona 理解当前版本与已知风险
 - 命中的证据会进入对话元数据 `decisionTrace`：`mode`、`personaId`、`matchedDecisionUnitIds`、`sourceRefs`
 - `AnswerModal` 现已提供独立决策轨迹视图；trace modal 通过 portal 渲染，且在流式输出期间禁用打开，避免页面卡死
 - 来源真相库保留在独立仓库 `anima-base/`，主项目只导入必要子集；当前基线为 `2 personas / 37 sources / 59 approved units`，详见 `docs/lingsi-flywheel.md`

@@ -1,6 +1,6 @@
 # Anima 开发指南
 
-*最后更新: 2026-03-18 | 版本: v0.5.19*
+*最后更新: 2026-03-18 | 版本: v0.5.20*
 
 ## 环境准备
 
@@ -36,12 +36,13 @@ cp .env.example .env
 | `npm run dev:server` | 仅启动后端（tsx watch 热重载） |
 | `npm run build` | 构建前端到 `dist/` |
 | `npm start` | 生产模式启动（同时服务 API + 静态文件，端口 3000） |
-| `npm test` | 运行所有测试（单元 + 集成，当前 593 个用例，28 个文件） |
+| `npm test` | 运行所有测试（单元 + 集成，当前 597 个用例，29 个文件） |
 | `npm run test:watch` | 监听模式（开发时用） |
 | `npm run typecheck` | TypeScript 类型检查 |
 | `npm run lint` | ESLint 检查 |
 | `npm run lingsi:evaluate` | 跑 Lenny 15 题 `normal vs decision` 对照评测；支持 `LINGSI_EVAL_CASE` / `LINGSI_EVAL_TIMEOUT_MS`，并刷新 `docs/lingsi-eval-m4.md` / `reports/lingsi-m4-eval.json` |
 | `npm run lingsi:evaluate:zhang` | 跑张小龙 persona 的 case-based eval 基线，并刷新 `docs/lingsi-eval-zhang.md` / `reports/lingsi-zhang-eval.json` |
+| `npm run lingsi:extract` | 刷新 DecisionUnit seeds；`decision-product-state.json` 仍按文档人工维护，不走自动抽取 |
 | `npm run dev:electron` | 启动 Electron 桌面版（可选，非主要模式） |
 
 ---
@@ -89,6 +90,7 @@ evocanvas/
 │   │   └── __tests__/             # 单元测试
 │   │
 │   └── shared/                    # 共享类型和常量
+├── seeds/lingsi/                  # 决策 persona seeds（含 decision-product-state.json）
 │       ├── types.ts               # StorageService 接口、Node / Conversation 类型
 │       └── constants.ts           # 文件名白名单、分类常量
 │

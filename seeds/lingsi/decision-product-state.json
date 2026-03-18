@@ -1,0 +1,79 @@
+{
+  "id": "anima-product-state-v0-5-20-prep",
+  "version": "0.5.20",
+  "updatedAt": "2026-03-18T00:00:00.000Z",
+  "summary": "Anima 当前已把决策模式接到 Lenny 和张小龙两个 persona，上线了主页 @persona 决策调用、决策依据/轨迹展示，并把结构化产品状态包接入决策链路。现在两个 persona 在回答当前项目问题时可以共享同一套版本事实、评测结果和待决策项。",
+  "keywords": [
+    "anima",
+    "当前产品",
+    "这个项目",
+    "当前版本",
+    "主页",
+    "首页",
+    "@",
+    "mention",
+    "space",
+    "space 卡片",
+    "卡片",
+    "badge",
+    "查看轨迹",
+    "决策轨迹",
+    "决策模式",
+    "灵思模式",
+    "onboarding",
+    "教程",
+    "新手引导",
+    "飞轮",
+    "状态包"
+  ],
+  "completedChanges": [
+    "首页 Lenny / 张小龙卡片已经改成 badge 绝对定位，标题不再被决策标签挤压。",
+    "主页 @persona 对支持决策的 persona 已改成 decision-only，输入框里只显示纯 @名字。",
+    "回答区已经有决策依据、正文脚注和独立决策轨迹视图。",
+    "查看轨迹在流式生成期间会禁用，trace modal 已改成 portal 渲染，避免页面卡死。",
+    "LingSi 数据层已同步 anima-base@a6c1078，当前基线为 2 personas / 37 sources / 59 approved units。"
+  ],
+  "currentFocus": [
+    "扩展产品状态包覆盖面，让更多当前项目问题命中这套事实基线。",
+    "把主页 @persona 和 Space 内决策回答继续做成统一评测对象，而不是分散验证。",
+    "在当前两个 persona 稳定后，再决定是否扩展第三个 persona。"
+  ],
+  "validatedDirections": [
+    "用户可见命名统一为“决策”比“灵思”更容易理解。",
+    "对于支持决策的 persona，主页 @ 入口只保留决策版能减少误选和模式分叉。",
+    "决策依据和轨迹需要可见，但流式生成期间不能开放复杂交互。",
+    "决策 persona 的更新必须基于真实 anima-base 来源和实际评测，不走 mock。"
+  ],
+  "knownRisks": [
+    "live eval 依赖外部模型，结果仍会有轻微波动。",
+    "产品状态包当前仍按发版节奏人工维护，需要继续依赖文档同步纪律。",
+    "构建阶段仍存在既有 CSS minify warning 和 chunk size warning，暂未单独治理。"
+  ],
+  "nextDecisions": [
+    "产品状态包要不要扩展到更多 persona，还是先继续打磨 Lenny / 张小龙。",
+    "是否需要把产品状态包进一步拆成产品 / 设计 / 评测三类上下文。",
+    "怎样把“采纳的 persona 建议”更稳定地反哺成新的 DecisionUnit 和 eval case。"
+  ],
+  "evalSummary": {
+    "lenny": "Lenny 基线评测当前为 decision 15 / normal 0 / tie 0。",
+    "zhang": "张小龙 case-based eval 当前为 decision 6 / normal 0 / tie 1。"
+  },
+  "personaFocus": {
+    "lenny": [
+      "优先从产品节奏、评测闭环、优先级和增长/验证成本来判断当前项目。",
+      "当问题涉及当前版本取舍时，优先给出直接判断、验证动作和节奏建议。"
+    ],
+    "zhang": [
+      "优先从交互自然性、入口克制、是否需要说明文字、关系和场景驱动来判断当前项目。",
+      "当问题涉及首页、教程、红点、流量入口和产品克制时，应更强地指出是否违背自然交互。"
+    ]
+  },
+  "docRefs": [
+    "docs/PROJECT.md",
+    "docs/ROADMAP.md",
+    "docs/changelog.md",
+    "docs/lingsi-flywheel.md",
+    "docs/lingsi-eval-m4.md",
+    "docs/lingsi-eval-zhang.md"
+  ]
+}
