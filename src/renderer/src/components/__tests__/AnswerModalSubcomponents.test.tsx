@@ -103,7 +103,7 @@ describe('LingSiTracePanel', () => {
     expect(html).not.toContain('docs/PROJECT.md')
   })
 
-  it('renders the decision card with adopt actions', () => {
+  it('renders the decision card collapsed by default showing summary', () => {
     const html = renderToStaticMarkup(
       <LingSiDecisionCard
         record={decisionRecord}
@@ -113,9 +113,11 @@ describe('LingSiTracePanel', () => {
       />,
     )
 
+    // Card should render with the recommendation summary visible in collapsed state
     expect(html).toContain('决策卡')
     expect(html).toContain('先去做三次真实的小实验，再决定长期方向。')
-    expect(html).toContain('采纳建议')
-    expect(html).toContain('7 天后回访')
+    expect(html).toContain('Lenny Rachitsky')
+    // Adopt/revisit actions are hidden until expanded (collapsed by default)
+    expect(html).not.toContain('采纳建议')
   })
 })
