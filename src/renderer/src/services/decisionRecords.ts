@@ -7,7 +7,9 @@ import { storageService, getAuthToken } from './storageService'
 export const DECISION_RECORDS_UPDATED_EVENT = 'anima:decision-records-updated'
 
 export interface OngoingDecisionItem {
-  conversation: Conversation
+  conversationId: string
+  // Optional snapshot. Prefer opening by id to avoid dragging huge assistantMessage payloads through the decision hub.
+  conversation?: Conversation
   decisionRecord: DecisionRecord
   personaName: string
   source: 'main' | 'lenny' | 'zhang' | 'pg' | 'wang'
@@ -35,6 +37,14 @@ const PERSONA_NAME_BY_ID: Record<string, string> = {
   zhang: '张小龙',
   pg: 'Paul Graham',
   wang: '王慧文',
+}
+
+type DecisionLedgerEntry = {
+  conversationId: string
+  source: DecisionSource
+  title?: string
+  decisionRecord: DecisionRecord
+  updatedAt: string
 }
 
 // Keep this small: decision hub refresh runs on the UI thread.
@@ -124,6 +134,53 @@ export function emitDecisionRecordsUpdated(): void {
 export async function listOngoingDecisionItems(): Promise<OngoingDecisionItem[]> {
   const latestByConversationId = new Map<string, OngoingDecisionItem>()
 
+  // Fast path: prefer the lightweight decision ledger index.
+  // This avoids scanning huge conversations.jsonl payloads on the UI thread.
+  const ledgerContent = await readStorageMaybeTail(STORAGE_FILES.DECISION_LEDGER)
+  if (ledgerContent) {
+    let parsedCount = 0
+    for (const line of iterJsonlLinesFromEnd(ledgerContent, TAIL_LINES_PER_FILE * 3)) {
+      try {
+        const entry = JSON.parse(line) as DecisionLedgerEntry
+        if (!entry?.conversationId || !entry?.decisionRecord) continue
+        const status = entry.decisionRecord.status
+        if (status !== 'adopted' && status !== 'revisited') continue
+
+        const personaName = PERSONA_NAME_BY_ID[entry.decisionRecord.personaId] ?? entry.decisionRecord.personaId
+        const item: OngoingDecisionItem = {
+          conversationId: entry.conversationId,
+          decisionRecord: entry.decisionRecord,
+          personaName,
+          source: entry.source,
+          title: sanitizeTitle(entry.title ?? entry.decisionRecord.userQuestion ?? ''),
+          revisitAt: entry.decisionRecord.outcome?.revisitAt,
+          adoptedAt: entry.decisionRecord.outcome?.adoptedAt,
+          result: entry.decisionRecord.outcome?.result,
+          notes: entry.decisionRecord.outcome?.notes,
+          updatedAt: entry.decisionRecord.updatedAt,
+          isDue: status === 'adopted' && isDueDate(entry.decisionRecord.outcome?.revisitAt),
+        }
+
+        const existing = latestByConversationId.get(entry.conversationId)
+        if (!existing || compareItems(item, existing) < 0) {
+          latestByConversationId.set(entry.conversationId, item)
+        }
+      } catch {
+        // ignore invalid jsonl line
+      }
+
+      parsedCount++
+      if (parsedCount % 80 === 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0))
+      }
+      if (latestByConversationId.size >= MAX_ITEMS_RETURNED) break
+    }
+
+    if (latestByConversationId.size > 0) {
+      return Array.from(latestByConversationId.values()).sort(compareItems).slice(0, MAX_ITEMS_RETURNED)
+    }
+  }
+
   for (const { filename, source } of DECISION_FILES) {
     const content = await readStorageMaybeTail(filename)
     if (!content) continue
@@ -140,6 +197,7 @@ export async function listOngoingDecisionItems(): Promise<OngoingDecisionItem[]>
         const conversation = normalizeConversation(conv, source)
         const personaName = PERSONA_NAME_BY_ID[conv.decisionRecord.personaId] ?? conv.decisionRecord.personaId
         const item: OngoingDecisionItem = {
+          conversationId: conv.id,
           conversation,
           decisionRecord: conv.decisionRecord,
           personaName,

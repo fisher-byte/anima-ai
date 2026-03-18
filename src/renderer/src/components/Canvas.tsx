@@ -43,6 +43,7 @@ import { getAuthToken } from '../services/storageService'
 import { DECISION_RECORDS_UPDATED_EVENT, listOngoingDecisionItems, type OngoingDecisionItem } from '../services/decisionRecords'
 import { useT } from '../i18n'
 import type { Node as CanvasNode } from '@shared/types'
+import { STORAGE_FILES } from '@shared/constants'
 
 /** 让 NodeCard 能访问 force sim API（setDragging / kick） */
 export const ForceSimContext = createContext<ForceSimulationAPI | null>(null)
@@ -174,7 +175,7 @@ export function Canvas() {
   // 订阅 profile.rules 长度，用于进化基因红点（不用节点数量，避免虚触发）
   const profileRulesCount = useCanvasStore(state => state.profile?.rules?.length ?? 0)
   const customSpaces = useCanvasStore(state => state.customSpaces)
-  const openModal = useCanvasStore(state => state.openModal)
+  const openModalById = useCanvasStore(state => state.openModalById)
 
   // 空画布欢迎语（个性化，当天缓存）
   const [welcomeText, setWelcomeText] = useState<string | null>(null)
@@ -837,6 +838,22 @@ export function Canvas() {
     }
   }, [t.canvas])
 
+  const getConversationFileForDecisionSource = useCallback((source: OngoingDecisionItem['source']) => {
+    switch (source) {
+      case 'lenny':
+        return STORAGE_FILES.LENNY_CONVERSATIONS
+      case 'pg':
+        return STORAGE_FILES.PG_CONVERSATIONS
+      case 'zhang':
+        return STORAGE_FILES.ZHANG_CONVERSATIONS
+      case 'wang':
+        return STORAGE_FILES.WANG_CONVERSATIONS
+      case 'main':
+      default:
+        return STORAGE_FILES.CONVERSATIONS
+    }
+  }, [])
+
   const getDecisionStatusLabel = useCallback((status: OngoingDecisionItem['decisionRecord']['status']) => {
     switch (status) {
       case 'revisited':
@@ -1265,9 +1282,9 @@ export function Canvas() {
             <div className="mt-2 space-y-2">
               {ongoingDecisions.map((item) => (
                 <button
-                  key={item.conversation.id}
+                  key={item.conversationId}
                   type="button"
-                  onClick={() => openModal(item.conversation)}
+                  onClick={() => openModalById(item.conversationId, getConversationFileForDecisionSource(item.source))}
                   className="w-full rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2 text-left transition-all hover:border-gray-200 hover:bg-white"
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -1535,7 +1552,7 @@ export function Canvas() {
             onClose={() => setIsDecisionHubOpen(false)}
             onOpenDecision={(item) => {
               setIsDecisionHubOpen(false)
-              openModal(item.conversation)
+              openModalById(item.conversationId, getConversationFileForDecisionSource(item.source))
             }}
           />
         )}

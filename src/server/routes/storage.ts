@@ -300,6 +300,9 @@ storageRoutes.get('/:filename', (c) => {
         filename === 'wang-conversations.jsonl') {
       return c.text('')
     }
+    if (filename === 'decision-ledger.jsonl') {
+      return c.text('')
+    }
     // custom-spaces.json 首次访问返回空数组（新用户无创建过任何自定义空间）
     if (filename === 'custom-spaces.json') {
       return c.text('[]')

@@ -6,6 +6,7 @@ import { DecisionHubPanel } from '../DecisionHubPanel'
 
 const items: OngoingDecisionItem[] = [
   {
+    conversationId: 'conv-due',
     conversation: {
       id: 'conv-due',
       createdAt: '2026-03-18T00:00:00.000Z',
@@ -40,6 +41,7 @@ const items: OngoingDecisionItem[] = [
     isDue: true,
   },
   {
+    conversationId: 'conv-reviewed',
     conversation: {
       id: 'conv-reviewed',
       createdAt: '2026-03-18T00:00:00.000Z',

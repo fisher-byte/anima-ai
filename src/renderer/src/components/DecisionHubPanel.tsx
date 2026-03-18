@@ -138,7 +138,7 @@ export function DecisionHubPanel({
                   const resultLabel = getResultLabel(item.result)
                   return (
                     <button
-                      key={`${group.title}-${item.conversation.id}`}
+                      key={`${group.title}-${item.conversationId}`}
                       type="button"
                       onClick={() => onOpenDecision(item)}
                       className="w-full rounded-[24px] border border-gray-100 bg-white px-4 py-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-gray-200 hover:shadow-md"

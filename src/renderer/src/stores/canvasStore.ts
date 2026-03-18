@@ -102,7 +102,7 @@ interface CanvasState {
   endConversation: (assistantMessage: string, appliedPreferences?: string[], reasoning_content?: string, explicitConversation?: Conversation) => Promise<void>
   closeModal: () => void
   openModal: (conversation: Conversation) => void
-  openModalById: (conversationId: string) => Promise<void>
+  openModalById: (conversationId: string, convFileOverride?: string) => Promise<void>
   
   // 方法：偏好学习
   detectFeedback: (message: string) => PreferenceRule | null
@@ -1997,18 +1997,20 @@ export const useCanvasStore = create<CanvasState>()(
   },
 
   // 通过 conversationId 打开回放（从 conversations.jsonl 读取完整内容）
-  openModalById: async (conversationId: string) => {
+  openModalById: async (conversationId: string, convFileOverride?: string) => {
     // 立即打开 modal 并显示 loading，不等网络，避免点击无响应的感知延迟
     // 用令牌防并发：快速点击多个卡片时，只有最后一次的结果会被应用
     const token = ++_openModalToken
     set({ isModalOpen: true, isLoading: true, conversationHistory: [] })
     try {
       const { isLennyMode, isPGMode, isZhangMode, isWangMode, isCustomSpaceMode, activeCustomSpaceId } = get()
-      const convFile = isCustomSpaceMode && activeCustomSpaceId
-        ? `custom-${activeCustomSpaceId}-conversations.jsonl`
-        : isLennyMode
-          ? (isPGMode ? STORAGE_FILES.PG_CONVERSATIONS : isZhangMode ? STORAGE_FILES.ZHANG_CONVERSATIONS : isWangMode ? STORAGE_FILES.WANG_CONVERSATIONS : STORAGE_FILES.LENNY_CONVERSATIONS)
-          : STORAGE_FILES.CONVERSATIONS
+      const convFile = convFileOverride ?? (
+        isCustomSpaceMode && activeCustomSpaceId
+          ? `custom-${activeCustomSpaceId}-conversations.jsonl`
+          : isLennyMode
+            ? (isPGMode ? STORAGE_FILES.PG_CONVERSATIONS : isZhangMode ? STORAGE_FILES.ZHANG_CONVERSATIONS : isWangMode ? STORAGE_FILES.WANG_CONVERSATIONS : STORAGE_FILES.LENNY_CONVERSATIONS)
+            : STORAGE_FILES.CONVERSATIONS
+      )
       const content = await storageService.read(convFile)
       if (token !== _openModalToken) return  // 被更新的调用抢先了，丢弃此结果
       if (!content) {
