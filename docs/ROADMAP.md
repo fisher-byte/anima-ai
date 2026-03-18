@@ -2,6 +2,14 @@
 
 ## 计划中版本
 
+#### v0.5.21 - Decision state refresh + source sync + deploy verification（已完成）
+- [x] `scripts/generate-lingsi-product-state.ts` / `src/shared/lingsiProductState.ts`：新增产品状态包自动刷新链路，从 `changelog`、eval 报告和当前 seeds 基线生成动态字段
+- [x] `package.json`：新增 `npm run lingsi:state-pack` 与 `npm run lingsi:refresh`，把状态包刷新纳入 LingSi 标准收口命令
+- [x] `decision-product-state.json` / `lingsiDecisionEngine.ts`：状态包新增 `dataSnapshot`，决策 persona 能看到当前 `personas / sources / approved units / unitsByPersona / animaBaseHead`
+- [x] `anima-base`：同步到 `083974d`；最新 upstream 增量为王慧文材料，本轮确认无新的 Lenny / 张小龙来源需要并入，LingSi seeds 维持 `2 personas / 37 sources / 59 approved units`
+- [x] `docs/scripts/deploy.sh`：发布后健康检查改为验证服务器内网 `127.0.0.1:3001` 与线上域名，修复 `HTTP 状态: 000` 假阴性
+- [x] 验证：`npm run lingsi:state-pack`、`npm run lingsi:extract`（`Files changed: 0`）、`npm run lingsi:evaluate`（`decision 15 : normal 0`）、`npm run lingsi:evaluate:zhang`（`decision 6 : normal 0 : tie 1`）、`npm test`（604/604）、`npm run typecheck`、`npm run build`、`npm run test:e2e`（44 passed / 4 skipped）、deploy
+
 #### v0.5.20 - Product state pack + decision context sync（已完成）
 - [x] `seeds/lingsi/decision-product-state.json`：新增结构化产品状态包，沉淀当前版本、完成项、风险、评测结果与待决策
 - [x] `constants.ts` / `main/index.ts` / `lingsiSeedData.ts` / `services/lingsi.ts`：把 `decision-product-state.json` 接入 storage 白名单、bundled seed 与首次写入/读取链路

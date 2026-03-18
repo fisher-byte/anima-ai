@@ -59,11 +59,13 @@ REMOTE
 
 echo "=== [5/5] 验证服务 ==="
 sleep 2
-STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://101.32.215.209:3001/api/health 2>/dev/null || echo "无法访问")
-echo "HTTP 状态: $STATUS"
+REMOTE_STATUS=$(ssh -o StrictHostKeyChecking=no "$SERVER" "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/api/health" 2>/dev/null || echo "000")
+DOMAIN_STATUS=$(curl -4 --http1.1 -s -o /dev/null -w "%{http_code}" https://chatanima.com/api/health 2>/dev/null || echo "000")
+echo "服务器内网健康检查: $REMOTE_STATUS"
+echo "线上域名健康检查: $DOMAIN_STATUS"
 
-if [ "$STATUS" = "200" ]; then
-  echo "✓ 部署成功！访问: http://101.32.215.209:3001"
+if [ "$REMOTE_STATUS" = "200" ] && [ "$DOMAIN_STATUS" = "200" ]; then
+  echo "✓ 部署成功！访问: https://chatanima.com"
 else
   echo "⚠ 服务可能需要几秒启动，请手动检查: pm2 logs evocanvas"
 fi

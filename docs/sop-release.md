@@ -1,6 +1,6 @@
 # Anima 发版 SOP
 
-*最后更新: 2026-03-18 | 版本: v0.5.20*
+*最后更新: 2026-03-18 | 版本: v0.5.21*
 
 每次发版（无论 patch / minor / major）按此流程执行，确保代码、文档、服务器三端一致。
 
@@ -39,7 +39,7 @@ git push origin main
 ### 1. 测试 & 类型检查
 
 ```bash
-npm test          # 必须全部通过（当前基线：597 / 597，29 个文件）
+npm test          # 必须全部通过（当前基线：604 / 604，31 个文件）
 npx tsc --noEmit  # 必须零错误
 npm run build     # 构建验证（前端产物生成到 dist/）
 ```
@@ -73,6 +73,7 @@ npm run test:e2e      # 当前基线：44 passed / 4 skipped
 - [ ] `docs/ROADMAP.md` 日志表格追加新版本行，已完成条目标记 `[x]`
 - [ ] `docs/testing.md` 总测试数与 `npm test` 实际输出一致
 - [ ] `docs/dev-guide.md` `npm test` 说明里的用例数与实际一致
+- [ ] 若 LingSi 决策链路有改动，运行 `npm run lingsi:state-pack`（必要时再跑 `npm run lingsi:refresh`）
 - [ ] 若有新 API / 路由变更，更新 `docs/api.md`
 - [ ] 若有架构变更（新模块、数据库表、数据流），更新 `docs/architecture.md`
 - [ ] 若踩了新坑或有重要修复决策，追加 `docs/dev-notes.md`
@@ -110,12 +111,14 @@ bash docs/scripts/deploy.sh
 ### 部署后验证
 
 ```bash
-# API 健康检查
-curl http://101.32.215.209:3001/api/health
-# 预期：{"status":"ok","timestamp":"..."}
+# 服务器内网健康检查
+ssh root@101.32.215.209 "curl -sS -i http://127.0.0.1:3001/api/health"
+
+# 线上域名健康检查
+curl -4 --http1.1 -sS -i https://chatanima.com/api/health
 
 # 查看进程状态和最新日志
-ssh evocanvas-prod "pm2 list && pm2 logs evocanvas --lines 20 --nostream"
+ssh root@101.32.215.209 "pm2 list && pm2 logs evocanvas --lines 20 --nostream"
 ```
 
 ### 回滚
@@ -132,7 +135,7 @@ ssh evocanvas-prod "cd /opt/evocanvas && git checkout <hash> && npm install --om
 ## 三、完整发版检查清单（按顺序执行）
 
 ```
-[ ] 1. npm test              → 597/597 通过
+[ ] 1. npm test              → 604/604 通过
 [ ] 2. npx tsc --noEmit      → 零错误
 [ ] 3. npm run build         → 构建成功
 [ ] 4. npm run test:e2e      → 44 passed / 4 skipped

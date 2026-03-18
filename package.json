@@ -1,6 +1,6 @@
 {
   "name": "anima",
-  "version": "0.5.20",
+  "version": "0.5.21",
   "description": "Anima — 属于你的那部分自我",
   "main": "./out/main/index.js",
   "author": "Anima Team",
@@ -20,6 +20,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "lingsi:state-pack": "tsx scripts/generate-lingsi-product-state.ts",
+    "lingsi:refresh": "npm run lingsi:state-pack && npm run lingsi:extract",
     "lingsi:extract": "tsx scripts/extract-lingsi-seeds.ts",
     "lingsi:evaluate": "tsx scripts/evaluate-lingsi.ts",
     "lingsi:evaluate:zhang": "LINGSI_EVAL_PERSONA=zhang tsx scripts/evaluate-lingsi.ts",

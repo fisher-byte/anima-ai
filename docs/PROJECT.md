@@ -1,7 +1,22 @@
 # Anima — 项目计划
 
 > 唯一入口：每次发版、每次决策都在这里留记录。
-> 最后更新：2026-03-18 | 当前版本：v0.5.20
+> 最后更新：2026-03-18 | 当前版本：v0.5.21
+
+---
+
+## 当前冲刺（v0.5.21 已完成）
+
+*本轮把“当前项目事实”同步链路做成可复现资产：产品状态包支持自动刷新，最新 anima-base 已同步确认，部署脚本的健康检查也改成真实可用路径。*
+
+| # | 任务 | 状态 | 说明 |
+|---|------|------|------|
+| 1 | 产品状态包自动刷新 | 已完成 | 新增 `npm run lingsi:state-pack`，从 `changelog`、eval 报告和当前 seeds 基线生成 `decision-product-state.json` 的动态字段 |
+| 2 | LingSi 刷新命令收敛 | 已完成 | 新增 `npm run lingsi:refresh`，把“状态包刷新 + seeds 刷新”收敛成固定 SOP 命令 |
+| 3 | 当前项目知识基线补强 | 已完成 | 决策链路注入的状态包新增 `personas / sources / approved units / unitsByPersona / animaBaseHead`，让 Lenny / 张小龙理解当前知识覆盖面 |
+| 4 | anima-base 最新同步确认 | 已完成 | `anima-base` 已同步到 `083974d`；最新 upstream 增量为王慧文材料，本轮确认无新的 Lenny / 张小龙来源需要并入 |
+| 5 | 部署健康检查修复 | 已完成 | `docs/scripts/deploy.sh` 改为验证服务器内网 `127.0.0.1:3001` 与线上域名，消除 `HTTP 状态: 000` 假阴性 |
+| 6 | 文档与发布收口 | 已完成 | 已完成 docs 同步、full test / build / e2e、code review、GitHub 备份与服务器部署验证 |
 
 ---
 
@@ -54,7 +69,7 @@
 | 3 | 遗留 eval 产物规范化 | 已完成 | 重新生成 `docs/lingsi-eval-m4.md` / `reports/lingsi-m4-eval.json`，当前 Lenny 基线为 `decision 14 : normal 1` |
 | 4 | 发布收口 | 已完成 | 已完成版本号同步、文档同步、full test / typecheck / build / e2e、code review、GitHub 备份与服务器部署验证 |
 
-## 下一阶段（v0.5.21 计划）
+## 下一阶段（v0.5.22 计划）
 
 *继续把 persona 评测体系和主页决策调用做得更稳。*
 

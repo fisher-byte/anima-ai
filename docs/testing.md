@@ -1,6 +1,6 @@
 # Anima 测试手册
 
-*最后更新: 2026-03-18 | 版本: v0.5.20*
+*最后更新: 2026-03-18 | 版本: v0.5.21*
 
 ## 测试策略
 
@@ -22,7 +22,7 @@
 - ✅ `services/lingsi.ts` — LingSi seed 初始化、加载与 persona 过滤（3 个用例）
 - ✅ `canvasStore.nodeConsolidation.test.ts` — 节点聚合逻辑（25 个用例）
   - 节点合并阈值、相似度判断、聚合后数据一致性
-- ✅ `canvasStore.lennyMode.test.ts` — Lenny Space 模式（18 个用例）
+- ✅ `canvasStore.lennyMode.test.ts` — Lenny Space 模式（19 个用例）
   - Lenny Space 开关、节点加载、状态隔离、decision mode 同步
   - 进入 Lenny Space 时清理 onboarding/modal residue
   - 主页 `@persona` 调用时会记录 `invokedAssistant` 元数据
@@ -47,10 +47,14 @@
   - 支持决策的 persona 在主页 `@` 中只暴露决策 suggestion，但输入框只展示纯 `@名字`
 - ✅ `personaSpaces.test.ts` — 主页 persona mode 解析（3 个用例）
   - Space toggle / homepage `invokedAssistant` / `decisionTrace` 三种 mode 来源的优先级
-- ✅ `AnswerModalSubcomponents.test.tsx` — 决策轨迹面板稳定性（2 个用例）
+- ✅ `AnswerModalSubcomponents.test.tsx` — 决策轨迹面板稳定性（1 个用例）
   - streaming 中禁用 `查看轨迹`，避免流式阶段打开 trace modal 导致卡死
 - ✅ `lingsiProductState.test.ts` — 产品状态包基线（1 个用例）
   - 当前版本、docRefs、personaFocus 与 shipped state pack 保持一致
+- ✅ `lingsiProductStateHelpers.test.ts` — 产品状态包生成辅助函数（3 个用例）
+  - changelog 解析、eval 汇总、当前状态摘要生成
+- ✅ `evalJudgeParser.test.ts` — 评测 JSON 解析健壮性（4 个用例）
+  - 纯 JSON、fenced JSON、前言包裹 JSON 与无 JSON 报错场景
 
 **运行命令**:
 ```bash
@@ -105,7 +109,7 @@ npm run test:watch    # 监听模式（开发时用）
 
 - ✅ `memory.test.ts` — 记忆路由集成测试（含 FTS5 trigger、引用块过滤、decayPreferences、语义边 by-id）
 
-**总测试数**: **597 个用例，29 个测试文件，全部通过**
+**总测试数**: **604 个用例，31 个测试文件，全部通过**
 
 ---
 

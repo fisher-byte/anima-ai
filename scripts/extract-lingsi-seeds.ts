@@ -2672,8 +2672,12 @@ function readGitValue(repoDir: string, args: string[]): string {
   }).trim()
 }
 
-function readRepoShortCommit(repoDir: string): string {
-  return readGitValue(repoDir, ['rev-parse', '--short', 'HEAD'])
+function readPathShortCommit(repoDir: string, repoRelativePath: string): string {
+  return readGitValue(repoDir, ['log', '-1', '--format=%h', '--', repoRelativePath])
+}
+
+function readPathCommittedAt(repoDir: string, repoRelativePath: string): string {
+  return readGitValue(repoDir, ['log', '-1', '--format=%cI', '--', repoRelativePath])
 }
 
 interface SourceFileRecord {
@@ -2857,7 +2861,6 @@ async function writeJsonIfChanged(filePath: string, data: unknown): Promise<bool
 
 async function main() {
   const generationTimestamp = new Date().toISOString()
-  const repoCommit = readRepoShortCommit(animaBaseRoot)
   const sourceFiles = await loadSourceFiles()
 
   for (const record of sourceFiles.values()) {
@@ -2877,7 +2880,11 @@ async function main() {
   )
 
   const manifest = SOURCE_SPECS
-    .map(spec => manifestFromSpec(spec, repoCommit, generationTimestamp))
+    .map(spec => manifestFromSpec(
+      spec,
+      readPathShortCommit(animaBaseRoot, spec.sourcePath),
+      readPathCommittedAt(animaBaseRoot, spec.sourcePath),
+    ))
     .map(entry => mergeManifestImportedAt(entry, existingManifest))
 
   const personas = PERSONA_SPECS

@@ -1,3 +1,28 @@
+## [0.5.21] - 2026-03-18
+
+### feat: decision state refresh + source sync + deploy verification
+
+**新增与修复：**
+- `scripts/generate-lingsi-product-state.ts` / `src/shared/lingsiProductState.ts`：新增可复现的产品状态包刷新链路，自动从 `changelog`、eval 报告和 seeds 基线生成当前版本摘要、完成项、评测结果与知识覆盖快照
+- `package.json`：新增 `npm run lingsi:state-pack` 与 `npm run lingsi:refresh`，把“更新状态包 + 刷新 seeds”收敛成固定 SOP 命令
+- `decision-product-state.json` / `lingsiDecisionEngine.ts`：产品状态包现在会携带 `personas / sources / approved units / unitsByPersona / anima-base head`，persona 在回答当前项目问题时能看到更完整的当前事实基线
+- `anima-base`：同步到 `083974d`；最新 upstream 增量为王慧文材料，本轮确认无新的 Lenny / 张小龙来源需要并入，LingSi seeds 维持 `2 personas / 37 sources / 59 approved units`
+- `docs/scripts/deploy.sh`：发布后健康检查改为验证服务器内网 `127.0.0.1:3001` 与线上域名，修复之前部署脚本末尾 `HTTP 状态: 000` 的假阴性
+- `lingsiProductStateHelpers.test.ts` / `lingsiProductState.test.ts` / `lingsiDecisionEngine.test.ts`：补充状态包生成、知识基线注入与版本对齐断言
+
+**测试与验证：**
+- `npm run lingsi:state-pack`：通过，重复执行稳定 `Files changed: 0`
+- `npm run lingsi:extract`：通过，最终稳定 `Files changed: 0`
+- `npm run lingsi:evaluate`：通过，`decision 15 : normal 0`
+- `npm run lingsi:evaluate:zhang`：通过，`decision 6 : normal 0 : tie 1`
+- `npm run typecheck`：通过
+- `npm test`：604/604 通过
+- `npm run build`：通过
+- `npm run test:e2e`：44 passed / 4 skipped
+- deploy：通过
+
+---
+
 ## [0.5.20] - 2026-03-18
 
 ### feat: product state pack + decision context sync

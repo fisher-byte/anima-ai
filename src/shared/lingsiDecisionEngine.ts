@@ -126,6 +126,9 @@ function buildDecisionProductStateContext(
     '【当前产品状态包】',
     `版本：${productState.version}`,
     `摘要：${productState.summary}`,
+    productState.dataSnapshot
+      ? `知识基线：\n- personas: ${productState.dataSnapshot.personas}\n- sources: ${productState.dataSnapshot.sources}\n- approved units: ${productState.dataSnapshot.approvedUnits}\n- lenny units: ${productState.dataSnapshot.unitsByPersona.lenny ?? 0}\n- zhang units: ${productState.dataSnapshot.unitsByPersona.zhang ?? 0}${productState.dataSnapshot.animaBaseHead ? `\n- anima-base: ${productState.dataSnapshot.animaBaseHead}` : ''}`
+      : undefined,
     `最近完成：${productState.completedChanges.slice(0, 4).map(item => `- ${item}`).join('\n')}`,
     `当前关注：${productState.currentFocus.slice(0, 3).map(item => `- ${item}`).join('\n')}`,
     `已验证方向：${productState.validatedDirections.slice(0, 3).map(item => `- ${item}`).join('\n')}`,

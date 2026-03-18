@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import decisionUnitsSeed from '../seeds/lingsi/decision-units.json'
+import { parseJudgeJson } from '../src/shared/evalJudgeParser'
 import { buildLingSiDecisionPayloadFromUnits, matchDecisionUnits } from '../src/shared/lingsiDecisionEngine'
 import { LENNY_SYSTEM_PROMPT, ZHANG_SYSTEM_PROMPT } from '../src/shared/constants'
 import type { DecisionUnit } from '../src/shared/types'
@@ -291,13 +292,23 @@ async function judgeCase(prompt: string, normalAnswer: string, decisionAnswer: s
     decisionAnswer,
   ].join('\n')
 
-  const raw = await streamChatCompletion(
-    evaluatorPrompt,
-    '你是一个只输出 JSON 的评测器。输出必须是合法 JSON。',
-  )
+  let lastError: Error | null = null
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const raw = await streamChatCompletion(
+      evaluatorPrompt,
+      attempt === 1
+        ? '你是一个只输出 JSON 的评测器。输出必须是合法 JSON。'
+        : '你是一个只输出 JSON 的评测器。禁止任何解释、前言、后记或 Markdown 代码块，只能输出单个合法 JSON 对象。',
+    )
 
-  const sanitized = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '')
-  return JSON.parse(sanitized) as JudgeResult
+    try {
+      return parseJudgeJson<JudgeResult>(raw)
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+    }
+  }
+
+  throw lastError ?? new Error('Failed to parse evaluator JSON output')
 }
 
 function buildMarkdownReport(results: EvalCaseResult[], config: PersonaEvalConfig, units: DecisionUnit[]): string {

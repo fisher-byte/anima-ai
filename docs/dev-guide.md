@@ -1,6 +1,6 @@
 # Anima 开发指南
 
-*最后更新: 2026-03-18 | 版本: v0.5.20*
+*最后更新: 2026-03-18 | 版本: v0.5.21*
 
 ## 环境准备
 
@@ -36,13 +36,15 @@ cp .env.example .env
 | `npm run dev:server` | 仅启动后端（tsx watch 热重载） |
 | `npm run build` | 构建前端到 `dist/` |
 | `npm start` | 生产模式启动（同时服务 API + 静态文件，端口 3000） |
-| `npm test` | 运行所有测试（单元 + 集成，当前 597 个用例，29 个文件） |
+| `npm test` | 运行所有测试（单元 + 集成，当前 604 个用例，31 个文件） |
 | `npm run test:watch` | 监听模式（开发时用） |
 | `npm run typecheck` | TypeScript 类型检查 |
 | `npm run lint` | ESLint 检查 |
+| `npm run lingsi:state-pack` | 从 `docs/changelog.md`、评测报告和 seeds 基线刷新 `decision-product-state.json`，用于保持当前产品状态包可复现 |
+| `npm run lingsi:refresh` | 先刷新产品状态包，再刷新 LingSi seeds；适合影响 persona 决策链路的发版收口 |
 | `npm run lingsi:evaluate` | 跑 Lenny 15 题 `normal vs decision` 对照评测；支持 `LINGSI_EVAL_CASE` / `LINGSI_EVAL_TIMEOUT_MS`，并刷新 `docs/lingsi-eval-m4.md` / `reports/lingsi-m4-eval.json` |
 | `npm run lingsi:evaluate:zhang` | 跑张小龙 persona 的 case-based eval 基线，并刷新 `docs/lingsi-eval-zhang.md` / `reports/lingsi-zhang-eval.json` |
-| `npm run lingsi:extract` | 刷新 DecisionUnit seeds；`decision-product-state.json` 仍按文档人工维护，不走自动抽取 |
+| `npm run lingsi:extract` | 刷新 DecisionUnit / source manifest seeds；source manifest 现在按“文件级最后 commit”记录，不再随 repo HEAD 产生纯噪音 diff |
 | `npm run dev:electron` | 启动 Electron 桌面版（可选，非主要模式） |
 
 ---
