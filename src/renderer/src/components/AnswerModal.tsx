@@ -164,6 +164,10 @@ export function AnswerModal() {
   const { t } = useT()
   const isModalOpen = useCanvasStore(state => state.isModalOpen)
   const currentConversation = useCanvasStore(state => state.currentConversation)
+  // P7: Ref tracking for currentConversation — critical-path callbacks read from ref
+  // instead of triggering re-renders when the conversation object identity changes.
+  const currentConversationRef = useRef(currentConversation)
+  currentConversationRef.current = currentConversation
   const closeModal = useCanvasStore(state => state.closeModal)
   const endConversation = useCanvasStore(state => state.endConversation)
   const updateConversation = useCanvasStore(state => state.updateConversation)
@@ -363,8 +367,29 @@ export function AnswerModal() {
   const onboardingStreamTimerRef2 = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onboardingStreamTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onboardingStreamTimerRef3 = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const activeDecisionTrace: DecisionTrace | undefined = currentConversation?.decisionTrace
-  const activeDecisionRecord: DecisionRecord | undefined = currentConversation?.decisionRecord
+  // P7: Stable refs for turns & appliedPreferences — used by persistDecisionRecord
+  // to avoid re-creating the callback on every turns/appliedPreferences change.
+  const turnsRef = useRef(turns)
+  turnsRef.current = turns
+  const appliedPreferencesRef = useRef(appliedPreferences)
+  appliedPreferencesRef.current = appliedPreferences
+  // P7: Fine-grained zustand selectors with custom equality — only re-render when
+  // the decision-relevant fields actually change, NOT on every updateConversation().
+  // This is critical because updateConversation({decisionRecord}) creates a new
+  // currentConversation object, but decisionTrace may be unchanged.
+  const activeDecisionRecord: DecisionRecord | undefined = useCanvasStore(
+    state => state.currentConversation?.decisionRecord,
+    (a, b) => a?.updatedAt === b?.updatedAt && a?.status === b?.status
+  )
+  const activeDecisionTrace: DecisionTrace | undefined = useCanvasStore(
+    state => state.currentConversation?.decisionTrace,
+    (a, b) =>
+      a?.mode === b?.mode &&
+      a?.sourceRefs === b?.sourceRefs &&
+      a?.matchedDecisionUnitIds === b?.matchedDecisionUnitIds &&
+      a?.productStateUsed === b?.productStateUsed &&
+      a?.productStateDocRefs === b?.productStateDocRefs
+  )
   const shouldShowLingSiTrace = useMemo(() =>
     !!activeDecisionTrace &&
     activeDecisionTrace.mode === 'decision' &&
@@ -393,10 +418,12 @@ export function AnswerModal() {
   const persistDecisionRecord = useCallback(async (
     mutate: (record: DecisionRecord) => DecisionRecord,
   ) => {
-    // P5: Early guard using closure — but after yield, re-read from getState()
-    // to avoid stale closure data (P1-1 fix).
-    if (!currentConversation?.id || !currentConversation.decisionRecord) return
-    const convId = currentConversation.id
+    // P7: Read conversation from store instead of closure to avoid re-creating
+    // this callback whenever currentConversation/turns/appliedPreferences change.
+    // This is the root-cause fix for decision card click freeze.
+    const storeConv = useCanvasStore.getState().currentConversation
+    if (!storeConv?.id || !storeConv.decisionRecord) return
+    const convId = storeConv.id
 
     // P4: Yield to the event loop BEFORE doing heavy work.
     // This lets React commit any pending paints (streaming text, etc.)
@@ -404,8 +431,6 @@ export function AnswerModal() {
     await new Promise<void>(r => setTimeout(r, 0))
 
     // P5 (P1-1 fix): Re-read the LATEST conversation from the store after yield.
-    // The closure-captured `currentConversation` may be stale if autoSaveIfNeeded
-    // or markDecisionAnswered ran during the yield.
     const freshConversation = useCanvasStore.getState().currentConversation
     if (!freshConversation || freshConversation.id !== convId || !freshConversation.decisionRecord) return
 
@@ -422,12 +447,14 @@ export function AnswerModal() {
         : nextDecisionRecord.outcome,
     }
 
-    const assistantMessage = serializeTurnsForStorage(turns)
+    // P7: Read turns & appliedPreferences from refs (always fresh, no closure stale).
+    const currentTurns = turnsRef.current
+    const assistantMessage = serializeTurnsForStorage(currentTurns)
     const nextConversation: Conversation = {
       ...freshConversation,
       assistantMessage,
-      reasoning_content: turns.length > 0 ? (turns[turns.length - 1].reasoning || undefined) : undefined,
-      appliedPreferences: [...appliedPreferences],
+      reasoning_content: currentTurns.length > 0 ? (currentTurns[currentTurns.length - 1].reasoning || undefined) : undefined,
+      appliedPreferences: [...appliedPreferencesRef.current],
       decisionRecord: normalizedRecord,
     }
 
@@ -488,16 +515,18 @@ export function AnswerModal() {
 
     emitDecisionRecordsUpdated()
   }, [
+    // P7: Removed currentConversation, turns, appliedPreferences from deps.
+    // They are now accessed via getState() and refs, so persistDecisionRecord
+    // identity stays stable → persistDecisionRecordRef useEffect doesn't re-fire
+    // → handleAdoptDecision/handleDecisionOutcome props don't change
+    // → LingSiDecisionCard doesn't re-render on every store update.
     activeCustomSpaceId,
-    appliedPreferences,
-    currentConversation,
     isCustomSpaceMode,
     isLennyMode,
     isPGMode,
     isWangMode,
     isZhangMode,
     serializeTurnsForStorage,
-    turns,
     updateConversation,
   ])
 
@@ -974,31 +1003,38 @@ export function AnswerModal() {
   }, [isModalOpen, isOnboardingMode, currentConversation, resetHistory, onboardingResumeTurns])
 
   // ── 普通模式：对话准备 ──────────────────────────────────────────────────────
+  // P7: deps use `currentConversation?.id` instead of the full object.
+  // The previous `currentConversation` dep caused this effect to re-run on EVERY
+  // updateConversation() call (which spreads a new object reference), even though
+  // the effect body immediately early-returns for the same conversation id.
+  // Reading fields via getState() inside the effect avoids this wasted work.
   useEffect(() => {
-    if (!isModalOpen || !currentConversation || isOnboardingMode || isLoading) return
+    // P7: Read conversation snapshot from store at effect execution time
+    const conv = useCanvasStore.getState().currentConversation
+    if (!isModalOpen || !conv || isOnboardingMode || isLoading) return
 
     const prepareConversation = async () => {
       // 对话框打开时，预加载偏好规则用于顶部预告
       const currentPrefs = getPreferencesForPrompt()
       if (currentPrefs.length > 0) setAppliedPreferences(currentPrefs)
-      if (currentConversation.assistantMessage) {
+      if (conv.assistantMessage) {
         isReplayRef.current = true
         didMutateRef.current = false
         const parsedTurns = parseTurnsFromAssistantMessage(
-          currentConversation.assistantMessage,
-          currentConversation.reasoning_content ?? '',
-          currentConversation.images,
-          currentConversation.files
+          conv.assistantMessage,
+          conv.reasoning_content ?? '',
+          conv.images,
+          conv.files
         )
         let finalTurns = parsedTurns ?? [{
-          user: currentConversation.userMessage,
-          assistant: currentConversation.assistantMessage,
-          reasoning: currentConversation.reasoning_content,
-          images: currentConversation.images,
-          files: currentConversation.files
+          user: conv.userMessage,
+          assistant: conv.assistantMessage,
+          reasoning: conv.reasoning_content,
+          images: conv.images,
+          files: conv.files
         }]
-        if (finalTurns.length === 1 && !finalTurns[0].user && currentConversation.userMessage) {
-          finalTurns = [{ ...finalTurns[0], user: currentConversation.userMessage }]
+        if (finalTurns.length === 1 && !finalTurns[0].user && conv.userMessage) {
+          finalTurns = [{ ...finalTurns[0], user: conv.userMessage }]
         }
         setTurns(finalTurns)
         // replay 时滚到对话底部（需等 DOM 渲染完）
@@ -1018,12 +1054,12 @@ export function AnswerModal() {
         setConversationHistory(serverHistory.length > 0 ? serverHistory : history)
         setIsStreaming(false)
         setErrorMessage(null)
-        setAppliedPreferences(currentConversation.appliedPreferences || [])
-        startedConversationIdRef.current = currentConversation.id
+        setAppliedPreferences(conv.appliedPreferences || [])
+        startedConversationIdRef.current = conv.id
 
-        const dsStatus = currentConversation.deepSearch?.status
+        const dsStatus = conv.deepSearch?.status
         const hasDeepSearchPending = dsStatus === 'pending' || dsStatus === 'running' ||
-          (currentConversation.assistantMessage || '').includes('[深度搜索进行中...]')
+          (conv.assistantMessage || '').includes('[深度搜索进行中...]')
         if (!hasDeepSearchPending && finalTurns.length === 1 && (
           !finalTurns[0].assistant ||
           finalTurns[0].assistant.includes('[正在生成中...]') ||
@@ -1034,19 +1070,19 @@ export function AnswerModal() {
         return
       }
 
-      if (startedConversationIdRef.current === currentConversation.id) return
-      startedConversationIdRef.current = currentConversation.id
+      if (startedConversationIdRef.current === conv.id) return
+      startedConversationIdRef.current = conv.id
       isReplayRef.current = false
       didMutateRef.current = false
       resetHistory()
 
-      const memories = await getRelevantMemories(currentConversation.userMessage)
+      const memories = await getRelevantMemories(conv.userMessage)
       const compressed = compressMemoriesForPrompt(memories)
       setTurns([{
-        user: currentConversation.userMessage,
+        user: conv.userMessage,
         assistant: '',
-        images: currentConversation.images,
-        files: currentConversation.files,
+        images: conv.images,
+        files: conv.files,
         memoryCategory: memories[0]?.category,
         memories: memories.length > 0 ? memories : undefined
       }])
@@ -1057,24 +1093,24 @@ export function AnswerModal() {
       const preferences = (isLennyMode || isCustomSpaceMode) ? [] : getPreferencesForPrompt()
       const systemPromptOverride = resolveAssistantPromptOverride()
       if (systemPromptOverride) {
-        const decisionPayload = await buildLingSiRequest(currentConversation.userMessage)
+        const decisionPayload = await buildLingSiRequest(conv.userMessage)
         const shouldPersistHistory = !isLennyMode && !isCustomSpaceMode
         sendMessage(
-          currentConversation.userMessage,
+          conv.userMessage,
           preferences,
           [],
-          currentConversation.images,
+          conv.images,
           compressed,
           false,
-          shouldPersistHistory ? currentConversation.id : undefined,
+          shouldPersistHistory ? conv.id : undefined,
           systemPromptOverride,
           decisionPayload.extraContext,
         )
       } else {
-        sendMessage(currentConversation.userMessage, preferences, [], currentConversation.images, compressed, false, currentConversation.id)
+        sendMessage(conv.userMessage, preferences, [], conv.images, compressed, false, conv.id)
         lastDeepSearchContextRef.current = {
-          conversationId: currentConversation.id,
-          messages: [{ role: 'user', content: currentConversation.userMessage }] as any,
+          conversationId: conv.id,
+          messages: [{ role: 'user', content: conv.userMessage }] as any,
           preferences,
           compressedMemory: compressed,
           isOnboarding: false,
@@ -1083,7 +1119,7 @@ export function AnswerModal() {
     }
 
     prepareConversation()
-  }, [isModalOpen, currentConversation, isOnboardingMode, isLoading, resetHistory, sendMessage, getPreferencesForPrompt, getRelevantMemories, isLennyMode, isCustomSpaceMode, buildLingSiRequest, resolveAssistantPromptOverride])
+  }, [isModalOpen, currentConversation?.id, isOnboardingMode, isLoading, resetHistory, sendMessage, getPreferencesForPrompt, getRelevantMemories, isLennyMode, isCustomSpaceMode, buildLingSiRequest, resolveAssistantPromptOverride])
 
   // ── 深度搜索后台任务轮询：可跨页面继续，完成后回写到当前节点 ────────────────
   useEffect(() => {
