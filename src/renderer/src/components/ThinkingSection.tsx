@@ -12,8 +12,16 @@
  *
  * 注意：thinking 内容完整持久化（endConversation 时随 turns 一起存储），
  * 历史对话回放时可完整查看每轮思考过程。
+ *
+ * 性能优化（v0.5.39）：
+ *   - ThinkingSection 整体用 memo() + 自定义 equality 包裹，避免 parent 高频
+ *     setState（每个 SSE token）导致不必要的 re-render。
+ *   - ThinkingMarkdown 单独 memo 隔离 ReactMarkdown 的重量级解析，仅在 content
+ *     字符串真实变化时重新渲染。这是"点击展开后卡死"的根治修复：展开
+ *     ThinkingSection 时 ReactMarkdown 只需解析一次，后续 parent re-render
+ *     不再重新解析数千字的 reasoning 文本。
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -29,7 +37,22 @@ interface ThinkingSectionProps {
   forceCollapsed?: boolean
 }
 
-export function ThinkingSection({ content, isStreaming, isWaiting, forceCollapsed }: ThinkingSectionProps) {
+/**
+ * ThinkingMarkdown — 仅在 content 实际变化时重新解析。
+ *
+ * ReactMarkdown + remark-gfm 对大段文本（>2KB）的 parse 是同步且重量级的操作。
+ * 若不隔离，每次 AnswerModal 的 setState（每个 SSE token、每次点击）都会触发
+ * 所有历史轮次的 ReactMarkdown 重新解析 → 主线程卡死 → 点击无响应。
+ */
+const ThinkingMarkdown = memo(function ThinkingMarkdown({ content }: { content: string }) {
+  return (
+    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+      {content || '...'}
+    </ReactMarkdown>
+  )
+})
+
+function ThinkingSectionInner({ content, isStreaming, isWaiting, forceCollapsed }: ThinkingSectionProps) {
   const { t } = useT()
   const [isExpanded, setIsExpanded] = useState(() => !(forceCollapsed ?? false))
   const [dot, setDot] = useState(0)
@@ -123,9 +146,7 @@ export function ThinkingSection({ content, isStreaming, isWaiting, forceCollapse
             className="overflow-hidden"
           >
             <div className="mt-2 pl-4 border-l-2 border-blue-100 bg-blue-50/40 rounded-r-lg text-sm text-gray-500 leading-relaxed italic">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {content || '...'}
-              </ReactMarkdown>
+              <ThinkingMarkdown content={content} />
             </div>
           </motion.div>
         )}
@@ -133,3 +154,20 @@ export function ThinkingSection({ content, isStreaming, isWaiting, forceCollapse
     </div>
   )
 }
+
+/**
+ * ThinkingSection — memo 包裹，自定义 equality：
+ * 仅在 props 实际变化时重新渲染，拦截来自 AnswerModal 高频 setState 的无效更新。
+ *
+ * 关键：isStreaming=false（输出完毕）后，ThinkingSection 的所有 props 均不再变化，
+ * 因此点击 AnswerModal 内任何按钮（导致 parent re-render）都不会重新渲染本组件，
+ * 也不会触发 ThinkingMarkdown 重新解析 reasoning 文本。
+ */
+export const ThinkingSection = memo(ThinkingSectionInner, (prev, next) => {
+  return (
+    prev.content === next.content &&
+    prev.isStreaming === next.isStreaming &&
+    prev.isWaiting === next.isWaiting &&
+    prev.forceCollapsed === next.forceCollapsed
+  )
+})

@@ -1,3 +1,47 @@
+## [0.5.39] - 2026-03-19
+
+### fix: 灵思模式"点啥都卡死"根治 — ThinkingSection memo + RAF scroll + stable key
+
+**根因分析（3 处主线程阻塞）：**
+
+**根因 1（最严重）：ThinkingSection 未包 memo，ReactMarkdown 同步重解析**
+- `ThinkingSection` 是普通函数组件，无 `memo()` 保护
+- AnswerModal 每次 `setState`（每个 SSE token、每次按钮点击）都导致 `ThinkingSection` 重渲染
+- `ThinkingSection` 内部直接调用 `<ReactMarkdown>` 渲染 reasoning 文本（可达数千字符）
+- ReactMarkdown + remark-gfm 的 parse 是**同步且重量级**的操作
+- 流式输出完毕后，用户第一次点击任何东西 → AnswerModal re-render → 所有历史轮次的 `ThinkingSection` 全部重渲染 → 所有 reasoning 文本被重新 parse → 主线程阻塞 → 感知卡死
+
+**根因 2：onThinking / onStream 每 token 同步触发 layout thrashing**
+- `onThinking` 和 `onStream` 在每个 SSE token 回调中同步执行 `scrollRef.current.scrollTop = scrollRef.current.scrollHeight`
+- 读取 `scrollHeight` 强制浏览器计算布局（forced reflow）
+- 写入 `scrollTop` 立即触发另一次布局
+- 每秒数十个 token → 每秒数十次 forced reflow → 主线程持续高负载 → 流结束后无响应时间窗
+
+**根因 3：turns.map key={idx} 组件身份不稳定**
+- 使用纯数组索引作为 React key，当多轮对话时 React 会错误复用组件实例
+- 可能导致 `useState` 持有错误的历史状态，造成 ThinkingSection 的展开/折叠、dot 动画等出现异常
+
+---
+
+**修复：**
+
+- `src/renderer/src/components/ThinkingSection.tsx`：
+  - 提取 `ThinkingMarkdown = memo(...)` 隔离 ReactMarkdown 的重量级解析，仅在 `content` 字符串真实变化时重新渲染
+  - 整体用 `memo(ThinkingSectionInner, equality)` 包裹，equality 函数比较全部 4 个 props
+  - 流式完毕后 `isStreaming=false`，所有 props 不再变化，用户点击不触发任何 re-render
+
+- `src/renderer/src/components/AnswerModal.tsx`：
+  - 新增 `scrollPendingRef` + `scrollToBottom()` (useCallback)，用 `requestAnimationFrame` 合并每帧内的所有 scroll 请求（最多 1 次/帧），消除 layout thrashing
+  - `turns.map` key 从 `{idx}` 改为 `{\`${currentConversation?.id ?? 'new'}-${idx}\`}`，稳定组件身份
+
+---
+
+**测试：**
+- TypeScript 编译：0 错误
+- 单元测试：621/621 passed
+
+---
+
 ## [0.5.38] - 2026-03-19
 
 ### fix: LingSi 模式彻底根治 — 技术债全清理 + 架构收敛
