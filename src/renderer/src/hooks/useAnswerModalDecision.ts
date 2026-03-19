@@ -127,8 +127,16 @@ export function useAnswerModalDecision({
 
   // ── 匹配的决策单元（异步加载）────────────────────────────────────────────
   const [matchedDecisionUnits, setMatchedDecisionUnits] = useState<DecisionUnit[]>([])
+  // 深度比较 selector：matchedDecisionUnitIds 是数组，updateConversation spread 每次产生新引用。
+  // 若不加 equality，effect 会在每次 store 更新时无条件重跑 → loadDecisionUnits 循环调用 → 卡死。
   const matchedDecisionUnitIds = useCanvasStore(
-    state => state.currentConversation?.decisionTrace?.matchedDecisionUnitIds
+    state => state.currentConversation?.decisionTrace?.matchedDecisionUnitIds,
+    (a, b) => {
+      if (a === b) return true
+      if (!a || !b) return a === b
+      if (a.length !== b.length) return false
+      return JSON.stringify(a) === JSON.stringify(b)
+    }
   )
   useEffect(() => {
     let cancelled = false
