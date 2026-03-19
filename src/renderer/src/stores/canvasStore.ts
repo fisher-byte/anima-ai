@@ -102,8 +102,8 @@ interface CanvasState {
   endConversation: (assistantMessage: string, appliedPreferences?: string[], reasoning_content?: string, explicitConversation?: Conversation) => Promise<void>
   closeModal: () => void
   openModal: (conversation: Conversation) => void
-  openModalById: (conversationId: string, convFileOverride?: string) => Promise<void>
-  
+  openModalById: (conversationId: string, convFileOverride?: string, sourceHint?: string) => Promise<void>
+
   // 方法：偏好学习
   detectFeedback: (message: string) => PreferenceRule | null
   addPreference: (rule: PreferenceRule) => Promise<void>
@@ -2024,10 +2024,23 @@ export const useCanvasStore = create<CanvasState>()(
   },
 
   // 通过 conversationId 打开回放（从 conversations.jsonl 读取完整内容）
-  openModalById: async (conversationId: string, convFileOverride?: string) => {
+  openModalById: async (conversationId: string, convFileOverride?: string, sourceHint?: string) => {
     // 立即打开 modal 并显示 loading，不等网络，避免点击无响应的感知延迟
     // 用令牌防并发：快速点击多个卡片时，只有最后一次的结果会被应用
     const token = ++_openModalToken
+
+    // 根据 sourceHint 提前恢复正确的 space 模式，确保 AnswerModal 以正确模式展示决策对话
+    if (sourceHint) {
+      if (sourceHint === 'lenny') set({ isLennyMode: true, isPGMode: false, isZhangMode: false, isWangMode: false, isCustomSpaceMode: false })
+      else if (sourceHint === 'pg') set({ isLennyMode: true, isPGMode: true, isZhangMode: false, isWangMode: false, isCustomSpaceMode: false })
+      else if (sourceHint === 'zhang') set({ isLennyMode: true, isPGMode: false, isZhangMode: true, isWangMode: false, isCustomSpaceMode: false })
+      else if (sourceHint === 'wang') set({ isLennyMode: true, isPGMode: false, isZhangMode: false, isWangMode: true, isCustomSpaceMode: false })
+      else if (sourceHint.startsWith('custom-')) {
+        const spaceId = sourceHint.slice('custom-'.length)
+        set({ isCustomSpaceMode: true, activeCustomSpaceId: spaceId, isLennyMode: false })
+      }
+    }
+
     set({ isModalOpen: true, isLoading: true, conversationHistory: [] })
     try {
       const { isLennyMode, isPGMode, isZhangMode, isWangMode, isCustomSpaceMode, activeCustomSpaceId } = get()
@@ -2041,7 +2054,8 @@ export const useCanvasStore = create<CanvasState>()(
       const content = await storageService.read(convFile)
       if (token !== _openModalToken) return  // 被更新的调用抢先了，丢弃此结果
       if (!content) {
-        set({ isLoading: false })
+        // 文件为空或不存在：关闭 modal 避免 loading 动画永远卡住
+        set({ isLoading: false, isModalOpen: false })
         return
       }
       // 恢复策略：同一 conversationId 可能被多次 append（例如曾经被”短版本”覆盖）。

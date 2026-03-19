@@ -383,12 +383,30 @@ export function AnswerModal() {
   )
   const activeDecisionTrace: DecisionTrace | undefined = useCanvasStore(
     state => state.currentConversation?.decisionTrace,
-    (a, b) =>
-      a?.mode === b?.mode &&
-      a?.sourceRefs === b?.sourceRefs &&
-      a?.matchedDecisionUnitIds === b?.matchedDecisionUnitIds &&
-      a?.productStateUsed === b?.productStateUsed &&
-      a?.productStateDocRefs === b?.productStateDocRefs
+    (a, b) => {
+      if (a === b) return true
+      if (!a || !b) return a === b
+      // 数组用长度 + JSON 比较，避免因 updateConversation spread 产生新引用触发不必要 re-render
+      const sourceRefsEqual =
+        a.sourceRefs === b.sourceRefs ||
+        (a.sourceRefs?.length === b.sourceRefs?.length &&
+          JSON.stringify(a.sourceRefs) === JSON.stringify(b.sourceRefs))
+      const matchedIdsEqual =
+        a.matchedDecisionUnitIds === b.matchedDecisionUnitIds ||
+        (a.matchedDecisionUnitIds?.length === b.matchedDecisionUnitIds?.length &&
+          JSON.stringify(a.matchedDecisionUnitIds) === JSON.stringify(b.matchedDecisionUnitIds))
+      const productDocRefsEqual =
+        a.productStateDocRefs === b.productStateDocRefs ||
+        (a.productStateDocRefs?.length === b.productStateDocRefs?.length &&
+          JSON.stringify(a.productStateDocRefs) === JSON.stringify(b.productStateDocRefs))
+      return (
+        a.mode === b.mode &&
+        sourceRefsEqual &&
+        matchedIdsEqual &&
+        a.productStateUsed === b.productStateUsed &&
+        productDocRefsEqual
+      )
+    }
   )
   const shouldShowLingSiTrace = useMemo(() =>
     !!activeDecisionTrace &&
@@ -402,13 +420,16 @@ export function AnswerModal() {
   [activeDecisionTrace, activeDecisionPersona, matchedDecisionUnits.length])
 
   // Stable array references for memo-wrapped child components
+  // 依赖整个 activeDecisionTrace（已经有深度比较 selector），避免子属性引用变化问题
   const stableSourceRefs = useMemo(
     () => activeDecisionTrace?.sourceRefs ?? [],
-    [activeDecisionTrace?.sourceRefs],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeDecisionTrace],
   )
   const stableProductStateDocRefs = useMemo(
     () => activeDecisionTrace?.productStateDocRefs ?? [],
-    [activeDecisionTrace?.productStateDocRefs],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeDecisionTrace],
   )
   const stablePersonaName = useMemo(
     () => activeDecisionPersona?.name ?? invokedAssistant?.name ?? 'LingSi',

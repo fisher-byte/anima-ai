@@ -22,6 +22,9 @@ import type { DecisionMode, DecisionRecord, DecisionSourceRef, DecisionUnit, Fil
 import { stripFileBlocksOnly, stripLinkedContextHints } from '../utils/conversationUtils'
 import { formatLingSiSourceLabel } from '../utils/lingsiTrace'
 import { useT } from '../i18n'
+import type { LingSiTraceData } from '../hooks/useAnswerModalDecision'
+// LingSiTraceData re-export 供 AnswerModal.tsx 等使用，避免循环导入
+export type { LingSiTraceData } from '../hooks/useAnswerModalDecision'
 
 // ── UserMessageContent ────────────────────────────────────────────────────────
 
@@ -116,13 +119,6 @@ export function ClosingAnimation({ isOnboarding, appliedPreferences }: { isOnboa
 // ── LingSiTraceModal ────────────────────────────────────────────────────────
 // 独立的轨迹详情弹窗，由 AnswerModal 顶层渲染（Portal 挂到 document.body）。
 // 完全脱离 turns 的高频更新渲染树，避免 streaming 时的 DOM hang。
-
-export interface LingSiTraceData {
-  personaName: string
-  matchedUnits: DecisionUnit[]
-  sourceRefs: DecisionSourceRef[]
-  productStateDocRefs: string[]
-}
 
 function formatProductStateDocRef(ref: string): string {
   const labels: Record<string, string> = {
