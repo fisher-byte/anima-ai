@@ -484,6 +484,24 @@ export function AnswerModal() {
     setPendingFiles(prev => prev.filter(f => f.id !== id))
   }
 
+  // ── 自动滚底（RAF 节流版）────────────────────────────────────────────────
+  // 问题根因：onThinking/onStream 在每个 SSE token 到来时同步读写
+  // scrollRef.current.scrollTop，触发浏览器强制 layout（layout thrashing）。
+  // 每次 token 都 thrash 一次，累积下来主线程在流式输出期间始终被占用，
+  // 导致输出完毕后用户的第一次点击没有响应时间 → 感知卡死。
+  //
+  // 修复方案：用 requestAnimationFrame 把滚动合并到下一帧，同时用 ref 去重
+  // (pending flag)，确保每帧最多只滚一次，无论本帧收到多少个 token。
+  const scrollPendingRef = useRef(false)
+  const scrollToBottom = useCallback(() => {
+    if (scrollPendingRef.current) return
+    scrollPendingRef.current = true
+    requestAnimationFrame(() => {
+      scrollPendingRef.current = false
+      if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    })
+  }, [])
+
   // ── AI Hook ───────────────────────────────────────────────────────────────
   const { sendMessage, resetHistory, cancel } = useAI({
     onThinking: (chunk) => {
@@ -495,7 +513,7 @@ export function AnswerModal() {
         next[next.length - 1] = { ...last, reasoning: (last.reasoning || '') + chunk }
         return next
       })
-      if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      scrollToBottom()
     },
     onStream: (chunk) => {
       setTurns(prev => {
@@ -506,7 +524,7 @@ export function AnswerModal() {
         return next
       })
       setErrorMessage(null)
-      if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      scrollToBottom()
     },
     onSearchRound: (_round, message) => {
       setSearchRoundMsg(message)
@@ -1611,7 +1629,7 @@ export function AnswerModal() {
                         <span className="text-[13px] text-gray-400">{t.modal.connecting}</span>
                       </div>
                     ) : turns.map((turn, idx) => (
-                      <div key={idx} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                      <div key={`${currentConversation?.id ?? 'new'}-${idx}`} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
 
                         {/* 用户消息 + 文件气泡 */}
                         <div className="flex justify-end mb-6">
