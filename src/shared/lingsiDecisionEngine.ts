@@ -1,4 +1,5 @@
 import type {
+  DecisionPersonaId,
   DecisionRecord,
   DecisionMode,
   DecisionPersona,
@@ -388,7 +389,8 @@ export function buildDecisionRecordDraft(
 
   return {
     id: `decision-${crypto.randomUUID()}`,
-    personaId: decisionTrace.personaId,
+    // personaId 来自 decisionTrace，构建时已确保是合法的 DecisionPersonaId 值
+    personaId: decisionTrace.personaId as DecisionPersonaId,
     mode: decisionTrace.mode,
     decisionType: decisionTrace.reasoningRoute?.decisionType ?? 'general_decision',
     stage: decisionTrace.reasoningRoute?.stage,

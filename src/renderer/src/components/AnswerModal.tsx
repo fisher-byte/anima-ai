@@ -30,7 +30,8 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useAI } from '../hooks/useAI'
-import type { AssistantInvocation, DecisionRecord, DecisionTrace, DecisionUnit, FileAttachment, Conversation } from '@shared/types'
+import { useAnswerModalDecision } from '../hooks/useAnswerModalDecision'
+import type { AssistantInvocation, FileAttachment, Conversation } from '@shared/types'
 import type { AIMessage } from '@shared/types'
 import { parseFiles, formatFilesForAI } from '../../../services/fileParsing'
 import { ThinkingSection } from './ThinkingSection'
@@ -48,9 +49,8 @@ import {
   buildAIHistory,
   stripLinkedContextHints,
 } from '../utils/conversationUtils'
-import { getAuthToken, storageService } from '../services/storageService'
-import { buildLingSiDecisionPayload, ensureLingSiStorageSeeded, loadDecisionUnits, mergeDecisionTrace } from '../services/lingsi'
-import { FEEDBACK_TRIGGERS, LENNY_SYSTEM_PROMPT, PG_SYSTEM_PROMPT, STORAGE_FILES, ZHANG_SYSTEM_PROMPT, WANG_SYSTEM_PROMPT } from '@shared/constants'
+import { getAuthToken } from '../services/storageService'
+import { FEEDBACK_TRIGGERS, LENNY_SYSTEM_PROMPT, PG_SYSTEM_PROMPT, ZHANG_SYSTEM_PROMPT, WANG_SYSTEM_PROMPT } from '@shared/constants'
 import {
   UserMessageContent,
   ClosingAnimation,
@@ -58,11 +58,9 @@ import {
   LingSiDecisionCard,
   LingSiTracePanel,
   LingSiTraceModal,
-  type LingSiTraceData,
 } from './AnswerModalSubcomponents'
 import { injectLingSiInlineCitations } from '../utils/lingsiTrace'
-import { getDecisionPersonaForPublicSpace, getSystemPromptForPublicSpace, resolveDecisionModeForPersona } from '../utils/personaSpaces'
-import { emitDecisionRecordsUpdated } from '../services/decisionRecords'
+import { getSystemPromptForPublicSpace } from '../utils/personaSpaces'
 import { useT } from '../i18n'
 
 const ANSWER_MODAL_HEIGHT_KEY = 'anima_answer_modal_height_px_v1'
@@ -113,12 +111,6 @@ function getDefaultAnswerModalHeight(): number {
 
 function stripInjectedSpaceHints(content: string): string {
   return stripLinkedContextHints(content)
-}
-
-function addDaysToIso(days: number): string {
-  const date = new Date()
-  date.setDate(date.getDate() + days)
-  return date.toISOString()
 }
 
 function authFetch(url: string, init?: RequestInit): Promise<Response> {
@@ -186,19 +178,10 @@ export function AnswerModal() {
   const isPGMode = useCanvasStore(state => state.isPGMode)
   const isZhangMode = useCanvasStore(state => state.isZhangMode)
   const isWangMode = useCanvasStore(state => state.isWangMode)
-  const lennyDecisionMode = useCanvasStore(state => state.lennyDecisionMode)
-  const zhangDecisionMode = useCanvasStore(state => state.zhangDecisionMode)
   const isCustomSpaceMode = useCanvasStore(state => state.isCustomSpaceMode)
   const activeCustomSpaceId = useCanvasStore(state => state.activeCustomSpaceId)
   const customSpaces = useCanvasStore(state => state.customSpaces)
   const invokedAssistant: AssistantInvocation | undefined = currentConversation?.invokedAssistant
-  const activeDecisionPersona = isLennyMode && !isPGMode && !isWangMode
-    ? (isZhangMode
-      ? { id: 'zhang' as const, name: '张小龙' }
-      : { id: 'lenny' as const, name: 'Lenny Rachitsky' })
-    : invokedAssistant?.type === 'public_space'
-      ? getDecisionPersonaForPublicSpace(invokedAssistant.id)
-      : null
 
   const [turns, setTurns] = useState<Turn[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
@@ -236,11 +219,8 @@ export function AnswerModal() {
   const [editingContent, setEditingContent] = useState('')
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [matchedDecisionUnits, setMatchedDecisionUnits] = useState<DecisionUnit[]>([])
   // 轨迹弹窗数据：存在顶层，完全脱离 turns 高频更新树，避免 Portal 在 streaming 中 hang
-  const [traceData, setTraceData] = useState<LingSiTraceData | null>(null)
-  // P2: stable callback reference — prevents useEffect in LingSiTraceModal from re-running every SSE token
-  const handleTraceClose = useCallback(() => setTraceData(null), [])
+  // （traceData / setTraceData / handleTraceClose 由 useAnswerModalDecision hook 管理）
   const [modalHeight, setModalHeight] = useState<number>(() => {
     if (typeof window === 'undefined') return 760
     try {
@@ -299,36 +279,6 @@ export function AnswerModal() {
     return getSystemPromptForPublicSpace(invokedAssistant.id)
   }, [activeCustomSpaceId, customSpaces, invokedAssistant, isCustomSpaceMode, isLennyMode, isPGMode, isWangMode, isZhangMode])
 
-  const buildLingSiRequest = useCallback(async (userMessage: string) => {
-    if (!activeDecisionPersona) {
-      return { extraContext: undefined, decisionTrace: { mode: 'normal' as const } }
-    }
-
-    await ensureLingSiStorageSeeded()
-    const sanitizedUserMessage = stripInjectedSpaceHints(userMessage)
-    const currentMode = resolveDecisionModeForPersona({
-      personaId: activeDecisionPersona.id,
-      isPublicSpaceMode: isLennyMode,
-      lennyDecisionMode,
-      zhangDecisionMode,
-      invokedAssistant,
-      decisionTrace: currentConversation?.decisionTrace,
-    })
-    const payload = await buildLingSiDecisionPayload(sanitizedUserMessage, currentMode, {
-      personaId: activeDecisionPersona.id,
-      personaName: activeDecisionPersona.name,
-    })
-
-    if (currentConversation?.id) {
-      await updateConversation(currentConversation.id, {
-        decisionTrace: mergeDecisionTrace(currentConversation.decisionTrace, payload.decisionTrace),
-        decisionRecord: payload.decisionRecord,
-      })
-    }
-
-    return payload
-  }, [activeDecisionPersona, currentConversation, invokedAssistant, isLennyMode, lennyDecisionMode, updateConversation, zhangDecisionMode])
-
   const autoSaveIfNeeded = useCallback(async () => {
     try {
       if (!currentConversation?.id) return
@@ -373,232 +323,37 @@ export function AnswerModal() {
   turnsRef.current = turns
   const appliedPreferencesRef = useRef(appliedPreferences)
   appliedPreferencesRef.current = appliedPreferences
-  // P7: Fine-grained zustand selectors with custom equality — only re-render when
-  // the decision-relevant fields actually change, NOT on every updateConversation().
-  // This is critical because updateConversation({decisionRecord}) creates a new
-  // currentConversation object, but decisionTrace may be unchanged.
-  const activeDecisionRecord: DecisionRecord | undefined = useCanvasStore(
-    state => state.currentConversation?.decisionRecord,
-    (a, b) => a?.updatedAt === b?.updatedAt && a?.status === b?.status
-  )
-  const activeDecisionTrace: DecisionTrace | undefined = useCanvasStore(
-    state => state.currentConversation?.decisionTrace,
-    (a, b) => {
-      if (a === b) return true
-      if (!a || !b) return a === b
-      // 数组用长度 + JSON 比较，避免因 updateConversation spread 产生新引用触发不必要 re-render
-      const sourceRefsEqual =
-        a.sourceRefs === b.sourceRefs ||
-        (a.sourceRefs?.length === b.sourceRefs?.length &&
-          JSON.stringify(a.sourceRefs) === JSON.stringify(b.sourceRefs))
-      const matchedIdsEqual =
-        a.matchedDecisionUnitIds === b.matchedDecisionUnitIds ||
-        (a.matchedDecisionUnitIds?.length === b.matchedDecisionUnitIds?.length &&
-          JSON.stringify(a.matchedDecisionUnitIds) === JSON.stringify(b.matchedDecisionUnitIds))
-      const productDocRefsEqual =
-        a.productStateDocRefs === b.productStateDocRefs ||
-        (a.productStateDocRefs?.length === b.productStateDocRefs?.length &&
-          JSON.stringify(a.productStateDocRefs) === JSON.stringify(b.productStateDocRefs))
-      return (
-        a.mode === b.mode &&
-        sourceRefsEqual &&
-        matchedIdsEqual &&
-        a.productStateUsed === b.productStateUsed &&
-        productDocRefsEqual
-      )
-    }
-  )
-  const shouldShowLingSiTrace = useMemo(() =>
-    !!activeDecisionTrace &&
-    activeDecisionTrace.mode === 'decision' &&
-    !!activeDecisionPersona &&
-    (
-      (activeDecisionTrace.sourceRefs?.length ?? 0) > 0 ||
-      matchedDecisionUnits.length > 0 ||
-      !!activeDecisionTrace.productStateUsed
-    ),
-  [activeDecisionTrace, activeDecisionPersona, matchedDecisionUnits.length])
 
-  // Stable array references for memo-wrapped child components
-  // 依赖整个 activeDecisionTrace（已经有深度比较 selector），避免子属性引用变化问题
-  const stableSourceRefs = useMemo(
-    () => activeDecisionTrace?.sourceRefs ?? [],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeDecisionTrace],
-  )
-  const stableProductStateDocRefs = useMemo(
-    () => activeDecisionTrace?.productStateDocRefs ?? [],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeDecisionTrace],
-  )
-  const stablePersonaName = useMemo(
-    () => activeDecisionPersona?.name ?? invokedAssistant?.name ?? 'LingSi',
-    [activeDecisionPersona?.name, invokedAssistant?.name],
-  )
-
-  const persistDecisionRecord = useCallback(async (
-    mutate: (record: DecisionRecord) => DecisionRecord,
-  ) => {
-    // P7: Read conversation from store instead of closure to avoid re-creating
-    // this callback whenever currentConversation/turns/appliedPreferences change.
-    // This is the root-cause fix for decision card click freeze.
-    const storeConv = useCanvasStore.getState().currentConversation
-    if (!storeConv?.id || !storeConv.decisionRecord) return
-    const convId = storeConv.id
-
-    // P4: Yield to the event loop BEFORE doing heavy work.
-    // This lets React commit any pending paints (streaming text, etc.)
-    // so the user doesn't see a freeze.
-    await new Promise<void>(r => setTimeout(r, 0))
-
-    // P5 (P1-1 fix): Re-read the LATEST conversation from the store after yield.
-    const freshConversation = useCanvasStore.getState().currentConversation
-    if (!freshConversation || freshConversation.id !== convId || !freshConversation.decisionRecord) return
-
-    const now = new Date().toISOString()
-    const nextDecisionRecord = mutate(freshConversation.decisionRecord)
-    const normalizedRecord: DecisionRecord = {
-      ...nextDecisionRecord,
-      updatedAt: now,
-      outcome: nextDecisionRecord.outcome
-        ? {
-            ...freshConversation.decisionRecord.outcome,
-            ...nextDecisionRecord.outcome,
-          }
-        : nextDecisionRecord.outcome,
-    }
-
-    // P7: Read turns & appliedPreferences from refs (always fresh, no closure stale).
-    const currentTurns = turnsRef.current
-    const assistantMessage = serializeTurnsForStorage(currentTurns)
-    const nextConversation: Conversation = {
-      ...freshConversation,
-      assistantMessage,
-      reasoning_content: currentTurns.length > 0 ? (currentTurns[currentTurns.length - 1].reasoning || undefined) : undefined,
-      appliedPreferences: [...appliedPreferencesRef.current],
-      decisionRecord: normalizedRecord,
-    }
-
-    // P4: updateConversation triggers store set → AnswerModal re-render.
-    // We do this first so the UI shows the new status, then persist in background.
-    await updateConversation(convId, { decisionRecord: normalizedRecord })
-    didMutateRef.current = true
-    autoSavedSigRef.current = null
-
-    // P4: Yield again after the store update so React can paint before we hit the network.
-    await new Promise<void>(r => setTimeout(r, 0))
-
-    await useCanvasStore.getState().appendConversation(nextConversation)
-
-    const decisionSource = isCustomSpaceMode && activeCustomSpaceId
-      ? (`custom-${activeCustomSpaceId}` as const)
-      : isPGMode
-        ? ('pg' as const)
-        : isZhangMode
-          ? ('zhang' as const)
-          : isWangMode
-            ? ('wang' as const)
-            : isLennyMode
-              ? ('lenny' as const)
-              : ('main' as const)
-
-    // Write a lightweight decision ledger line so the decision hub doesn't have to scan huge conversations.jsonl.
-    // Best-effort only: failures should not block the user's action.
-    try {
-      await storageService.append(STORAGE_FILES.DECISION_LEDGER, JSON.stringify({
-        conversationId: nextConversation.id,
-        source: decisionSource,
-        title: normalizedRecord.userQuestion || nextConversation.userMessage,
-        decisionRecord: normalizedRecord,
-        updatedAt: normalizedRecord.updatedAt,
-      }))
-    } catch {
-      // ignore
-    }
-
-    if ((isLennyMode || isCustomSpaceMode) && assistantMessage.trim()) {
-      try {
-        await authFetch('/api/memory/sync-lenny-conv', {
-          method: 'POST',
-          body: JSON.stringify({
-            conversationId: nextConversation.id,
-            userMessage: nextConversation.userMessage,
-            assistantMessage,
-            decisionTrace: nextConversation.decisionTrace,
-            decisionRecord: normalizedRecord,
-            source: decisionSource,
-          }),
-        })
-      } catch {
-        // keep local record even if sync fails
-      }
-    }
-
-    emitDecisionRecordsUpdated()
-  }, [
-    // P7: Removed currentConversation, turns, appliedPreferences from deps.
-    // They are now accessed via getState() and refs, so persistDecisionRecord
-    // identity stays stable → persistDecisionRecordRef useEffect doesn't re-fire
-    // → handleAdoptDecision/handleDecisionOutcome props don't change
-    // → LingSiDecisionCard doesn't re-render on every store update.
-    activeCustomSpaceId,
-    isCustomSpaceMode,
-    isLennyMode,
-    isPGMode,
-    isWangMode,
-    isZhangMode,
+  // ── 决策模式逻辑（从 AnswerModal 提取到专用 hook）──────────────────────────
+  // useAnswerModalDecision 内含：
+  //   activeDecisionPersona / activeDecisionRecord / activeDecisionTrace（深度比较 selector）
+  //   stableSourceRefs / stableProductStateDocRefs / stablePersonaName / shouldShowLingSiTrace
+  //   matchedDecisionUnits（异步加载）
+  //   traceData / handleTraceClose（轨迹弹窗）
+  //   buildLingSiRequest / persistDecisionRecord / markDecisionAnswered
+  //   handleAdoptDecision / handleDecisionOutcome
+  const {
+    activeDecisionRecord,
+    activeDecisionTrace,
+    matchedDecisionUnits,
+    stableSourceRefs,
+    stableProductStateDocRefs,
+    stablePersonaName,
+    shouldShowLingSiTrace,
+    traceData,
+    setTraceData,
+    handleTraceClose,
+    buildLingSiRequest,
+    markDecisionAnswered,
+    handleAdoptDecision,
+    handleDecisionOutcome,
+  } = useAnswerModalDecision({
+    turnsRef,
+    appliedPreferencesRef,
     serializeTurnsForStorage,
-    updateConversation,
-  ])
-
-  // Keep a ref to the latest persistDecisionRecord so downstream callbacks
-  // can call it without adding it to their deps (→ stable identity → memo children don't re-render).
-  const persistDecisionRecordRef = useRef(persistDecisionRecord)
-  useEffect(() => { persistDecisionRecordRef.current = persistDecisionRecord }, [persistDecisionRecord])
-
-  const markDecisionAnswered = useCallback(async () => {
-    // P5 (P1-2 fix): Read fresh state instead of closure-captured `activeDecisionRecord`.
-    // The closure value may be stale if store was updated between render and call.
-    const freshRecord = useCanvasStore.getState().currentConversation?.decisionRecord
-    if (!freshRecord || freshRecord.status !== 'draft') return
-    // P4: Delay slightly so autoSaveIfNeeded finishes first and doesn't compete
-    // for the same store writes. This prevents the double-save cascade freeze.
-    await new Promise<void>(r => setTimeout(r, 200))
-    // P5: Re-check after delay — status may have changed during the wait.
-    const recheck = useCanvasStore.getState().currentConversation?.decisionRecord
-    if (!recheck || recheck.status !== 'draft') return
-    await persistDecisionRecordRef.current((record) => ({
-      ...record,
-      status: 'answered',
-    }))
-  }, [])
-
-  const handleAdoptDecision = useCallback(async (days: number) => {
-    await persistDecisionRecordRef.current((record) => ({
-      ...record,
-      status: 'adopted',
-      outcome: {
-        ...record.outcome,
-        adoptedAt: record.outcome?.adoptedAt ?? new Date().toISOString(),
-        revisitAt: addDaysToIso(days),
-      },
-    }))
-  }, [])
-
-  const handleDecisionOutcome = useCallback(async (
-    result: NonNullable<DecisionRecord['outcome']>['result'],
-    notes?: string,
-  ) => {
-    await persistDecisionRecordRef.current((record) => ({
-      ...record,
-      status: 'revisited',
-      outcome: {
-        ...record.outcome,
-        result,
-        notes: notes?.trim() || undefined,
-      },
-    }))
-  }, [])
+    autoSavedSigRef,
+    didMutateRef,
+  })
 
   // Pre-compute citation-injected text for the last turn only.
   // By using useMemo the identity only changes when the actual assistant text,
@@ -611,26 +366,6 @@ export function AnswerModal() {
     const base = stripLeadingNumberHeading(lastTurnAssistant)
     return injectLingSiInlineCitations(base, activeDecisionTrace.sourceRefs)
   }, [lastTurnAssistant, activeDecisionTrace?.sourceRefs, shouldShowLingSiTrace])
-
-  useEffect(() => {
-    let cancelled = false
-    const matchedIds = currentConversation?.decisionTrace?.matchedDecisionUnitIds
-    if (!matchedIds?.length) {
-      setMatchedDecisionUnits([])
-      return
-    }
-
-    ;(async () => {
-      const units = await loadDecisionUnits()
-      const scopedUnits = activeDecisionPersona ? units.filter(unit => unit.personaId === activeDecisionPersona.id) : units
-      if (cancelled) return
-      setMatchedDecisionUnits(scopedUnits.filter(unit => matchedIds.includes(unit.id)))
-    })()
-
-    return () => {
-      cancelled = true
-    }
-  }, [activeDecisionPersona, currentConversation?.decisionTrace?.matchedDecisionUnitIds])
 
   const resizeFeedbackTextarea = useCallback(() => {
     const textarea = textareaRef.current

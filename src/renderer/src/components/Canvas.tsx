@@ -842,7 +842,8 @@ export function Canvas() {
     // custom-{spaceId} 格式：自定义 Space 的对话文件
     if (typeof source === 'string' && source.startsWith('custom-')) {
       const spaceId = source.slice('custom-'.length)
-      return `custom-${spaceId}-conversations.jsonl`
+      // M1 guard: 空 spaceId 时退回 main，避免产生 custom--conversations.jsonl
+      if (spaceId) return `custom-${spaceId}-conversations.jsonl`
     }
     switch (source) {
       case 'lenny':
