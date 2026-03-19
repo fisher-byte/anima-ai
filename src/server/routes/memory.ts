@@ -43,6 +43,50 @@ function userDb(c: { get: (key: string) => unknown }): InstanceType<typeof Datab
   return c.get('db') as InstanceType<typeof Database>
 }
 
+const MAIN_SPACE_SYNC_ID_INDEX_KEY = 'main_space_sync_id_index_v1'
+const MAIN_SPACE_NODE_ID_INDEX_KEY = 'main_space_node_id_index_v1'
+let mainSpaceNodeWriteQueue: Promise<void> = Promise.resolve()
+
+function readConfigValue(db: InstanceType<typeof Database>, key: string): string | null {
+  const row = db.prepare('SELECT value FROM config WHERE key = ?').get(key) as { value: string } | undefined
+  return row?.value ?? null
+}
+
+function writeConfigValue(db: InstanceType<typeof Database>, key: string, value: string): void {
+  const now = new Date().toISOString()
+  db.prepare(`
+    INSERT INTO config (key, value, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+  `).run(key, value, now)
+}
+
+function readConfigJson<T>(db: InstanceType<typeof Database>, key: string, fallback: T): T {
+  const raw = readConfigValue(db, key)
+  if (!raw) return fallback
+  try {
+    return JSON.parse(raw) as T
+  } catch {
+    return fallback
+  }
+}
+
+function appendStorageLine(db: InstanceType<typeof Database>, filename: string, line: string, now: string): void {
+  db.prepare(`
+    INSERT INTO storage (filename, content, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(filename) DO UPDATE SET
+      content = storage.content || CASE WHEN storage.content = '' THEN '' ELSE char(10) END || excluded.content,
+      updated_at = excluded.updated_at
+  `).run(filename, line, now)
+}
+
+function enqueueMainSpaceNodeWrite(task: () => Promise<void>): void {
+  mainSpaceNodeWriteQueue = mainSpaceNodeWriteQueue
+    .then(task, task)
+    .catch(() => {})
+}
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 /** 从 config 表读取 apiKey / baseUrl；若用户未配置 key，fallback 到 SHARED_API_KEY */
@@ -1002,90 +1046,91 @@ memoryRoutes.post('/sync-lenny-conv', async (c) => {
     files: [],
   }
 
-  // 1. Append to user's conversations.jsonl
+  // 1. 轻量写入主空间 conversations.jsonl（热路径只做最小确认写入）
   try {
-    const existing = (db.prepare("SELECT content FROM storage WHERE filename = 'conversations.jsonl'").get() as { content: string } | undefined)?.content ?? ''
-    // 幂等：JSON 解析后精确匹配 id，避免 string.includes 的前缀误判（如 lenny-123 误匹配 lenny-1234）
-    const existingIds = new Set(
-      existing.trim().split('\n').filter(Boolean).map(line => {
-        try { return (JSON.parse(line) as { id?: string }).id ?? '' } catch { return '' }
-      })
-    )
-    if (!existingIds.has(conv.id)) {
-      const updated = existing ? `${existing}\n${JSON.stringify(conv)}` : JSON.stringify(conv)
-      db.prepare("INSERT INTO storage (filename, content, updated_at) VALUES (?, ?, ?) ON CONFLICT(filename) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at")
-        .run('conversations.jsonl', updated, now)
+    const syncIdIndex = readConfigJson<Record<string, true>>(db, MAIN_SPACE_SYNC_ID_INDEX_KEY, {})
+    if (!syncIdIndex[conv.id]) {
+      appendStorageLine(db, 'conversations.jsonl', JSON.stringify(conv), now)
+      syncIdIndex[conv.id] = true
+      writeConfigValue(db, MAIN_SPACE_SYNC_ID_INDEX_KEY, JSON.stringify(syncIdIndex))
     }
   } catch (e) {
     console.error('[sync-lenny-conv] failed to write conversations.jsonl', e)
     return c.json({ ok: false }, 500)
   }
 
-  // 2. 在主空间 nodes.json 里生成对应节点（让用户在画布上看到这条对话）
+  // 2. 节点生成改为后台串行队列，避免阻塞当前请求
   if (safeAssistant) {
-    try {
-      const nodesRaw = (db.prepare("SELECT content FROM storage WHERE filename = 'nodes.json'").get() as { content: string } | undefined)?.content ?? '[]'
-      const nodes: Array<Record<string, unknown>> = JSON.parse(nodesRaw)
+    const nodeIdIndex = readConfigJson<Record<string, true>>(db, MAIN_SPACE_NODE_ID_INDEX_KEY, {})
+    if (!nodeIdIndex[conv.id]) {
+      setTimeout(() => {
+        enqueueMainSpaceNodeWrite(async () => {
+          try {
+            const latestNodeIndex = readConfigJson<Record<string, true>>(db, MAIN_SPACE_NODE_ID_INDEX_KEY, {})
+            if (latestNodeIndex[conv.id]) return
 
-      // 幂等：节点已存在则不重复添加
-      const alreadyExists = nodes.some((n) => n.id === conv.id || n.conversationId === conv.id)
-      if (!alreadyExists) {
-        // 分类：基于 userMessage 内容启发
-        const lower = (userMessage + ' ' + safeAssistant).toLowerCase()
-        let category = '工作事业'
-        if (/relationship|team|family|friend|emotion|感情|家人|朋友|情感|恋爱|婚姻/.test(lower)) category = '关系情感'
-        else if (/think|philosophy|belief|mindset|meaning|哲学|思考|价值观|世界|意义/.test(lower)) category = '思考世界'
-        else if (/health|sleep|workout|diet|body|睡眠|健康|锻炼|饮食|身体/.test(lower)) category = '身心健康'
-        else if (/learn|study|book|course|skill|学习|读书|技能|考试|成长/.test(lower)) category = '学习成长'
+            const nodesRaw = (db.prepare("SELECT content FROM storage WHERE filename = 'nodes.json'").get() as { content: string } | undefined)?.content ?? '[]'
+            const nodes: Array<Record<string, unknown>> = JSON.parse(nodesRaw)
+            const alreadyExists = nodes.some((n) => n.id === conv.id || n.conversationId === conv.id)
+            if (!alreadyExists) {
+              const lower = (userMessage + ' ' + safeAssistant).toLowerCase()
+              let category = '工作事业'
+              if (/relationship|team|family|friend|emotion|感情|家人|朋友|情感|恋爱|婚姻/.test(lower)) category = '关系情感'
+              else if (/think|philosophy|belief|mindset|meaning|哲学|思考|价值观|世界|意义/.test(lower)) category = '思考世界'
+              else if (/health|sleep|workout|diet|body|睡眠|健康|锻炼|饮食|身体/.test(lower)) category = '身心健康'
+              else if (/learn|study|book|course|skill|学习|读书|技能|考试|成长/.test(lower)) category = '学习成长'
 
-        // 螺旋布局：找一个不与现有节点重叠的位置
-        const centerX = nodes.length > 0 ? (nodes.reduce((s, n) => s + (n.x as number || 1920), 0) / nodes.length) : 1920
-        const centerY = nodes.length > 0 ? (nodes.reduce((s, n) => s + (n.y as number || 1200), 0) / nodes.length) : 1200
-        const goldenAngle = Math.PI * (3 - Math.sqrt(5))
-        let nx = centerX + 350, ny = centerY
-        for (let i = 0; i < 200; i++) {
-          const r = 320 * Math.sqrt(i + 1)
-          const theta = i * goldenAngle
-          const cx = centerX + r * Math.cos(theta)
-          const cy = centerY + r * Math.sin(theta)
-          if (!nodes.some((n) => Math.hypot((n.x as number) - cx, (n.y as number) - cy) < 280)) {
-            nx = cx; ny = cy; break
+              const centerX = nodes.length > 0 ? (nodes.reduce((s, n) => s + (n.x as number || 1920), 0) / nodes.length) : 1920
+              const centerY = nodes.length > 0 ? (nodes.reduce((s, n) => s + (n.y as number || 1200), 0) / nodes.length) : 1200
+              const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+              let nx = centerX + 350, ny = centerY
+              for (let i = 0; i < 200; i++) {
+                const r = 320 * Math.sqrt(i + 1)
+                const theta = i * goldenAngle
+                const cx = centerX + r * Math.cos(theta)
+                const cy = centerY + r * Math.sin(theta)
+                if (!nodes.some((n) => Math.hypot((n.x as number) - cx, (n.y as number) - cy) < 280)) {
+                  nx = cx; ny = cy; break
+                }
+              }
+
+              const stopWords = new Set(['their','about','which','would','could','there','other',
+                'where','should','these','those','being','after','while','between','through',
+                'before','under','think','right','every','start','point','might','often','first','since',
+                '这样','什么','那么','就是','一个','我们','他们','可以','没有','还是','已经','因为','所以'])
+              const keywords = userMessage
+                .replace(/[#*`>\[\]()]/g, ' ')
+                .toLowerCase()
+                .split(/[\s，。！？,.!?]+/)
+                .filter(w => w.length > 2 && !stopWords.has(w))
+                .slice(0, 3)
+
+              const newNode = {
+                id: conv.id,
+                title: userMessage.slice(0, 30),
+                keywords,
+                date: now.split('T')[0],
+                conversationId: conv.id,
+                x: Math.round(nx),
+                y: Math.round(ny),
+                category,
+                nodeType: 'conversation',
+                conversationIds: [conv.id],
+                topicLabel: category,
+                firstDate: now.split('T')[0],
+              }
+              nodes.push(newNode)
+              db.prepare("INSERT INTO storage (filename, content, updated_at) VALUES (?, ?, ?) ON CONFLICT(filename) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at")
+                .run('nodes.json', JSON.stringify(nodes), now)
+            }
+
+            latestNodeIndex[conv.id] = true
+            writeConfigValue(db, MAIN_SPACE_NODE_ID_INDEX_KEY, JSON.stringify(latestNodeIndex))
+          } catch (e) {
+            console.error('[sync-lenny-conv] failed to write nodes.json', e)
           }
-        }
-
-        // 关键词：从 userMessage 中提取（简单分词，去停用词）
-        const stopWords = new Set(['their','about','which','would','could','there','other',
-          'where','should','these','those','being','after','while','between','through',
-          'before','under','think','right','every','start','point','might','often','first','since',
-          '这样','什么','那么','就是','一个','我们','他们','可以','没有','还是','已经','因为','所以'])
-        const keywords = userMessage
-          .replace(/[#*`>\[\]()]/g, ' ')
-          .toLowerCase()
-          .split(/[\s，。！？,.!?]+/)
-          .filter(w => w.length > 2 && !stopWords.has(w))
-          .slice(0, 3)
-
-        const newNode = {
-          id: conv.id,
-          title: userMessage.slice(0, 30),
-          keywords,
-          date: now.split('T')[0],
-          conversationId: conv.id,
-          x: Math.round(nx),
-          y: Math.round(ny),
-          category,
-          nodeType: 'conversation',
-          conversationIds: [conv.id],
-          topicLabel: category,
-          firstDate: now.split('T')[0],
-        }
-        nodes.push(newNode)
-        db.prepare("INSERT INTO storage (filename, content, updated_at) VALUES (?, ?, ?) ON CONFLICT(filename) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at")
-          .run('nodes.json', JSON.stringify(nodes), now)
-      }
-    } catch (e) {
-      console.error('[sync-lenny-conv] failed to write nodes.json', e)
-      // non-fatal：节点写失败不影响对话记录和记忆提取
+        })
+      }, 0)
     }
   }
 

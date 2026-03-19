@@ -229,6 +229,14 @@ let _completingOnboarding = false
 // 防止 openModalById 并发竞态：每次调用递增，异步回调中只有最新的令牌才被接受
 let _openModalToken = 0
 
+let _conversationWriteQueue: Promise<void> = Promise.resolve()
+
+function enqueueConversationWrite<T>(task: () => Promise<T>): Promise<T> {
+  const next = _conversationWriteQueue.then(task, task)
+  _conversationWriteQueue = next.then(() => undefined, () => undefined)
+  return next
+}
+
 /** P3-C: module-level generator — avoids re-creating a function object on every openModalById call */
 function* _iterLinesFromEnd(text: string, maxLines: number): Generator<string> {
   if (!text) return
@@ -1689,52 +1697,52 @@ export const useCanvasStore = create<CanvasState>()(
       else if (/think|philosophy|framework|belief|mindset/.test(lower)) category = '思考世界'
       else if (/health|workout|sleep|energy/.test(lower)) category = '健康身体'
       else if (/design|creative|writing|art|music/.test(lower)) category = '创意表达'
-      await storageService.append(convsFile, JSON.stringify(conv))
-      const nodesRaw = await storageService.read(nodesFile)
-      let spaceNodes: Node[] = []
-      try { if (nodesRaw) spaceNodes = JSON.parse(nodesRaw) } catch { /* use empty */ }
-      const centerX = spaceNodes.length > 0 ? spaceNodes.reduce((s, n) => s + n.x, 0) / spaceNodes.length : 1920
-      const centerY = spaceNodes.length > 0 ? spaceNodes.reduce((s, n) => s + n.y, 0) / spaceNodes.length : 1200
-      const minDist = 300
-      let nx = centerX + 300, ny = centerY
-      {
-        const goldenAngle = Math.PI * (3 - Math.sqrt(5))
-        for (let i = 0; i < 200; i++) {
-          const r = minDist * Math.sqrt(i + 1)
-          const theta = i * goldenAngle
-          const cx = centerX + r * Math.cos(theta)
-          const cy = centerY + r * Math.sin(theta)
-          if (!spaceNodes.some(n => Math.hypot(n.x - cx, n.y - cy) < minDist)) { nx = cx; ny = cy; break }
+      await enqueueConversationWrite(async () => {
+        await storageService.append(convsFile, JSON.stringify(conv))
+        const nodesRaw = await storageService.read(nodesFile)
+        let spaceNodes: Node[] = []
+        try { if (nodesRaw) spaceNodes = JSON.parse(nodesRaw) } catch { /* use empty */ }
+        const centerX = spaceNodes.length > 0 ? spaceNodes.reduce((s, n) => s + n.x, 0) / spaceNodes.length : 1920
+        const centerY = spaceNodes.length > 0 ? spaceNodes.reduce((s, n) => s + n.y, 0) / spaceNodes.length : 1200
+        const minDist = 300
+        let nx = centerX + 300, ny = centerY
+        {
+          const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+          for (let i = 0; i < 200; i++) {
+            const r = minDist * Math.sqrt(i + 1)
+            const theta = i * goldenAngle
+            const cx = centerX + r * Math.cos(theta)
+            const cy = centerY + r * Math.sin(theta)
+            if (!spaceNodes.some(n => Math.hypot(n.x - cx, n.y - cy) < minDist)) { nx = cx; ny = cy; break }
+          }
         }
-      }
-      const newNode: Node = {
-        id: conv.id,
-        title: nodeTitle,
-        keywords,
-        date: conv.createdAt.split('T')[0],
-        conversationId: conv.id,
-        category,
-        nodeType: 'memory',
-        x: Math.round(nx),
-        y: Math.round(ny),
-      }
-      spaceNodes.push(newNode)
-      await storageService.write(nodesFile, JSON.stringify(spaceNodes, null, 2))
+        const newNode: Node = {
+          id: conv.id,
+          title: nodeTitle,
+          keywords,
+          date: conv.createdAt.split('T')[0],
+          conversationId: conv.id,
+          category,
+          nodeType: 'memory',
+          x: Math.round(nx),
+          y: Math.round(ny),
+        }
+        spaceNodes.push(newNode)
+        await storageService.write(nodesFile, JSON.stringify(spaceNodes, null, 2))
+      })
 
       // P4: 自定义 Space 对话也同步到主空间触发记忆提取 + 进化基因更新
       if (assistantMessage.trim()) {
-        try {
-          await authFetch('/api/memory/sync-lenny-conv', {
-            method: 'POST',
-            body: JSON.stringify({
-              conversationId: conv.id,
-              userMessage: conv.userMessage,
-              assistantMessage,
-              decisionRecord: currentConversation.decisionRecord,
-              source: `custom-${activeCustomSpaceId}`,
-            }),
-          })
-        } catch { /* 静默失败，不影响 Custom Space 体验 */ }
+        authFetch('/api/memory/sync-lenny-conv', {
+          method: 'POST',
+          body: JSON.stringify({
+            conversationId: conv.id,
+            userMessage: conv.userMessage,
+            assistantMessage,
+            decisionRecord: currentConversation.decisionRecord,
+            source: `custom-${activeCustomSpaceId}`,
+          }),
+        }).catch(() => {})
 
         // 记忆事实提取（fire-and-forget）
         const cleanUserMsg = conv.userMessage.replace(/\[REFERENCE_START\][\s\S]*?\[REFERENCE_END\]/g, '[引用内容已省略]').trim()
@@ -1786,55 +1794,54 @@ export const useCanvasStore = create<CanvasState>()(
       else if (/health|workout|sleep|energy/.test(lower)) category = '健康身体'
       else if (/design|creative|writing|art|music/.test(lower)) category = '创意表达'
       // 写对话记录
-      await storageService.append(convsFile, JSON.stringify(conv))
-      // 写节点
-      const nodesRaw = await storageService.read(nodesFile)
-      let lennyNodes: Node[] = []
-      try { if (nodesRaw) lennyNodes = JSON.parse(nodesRaw) } catch { /* use empty */ }
-      const centerX = lennyNodes.length > 0 ? lennyNodes.reduce((s, n) => s + n.x, 0) / lennyNodes.length : 1920
-      const centerY = lennyNodes.length > 0 ? lennyNodes.reduce((s, n) => s + n.y, 0) / lennyNodes.length : 1200
-      const minDist = 300
-      // 螺旋环形布局：确保新节点不与已有节点重叠（无随机失败风险）
-      let nx = centerX + 300, ny = centerY
-      {
-        const goldenAngle = Math.PI * (3 - Math.sqrt(5)) // ~137.5°
-        for (let i = 0; i < 200; i++) {
-          const r = minDist * Math.sqrt(i + 1)
-          const theta = i * goldenAngle
-          const cx = centerX + r * Math.cos(theta)
-          const cy = centerY + r * Math.sin(theta)
-          if (!lennyNodes.some(n => Math.hypot(n.x - cx, n.y - cy) < minDist)) { nx = cx; ny = cy; break }
+      await enqueueConversationWrite(async () => {
+        await storageService.append(convsFile, JSON.stringify(conv))
+        const nodesRaw = await storageService.read(nodesFile)
+        let lennyNodes: Node[] = []
+        try { if (nodesRaw) lennyNodes = JSON.parse(nodesRaw) } catch { /* use empty */ }
+        const centerX = lennyNodes.length > 0 ? lennyNodes.reduce((s, n) => s + n.x, 0) / lennyNodes.length : 1920
+        const centerY = lennyNodes.length > 0 ? lennyNodes.reduce((s, n) => s + n.y, 0) / lennyNodes.length : 1200
+        const minDist = 300
+        // 螺旋环形布局：确保新节点不与已有节点重叠（无随机失败风险）
+        let nx = centerX + 300, ny = centerY
+        {
+          const goldenAngle = Math.PI * (3 - Math.sqrt(5)) // ~137.5°
+          for (let i = 0; i < 200; i++) {
+            const r = minDist * Math.sqrt(i + 1)
+            const theta = i * goldenAngle
+            const cx = centerX + r * Math.cos(theta)
+            const cy = centerY + r * Math.sin(theta)
+            if (!lennyNodes.some(n => Math.hypot(n.x - cx, n.y - cy) < minDist)) { nx = cx; ny = cy; break }
+          }
         }
-      }
-      const newNode: Node = {
-        id: conv.id,
-        title: nodeTitle,
-        keywords,
-        date: conv.createdAt.split('T')[0],
-        conversationId: conv.id,
-        category,
-        nodeType: 'memory',
-        x: Math.round(nx),
-        y: Math.round(ny),
-      }
-      lennyNodes.push(newNode)
-      await storageService.write(nodesFile, JSON.stringify(lennyNodes, null, 2))
+        const newNode: Node = {
+          id: conv.id,
+          title: nodeTitle,
+          keywords,
+          date: conv.createdAt.split('T')[0],
+          conversationId: conv.id,
+          category,
+          nodeType: 'memory',
+          x: Math.round(nx),
+          y: Math.round(ny),
+        }
+        lennyNodes.push(newNode)
+        await storageService.write(nodesFile, JSON.stringify(lennyNodes, null, 2))
+      })
 
       // P4: 所有 Space（Lenny / PG / 未来扩展）的对话均同步到用户主空间，触发记忆提取 + 节点生成
       if (assistantMessage.trim()) {
-        try {
-          await authFetch('/api/memory/sync-lenny-conv', {
-            method: 'POST',
-            body: JSON.stringify({
-              conversationId: conv.id,
-              userMessage: conv.userMessage,
-              assistantMessage,
-              decisionTrace: currentConversation.decisionTrace,
-              decisionRecord: currentConversation.decisionRecord,
-              source: isPGMode ? 'pg' : isZhangMode ? 'zhang' : isWangMode ? 'wang' : 'lenny',
-            }),
-          })
-        } catch { /* 静默失败，不影响 Lenny 空间体验 */ }
+        authFetch('/api/memory/sync-lenny-conv', {
+          method: 'POST',
+          body: JSON.stringify({
+            conversationId: conv.id,
+            userMessage: conv.userMessage,
+            assistantMessage,
+            decisionTrace: currentConversation.decisionTrace,
+            decisionRecord: currentConversation.decisionRecord,
+            source: isPGMode ? 'pg' : isZhangMode ? 'zhang' : isWangMode ? 'wang' : 'lenny',
+          }),
+        }).catch(() => {})
 
         // 记忆事实提取（fire-and-forget）
         const cleanUserMsg = conv.userMessage
@@ -1852,7 +1859,7 @@ export const useCanvasStore = create<CanvasState>()(
         }
 
         // 主空间节点：将 Lenny/PG 对话以 memory 节点形式写入用户主空间画布
-        await addNode(conv).catch(() => {})
+        void addNode(conv).catch(() => {})
       }
 
       return
@@ -2468,63 +2475,65 @@ export const useCanvasStore = create<CanvasState>()(
       return
     }
 
-    await storageService.append(
-      STORAGE_FILES.CONVERSATIONS,
-      JSON.stringify(conversation)
-    )
+    await enqueueConversationWrite(async () => {
+      await storageService.append(
+        STORAGE_FILES.CONVERSATIONS,
+        JSON.stringify(conversation)
+      )
 
-    // fire-and-forget：向量索引
-    const indexText = conversation.userMessage + ' ' + conversation.assistantMessage
-    authFetch('/api/memory/index', {
-      method: 'POST',
-      body: JSON.stringify({ conversationId: conversation.id, text: indexText })
-    }).catch(() => { /* 静默忽略，不影响主流程 */ })
+      // fire-and-forget：向量索引
+      const indexText = conversation.userMessage + ' ' + conversation.assistantMessage
+      authFetch('/api/memory/index', {
+        method: 'POST',
+        body: JSON.stringify({ conversationId: conversation.id, text: indexText })
+      }).catch(() => { /* 静默忽略，不影响主流程 */ })
 
-    // fire-and-forget：画像提取（排入 Agent 队列）
-    authFetch('/api/memory/queue', {
-      method: 'POST',
-      body: JSON.stringify({
-        type: 'extract_profile',
-        payload: {
-          userMessage: conversation.userMessage,
-          assistantMessage: conversation.assistantMessage.slice(0, 600)
-        }
-      })
-    }).catch(() => { /* 静默忽略 */ })
-
-    // fire-and-forget：从对话中摘取用户记忆事实（独立记忆板块）
-    // 剥离 [REFERENCE_START]...[REFERENCE_END] 块，只传对话核心，避免粘贴内容污染记忆
-    const cleanUserMessage = conversation.userMessage
-      .replace(/\[REFERENCE_START\][\s\S]*?\[REFERENCE_END\]/g, '[引用内容已省略]')
-      .trim()
-    if (cleanUserMessage.length > 5) {
-      authFetch('/api/memory/extract', {
+      // fire-and-forget：画像提取（排入 Agent 队列）
+      authFetch('/api/memory/queue', {
         method: 'POST',
         body: JSON.stringify({
-          conversationId: conversation.id,
-          userMessage: cleanUserMessage,
-          assistantMessage: conversation.assistantMessage.slice(0, 400)
+          type: 'extract_profile',
+          payload: {
+            userMessage: conversation.userMessage,
+            assistantMessage: conversation.assistantMessage.slice(0, 600)
+          }
         })
       }).catch(() => { /* 静默忽略 */ })
-    }
 
-    // fire-and-forget：逻辑边提取
-    // 延迟 3 秒，等语义边先计算出候选节点
-    // 先检查该 conversationId 是否已提取过逻辑边，已有则跳过，避免重复 AI 请求
-    setTimeout(async () => {
-      try {
-        const checkResp = await authFetch(`/api/memory/logical-edges/${conversation.id}`)
-        if (checkResp.ok) {
-          const checkData = await checkResp.json() as { edges: unknown[] }
-          if (checkData.edges && checkData.edges.length > 0) return
-        }
-      } catch { /* 网络失败则继续触发 */ }
-      get()._triggerLogicalEdgeExtraction(
-        conversation.id,
-        conversation.userMessage,
-        conversation.assistantMessage
-      ).catch(() => {})
-    }, 3000)
+      // fire-and-forget：从对话中摘取用户记忆事实（独立记忆板块）
+      // 剥离 [REFERENCE_START]...[REFERENCE_END] 块，只传对话核心，避免粘贴内容污染记忆
+      const cleanUserMessage = conversation.userMessage
+        .replace(/\[REFERENCE_START\][\s\S]*?\[REFERENCE_END\]/g, '[引用内容已省略]')
+        .trim()
+      if (cleanUserMessage.length > 5) {
+        authFetch('/api/memory/extract', {
+          method: 'POST',
+          body: JSON.stringify({
+            conversationId: conversation.id,
+            userMessage: cleanUserMessage,
+            assistantMessage: conversation.assistantMessage.slice(0, 400)
+          })
+        }).catch(() => { /* 静默忽略 */ })
+      }
+
+      // fire-and-forget：逻辑边提取
+      // 延迟 3 秒，等语义边先计算出候选节点
+      // 先检查该 conversationId 是否已提取过逻辑边，已有则跳过，避免重复 AI 请求
+      setTimeout(async () => {
+        try {
+          const checkResp = await authFetch(`/api/memory/logical-edges/${conversation.id}`)
+          if (checkResp.ok) {
+            const checkData = await checkResp.json() as { edges: unknown[] }
+            if (checkData.edges && checkData.edges.length > 0) return
+          }
+        } catch { /* 网络失败则继续触发 */ }
+        get()._triggerLogicalEdgeExtraction(
+          conversation.id,
+          conversation.userMessage,
+          conversation.assistantMessage
+        ).catch(() => {})
+      }, 3000)
+    })
   },
 
   clearLastError: () => set({ lastError: null }),

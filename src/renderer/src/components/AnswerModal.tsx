@@ -1000,6 +1000,7 @@ export function AnswerModal() {
   }
 
   const handleSaveEdit = async () => {
+    const currentConversation = currentConversationRef.current
     if (editingIndex === null || !currentConversation) return
     const newContent = editingContent.trim()
     if (!newContent) return
@@ -1029,6 +1030,7 @@ export function AnswerModal() {
   const handleStopGeneration = useCallback(() => { cancel() }, [cancel])
 
   const handleRegenerate = useCallback(async (index: number, sourceTurns?: Turn[]) => {
+    const currentConversation = currentConversationRef.current
     if (!currentConversation) return
     const baseTurns = sourceTurns ?? turns
     const previousTurns = baseTurns.slice(0, index)
@@ -1051,7 +1053,7 @@ export function AnswerModal() {
     } else {
       sendMessage(sanitizedUser, preferences, history, currentTurn.images, undefined, undefined, currentConversation.id)
     }
-  }, [turns, currentConversation, sendMessage, getPreferencesForPrompt, isLennyMode, isCustomSpaceMode, buildLingSiRequest, resolveAssistantPromptOverride])
+  }, [turns, sendMessage, getPreferencesForPrompt, isLennyMode, isCustomSpaceMode, buildLingSiRequest, resolveAssistantPromptOverride])
 
   const handleCopyMessage = useCallback(async (text: string, index: number) => {
     try {
@@ -1227,6 +1229,7 @@ export function AnswerModal() {
     }
 
     setIsStreaming(true)
+    const currentConversation = currentConversationRef.current
 
     // Lenny 模式：跳过用户记忆检索，不高亮节点，直接用 Lenny 历史对话记忆
     let memories: Awaited<ReturnType<typeof getRelevantMemories>> = []
@@ -1285,10 +1288,11 @@ export function AnswerModal() {
     }
   }, [feedbackMessage, pendingImages, pendingFiles, pendingReferenceBlocks, isStreaming, isOnboardingMode, isLennyMode,
       isCustomSpaceMode, getPreferencesForPrompt, sendMessage, turns, getRelevantMemories, setHighlight, focusNode,
-      buildLingSiRequest, currentConversation?.id, resolveAssistantPromptOverride])
+      buildLingSiRequest, resolveAssistantPromptOverride])
 
   // ── 关闭并保存 ────────────────────────────────────────────────────────────
   const handleClose = useCallback(async () => {
+    const currentConversation = currentConversationRef.current
     if (isClosing) return
     feedbackToastCountRef.current = 0 // 重置偏好学习 Toast 计数
     const shouldSave = !!currentConversation && (!isReplayRef.current || didMutateRef.current)
@@ -1417,8 +1421,9 @@ export function AnswerModal() {
         const hasImportMemory = useCanvasStore.getState().nodes.some(n => n.nodeType === 'capability' && n.capabilityData?.capabilityId === 'import-memory')
         if (!hasImportMemory) void addCapabilityNode('import-memory')
       } else if (wasCustomSpaceMode && wasActiveCustomSpaceId) {
-        // Custom Space 模式：先恢复 flags，再 await endConversation，最后 closeModal
+        // Custom Space 模式：先关闭 UI，再在后台保存，避免用户点击被重 I/O 卡住
         useCanvasStore.setState({ isCustomSpaceMode: wasCustomSpaceMode, activeCustomSpaceId: wasActiveCustomSpaceId })
+        closeModal()
         if (shouldSave && conversationSnapshot && conversationSnapshot.userMessage) {
           const realTurns = savedTurns.filter(t => t.user?.trim() || t.assistant?.trim())
           let serializedAssistant: string
@@ -1429,17 +1434,14 @@ export function AnswerModal() {
               `#${i + 1}\n用户：${t.user || ''}\nAI：${t.assistant || ''}`
             ).join('\n\n')
           }
-          await endConversation(serializedAssistant, [], lastReasoning, conversationSnapshot)
+          endConversation(serializedAssistant, [], lastReasoning, conversationSnapshot)
             .catch(err => console.error('Failed to save Custom Space conversation:', err))
         }
-        closeModal()
       } else if (wasLennyMode) {
-        // P0-1: Space 模式（Lenny/PG/Zhang/Wang）：先 await endConversation 写入 space 文件，再 closeModal
-        // 这样 SpaceCanvas 的节点重载 effect 触发时文件已经写完，新节点可以出现
-        // P5-1: 用快照恢复 space flags，防止 250ms 内其他操作提前修改 store 状态导致写错文件
+        // Space 模式（Lenny/PG/Zhang/Wang）：先关闭 UI，再后台写 space 文件和主空间同步
         useCanvasStore.setState({ isLennyMode: wasLennyMode, isPGMode: wasPGMode, isZhangMode: wasZhangMode, isWangMode: wasWangMode })
+        closeModal()
         if (shouldSave && conversationSnapshot && conversationSnapshot.userMessage) {
-          // 多轮对话序列化：用与普通模式相同的 #N\n用户：...\nAI：... 格式，保证回放时能还原所有轮次
           const realTurns = savedTurns.filter(t => t.user?.trim() || t.assistant?.trim())
           let serializedAssistant: string
           if (realTurns.length <= 1) {
@@ -1449,10 +1451,9 @@ export function AnswerModal() {
               `#${i + 1}\n用户：${t.user || ''}\nAI：${t.assistant || ''}`
             ).join('\n\n')
           }
-          await endConversation(serializedAssistant, [], lastReasoning, conversationSnapshot)
+          endConversation(serializedAssistant, [], lastReasoning, conversationSnapshot)
             .catch(err => console.error('Failed to save Space conversation:', err))
         }
-        closeModal()
       } else {
         closeModal()
         if (shouldSave && conversationSnapshot && conversationSnapshot.userMessage) {
@@ -1468,7 +1469,7 @@ export function AnswerModal() {
         }
       }
     }, 500)
-  }, [isClosing, turns, errorMessage, isStreaming, currentConversation, isOnboardingMode, isLennyMode, isPGMode, isZhangMode, isWangMode,
+  }, [isClosing, turns, errorMessage, isStreaming, isOnboardingMode, isLennyMode, isPGMode, isZhangMode, isWangMode,
       isCustomSpaceMode, activeCustomSpaceId,
       endConversation, closeModal, appliedPreferences, completeOnboarding, addCapabilityNode, saveOnboardingTurns,
       cancel, getPreferencesForPrompt])
