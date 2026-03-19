@@ -1,3 +1,25 @@
+## [0.5.33] - 2026-03-19
+
+### fix: 决策卡卡死根治 (P7) — 稳定 callback 身份 + 细粒度 zustand selector
+
+**根因（最终）**：前 6 次修复（P1-P6）均为表面补丁。真正根因是 `AnswerModal` 顶层 `useCanvasStore(state => state.currentConversation)` 订阅整个 conversation 对象。每次 `updateConversation()` 展开新对象引用，导致：
+1. `persistDecisionRecord` useCallback 重建（deps 含 `currentConversation`/`turns`/`appliedPreferences`）
+2. `persistDecisionRecordRef` 的 useEffect 触发 → `handleAdoptDecision`/`handleDecisionOutcome` 传入新引用 → `LingSiDecisionCard` memo 失效
+3. `prepareConversation` useEffect 在同一对话中被反复触发（deps 含整个 `currentConversation` 对象）
+
+**修复（3 处精准改动，仅改 `AnswerModal.tsx`）：**
+
+- **改动 1**：`persistDecisionRecord` 移除 `currentConversation`、`turns`、`appliedPreferences` 闭包依赖。添加 `turnsRef`/`appliedPreferencesRef`（useRef 每次 render 同步），函数体通过 ref 和 `getState()` 读最新值。callback 身份稳定 → `persistDecisionRecordRef` useEffect 不再频繁触发 → `handleAdoptDecision`/`handleDecisionOutcome` props 不变 → `LingSiDecisionCard` 不重渲染
+- **改动 2**：`prepareConversation` useEffect deps 中 `currentConversation` → `currentConversation?.id`。函数体通过 `useCanvasStore.getState().currentConversation` 读字段。同一对话中 `updateConversation()` 不再重新触发 effect
+- **改动 3**：`activeDecisionRecord`/`activeDecisionTrace` 改为细粒度 zustand selector + 自定义 equality。`decisionRecord` 仅在 `updatedAt`/`status` 变化时触发重渲染；`decisionTrace` 仅在 `mode`/`sourceRefs` 等关键字段变化时触发重渲染。同时添加 `currentConversationRef` 供关键路径使用
+
+**测试与验证：**
+- `npm run build`：通过（0 编译错误，CSS warning 为既有问题）
+- 服务器部署验证：https://chatanima.com 健康检查 200
+- Code review：见 `docs/code-review-report-v0.5.33-p7-root-cause-fix.md`
+
+---
+
 ## [0.5.32] - 2026-03-19
 
 ### fix: 决策卡 P4 核弹级修复 — 状态快照隔离 + 竞态根治 + 事件循环让步
