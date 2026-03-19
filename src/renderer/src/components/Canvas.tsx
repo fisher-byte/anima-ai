@@ -839,6 +839,11 @@ export function Canvas() {
   }, [t.canvas])
 
   const getConversationFileForDecisionSource = useCallback((source: OngoingDecisionItem['source']) => {
+    // custom-{spaceId} 格式：自定义 Space 的对话文件
+    if (typeof source === 'string' && source.startsWith('custom-')) {
+      const spaceId = source.slice('custom-'.length)
+      return `custom-${spaceId}-conversations.jsonl`
+    }
     switch (source) {
       case 'lenny':
         return STORAGE_FILES.LENNY_CONVERSATIONS
@@ -1284,7 +1289,7 @@ export function Canvas() {
                 <button
                   key={item.conversationId}
                   type="button"
-                  onClick={() => openModalById(item.conversationId, getConversationFileForDecisionSource(item.source))}
+                  onClick={() => openModalById(item.conversationId, getConversationFileForDecisionSource(item.source), item.source)}
                   className="w-full rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2 text-left transition-all hover:border-gray-200 hover:bg-white"
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -1552,7 +1557,7 @@ export function Canvas() {
             onClose={() => setIsDecisionHubOpen(false)}
             onOpenDecision={(item) => {
               setIsDecisionHubOpen(false)
-              openModalById(item.conversationId, getConversationFileForDecisionSource(item.source))
+              openModalById(item.conversationId, getConversationFileForDecisionSource(item.source), item.source)
             }}
           />
         )}
