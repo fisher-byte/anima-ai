@@ -38,7 +38,39 @@
 
 **测试：**
 - TypeScript 编译：0 错误
-- 单元测试：621/621 passed
+- 单元测试：623/623 passed（35 files）
+
+---
+
+### fix: 灵思模式“点击任意决策 UI 卡死/崩溃”全链路根治（决策回路 + 保存阻塞 + 服务端慢路径）
+
+**现象复盘：**
+- 进入灵思/决策模式后，只要点击「决策依据 / 查看轨迹 / 采纳建议 / 回访结果」等交互，页面出现明显卡顿、假死，极端情况下直接崩溃。
+- 该问题之所以“修了很多次又复发”，核心不是某一个按钮，而是**点击触发了同一条“重渲染 + 重保存 + 慢同步”的组合链路**。
+
+**根因（3 层叠加）：**
+- **前端渲染回路**：`useAnswerModalDecision` 中 persona 每次 render 生成新对象，被 effect 依赖触发 → `setMatchedDecisionUnits` 再次触发 render → 高速抖动。
+- **点击被保存阻塞**：关闭弹窗/决策落盘时同步等待空间保存、节点生成、主空间同步，用户点击被“重 I/O 链路”拖住。
+- **服务端慢路径放大**：`/api/memory/sync-lenny-conv` 热路径里做全量读写/解析，数据越大越容易把点击放大成卡死。
+
+**修复（原则：UI 先反馈，I/O 后台化；依赖稳定化；热路径轻量化）：**
+- `src/renderer/src/hooks/useAnswerModalDecision.ts`
+  - persona 推导改为稳定 memo + primitive key（不把新对象直接塞进 effect deps）
+  - matched units 加“结果未变化不 setState”，matched ids 为空时不重复 set([])
+  - 预热 `ensureLingSiStorageSeeded`（避免首次点击时触发重 seed）
+- `src/renderer/src/components/AnswerModal.tsx`
+  - 关闭逻辑：UI 先关闭，再后台执行 `endConversation`（避免用户点击等待重保存）
+  - 多处 handler 改用 ref 读取 `currentConversation`，减少无谓重渲染牵连
+- `src/renderer/src/stores/canvasStore.ts`
+  - 追加串行写队列（避免 append/save 并发争抢造成卡顿峰值）
+  - Space / Custom Space 的主空间同步改为 fire-and-forget（不阻塞交互）
+- `src/server/routes/memory.ts`
+  - `sync-lenny-conv` 改为“最小写入确认 + 后台节点生成”，并用轻量 id index 避免重复全量扫描
+- 新增回归测试：
+  - `src/server/__tests__/sync-lenny-conv.test.ts`：覆盖幂等写入与后台节点生成
+
+**线上验证：**
+- `https://chatanima.com` 实机验证：可进入灵思决策模式；点击「决策依据/查看轨迹」等交互无卡死、无冻结。
 
 ---
 

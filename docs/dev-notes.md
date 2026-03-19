@@ -1,6 +1,6 @@
 # Anima 开发笔记
 
-*最后更新: 2026-03-08 | 版本: v0.2.65*
+*最后更新: 2026-03-19 | 版本: v0.5.39*
 
 这里记录架构决策、踩坑经历和性能优化心得，供后续维护参考。
 
@@ -175,6 +175,33 @@ for await (const chunk of reader) {
 3. 重排完成后自动 kick（施加随机小扰动），唤醒力引擎继续收敛
 
 **单元测试**: 新增 `canvasStore.loadNodes.test.ts`，覆盖 `hasOverlapInNodes` / `spiralRelayout` / `resolveViewFromStorage` 三个纯函数（17 个用例）。
+
+### 15. 灵思/决策模式「点啥都卡死」复发根因与回归护栏（v0.5.39）
+
+**典型现象**：进入灵思（决策）模式后，点击「决策依据 / 查看轨迹 / 采纳建议 / 回访结果」等任意交互出现卡顿、假死，甚至崩溃。
+
+**为什么会反复复发**：这不是某一个按钮 bug，而是三层问题叠加后的“放大器”——点击触发状态更新 → 重渲染放大 → 同步保存阻塞 → 服务端慢路径再放大。
+
+**根因归纳（3 层）：**
+- **前端渲染回路**：Hook 中将“每次 render 新建的对象”放进 effect 依赖，导致 effect 在点击后高频触发，并在 effect 内 setState 形成渲染抖动。
+- **交互被保存阻塞**：关闭弹窗/决策更新时同步等待空间保存、节点生成、主空间同步，用户点击在主线程/网络 I/O 上排队。
+- **服务端慢路径放大**：`/api/memory/sync-lenny-conv` 若在热路径里做全量读写/解析（conversations/nodes），数据越大越容易把一次点击拖成卡死。
+
+**已落地的护栏（不要删/不要回滚）：**
+- **依赖稳定化**：
+  - persona 推导必须用 `useMemo`，effect deps 只能用 primitive key（如 personaId），不能直接依赖新对象
+  - matched units 更新必须“结果不变不 setState”，空数组不重复 set([])
+- **UI 先反馈**：
+  - 关闭弹窗必须先 `closeModal()`，保存/同步必须后台化（fire-and-forget + 串行写队列）
+- **服务端热路径轻量化**：
+  - `sync-lenny-conv` 热路径只做最小确认写入；节点生成放到后台队列，并用轻量 index 避免重复扫描
+- **回归测试**：
+  - `src/server/__tests__/sync-lenny-conv.test.ts`：覆盖幂等写入与后台节点生成
+
+**发版前必须跑的最小验证**：
+- `npm run typecheck`
+- `npm test`
+- 线上实机：灵思模式发起一次决策回答 → 点击「决策依据/查看轨迹」反复 3 次，页面不应冻结
 
 ---
 

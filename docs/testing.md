@@ -113,7 +113,7 @@ npm run test:watch    # 监听模式（开发时用）
 
 - ✅ `memory.test.ts` — 记忆路由集成测试（含 FTS5 trigger、引用块过滤、decayPreferences、语义边 by-id）
 
-**总测试数**: **621 个用例，34 个测试文件，全部通过**
+**总测试数**: **623 个用例，35 个测试文件，全部通过**
 
 ---
 
