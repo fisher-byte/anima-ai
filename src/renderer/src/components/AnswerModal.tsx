@@ -433,6 +433,9 @@ export function AnswerModal() {
     const fileArray = Array.from(fileList)
     if (fileArray.length === 0) return
     try {
+      // P8: 在所有 await 之前快照 convId，避免 parseFiles/authFetch 期间对话切换
+      // 导致文件被绑定到错误的对话 ID。
+      const convId = currentConversationRef.current?.id
       const parsedFiles = await parseFiles(fileArray)
       const newImages: string[] = []
       const newFiles: FileAttachment[] = []
@@ -449,7 +452,6 @@ export function AnswerModal() {
           formData.append('id', id)
           formData.append('textContent', f.content || '')
           // 绑定当前对话 ID，确保文件可被检索时关联到正确对话
-          const convId = currentConversation?.id
           if (convId) formData.append('convId', convId)
           const uploadRes = await authFetch('/api/storage/file', { method: 'POST', body: formData })
           if (!uploadRes.ok) {
@@ -472,7 +474,7 @@ export function AnswerModal() {
     } catch (error) {
       console.error('File upload failed:', error)
     }
-  }, [currentConversation])
+  }, [])
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) handleFiles(e.target.files)
@@ -1640,7 +1642,12 @@ export function AnswerModal() {
                         <span className="text-[13px] text-gray-400">{t.modal.connecting}</span>
                       </div>
                     ) : turns.map((turn, idx) => (
-                      <div key={`${currentConversation?.id ?? 'new'}-${idx}`} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                      // P8: 使用 startedConversationIdRef 而非 currentConversation?.id 作为 key 前缀。
+                      // currentConversation 在对话创建的瞬间才有 id（此前为 null），若用它作 key，
+                      // 对话 id 产生时所有 turn 的 key 从 "new-N" 变成 "uuid-N" → React 视为新元素
+                      // 全部 re-mount，导致动画重播、state 丢失、卡顿。
+                      // startedConversationIdRef 在 prepareConversation 时立即写入，始终稳定。
+                      <div key={`${startedConversationIdRef.current ?? 'new'}-${idx}`} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
 
                         {/* 用户消息 + 文件气泡 */}
                         <div className="flex justify-end mb-6">
