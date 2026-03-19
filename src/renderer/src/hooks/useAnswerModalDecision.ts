@@ -63,6 +63,25 @@ function stripInjectedSpaceHints(content: string): string {
   return stripLinkedContextHints(content)
 }
 
+function areStringArraysEqual(a?: string[], b?: string[]): boolean {
+  if (a === b) return true
+  if (!a || !b) return a === b
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false
+  }
+  return true
+}
+
+function areDecisionUnitsEqual(a: DecisionUnit[], b: DecisionUnit[]): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i]?.id !== b[i]?.id) return false
+  }
+  return true
+}
+
 export function useAnswerModalDecision({
   turnsRef,
   appliedPreferencesRef,
@@ -85,13 +104,17 @@ export function useAnswerModalDecision({
   const updateConversation = useCanvasStore(state => state.updateConversation)
 
   // activeDecisionPersona：根据当前 space 模式推断
-  const activeDecisionPersona = isLennyMode && !isPGMode && !isWangMode
-    ? (isZhangMode
-      ? { id: 'zhang' as const, name: '张小龙' }
-      : { id: 'lenny' as const, name: 'Lenny Rachitsky' })
-    : invokedAssistant?.type === 'public_space'
-      ? getDecisionPersonaForPublicSpace(invokedAssistant.id)
-      : null
+  const activeDecisionPersona = useMemo(() => (
+    isLennyMode && !isPGMode && !isWangMode
+      ? (isZhangMode
+        ? { id: 'zhang' as const, name: '张小龙' }
+        : { id: 'lenny' as const, name: 'Lenny Rachitsky' })
+      : invokedAssistant?.type === 'public_space'
+        ? getDecisionPersonaForPublicSpace(invokedAssistant.id)
+        : null
+  ), [invokedAssistant, isLennyMode, isPGMode, isWangMode, isZhangMode])
+  const activeDecisionPersonaId = activeDecisionPersona?.id
+  const activeDecisionPersonaName = activeDecisionPersona?.name
 
   // P7: 决策 trace 深度比较 selector，避免 updateConversation spread 触发 re-render
   const activeDecisionRecord: DecisionRecord | undefined = useCanvasStore(
@@ -109,12 +132,10 @@ export function useAnswerModalDecision({
           JSON.stringify(a.sourceRefs) === JSON.stringify(b.sourceRefs))
       const matchedIdsEqual =
         a.matchedDecisionUnitIds === b.matchedDecisionUnitIds ||
-        (a.matchedDecisionUnitIds?.length === b.matchedDecisionUnitIds?.length &&
-          JSON.stringify(a.matchedDecisionUnitIds) === JSON.stringify(b.matchedDecisionUnitIds))
+        areStringArraysEqual(a.matchedDecisionUnitIds, b.matchedDecisionUnitIds)
       const productDocRefsEqual =
         a.productStateDocRefs === b.productStateDocRefs ||
-        (a.productStateDocRefs?.length === b.productStateDocRefs?.length &&
-          JSON.stringify(a.productStateDocRefs) === JSON.stringify(b.productStateDocRefs))
+        areStringArraysEqual(a.productStateDocRefs, b.productStateDocRefs)
       return (
         a.mode === b.mode &&
         sourceRefsEqual &&
@@ -134,24 +155,29 @@ export function useAnswerModalDecision({
     (a, b) => {
       if (a === b) return true
       if (!a || !b) return a === b
-      if (a.length !== b.length) return false
-      return JSON.stringify(a) === JSON.stringify(b)
+      return areStringArraysEqual(a, b)
     }
   )
   useEffect(() => {
     let cancelled = false
     if (!matchedDecisionUnitIds?.length) {
-      setMatchedDecisionUnits([])
+      setMatchedDecisionUnits((prev) => (prev.length === 0 ? prev : []))
       return
     }
     ;(async () => {
       const units = await loadDecisionUnits()
-      const scopedUnits = activeDecisionPersona ? units.filter(unit => unit.personaId === activeDecisionPersona.id) : units
+      const scopedUnits = activeDecisionPersonaId ? units.filter(unit => unit.personaId === activeDecisionPersonaId) : units
       if (cancelled) return
-      setMatchedDecisionUnits(scopedUnits.filter(unit => matchedDecisionUnitIds.includes(unit.id)))
+      const nextUnits = scopedUnits.filter(unit => matchedDecisionUnitIds.includes(unit.id))
+      setMatchedDecisionUnits((prev) => (areDecisionUnitsEqual(prev, nextUnits) ? prev : nextUnits))
     })()
     return () => { cancelled = true }
-  }, [activeDecisionPersona, matchedDecisionUnitIds])
+  }, [activeDecisionPersonaId, matchedDecisionUnitIds])
+
+  useEffect(() => {
+    if (!activeDecisionPersonaId) return
+    void ensureLingSiStorageSeeded()
+  }, [activeDecisionPersonaId])
 
   // ── Stable refs for child components ─────────────────────────────────────
   const stableSourceRefs = useMemo(
@@ -165,20 +191,20 @@ export function useAnswerModalDecision({
     [activeDecisionTrace],
   )
   const stablePersonaName = useMemo(
-    () => activeDecisionPersona?.name ?? invokedAssistant?.name ?? 'LingSi',
-    [activeDecisionPersona?.name, invokedAssistant?.name],
+    () => activeDecisionPersonaName ?? invokedAssistant?.name ?? 'LingSi',
+    [activeDecisionPersonaName, invokedAssistant?.name],
   )
 
   const shouldShowLingSiTrace = useMemo(() =>
     !!activeDecisionTrace &&
     activeDecisionTrace.mode === 'decision' &&
-    !!activeDecisionPersona &&
+    !!activeDecisionPersonaId &&
     (
       (activeDecisionTrace.sourceRefs?.length ?? 0) > 0 ||
       matchedDecisionUnits.length > 0 ||
       !!activeDecisionTrace.productStateUsed
     ),
-  [activeDecisionTrace, activeDecisionPersona, matchedDecisionUnits.length])
+  [activeDecisionPersonaId, activeDecisionTrace, matchedDecisionUnits.length])
 
   // ── 轨迹弹窗状态 ─────────────────────────────────────────────────────────
   const [traceData, setTraceData] = useState<LingSiTraceData | null>(null)
@@ -186,14 +212,14 @@ export function useAnswerModalDecision({
 
   // ── buildLingSiRequest ────────────────────────────────────────────────────
   const buildLingSiRequest = useCallback(async (userMessage: string) => {
-    if (!activeDecisionPersona) {
+    if (!activeDecisionPersonaId || !activeDecisionPersonaName) {
       return { extraContext: undefined, decisionTrace: { mode: 'normal' as const } }
     }
     await ensureLingSiStorageSeeded()
     const sanitizedUserMessage = stripInjectedSpaceHints(userMessage)
     const currentConv = useCanvasStore.getState().currentConversation
     const currentMode = resolveDecisionModeForPersona({
-      personaId: activeDecisionPersona.id,
+      personaId: activeDecisionPersonaId,
       isPublicSpaceMode: isLennyMode,
       lennyDecisionMode,
       zhangDecisionMode,
@@ -201,8 +227,8 @@ export function useAnswerModalDecision({
       decisionTrace: currentConv?.decisionTrace,
     })
     const payload = await buildLingSiDecisionPayload(sanitizedUserMessage, currentMode, {
-      personaId: activeDecisionPersona.id,
-      personaName: activeDecisionPersona.name,
+      personaId: activeDecisionPersonaId,
+      personaName: activeDecisionPersonaName,
     })
     if (currentConv?.id) {
       await updateConversation(currentConv.id, {
@@ -211,7 +237,7 @@ export function useAnswerModalDecision({
       })
     }
     return payload
-  }, [activeDecisionPersona, invokedAssistant, isLennyMode, lennyDecisionMode, updateConversation, zhangDecisionMode])
+  }, [activeDecisionPersonaId, activeDecisionPersonaName, invokedAssistant, isLennyMode, lennyDecisionMode, updateConversation, zhangDecisionMode])
 
   // ── persistDecisionRecord ─────────────────────────────────────────────────
   const persistDecisionRecord = useCallback(async (
@@ -253,9 +279,8 @@ export function useAnswerModalDecision({
     didMutateRef.current = true
     autoSavedSigRef.current = null
 
+    // 让 React 先把 UI 更新（按钮状态等）渲染到屏幕，再跑后台 I/O
     await new Promise<void>(r => setTimeout(r, 0))
-
-    await useCanvasStore.getState().appendConversation(nextConversation)
 
     const decisionSource = isCustomSpaceMode && activeCustomSpaceId
       ? (`custom-${activeCustomSpaceId}` as const)
@@ -269,34 +294,32 @@ export function useAnswerModalDecision({
               ? ('lenny' as const)
               : ('main' as const)
 
-    try {
-      await storageService.append(STORAGE_FILES.DECISION_LEDGER, JSON.stringify({
-        conversationId: nextConversation.id,
-        source: decisionSource,
-        title: normalizedRecord.userQuestion || nextConversation.userMessage,
-        decisionRecord: normalizedRecord,
-        updatedAt: normalizedRecord.updatedAt,
-      }))
-    } catch {
-      // ignore
-    }
+    // 以下均为后台持久化操作，全部 fire-and-forget，不阻塞 UI
+    // appendConversation 写本地 JSONL + 触发向量索引等，不影响决策记录
+    useCanvasStore.getState().appendConversation(nextConversation).catch(() => {})
 
+    // 决策台账写入（本地文件，极快，但不必阻塞按钮响应）
+    storageService.append(STORAGE_FILES.DECISION_LEDGER, JSON.stringify({
+      conversationId: nextConversation.id,
+      source: decisionSource,
+      title: normalizedRecord.userQuestion || nextConversation.userMessage,
+      decisionRecord: normalizedRecord,
+      updatedAt: normalizedRecord.updatedAt,
+    })).catch(() => {})
+
+    // 远端记忆同步（网络请求，绝不阻塞 UI）
     if ((isLennyMode || isCustomSpaceMode) && assistantMessage.trim()) {
-      try {
-        await authFetch('/api/memory/sync-lenny-conv', {
-          method: 'POST',
-          body: JSON.stringify({
-            conversationId: nextConversation.id,
-            userMessage: nextConversation.userMessage,
-            assistantMessage,
-            decisionTrace: nextConversation.decisionTrace,
-            decisionRecord: normalizedRecord,
-            source: decisionSource,
-          }),
-        })
-      } catch {
-        // keep local record even if sync fails
-      }
+      authFetch('/api/memory/sync-lenny-conv', {
+        method: 'POST',
+        body: JSON.stringify({
+          conversationId: nextConversation.id,
+          userMessage: nextConversation.userMessage,
+          assistantMessage,
+          decisionTrace: nextConversation.decisionTrace,
+          decisionRecord: normalizedRecord,
+          source: decisionSource,
+        }),
+      }).catch(() => {})
     }
 
     emitDecisionRecordsUpdated()

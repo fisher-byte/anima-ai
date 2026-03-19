@@ -142,6 +142,44 @@ function filterProductStateDocRefs(refs: string[], personaName: string): string[
   })
 }
 
+function areStringListsEqual(a: string[], b: string[]): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false
+  }
+  return true
+}
+
+function areDecisionUnitListsEqual(a: DecisionUnit[], b: DecisionUnit[]): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i]?.id !== b[i]?.id) return false
+  }
+  return true
+}
+
+function areDecisionSourceRefsEqual(a: DecisionSourceRef[], b: DecisionSourceRef[]): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    const prev = a[i]
+    const next = b[i]
+    if (
+      prev.id !== next.id ||
+      prev.locator !== next.locator ||
+      prev.path !== next.path ||
+      prev.evidenceLevel !== next.evidenceLevel ||
+      prev.title !== next.title ||
+      prev.excerpt !== next.excerpt
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
 export function LingSiTraceModal({
   data,
   onClose,
@@ -472,22 +510,13 @@ export const LingSiTracePanel = memo(function LingSiTracePanel({
   // 数组内容比较（长度优先快路径）
   const muPrev = prevProps.matchedUnits
   const muNext = nextProps.matchedUnits
-  if (muPrev !== muNext) {
-    if (muPrev.length !== muNext.length) return false
-    if (JSON.stringify(muPrev.map(u => u.id)) !== JSON.stringify(muNext.map(u => u.id))) return false
-  }
+  if (!areDecisionUnitListsEqual(muPrev, muNext)) return false
   const srPrev = prevProps.sourceRefs
   const srNext = nextProps.sourceRefs
-  if (srPrev !== srNext) {
-    if (srPrev.length !== srNext.length) return false
-    if (JSON.stringify(srPrev) !== JSON.stringify(srNext)) return false
-  }
+  if (!areDecisionSourceRefsEqual(srPrev, srNext)) return false
   const pdPrev = prevProps.productStateDocRefs ?? []
   const pdNext = nextProps.productStateDocRefs ?? []
-  if (pdPrev !== pdNext) {
-    if (pdPrev.length !== pdNext.length) return false
-    if (JSON.stringify(pdPrev) !== JSON.stringify(pdNext)) return false
-  }
+  if (!areStringListsEqual(pdPrev, pdNext)) return false
   return true
 })
 
