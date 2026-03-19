@@ -281,6 +281,11 @@ export function AnswerModal() {
 
   const autoSaveIfNeeded = useCallback(async () => {
     try {
+      // P8: 通过 ref 读取 currentConversation，避免将其加入 deps 数组。
+      // updateConversation 每次都 spread 新对象引用，若 currentConversation 在 deps 中，
+      // 每次 markDecisionAnswered → updateConversation → currentConversation 变化 →
+      // autoSaveIfNeeded 重建 → onComplete 闭包失效 → 多余 re-render 链。
+      const currentConversation = currentConversationRef.current
       if (!currentConversation?.id) return
       if (isLennyMode || isCustomSpaceMode) return
       if (isOnboardingMode) return
@@ -289,8 +294,8 @@ export function AnswerModal() {
       const shouldSave = !!currentConversation && (!isReplayRef.current || didMutateRef.current)
       if (!shouldSave) return
 
-      const assistantMessage = serializeTurnsForStorage(turns)
-      const sig = `${currentConversation.id}:${turns.length}:${assistantMessage.length}`
+      const assistantMessage = serializeTurnsForStorage(turnsRef.current)
+      const sig = `${currentConversation.id}:${turnsRef.current.length}:${assistantMessage.length}`
       if (autoSavedSigRef.current === sig) return
       autoSavedSigRef.current = sig
 
@@ -298,14 +303,14 @@ export function AnswerModal() {
       const convToSave: Conversation = {
         ...currentConversation,
         assistantMessage,
-        reasoning_content: turns.length > 0 ? (turns[turns.length - 1].reasoning || undefined) : undefined,
-        appliedPreferences: [...appliedPreferences],
+        reasoning_content: turnsRef.current.length > 0 ? (turnsRef.current[turnsRef.current.length - 1].reasoning || undefined) : undefined,
+        appliedPreferences: [...appliedPreferencesRef.current],
       }
       await useCanvasStore.getState().appendConversation(convToSave)
     } catch (e) {
       console.warn('autosave failed:', e)
     }
-  }, [currentConversation, isLennyMode, isCustomSpaceMode, isOnboardingMode, isStreaming, turns, appliedPreferences, serializeTurnsForStorage])
+  }, [isLennyMode, isCustomSpaceMode, isOnboardingMode, isStreaming, serializeTurnsForStorage])
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const onboardingPhaseRef = useRef(0)
@@ -646,11 +651,16 @@ export function AnswerModal() {
     }
   })
 
-  // 刷新/关闭页面时记录（用于定位“未点关闭就刷新导致未保存”的情况）
+  // 刷新/关闭页面时记录（用于定位”未点关闭就刷新导致未保存”的情况）
   useEffect(() => {
     const handler = () => {
       // 关键兜底：刷新/离开时尝试 keepalive 保存（不依赖用户点 ×）
+      // P8: 通过 refs 读取高频变化的值，避免 handler 在每次 turns/appliedPreferences/currentConversation
+      // 变化时重新注册（removeEventListener + addEventListener），这会在 streaming 期间每 token 触发一次。
       try {
+        const currentConversation = currentConversationRef.current
+        const turns = turnsRef.current
+        const appliedPreferences = appliedPreferencesRef.current
         if (isModalOpen && currentConversation?.id && !isStreaming && !isLennyMode && !isCustomSpaceMode && !isOnboardingMode) {
           const shouldSave = !!currentConversation && (!isReplayRef.current || didMutateRef.current)
           if (shouldSave) {
@@ -680,7 +690,7 @@ export function AnswerModal() {
     }
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
-  }, [isModalOpen, currentConversation, isStreaming, turns, appliedPreferences, isLennyMode, isCustomSpaceMode, isOnboardingMode, serializeTurnsForStorage])
+  }, [isModalOpen, isStreaming, isLennyMode, isCustomSpaceMode, isOnboardingMode, serializeTurnsForStorage])
 
   useEffect(() => {
     deepSearchStateRef.current = deepSearchState
@@ -697,20 +707,21 @@ export function AnswerModal() {
     const highlightedNodeIds = memories.map((m: { nodeId?: string; conv: { id: string } }) => m.nodeId ?? m.conv.id).filter((id: string | undefined): id is string => id != null)
     setHighlight(category, highlightedNodeIds)
     const compressed = compressMemoriesForPrompt(memories)
-    const history = buildAIHistory(turns)
+    const history = buildAIHistory(turnsRef.current)
     setTurns(prev => [...prev, { user: msg, assistant: '', images: [] }])
     const prefs = getPreferencesForPrompt()
     didMutateRef.current = true
-    // 记录本次请求上下文，便于“关闭窗口→后台继续深度搜索”
+    // 记录本次请求上下文，便于”关闭窗口→后台继续深度搜索”
+    const convId = currentConversationRef.current?.id
     lastDeepSearchContextRef.current = {
-      conversationId: currentConversation?.id,
+      conversationId: convId,
       messages: [...history, { role: 'user', content: msg }] as any,
       preferences: prefs,
       compressedMemory: compressed,
       isOnboarding: false,
     }
-    sendMessage(msg, prefs, history, [], compressed, false, currentConversation?.id)
-  }, [getRelevantMemories, setHighlight, compressMemoriesForPrompt, turns, getPreferencesForPrompt, sendMessage, currentConversation])
+    sendMessage(msg, prefs, history, [], compressed, false, convId)
+  }, [getRelevantMemories, setHighlight, compressMemoriesForPrompt, getPreferencesForPrompt, sendMessage])
 
   // ── 加载状态：重置本地状态，避免显示上一个对话的内容 ──────────────────────
   useEffect(() => {
