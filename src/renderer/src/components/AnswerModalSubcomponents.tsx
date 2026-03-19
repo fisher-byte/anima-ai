@@ -339,10 +339,10 @@ export const LingSiTracePanel = memo(function LingSiTracePanel({
 
   if (mode !== 'decision' || (matchedUnitLabels.length === 0 && sourceRefs.length === 0 && !hasProductStateTrace)) return null
 
-  const handleOpenTrace = () => {
+  const handleOpenTrace = useCallback(() => {
     if (isStreaming || !onOpenTrace) return
     onOpenTrace({ personaName, matchedUnits, sourceRefs, productStateDocRefs })
-  }
+  }, [isStreaming, onOpenTrace, personaName, matchedUnits, sourceRefs, productStateDocRefs])
 
   return (
     <div className="mt-4 rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-50/80 to-orange-50/40 overflow-hidden">
@@ -461,6 +461,34 @@ export const LingSiTracePanel = memo(function LingSiTracePanel({
       )}
     </div>
   )
+}, (prevProps, nextProps) => {
+  // 自定义 memo equality：只有真正影响显示的内容变化时才重渲染。
+  // 关键：matchedUnits 和 sourceRefs 是数组，每次 store spread 产生新引用，
+  // 必须用内容比较，否则 streaming 期间每个 SSE token 都触发一次重渲染 → 卡死。
+  if (prevProps.mode !== nextProps.mode) return false
+  if (prevProps.personaName !== nextProps.personaName) return false
+  if (prevProps.isStreaming !== nextProps.isStreaming) return false
+  if (prevProps.onOpenTrace !== nextProps.onOpenTrace) return false
+  // 数组内容比较（长度优先快路径）
+  const muPrev = prevProps.matchedUnits
+  const muNext = nextProps.matchedUnits
+  if (muPrev !== muNext) {
+    if (muPrev.length !== muNext.length) return false
+    if (JSON.stringify(muPrev.map(u => u.id)) !== JSON.stringify(muNext.map(u => u.id))) return false
+  }
+  const srPrev = prevProps.sourceRefs
+  const srNext = nextProps.sourceRefs
+  if (srPrev !== srNext) {
+    if (srPrev.length !== srNext.length) return false
+    if (JSON.stringify(srPrev) !== JSON.stringify(srNext)) return false
+  }
+  const pdPrev = prevProps.productStateDocRefs ?? []
+  const pdNext = nextProps.productStateDocRefs ?? []
+  if (pdPrev !== pdNext) {
+    if (pdPrev.length !== pdNext.length) return false
+    if (JSON.stringify(pdPrev) !== JSON.stringify(pdNext)) return false
+  }
+  return true
 })
 
 function formatDecisionDate(date: string): string {
