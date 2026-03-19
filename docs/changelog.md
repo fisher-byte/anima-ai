@@ -1,3 +1,74 @@
+## [0.5.38] - 2026-03-19
+
+### fix: LingSi 模式彻底根治 — 技术债全清理 + 架构收敛
+
+**本次变更横跨 5 个独立 fix，彻底消除 LingSi/决策模式的所有已知 bug，并完成关键架构清理。**
+
+---
+
+#### Fix 1: DecisionHub 卡死根因修复（custom space 路由缺失）
+
+**根因**：`AnswerModal` 写决策台账时 `source` 字段为 `custom-${spaceId}`，但 `Canvas.tsx` 中 `getConversationFileForDecisionSource` 没有 `custom-` 分支，导致 `openModalById` 使用了错误的 JSONL 文件路径，读到 `null`，而原来的 null guard 只 `set({ isLoading: false })` 但忘了 `isModalOpen: false`，造成 modal 永久卡在 loading。
+
+**修复：**
+- `src/renderer/src/services/decisionRecords.ts`：`OngoingDecisionItem.source` 扩展为 `(string & {})` 允许 `custom-{spaceId}` 字面量
+- `src/renderer/src/components/Canvas.tsx`：`getConversationFileForDecisionSource` 新增 `startsWith('custom-')` 分支；`openModalById` 调用传入 `item.source` 作为 `sourceHint`
+- `src/renderer/src/stores/canvasStore.ts`：`openModalById` 新增 `sourceHint` 参数，在打开 modal 前恢复正确的 space 模式 flag；null content guard 补充 `isModalOpen: false`
+
+---
+
+#### Fix 2: setLennyDecisionMode / setZhangDecisionMode guard 修复
+
+**根因**：guard 只检查 `mode === lennyDecisionMode`，当 `lennyDecisionMode` 已是目标值但 `currentConversation.decisionTrace.mode` 尚未同步时，guard 直接 return，导致 trace 不更新。
+
+**修复：**
+- `src/renderer/src/stores/canvasStore.ts`：guard 同时检查 `traceAligned`，只有 mode 和 trace 都已一致才跳过 set
+
+---
+
+#### Fix 3: activeDecisionTrace 深度比较 selector（消除 updateConversation 触发的无谓 re-render）
+
+**根因**：`useCanvasStore(state => state.currentConversation?.decisionTrace)` 使用默认 `===` 比较，每次 `updateConversation({decisionRecord})` spread 新对象引用，即使 trace 内容没变也触发 re-render。
+
+**修复：**
+- `src/renderer/src/components/AnswerModal.tsx` + `src/renderer/src/hooks/useAnswerModalDecision.ts`：自定义 equality 函数，对 `sourceRefs`/`matchedDecisionUnitIds`/`productStateDocRefs` 数组做长度 + JSON 比较
+
+---
+
+#### Fix 4: DecisionPersonaId 类型收紧（消除字符串扩散）
+
+- `src/shared/types.ts`：新增 `DecisionPersonaId = 'lenny' | 'zhang' | 'pg' | 'wang'` 联合类型，`DecisionUnit.personaId` 和 `DecisionRecord.personaId` 收紧为此类型
+- `src/shared/lingsiDecisionEngine.ts`：cast `decisionTrace.personaId as DecisionPersonaId`
+
+---
+
+#### Fix 5: lingsi.ts 缓存版本管理
+
+**根因**：bundled decision seed 数据更新后，内存缓存没有失效机制，用户仍会看到旧版 persona/unit 数据，直到重启应用。
+
+**修复：**
+- `src/renderer/src/services/lingsi.ts`：新增 `cachedBundledVersion` 版本标记；`ensureLingSiStorageSeeded` 在每次运行时对比 bundled `updatedAt`，若版本变化则先清空内存缓存再重新加载；磁盘数据版本落后时强制用 bundled 数据覆盖写入；导出 `invalidateLingSiCache()` 供测试/热重载使用
+
+---
+
+#### 架构清理: useAnswerModalDecision hook 提取
+
+**动机**：AnswerModal.tsx 超过 2100 行，决策逻辑（persistDecisionRecord / buildLingSiRequest / markDecisionAnswered 等）散落其中，难以测试和维护。
+
+**改动：**
+- `src/renderer/src/hooks/useAnswerModalDecision.ts`（NEW）：将所有决策逻辑集中管理，导出 `LingSiTraceData` 作为唯一来源；hook 内含完整的 activeDecisionTrace 深度比较 selector
+- `src/renderer/src/components/AnswerModal.tsx`：从 2119 行减少至 1854 行（**减少 265 行**），内联决策代码全部替换为 `useAnswerModalDecision` hook 调用
+- `src/renderer/src/components/AnswerModalSubcomponents.tsx`：`LingSiTraceData` 改为从 hook 重新导出，消除循环定义
+
+---
+
+#### 测试覆盖
+
+- `src/renderer/src/stores/__tests__/canvasStore.decisionFreezefix.test.ts`（NEW）：8 个专项测试覆盖本次全部 bug fix
+- 总测试：621 passed / 0 failed（之前 613 passed / 2 failed）
+
+---
+
 ## [0.5.33] - 2026-03-19
 
 ### fix: 决策卡卡死根治 (P7) — 稳定 callback 身份 + 细粒度 zustand selector

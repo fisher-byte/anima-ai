@@ -94,6 +94,12 @@ export type DecisionSourceType =
 export type DecisionMode = 'normal' | 'decision'
 
 /**
+ * 决策 Persona 标识符
+ * 新增 persona 时此处同步扩展，编译时全量静态检查
+ */
+export type DecisionPersonaId = 'lenny' | 'zhang' | 'pg' | 'wang'
+
+/**
  * v2 里用于解构 persona 决策风格的心理学/行为学框架。
  * 注意：这些框架用于建模“如何做决策”，不是给用户做人格诊断。
  */
@@ -160,7 +166,7 @@ export interface DecisionSourceRef {
  */
 export interface DecisionUnit {
   id: string
-  personaId: string
+  personaId: DecisionPersonaId
   title: string
   summary: string
   scenario: string
@@ -271,7 +277,7 @@ export interface DecisionTrace {
  */
 export interface DecisionRecord {
   id: string
-  personaId: string
+  personaId: DecisionPersonaId
   mode: DecisionMode
   decisionType: string
   stage?: string

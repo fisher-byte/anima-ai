@@ -419,7 +419,10 @@ export const useCanvasStore = create<CanvasState>()(
   },
   setOnboardingPhase: (phase) => set({ onboardingPhase: phase }),
   setLennyDecisionMode: (mode) => {
-    if (mode === get().lennyDecisionMode) return
+    const { lennyDecisionMode, currentConversation } = get()
+    // 同时检查 currentConversation.decisionTrace 是否也已同步，避免跳过对话的更新
+    const traceAligned = currentConversation?.decisionTrace?.mode === mode
+    if (mode === lennyDecisionMode && traceAligned) return
     set((state) => ({
       lennyDecisionMode: mode,
       currentConversation: state.isLennyMode && !state.isPGMode && !state.isZhangMode && !state.isWangMode && state.currentConversation
@@ -433,7 +436,9 @@ export const useCanvasStore = create<CanvasState>()(
     }))
   },
   setZhangDecisionMode: (mode) => {
-    if (mode === get().zhangDecisionMode) return
+    const { zhangDecisionMode, currentConversation } = get()
+    const traceAligned = currentConversation?.decisionTrace?.mode === mode
+    if (mode === zhangDecisionMode && traceAligned) return
     set((state) => ({
       zhangDecisionMode: mode,
       currentConversation: state.isLennyMode && state.isZhangMode && state.currentConversation
@@ -2037,7 +2042,10 @@ export const useCanvasStore = create<CanvasState>()(
       else if (sourceHint === 'wang') set({ isLennyMode: true, isPGMode: false, isZhangMode: false, isWangMode: true, isCustomSpaceMode: false })
       else if (sourceHint.startsWith('custom-')) {
         const spaceId = sourceHint.slice('custom-'.length)
-        set({ isCustomSpaceMode: true, activeCustomSpaceId: spaceId, isLennyMode: false })
+        // M1 guard: 空 spaceId 时不恢复 custom space mode，避免设置无效的 activeCustomSpaceId
+        if (spaceId) {
+          set({ isCustomSpaceMode: true, activeCustomSpaceId: spaceId, isLennyMode: false })
+        }
       }
     }
 
