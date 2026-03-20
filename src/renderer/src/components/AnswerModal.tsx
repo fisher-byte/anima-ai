@@ -882,6 +882,15 @@ export function AnswerModal() {
       if (systemPromptOverride) {
         const decisionPayload = await buildLingSiRequest(conv.userMessage)
         const shouldPersistHistory = !isLennyMode && !isCustomSpaceMode
+        lastDeepSearchContextRef.current = {
+          conversationId: conv.id,
+          messages: [{ role: 'user', content: conv.userMessage }] as any,
+          preferences,
+          compressedMemory: compressed,
+          isOnboarding: false,
+          systemPromptOverride,
+          extraContext: decisionPayload.extraContext,
+        }
         sendMessage(
           conv.userMessage,
           preferences,
@@ -909,10 +918,10 @@ export function AnswerModal() {
   }, [isModalOpen, currentConversation?.id, isOnboardingMode, isLoading, resetHistory, sendMessage, getPreferencesForPrompt, getRelevantMemories, isLennyMode, isCustomSpaceMode, buildLingSiRequest, resolveAssistantPromptOverride])
 
   // ── 深度搜索后台任务轮询：可跨页面继续，完成后回写到当前节点 ────────────────
+  // Lenny / 自定义空间同样可能触发 deep_search，需轮询否则界面会一直停在「进行中」
   useEffect(() => {
     if (!isModalOpen) return
     if (!currentConversation?.id) return
-    if (isLennyMode || isCustomSpaceMode) return
 
     const convId = currentConversation.id
     const ds = currentConversation.deepSearch
@@ -991,7 +1000,7 @@ export function AnswerModal() {
     void tick()
     const id = setInterval(() => { void tick() }, 3000)
     return () => { cancelled = true; clearInterval(id) }
-  }, [isModalOpen, currentConversation?.id, currentConversation?.deepSearch?.status, deepSearchState?.status, isLennyMode, isCustomSpaceMode, updateConversation, showToast])
+  }, [isModalOpen, currentConversation?.id, currentConversation?.deepSearch?.status, deepSearchState?.status, updateConversation, showToast])
 
   // ── 编辑 / 重生成 / 复制 ────────────────────────────────────────────────────
   const handleStartEdit = (index: number, content: string) => {
@@ -1021,6 +1030,15 @@ export function AnswerModal() {
     if (systemPromptOverride) {
       const decisionPayload = await buildLingSiRequest(newContent)
       const shouldPersistHistory = !isLennyMode && !isCustomSpaceMode
+      lastDeepSearchContextRef.current = {
+        conversationId: currentConversation.id,
+        messages: [...history, { role: 'user', content: newContent }] as any,
+        preferences,
+        compressedMemory: undefined,
+        isOnboarding: false,
+        systemPromptOverride,
+        extraContext: decisionPayload.extraContext,
+      }
       sendMessage(newContent, preferences, history, currentTurn.images, undefined, undefined, shouldPersistHistory ? currentConversation.id : undefined, systemPromptOverride, decisionPayload.extraContext)
     } else {
       sendMessage(newContent, preferences, history, currentTurn.images, undefined, undefined, currentConversation.id)
@@ -1049,6 +1067,15 @@ export function AnswerModal() {
     if (systemPromptOverride) {
       const decisionPayload = await buildLingSiRequest(sanitizedUser)
       const shouldPersistHistory = !isLennyMode && !isCustomSpaceMode
+      lastDeepSearchContextRef.current = {
+        conversationId: currentConversation.id,
+        messages: [...history, { role: 'user', content: sanitizedUser }] as any,
+        preferences,
+        compressedMemory: undefined,
+        isOnboarding: false,
+        systemPromptOverride,
+        extraContext: decisionPayload.extraContext,
+      }
       sendMessage(sanitizedUser, preferences, history, currentTurn.images, undefined, undefined, shouldPersistHistory ? currentConversation.id : undefined, systemPromptOverride, decisionPayload.extraContext)
     } else {
       sendMessage(sanitizedUser, preferences, history, currentTurn.images, undefined, undefined, currentConversation.id)
@@ -1274,6 +1301,15 @@ export function AnswerModal() {
     if (systemPromptOverride) {
       const decisionPayload = await buildLingSiRequest(fullTrimmed)
       const shouldPersistHistory = !isLennyMode && !isCustomSpaceMode
+      lastDeepSearchContextRef.current = {
+        conversationId: currentConversation?.id,
+        messages: [...history, { role: 'user', content: fullMessage }] as any,
+        preferences,
+        compressedMemory: compressed,
+        isOnboarding: isOnboardingMode,
+        systemPromptOverride,
+        extraContext: decisionPayload.extraContext,
+      }
       sendMessage(fullMessage, preferences, history, pendingImages, compressed, false, shouldPersistHistory ? currentConversation?.id : undefined, systemPromptOverride, decisionPayload.extraContext)
     } else {
       // 记录上下文，便于“关闭窗口→后台继续深度搜索”
@@ -1308,7 +1344,7 @@ export function AnswerModal() {
     // 若仍在生成中：将本次对话“转入后台深度搜索”，然后再关闭窗口
     // 目标：用户退出后继续跑，完成后再回来能看到“已完成”。
     let handedOffToDeepSearch = false
-    if (isStreaming && currentConversation?.id && !isLennyMode && !isCustomSpaceMode) {
+    if (isStreaming && currentConversation?.id) {
       try {
         const ctx = lastDeepSearchContextRef.current
         const fallbackHistory = buildAIHistory(turns)
@@ -1625,8 +1661,8 @@ export function AnswerModal() {
                   </motion.button>
                 </div>
 
-                {/* 对话内容区 */}
-                <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6 scroll-smooth space-y-8">
+                {/* 对话内容区（仅消息滚动；灵思条与决策卡见下方吸底区） */}
+                <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-6 py-6 scroll-smooth space-y-8">
                   <div className="max-w-2xl mx-auto space-y-10">
                     {isLoading ? (
                       <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -1781,8 +1817,12 @@ export function AnswerModal() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
 
-                    {/* 决策模块：移到 turns 循环外，脱离高频重渲染树 */}
+                {/* 灵思轨迹 + 决策卡：贴在输入框上方，不随上方长文滚出可视区域 */}
+                <div className="shrink-0 px-6 pt-2 pb-1 bg-white border-t border-gray-100/90">
+                  <div className="max-w-2xl mx-auto space-y-3">
                     {shouldShowLingSiTrace && activeDecisionTrace && (
                       <LingSiTracePanel
                         mode={activeDecisionTrace.mode}

@@ -1,3 +1,23 @@
+## [0.5.41] - 2026-03-21
+
+### fix: 灵思模式与对话区 — 语言约束、trace 续问、思考解析、Lenny 深度搜索轮询、决策卡吸底
+
+**问题**：@Lenny 偶发英文回复；从历史进入灵思后续问掉回普通模式；`[/THINKING]` 与思考内容混入正文或未折叠；Lenny/自定义空间触发深度搜索后前端不轮询导致长期「进行中」；决策卡随长文滚出视区。
+
+**修复**：
+
+- `constants.ts`：Lenny / PG / 张小龙 / 王慧文 system prompt — **默认简体中文**，仅当用户整段以英文为主时使用英文。
+- `personaSpaces.ts`：`resolveDecisionModeForPersona` 在公开空间若 `decisionTrace.mode === 'decision'` 且 persona 一致则优先灵思。
+- `lingsiDecisionEngine.ts`：`mergeDecisionTrace` 在已有 `decision` 且 payload 为同 persona 的 `normal` 时保留原轨迹，避免误降级。
+- `conversationUtils.ts`：`splitThinkingBlockFromAssistant`、`stripOrphanThinkingTags`，宽松匹配 `[/THINKING]`；`stripLeadingNumberHeading` 同步。
+- `ThinkingSection.tsx`：默认收起，流式/等待时展开。
+- `AnswerModal.tsx`：深度搜索 `useEffect` 不再跳过 Lenny/自定义空间；灵思相关 `sendMessage` 路径设置 `lastDeepSearchContextRef`；关窗转后台不再排除 Lenny；灵思轨迹 + 决策卡移出滚动区至输入区上方。
+- `e2e/features.spec.ts`：无 Bearer 访问 `/api/memory/facts` 与 v0.5.40 强鉴权对齐，接受 200 或 401。
+
+**测试**：631/631 passed（35 files）；`npx tsc --noEmit` 0 错误；`npm run build` 成功；E2E 45 passed / 3 skipped（48 用例）。
+
+---
+
 ## [0.5.40] - 2026-03-20
 
 ### security: 多租户鉴权强制 + 前端登录门禁 + 误存数据清理脚本

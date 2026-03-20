@@ -1,8 +1,16 @@
 # Anima 开发笔记
 
-*最后更新: 2026-03-20 | 版本: v0.5.40*
+*最后更新: 2026-03-21 | 版本: v0.5.41*
 
 这里记录架构决策、踩坑经历和性能优化心得，供后续维护参考。
+
+### v0.5.41 — 灵思 / 对话区一致性（2026-03-21）
+
+- **语言**：公开空间 Lenny/PG/张小龙/王慧文 system prompt 统一为「默认简体中文」，减少 @Lenny 在中文语境下英文整段回复。
+- **灵思 trace**：`resolveDecisionModeForPersona` 在公开空间优先尊重会话内 `decisionTrace.mode === 'decision'`；`mergeDecisionTrace` 避免续问 payload 误传 `normal` 时清空已有决策轨迹。
+- **思考块**：`splitThinkingBlockFromAssistant` / `stripOrphanThinkingTags` 宽松解析 `[/THINKING]`，避免标签漏进正文；`ThinkingSection` 默认收起、流式时展开。
+- **深度搜索**：`AnswerModal` 对 Lenny/自定义空间同样轮询 `deep-search/status`；灵思发消息路径补齐 `lastDeepSearchContextRef`（含 `systemPromptOverride` / `extraContext`），关窗可转后台。
+- **布局**：灵思轨迹 + 决策卡移出消息滚动区，贴在输入框上方，长文滚动时仍可见。
 
 ---
 

@@ -2,6 +2,14 @@
 
 ## 计划中版本
 
+#### v0.5.41 - 灵思 / 对话区修复（语言、trace、思考解析、深度搜索、决策卡布局）（已完成）
+- [x] System prompt：公开空间默认简体中文，减少 Lenny 英文整段回复
+- [x] `resolveDecisionModeForPersona` + `mergeDecisionTrace`：历史灵思续问不丢 `decision` 轨迹
+- [x] `conversationUtils` + `ThinkingSection`：宽松 `[/THINKING]` 解析与完成态折叠
+- [x] `AnswerModal`：Lenny/自定义空间深度搜索轮询 + 灵思 deep-search 上下文 ref + 决策卡吸底
+- [x] E2E：无 token 访问 memory/facts 与强鉴权行为对齐（200 或 401）
+- [x] 验证：`npm test`（631/631）、`npm run typecheck`、`npm run build`、`npm run test:e2e`（45 passed / 3 skipped）
+
 #### v0.5.40 - 多租户数据串味修复（鉴权强制 + 运维清理脚本）（已完成）
 - [x] `auth.ts`：生产需鉴权时无 Bearer → 401，禁止 API 落入共享 `data/anima.db`
 - [x] `App.tsx` + `LoginPage`：与 `/api/auth/status` 对齐，未登录不加载画布数据

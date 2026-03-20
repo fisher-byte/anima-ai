@@ -389,11 +389,12 @@ test('InputBox textarea 可以输入文字，发送按钮状态正确', async ({
   await expect(textarea).toHaveValue('')
 })
 
-// ── 测试 21：无 token 请求使用 _default 用户桶，返回 200 ───────────────────────
-test('无 Authorization token 请求 /api/memory/facts 返回 200（开放模型）', async ({ request }) => {
-  // 当前 auth 模型：任何请求均被接受；无 token → _default 用户桶
+// ── 测试 21：无 token 时行为随鉴权配置变化（v0.5.40+）──────────────────────────
+test('无 Authorization token 请求 /api/memory/facts：开放 200 或强鉴权 401', async ({ request }) => {
+  // v0.5.40+：生产配置了 ACCESS_TOKEN 且无 AUTH_DISABLED 时，无 Bearer → 401
+  // 本地 AUTH_DISABLED=true 或未配置 token 时，仍可能落到默认桶 → 200
   const resp = await request.get(`${API_BASE}/api/memory/facts`)
-  expect(resp.status()).toBe(200)
+  expect([200, 401]).toContain(resp.status())
 })
 
 // ── 测试 22：任意 token 均被接受，返回 200 ────────────────────────────────────

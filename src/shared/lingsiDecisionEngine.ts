@@ -479,7 +479,14 @@ export function mergeDecisionTrace(
   existing: DecisionTrace | undefined,
   next: DecisionTrace,
 ): DecisionTrace {
-  if (next.mode === 'normal') return { mode: 'normal', personaId: next.personaId ?? existing?.personaId }
+  // 续问时若 payload 误传 normal，勿清空已有灵思轨迹（显式切回 normal 时 existing 已由 store 写成 normal）
+  if (next.mode === 'normal') {
+    const persona = next.personaId ?? existing?.personaId
+    if (existing?.mode === 'decision' && (!persona || existing.personaId === persona)) {
+      return existing
+    }
+    return { mode: 'normal', personaId: persona }
+  }
   return {
     mode: 'decision',
     personaId: next.personaId ?? existing?.personaId,
