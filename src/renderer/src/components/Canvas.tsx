@@ -1050,8 +1050,8 @@ export function Canvas() {
       )}
 
       {/* Spaces 侧边栏 — My Spaces + Public Spaces 合并到同一个 fixed 容器，自底向上堆叠 */}
-      {/* flex-col-reverse：header（折叠按钮/pill）始终锚定在 bottom-36，空间列表向上延伸 */}
-      <div className="fixed left-4 bottom-36 z-30 flex flex-col-reverse gap-1.5">
+      {/* flex-col-reverse：header（折叠按钮/pill）锚定在底部上方，预留更多与输入区的间距 */}
+      <div className="fixed left-4 bottom-44 z-30 flex flex-col-reverse gap-1.5">
         {/* 折叠/展开切换按钮 — 在 flex-col-reverse 中渲染顺序靠前 = 视觉上在底部 */}
         <div className={`flex items-center mt-0.5 ${isSpacesSidebarVisible ? 'justify-between w-[168px]' : 'justify-start'}`}>
           {isSpacesSidebarVisible && (

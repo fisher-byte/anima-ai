@@ -1,6 +1,6 @@
 # Anima 测试手册
 
-*最后更新: 2026-03-21 | 版本: v0.5.44*
+*最后更新: 2026-03-21 | 版本: v0.5.45*
 
 ## 测试策略
 
@@ -21,6 +21,7 @@
 - ✅ `services/ai.ts` — 前端 AI 服务（20 个用例）
 - ✅ `services/lingsi.ts` — LingSi seed 初始化、加载与 persona 过滤（3 个用例）
 - ✅ `services/decisionRecords.ts` — 进行中决策聚合、due 识别与验证台账排序（2 个用例）
+- ✅ `utils/decisionDisplay.ts` — 决策列表标题/预览、去 mention（4 个用例）
 - ✅ `canvasStore.nodeConsolidation.test.ts` — 节点聚合逻辑（25 个用例）
   - 节点合并阈值、相似度判断、聚合后数据一致性
 - ✅ `canvasStore.lennyMode.test.ts` — Lenny Space 模式（19 个用例）
@@ -115,7 +116,7 @@ npm run test:watch    # 监听模式（开发时用）
 
 - ✅ `memory.test.ts` — 记忆路由集成测试（含 FTS5 trigger、引用块过滤、decayPreferences、语义边 by-id）
 
-**总测试数**: **631 个用例，35 个测试文件，全部通过**
+**总测试数**: **635 个用例，36 个测试文件，全部通过**
 
 ---
 

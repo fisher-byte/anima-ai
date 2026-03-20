@@ -2,6 +2,12 @@
 
 ## 计划中版本
 
+#### v0.5.45 - 决策列表标题/预览 + 决策追踪布局与视觉（已完成）
+- [x] `decisionDisplay.ts`：列表标题、一行预览、去 `@Lenny Rachitsky` 类 mention；内部 slug 型 `decisionType` 回退用户问题
+- [x] `decisionRecords.ts` + 单测；`DecisionHubPanel` / `OngoingDecisionsSidebar` / `Canvas` 布局与 stone/amber 风格
+- [x] 文档：`.env.example` / `dev-guide` / `troubleshooting` 说明本地 token 与 `AUTH_DISABLED`
+- [x] 验证：`npm test`（635/635）、`npx tsc --noEmit`、`npm run build`、`npm run test:e2e`（45 passed / 3 skipped）
+
 #### v0.5.44 - 主画布节点防堆叠 + 进行中决策侧栏独立（已完成）
 - [x] `Canvas`：首次有记忆节点时 `forceSim.kick()`（不再仅 `startRotation`）
 - [x] `useForceSimulation`：斥力/弹簧参数 + 近距软斥力

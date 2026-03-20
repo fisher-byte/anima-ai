@@ -86,7 +86,7 @@ describe('decisionRecords service', () => {
     expect(items).toHaveLength(2)
     expect(items[0].conversation?.invokedAssistant?.id).toBe('zhang')
     expect(items[1].conversation?.invokedAssistant?.id).toBe('lenny')
-    expect(items[1].title).toContain('Lenny Rachitsky')
+    expect(items[1].title).toContain('怎么想职业方向')
     expect(items[0].notes).toBe('用户执行了一半。')
     expect(items[1].adoptedAt).toBe('2026-03-18T06:00:00.000Z')
   })

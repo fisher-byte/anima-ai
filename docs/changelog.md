@@ -1,3 +1,21 @@
+## [0.5.45] - 2026-03-21
+
+### fix: 决策列表可读性 + 决策追踪与侧栏视觉/布局（避免压住输入区）
+
+**问题**：决策时间线标题多为 `@人名 + 长问句`，看不出在决策什么；决策追踪大面板与底部输入重叠；嵌套白卡与亮蓝徽标与琥珀主风格冲突；左侧空间区与底部过挤。
+
+**改动**：
+
+- 新增 `decisionDisplay.ts`：`buildDecisionListTitle` / `buildDecisionPreviewLine`、去英文/中文 mention；内部 `decisionType`（如 `career`）回退到去 mention 后的用户问题。
+- `decisionRecords.ts`：列表 `title` 使用上述逻辑；单测与 `decisionDisplay.test.ts` 对齐。
+- `DecisionHubPanel`：`bottom-44` + `max-h` + `min-h-0` 滚动；面板与卡片改为 stone/amber 低对比；摘要用预览行替代整段 `recommendationSummary` 重复堆叠。
+- `OngoingDecisionsSidebar`：时间线卡片柔和底 + 一行预览。
+- `Canvas.tsx`：左侧 fixed 容器 `bottom-36` → `bottom-44`，与输入区间距加大。
+
+**测试**：635/635 passed（36 files）；`tsc` 0 错误；`npm run build` 成功；E2E 45 passed / 3 skipped。
+
+---
+
 ## [0.5.44] - 2026-03-21
 
 ### fix: 主画布节点防堆叠 +「进行中决策」侧栏独立模块

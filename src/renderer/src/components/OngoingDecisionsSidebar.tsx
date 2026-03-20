@@ -6,6 +6,7 @@
 import { BrainCircuit } from 'lucide-react'
 import { useT } from '../i18n'
 import type { OngoingDecisionItem } from '../services/decisionRecords'
+import { buildDecisionPreviewLine } from '../utils/decisionDisplay'
 
 export interface OngoingDecisionsSidebarProps {
   items: OngoingDecisionItem[]
@@ -80,23 +81,31 @@ export function OngoingDecisionsSidebar({
 
       {items.length > 0 ? (
         <div className="space-y-2 px-2 pb-3">
-          {items.map((item) => (
+          {items.map((item) => {
+            const previewLine = buildDecisionPreviewLine(item.decisionRecord)
+            return (
             <button
               key={item.conversationId}
               type="button"
               onClick={() => onSelectItem(item)}
-              className="w-full rounded-xl border border-amber-100/90 bg-white/90 px-3 py-2.5 text-left shadow-sm transition hover:border-amber-200 hover:shadow-md"
+              className="w-full rounded-xl border border-amber-200/55 bg-amber-50/35 px-3 py-2.5 text-left shadow-sm transition hover:border-amber-300/70 hover:bg-amber-50/55 hover:shadow-md"
             >
               <div className="flex items-center justify-between gap-2">
-                <div className="truncate text-[11px] font-semibold text-gray-800">{item.personaName}</div>
-                <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-900/80 ring-1 ring-amber-100">
+                <div className="truncate text-[11px] font-semibold text-amber-950/90">{item.personaName}</div>
+                <span className="shrink-0 rounded-full bg-amber-100/80 px-2 py-0.5 text-[10px] font-medium text-amber-950/85 ring-1 ring-amber-200/60">
                   {getDecisionStatusLabel(item.decisionRecord.status)}
                 </span>
               </div>
-              <div className="mt-1 line-clamp-2 text-[12px] leading-5 text-gray-800">{item.title}</div>
+              <div className="mt-1 line-clamp-2 text-[12px] font-semibold leading-5 text-stone-900">{item.title}</div>
+              {previewLine ? (
+                <div className="mt-1 line-clamp-2 text-[11px] leading-snug text-stone-600/90">
+                  {previewLine}
+                </div>
+              ) : null}
               <div className="mt-1.5 text-[10px] text-amber-900/45">{t.canvas.ongoingDecisionDue(formatDecisionDue(item.revisitAt))}</div>
             </button>
-          ))}
+            )
+          })}
         </div>
       ) : (
         <div className="mx-2 mb-3 rounded-xl border border-dashed border-amber-200/70 bg-amber-50/40 px-3 py-3 text-[11px] leading-5 text-amber-900/55">

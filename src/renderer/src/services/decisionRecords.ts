@@ -1,7 +1,7 @@
 import type { AssistantInvocation, Conversation, DecisionRecord } from '@shared/types'
 import { STORAGE_FILES } from '@shared/constants'
 
-import { stripLinkedContextHints } from '../utils/conversationUtils'
+import { buildDecisionListTitle } from '../utils/decisionDisplay'
 import { storageService, getAuthToken } from './storageService'
 
 export const DECISION_RECORDS_UPDATED_EVENT = 'anima:decision-records-updated'
@@ -111,11 +111,6 @@ function buildInvokedAssistant(source: DecisionSource, decisionRecord?: Decision
   return undefined
 }
 
-function sanitizeTitle(raw: string): string {
-  const clean = stripLinkedContextHints(raw || '').replace(/\s+/g, ' ').trim()
-  return clean.length <= 36 ? clean : `${clean.slice(0, 36)}…`
-}
-
 function normalizeConversation(conv: Conversation, source: DecisionSource): Conversation {
   if (conv.invokedAssistant) return conv
   const invokedAssistant = buildInvokedAssistant(source, conv.decisionRecord)
@@ -161,7 +156,10 @@ export async function listOngoingDecisionItems(): Promise<OngoingDecisionItem[]>
           decisionRecord: entry.decisionRecord,
           personaName,
           source: entry.source,
-          title: sanitizeTitle(entry.title ?? entry.decisionRecord.userQuestion ?? ''),
+          title: buildDecisionListTitle(
+            entry.decisionRecord,
+            entry.title ?? entry.decisionRecord.userQuestion ?? '',
+          ),
           revisitAt: entry.decisionRecord.outcome?.revisitAt,
           adoptedAt: entry.decisionRecord.outcome?.adoptedAt,
           result: entry.decisionRecord.outcome?.result,
@@ -211,7 +209,7 @@ export async function listOngoingDecisionItems(): Promise<OngoingDecisionItem[]>
           decisionRecord: conv.decisionRecord,
           personaName,
           source,
-          title: sanitizeTitle(conv.decisionRecord.userQuestion || conv.userMessage),
+          title: buildDecisionListTitle(conv.decisionRecord, conv.decisionRecord.userQuestion || conv.userMessage),
           revisitAt: conv.decisionRecord.outcome?.revisitAt,
           adoptedAt: conv.decisionRecord.outcome?.adoptedAt,
           result: conv.decisionRecord.outcome?.result,

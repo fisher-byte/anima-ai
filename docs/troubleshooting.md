@@ -1,10 +1,21 @@
 # Anima 问题排查指南
 
-*最后更新: 2026-03-21 | 版本: v0.5.44*
+*最后更新: 2026-03-21 | 版本: v0.5.45*
 
 ---
 
 ## 常见问题速查
+
+### 问题0: 本地 `npm run dev` 也要访问令牌 / 登录页
+
+**原因**：本地 `.env` 若配置了 `ACCESS_TOKEN` 或 `ACCESS_TOKENS`，服务端会进入与生产一致的鉴权模式，前端需带 Bearer 登录。
+
+**处理**（选一）：
+
+1. 开发时关闭鉴权：`.env` 中设 `AUTH_DISABLED=true`，或删除 `ACCESS_TOKEN` / `ACCESS_TOKENS` 后重启 `npm run dev`。
+2. 需与线上一致联调：在登录页填入与服务器 `/opt/evocanvas/.env` 相同的令牌；若本地改了多 token，部署时用 `SYNC_ENV=1 bash docs/scripts/deploy.sh` 合并到服务器（见 `docs/deployment-server.md`）。
+
+---
 
 ### 问题1: AI不回复 / 一直显示"等待AI回复" / API error: 400
 

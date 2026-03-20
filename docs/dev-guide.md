@@ -1,6 +1,6 @@
 # Anima 开发指南
 
-*最后更新: 2026-03-21 | 版本: v0.5.44*
+*最后更新: 2026-03-21 | 版本: v0.5.45*
 
 ## 环境准备
 
@@ -23,6 +23,8 @@ cp .env.example .env
 # 按需设置 PORT / DATA_DIR / ACCESS_TOKEN 等
 ```
 
+**本地仍出现登录页 / 要求访问令牌**：若 `.env` 里配置了 `ACCESS_TOKEN` 或 `ACCESS_TOKENS`（例如从生产复制），服务端会按**需鉴权**运行，与线上一致。本地想免登录可设 `AUTH_DISABLED=true`，或删除上述 token 配置后重启。多端 token 需与服务器一致时，见 `docs/deployment-server.md` 的 `SYNC_ENV=1` 部署说明。
+
 **API Key 不在 `.env` 中配置**，启动后在 UI 右上角设置页面填写，保存到服务端 SQLite。
 
 ---
@@ -36,7 +38,7 @@ cp .env.example .env
 | `npm run dev:server` | 仅启动后端（tsx watch 热重载） |
 | `npm run build` | 构建前端到 `dist/` |
 | `npm start` | 生产模式启动（同时服务 API + 静态文件，端口 3000） |
-| `npm test` | 运行所有测试（单元 + 集成，当前 631 个用例，35 个文件） |
+| `npm test` | 运行所有测试（单元 + 集成，当前 635 个用例，36 个文件） |
 | `npm run test:watch` | 监听模式（开发时用） |
 | `npm run typecheck` | TypeScript 类型检查 |
 | `npm run lint` | ESLint 检查 |
