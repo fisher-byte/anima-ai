@@ -13,7 +13,8 @@ export interface OngoingDecisionItem {
   decisionRecord: DecisionRecord
   personaName: string
   // 'custom-{spaceId}' 表示自定义 Space 对话，其他值为固定 persona 空间
-  source: 'main' | 'lenny' | 'zhang' | 'pg' | 'wang' | (string & {})
+  /** 固定空间 + 自定义 `custom-{id}` 等字符串 */
+  source: 'main' | 'lenny' | 'zhang' | 'pg' | 'wang' | (string & Record<string, never>)
   title: string
   revisitAt?: string
   adoptedAt?: string

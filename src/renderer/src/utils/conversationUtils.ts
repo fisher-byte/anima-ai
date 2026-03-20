@@ -61,6 +61,55 @@ export type Turn = {
   memories?: { conv: Conversation; category?: string }[]
 }
 
+/** 移除正文中裸漏的 THINKING 标记（模型格式漂移或解析异常时的兜底） */
+export function stripOrphanThinkingTags(text: string): string {
+  return text
+    .replace(/\[\s*\/\s*THINKING\s*\]/gi, '')
+    .replace(/\[\s*THINKING\s*\]/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+/**
+ * 从单段 AI 正文中拆出「思考」与对外正文。
+ * 先尝试严格哨兵，再宽松匹配 [/THINKING]（允许单换行、标签周围空格），最后兜底「思考：…\n\n正文」旧格式。
+ */
+export function splitThinkingBlockFromAssistant(raw: string): { reasoning?: string; body: string } {
+  const trimmed = raw.trimEnd()
+  const strict = trimmed.match(/^思考：([\s\S]*?)\n\n\[\/THINKING\]\n\n([\s\S]*)$/)
+  if (strict) {
+    return {
+      reasoning: strict[1].trim() || undefined,
+      body: stripOrphanThinkingTags(strict[2].trim()),
+    }
+  }
+  const closeRe = /\[\s*\/\s*THINKING\s*\]/i
+  const closeMatch = closeRe.exec(trimmed)
+  if (closeMatch) {
+    const before = trimmed.slice(0, closeMatch.index).trimEnd()
+    let body = trimmed.slice(closeMatch.index + closeMatch[0].length).trim()
+    body = body.replace(/^\[\s*THINKING\s*\]\s*/i, '').trim()
+    let reasoningPart = before
+    if (/^思考[：:]/.test(reasoningPart)) {
+      reasoningPart = reasoningPart.replace(/^思考[：:]\s*/, '').trim()
+    } else {
+      reasoningPart = before.trim()
+    }
+    return {
+      reasoning: reasoningPart || undefined,
+      body: stripOrphanThinkingTags(body),
+    }
+  }
+  const legacy = trimmed.match(/^思考：([\s\S]*)\n\n([\s\S]+)$/)
+  if (legacy) {
+    return {
+      reasoning: legacy[1].trim() || undefined,
+      body: stripOrphanThinkingTags(legacy[2].trim()),
+    }
+  }
+  return { body: stripOrphanThinkingTags(trimmed) }
+}
+
 // ── 工具函数 ──────────────────────────────────────────────────────────────────
 
 const MEMORY_USER_MAX = 80
@@ -101,14 +150,9 @@ export function parseTurnsFromAssistantMessage(
 ): Turn[] | null {
   if (!message) return null
   if (!message.includes('#1\n') && !message.includes('# 1\n')) {
-    let singleAssistant = message
-    let singleReasoning = reasoning
-    // 提取哨兵格式的 [THINKING] 块
-    const thinkMatch = message.match(/^思考：([\s\S]*?)\n\n\[\/THINKING\]\n\n([\s\S]*)$/)
-    if (thinkMatch) {
-      singleReasoning = thinkMatch[1].trim()
-      singleAssistant = thinkMatch[2].trim()
-    }
+    const split = splitThinkingBlockFromAssistant(message)
+    const singleAssistant = split.body
+    const singleReasoning = split.reasoning ?? reasoning
     return [{ user: '', assistant: singleAssistant, reasoning: singleReasoning, images: initialImages, files: initialFiles }]
   }
   const turns: Turn[] = []
@@ -118,14 +162,9 @@ export function parseTurnsFromAssistantMessage(
     const userContent = match[2].trim()
     let aiContent = match[3].trim()
     const index = parseInt(match[1])
-    let turnReasoning: string | undefined
-    const reasoningMatch = aiContent.includes('[/THINKING]')
-      ? aiContent.match(/^思考：([\s\S]*?)\n\n\[\/THINKING\]\n\n([\s\S]*)$/)
-      : aiContent.match(/^思考：([\s\S]*)\n\n([\s\S]+)$/)
-    if (reasoningMatch) {
-      turnReasoning = reasoningMatch[1].trim()
-      aiContent = reasoningMatch[2].trim()
-    }
+    const split = splitThinkingBlockFromAssistant(aiContent)
+    const turnReasoning = split.reasoning
+    aiContent = split.body
     if (userContent || aiContent) {
       turns.push({
         user: userContent,
@@ -144,8 +183,9 @@ export function parseTurnsFromAssistantMessage(
 
 export function stripLeadingNumberHeading(text: string): string {
   if (!text) return text
-  // 哨兵格式（已关闭对话）
-  let s = text.replace(/^思考：[\s\S]*?\[\/THINKING\]\n\n/, '').trim()
+  // 哨兵格式（已关闭对话）：宽松匹配 [/THINKING] 与换行
+  let s = text.replace(/^思考：[\s\S]*?\[\s*\/\s*THINKING\s*\]\s*/i, '').trim()
+  s = stripOrphanThinkingTags(s)
   // 流式/旧格式：思考内容未加哨兵时也剥掉
   if (s.startsWith('思考：')) {
     // 有哨兵时已处理，这里处理无哨兵的流式情况：剥掉整个思考块到第一个双换行

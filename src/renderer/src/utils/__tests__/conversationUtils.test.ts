@@ -16,7 +16,9 @@ import {
   buildAIHistory,
   stripFileBlocksOnly,
   stripFileBlocksFromMessage,
-  FILE_BLOCK_PREFIX
+  FILE_BLOCK_PREFIX,
+  splitThinkingBlockFromAssistant,
+  stripOrphanThinkingTags,
 } from '../conversationUtils'
 import type { Conversation } from '../../../../shared/types'
 
@@ -207,6 +209,32 @@ describe('parseTurnsFromAssistantMessage', () => {
     expect(result![0].reasoning).toBe('这是思考内容')
     expect(result![0].assistant).toBe('这是正文')
   })
+
+  it('parses single-turn thinking with single newline before [/THINKING]', () => {
+    const msg = '思考：短\n[/THINKING]\n下文'
+    const result = parseTurnsFromAssistantMessage(msg)
+    expect(result![0].reasoning).toBe('短')
+    expect(result![0].assistant).toBe('下文')
+  })
+
+  it('parses spaced [/THINKING] tag and strips orphan tags from body', () => {
+    const msg = '思考：内\n[ / THINKING ]\n正文'
+    const result = parseTurnsFromAssistantMessage(msg)
+    expect(result![0].reasoning).toBe('内')
+    expect(result![0].assistant).toBe('正文')
+  })
+})
+
+describe('splitThinkingBlockFromAssistant / stripOrphanThinkingTags', () => {
+  it('splits loose sentinel', () => {
+    const { reasoning, body } = splitThinkingBlockFromAssistant('思考：a\n[/THINKING]\nb')
+    expect(reasoning).toBe('a')
+    expect(body).toBe('b')
+  })
+
+  it('stripOrphanThinkingTags removes bare markers', () => {
+    expect(stripOrphanThinkingTags('前[/THINKING]后')).toBe('前后')
+  })
 })
 
 // ── stripLeadingNumberHeading ──────────────────────────────────────────────
@@ -219,6 +247,11 @@ describe('stripLeadingNumberHeading', () => {
   it('strips THINKING sentinel block', () => {
     const text = '思考：内部推理\n\n[/THINKING]\n\n正文内容'
     expect(stripLeadingNumberHeading(text)).toBe('正文内容')
+  })
+
+  it('strips sentinel with single newline after [/THINKING]', () => {
+    const text = '思考：x\n[/THINKING]\n正文'
+    expect(stripLeadingNumberHeading(text)).toBe('正文')
   })
 
   it('strips leading #N heading', () => {

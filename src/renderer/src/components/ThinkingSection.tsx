@@ -54,7 +54,8 @@ const ThinkingMarkdown = memo(function ThinkingMarkdown({ content }: { content: 
 
 function ThinkingSectionInner({ content, isStreaming, isWaiting, forceCollapsed }: ThinkingSectionProps) {
   const { t } = useT()
-  const [isExpanded, setIsExpanded] = useState(() => !(forceCollapsed ?? false))
+  // 默认收起；仅在等待/流式且允许展开时自动展开，避免历史回放长思考占满首屏
+  const [isExpanded, setIsExpanded] = useState(false)
   const [dot, setDot] = useState(0)
 
   /** 根据 thinking 内容长度返回当前思考阶段标签 */
@@ -68,9 +69,8 @@ function ThinkingSectionInner({ content, isStreaming, isWaiting, forceCollapsed 
   useEffect(() => {
     if (forceCollapsed) {
       setIsExpanded(false)
-    } else if (!forceCollapsed) {
-      // 当 forceCollapsed 从 true 变回 false 时，恢复展开（仅 isWaiting/isStreaming 状态下）
-      if (isWaiting || isStreaming) setIsExpanded(true)
+    } else if (isWaiting || isStreaming) {
+      setIsExpanded(true)
     }
   }, [forceCollapsed, isWaiting, isStreaming])
 

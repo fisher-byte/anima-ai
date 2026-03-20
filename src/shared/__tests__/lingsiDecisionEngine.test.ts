@@ -142,6 +142,21 @@ describe('lingsiDecisionEngine', () => {
     expect(merged.matchedDecisionUnitIds?.filter(id => id === 'lenny-rice-prioritize-with-confidence')).toHaveLength(1)
   })
 
+  it('mergeDecisionTrace keeps existing decision when payload is normal (same persona)', () => {
+    const existing = buildLingSiDecisionPayloadFromUnits('路线图优先级怎么排？', 'decision', units, { personaId: 'lenny' }).decisionTrace
+    const merged = mergeDecisionTrace(existing, { mode: 'normal', personaId: 'lenny' })
+    expect(merged.mode).toBe('decision')
+    expect(merged.personaId).toBe('lenny')
+    expect(merged.matchedDecisionUnitIds?.length).toBeGreaterThan(0)
+  })
+
+  it('mergeDecisionTrace applies normal when there is no existing decision trace', () => {
+    expect(mergeDecisionTrace(undefined, { mode: 'normal', personaId: 'lenny' })).toEqual({
+      mode: 'normal',
+      personaId: 'lenny',
+    })
+  })
+
   it('merges product state trace metadata without duplicating doc refs', () => {
     const first = buildLingSiDecisionPayloadFromUnits(
       'Anima 当前这个项目最该先做什么？',

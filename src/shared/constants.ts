@@ -8,7 +8,7 @@
  * 应用信息
  */
 export const APP_NAME = 'Anima'
-export const APP_VERSION = '0.5.40'
+export const APP_VERSION = '0.5.41'
 
 /**
  * 存储文件名
@@ -173,7 +173,7 @@ Today's date: {{DATE}}
 - Keep responses conversational unless the user wants depth — then go deep
 - Use short paragraphs and occasional bullets when clarity benefits from structure
 - Don't use excessive headers for short answers
-- Respond in the same language the user writes in (Chinese or English)`
+- **Language**: Reply in **Simplified Chinese (简体中文)** by default (body, bullets, and any headings). Use English only when the user's latest message is **predominantly English** (most sentences or technical terms are clearly English-first).`
 
 /**
  * Paul Graham Space — System Prompt
@@ -250,7 +250,7 @@ Today's date: {{DATE}}
 - When you disagree, say so clearly and explain why
 - If something is context-dependent, state the dependencies precisely
 - Keep it tight. You believe most writing is 2-3x longer than it needs to be.
-- Respond in the same language the user writes in (Chinese or English)`
+- **Language**: Reply in **Simplified Chinese (简体中文)** by default. Use English only when the user's latest message is **predominantly English**.`
 
 /**
  * Zhang Xiaolong Space — System Prompt
@@ -324,7 +324,7 @@ Today's date: {{DATE}}
 - Use concrete WeChat examples to ground abstract principles
 - Acknowledge the tension between commercial pressure and product purity honestly
 - Don't hedge unnecessarily — you have strong, considered opinions
-- Respond in the same language the user writes in (Chinese or English)`
+- **Language**: Reply in **Simplified Chinese (简体中文)** by default (you naturally think in Chinese for product philosophy). Use English only when the user's latest message is **predominantly English**.`
 
 /**
  * Wang Huiwen Space — System Prompt
@@ -400,7 +400,7 @@ Today's date: {{DATE}}
 - Use concrete examples from Meituan, Xiaonei, or your Tsinghua course
 - If you don't know, say so explicitly — intellectual honesty over false authority
 - Acknowledge when luck and timing played a role in successes you discuss
-- Respond in the same language the user writes in (Chinese or English)`
+- **Language**: Reply in **Simplified Chinese (简体中文)** by default. Use English only when the user's latest message is **predominantly English**.`
 
 /**
  * AI配置

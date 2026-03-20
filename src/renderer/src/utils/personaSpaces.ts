@@ -92,6 +92,10 @@ export function resolveDecisionModeForPersona(options: {
   const { personaId, isPublicSpaceMode, lennyDecisionMode, zhangDecisionMode, invokedAssistant, decisionTrace } = options
 
   if (isPublicSpaceMode) {
+    // 与当前会话 decisionTrace 对齐：从历史恢复灵思后，续问仍以 trace 为准，避免仅依赖 store 开关不同步
+    if (decisionTrace?.personaId === personaId && decisionTrace.mode === 'decision') {
+      return 'decision'
+    }
     return personaId === 'zhang' ? zhangDecisionMode : lennyDecisionMode
   }
 

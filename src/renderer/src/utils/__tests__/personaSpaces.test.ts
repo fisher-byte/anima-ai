@@ -12,6 +12,16 @@ describe('resolveDecisionModeForPersona', () => {
     })).toBe('decision')
   })
 
+  it('prefers conversation decision trace over store toggle in public space mode', () => {
+    expect(resolveDecisionModeForPersona({
+      personaId: 'lenny',
+      isPublicSpaceMode: true,
+      lennyDecisionMode: 'normal',
+      zhangDecisionMode: 'normal',
+      decisionTrace: { mode: 'decision', personaId: 'lenny', matchedDecisionUnitIds: ['u1'] },
+    })).toBe('decision')
+  })
+
   it('uses conversation trace mode for homepage public persona calls', () => {
     expect(resolveDecisionModeForPersona({
       personaId: 'zhang',
