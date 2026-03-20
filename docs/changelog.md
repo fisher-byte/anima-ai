@@ -1,3 +1,19 @@
+## [0.5.44] - 2026-03-21
+
+### fix: 主画布节点防堆叠 +「进行中决策」侧栏独立模块
+
+**问题**：主画布同类节点严重重叠；首次加载仅 `startRotation()` 时温度为 0，斥力/弹簧不推动位移。左侧「进行中决策」与空间列表视觉混为一体。
+
+**修复**：
+
+- `Canvas.tsx`：有记忆节点时统一 `forceSim.kick()`（含首次加载），保证力模拟积分生效。
+- `useForceSimulation.ts`：提高节点斥力与作用距离、略降同类弹簧与全局重心引力；新增 **近距离软斥力**（`MIN_COMFORT_DIST`）防止卡片叠在同一点。
+- `OngoingDecisionsSidebar.tsx`：从空间列表拆出，琥珀独立卡片 + `gap-3` 分区；文案走 i18n（`ongoingDecisionsDueBanner` 等）。
+
+**测试**：631/631 passed；`tsc` 0 错误；`npm run build` 成功；E2E 45 passed / 3 skipped。
+
+---
+
 ## [0.5.43] - 2026-03-21
 
 ### fix: 空间对话不关窗落盘 + 历史入口 sourceHint + 会话模式可见性

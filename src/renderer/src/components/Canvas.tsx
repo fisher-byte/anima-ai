@@ -34,6 +34,7 @@ import { CustomSpaceCanvas } from './CustomSpaceCanvas'
 import { CreateCustomSpaceModal } from './CreateCustomSpaceModal'
 import { FileBrowserPanel } from './FileBrowserPanel'
 import { DecisionHubPanel } from './DecisionHubPanel'
+import { OngoingDecisionsSidebar } from './OngoingDecisionsSidebar'
 
 import { AmbientBackground } from './AmbientBackground'
 import { ClusterLabel } from './ClusterLabel'
@@ -425,15 +426,13 @@ export function Canvas() {
     }
   }, [])
 
-  // 节点数量增加时做物理 kick；初始加载启动公转动画
+  // 节点数量增加时做物理 kick；首次有节点时也必须 kick（否则温度为 0，斥力/弹簧不积分位移，只会叠在一起）
   // （红点改为由进化基因规则数量变化触发，不再与节点数绑定）
   useEffect(() => {
     const memoryNodeCount = nodes.filter(n => n.nodeType !== 'capability').length
     if (memoryNodeCount > prevNodeCountRef.current) {
-      if (prevNodeCountRef.current > 0) {
+      if (memoryNodeCount > 0) {
         forceSim.kick()
-      } else if (memoryNodeCount > 0) {
-        forceSim.startRotation()
       }
     }
     prevNodeCountRef.current = memoryNodeCount
@@ -1101,6 +1100,7 @@ export function Canvas() {
 
         <AnimatePresence initial={false}>
           {isSpacesSidebarVisible && (
+            <div className="flex flex-col gap-3">
             <motion.div
               key="spaces-sidebar-content"
               initial={{ opacity: 0, x: -16 }}
@@ -1236,85 +1236,26 @@ export function Canvas() {
           </div>
           <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
         </motion.button>
-
-        <div className="mt-2 w-[196px] rounded-2xl border border-gray-100 bg-white/85 px-3 py-3 shadow-sm backdrop-blur-md">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400">
-                {t.canvas.ongoingDecisions}
-              </div>
-              <div className="mt-1 text-[11px] text-gray-500">
-                {ongoingDecisions.length > 0
-                  ? t.canvas.ongoingDecisionsCount(ongoingDecisions.length)
-                  : t.canvas.ongoingDecisionsEmpty}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsDecisionHubOpen(true)}
-              className="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-semibold text-gray-500 transition hover:bg-gray-200"
-            >
-              {dueDecisionCount > 0 ? `${dueDecisionCount} 待回访` : ongoingDecisions.length}
-            </button>
-          </div>
-
-          {dueDecisionCount > 0 && (
-            <button
-              type="button"
-              onClick={() => setIsDecisionHubOpen(true)}
-              className="mt-3 w-full rounded-2xl border border-amber-100 bg-amber-50/80 px-3 py-2 text-left"
-            >
-              <div className="text-[11px] font-semibold text-amber-800">今天该回访 {dueDecisionCount} 条</div>
-              <div className="mt-1 text-[11px] leading-5 text-amber-700/80">
-                结果一旦记录下来，LingSi 才能开始判断哪些建议真的有效。
-              </div>
-            </button>
-          )}
-
-          <div className="mt-3 flex items-center justify-between">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400">
-              决策时间线
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsDecisionHubOpen(true)}
-              className="text-[11px] font-medium text-gray-500 transition hover:text-gray-800"
-            >
-              查看全部
-            </button>
-          </div>
-
-          {ongoingDecisions.length > 0 ? (
-            <div className="mt-2 space-y-2">
-              {ongoingDecisions.map((item) => (
-                <button
-                  key={item.conversationId}
-                  type="button"
-                  onClick={() => openModalById(item.conversationId, getConversationFileForDecisionSource(item.source), item.source)}
-                  className="w-full rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2 text-left transition-all hover:border-gray-200 hover:bg-white"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-[11px] font-semibold text-gray-700">{item.personaName}</div>
-                    <span className="rounded-full bg-white px-2 py-0.5 text-[10px] text-gray-500">
-                      {getDecisionStatusLabel(item.decisionRecord.status)}
-                    </span>
-                  </div>
-                  <div className="mt-1 line-clamp-2 text-[12px] leading-5 text-gray-800">
-                    {item.title}
-                  </div>
-                  <div className="mt-1.5 text-[10px] text-gray-400">
-                    {t.canvas.ongoingDecisionDue(formatDecisionDue(item.revisitAt))}
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="mt-3 rounded-xl border border-dashed border-gray-200 px-3 py-3 text-[11px] leading-5 text-gray-400">
-              {t.canvas.ongoingDecisionsHint}
-            </div>
-          )}
-        </div>
             </motion.div>
+
+            <motion.div
+              key="ongoing-decisions"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              transition={{ duration: 0.18 }}
+            >
+              <OngoingDecisionsSidebar
+                items={ongoingDecisions}
+                dueCount={dueDecisionCount}
+                onOpenHub={() => setIsDecisionHubOpen(true)}
+                onSelectItem={(item) =>
+                  openModalById(item.conversationId, getConversationFileForDecisionSource(item.source), item.source)}
+                getDecisionStatusLabel={getDecisionStatusLabel}
+                formatDecisionDue={formatDecisionDue}
+              />
+            </motion.div>
+            </div>
           )}
         </AnimatePresence>
       </div>

@@ -49,6 +49,10 @@ export const en: Translations = {
     ongoingDecisionNoDate: 'Unset',
     ongoingDecisionStatusActive: 'Active',
     ongoingDecisionStatusRevisited: 'Reviewed',
+    ongoingDecisionsDueBanner: (n: number) => `${n} review${n === 1 ? '' : 's'} due today`,
+    ongoingDecisionsDueBody: 'Recording outcomes helps LingSi learn which recommendations actually work.',
+    ongoingDecisionsTimeline: 'Decision timeline',
+    ongoingDecisionsViewAll: 'View all',
   },
 
   // ── InputBox ─────────────────────────────────────────────────────────────

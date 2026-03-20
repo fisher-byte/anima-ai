@@ -47,6 +47,10 @@ export interface Translations {
     ongoingDecisionNoDate: string
     ongoingDecisionStatusActive: string
     ongoingDecisionStatusRevisited: string
+    ongoingDecisionsDueBanner: (n: number) => string
+    ongoingDecisionsDueBody: string
+    ongoingDecisionsTimeline: string
+    ongoingDecisionsViewAll: string
   }
   input: {
     placeholder: string
@@ -447,6 +451,10 @@ export const zh: Translations = {
     ongoingDecisionNoDate: '待设置',
     ongoingDecisionStatusActive: '进行中',
     ongoingDecisionStatusRevisited: '已回访',
+    ongoingDecisionsDueBanner: (n: number) => `今天该回访 ${n} 条`,
+    ongoingDecisionsDueBody: '结果一旦记录下来，LingSi 才能开始判断哪些建议真的有效。',
+    ongoingDecisionsTimeline: '决策时间线',
+    ongoingDecisionsViewAll: '查看全部',
   },
 
   // ── InputBox ─────────────────────────────────────────────────────────────
