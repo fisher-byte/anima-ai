@@ -386,9 +386,9 @@ export function Canvas() {
   const [deleteConfirmSpaceId, setDeleteConfirmSpaceId] = useState<string | null>(null)
   const [isFileBrowserOpen, setIsFileBrowserOpen] = useState(false)
   const [isDecisionHubOpen, setIsDecisionHubOpen] = useState(false)
-  // 左侧 Spaces 侧边栏折叠状态（localStorage 持久化）
+  // 左侧 Spaces 侧边栏：默认折叠；展开/折叠会写入 localStorage，下次进入浏览器恢复上次状态
   const [isSpacesSidebarVisible, setIsSpacesSidebarVisible] = useState(() => {
-    return localStorage.getItem('evo_spaces_sidebar_visible') !== 'false'
+    return localStorage.getItem('evo_spaces_sidebar_visible') === 'true'
   })
   const [ongoingDecisions, setOngoingDecisions] = useState<OngoingDecisionItem[]>([])
   const [decisionLedger, setDecisionLedger] = useState<OngoingDecisionItem[]>([])
