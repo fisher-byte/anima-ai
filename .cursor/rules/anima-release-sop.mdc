@@ -1,0 +1,41 @@
+---
+description: 用户说「按 SOP 发版」「走发版 SOP」「完整发版」「今晚发版」时执行 Anima(evocanvas) 完整发版流程——测试、文档、Code Review、GitHub、deploy
+globs:
+alwaysApply: false
+---
+
+# 按 SOP 发版（Anima / evocanvas）
+
+权威清单见项目内 **`docs/sop-release.md`**（含「0、触发语」与第三节检查表）。
+
+当用户用自然语言要求**按 SOP 发版**时，在仓库根目录 `/Users/zhiyangyu/Desktop/试验项目集合/自进化产品/evocanvas`（或当前打开的 evocanvas 根）**实际执行**，不要只给用户命令列表：
+
+## 必须执行的步骤
+
+1. **单元 / 类型 / 构建**  
+   `npm test` → `npm run typecheck`（或 `npx tsc --noEmit`）→ `npm run build` — 全部成功。
+
+2. **E2E**  
+   `npm run test:e2e` — 以 `docs/testing.md` 中当前基线为准；失败则先修复再继续。
+
+3. **版本与文档**（有代码发版时 bump；纯文档可跳过版本号）  
+   - `package.json`、`src/shared/constants.ts` `APP_VERSION`  
+   - `README.md`、`README.zh.md` 徽章  
+   - `docs/changelog.md`、`docs/ROADMAP.md`  
+   - 文档头含版本：`docs/sop-release.md`、`architecture.md`、`dev-guide.md`、`testing.md` 等（见 sop 第二节表）  
+   - `docs/testing.md` / `dev-guide.md` 中的**测试数量**与 `npm test` 输出一致  
+
+4. **Code Review**  
+   新增或更新 `docs/code-review-report-vX.X.X.md`（至少：范围、结论、测试结果表、风险）。
+
+5. **GitHub**  
+   `git add` → `git commit` → `git push origin main`。
+
+6. **服务器**  
+   `bash docs/scripts/deploy.sh`，确认 PM2 与 `curl` 健康检查（内网 3001、线上 chatanima.com `/api/health`）。
+
+## 说明
+
+- **集成测试**：本仓库以 Vitest `npm test` 为主；E2E 即 Playwright。  
+- 多 token / `.env` 与服务器不一致时，见 `docs/deployment-server.md` 的 `SYNC_ENV`。  
+- 用户若说「只文档不发版」，可省略步骤 5–6 与版本 bump。

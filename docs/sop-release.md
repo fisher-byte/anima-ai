@@ -8,6 +8,28 @@
 
 ---
 
+## 0、触发语（与 AI / 自动化协作）
+
+**当用户说以下任一说法时，即表示要执行「完整发版」全流程**（与第三节清单一致，由助手实际跑命令并改文档，不要只列步骤让用户自己做）：
+
+| 说法示例 |
+|----------|
+| **按 SOP 发版** / **走发版 SOP** / **完整发版** |
+| **今晚发版** / **发一版** / **打包上线**（在已约定指本仓库时） |
+
+**助手应自动完成（顺序与第三节一致）**：
+
+1. **测试**：`npm test` → `npx tsc --noEmit` → `npm run build` → `npm run test:e2e`（以当前 `testing.md` 基线为准；若失败先修再发版）。  
+2. **版本号**：`package.json`、`src/shared/constants.ts` 的 `APP_VERSION`、`README.md` / `README.zh.md` 徽章、本文档与 `architecture` / `dev-guide` / `testing` / `sop-release` 等文档头部的版本与日期。  
+3. **文档**：`changelog`、`ROADMAP`、按需更新 `api` / `architecture` / `dev-notes` / `deployment` / `deployment-server` / `troubleshooting`；**单元测试数**与 **`npm test` 输出一致**。  
+4. **Code Review**：新建或更新 `docs/code-review-report-vX.X.X.md`（patch 可简短，minor/major 按第四节要求）。  
+5. **GitHub**：`git commit` + `git push origin main`。  
+6. **服务器**：`bash docs/scripts/deploy.sh`，并验证内网与 `https://chatanima.com/api/health`。
+
+> **集成测试**：本仓库以 `npm test`（Vitest）为主；**E2E** 即 `npm run test:e2e`（Playwright）。二者均需在发版前跑通。
+
+---
+
 ## 一、开发完成后（本地）
 
 ### 0. 里程碑模式（适用于大型功能流）
@@ -134,14 +156,17 @@ ssh evocanvas-prod "cd /opt/evocanvas && git checkout <hash> && npm install --om
 
 ## 三、完整发版检查清单（按顺序执行）
 
+> 以下数字为**当前基线**，发版时以终端实际输出为准并回写 `docs/testing.md` / `dev-guide.md`。
+
 ```
-[ ] 1. npm test              → 635/635 通过
+[ ] 1. npm test              → 635/635 通过（36 文件）
 [ ] 2. npx tsc --noEmit      → 零错误
 [ ] 3. npm run build         → 构建成功
 [ ] 4. npm run test:e2e      → 45 passed / 3 skipped（48 用例）
-[ ] 5. 版本号同步             → package.json / constants.ts / README.md / 4个文档头
-[ ] 6. 文档同步               → changelog / ROADMAP / testing / dev-guide / api / architecture（按需）
-[ ] 7. git commit + push     → 推送到 origin/main
+[ ] 5. 版本号同步             → package.json / APP_VERSION / README.md & README.zh.md / 文档头
+[ ] 6. 文档同步               → changelog / ROADMAP / testing / dev-guide / sop-release；按需 api、architecture、dev-notes、deployment、deployment-server、troubleshooting
+[ ] 6b. Code Review          → docs/code-review-report-vX.X.X.md
+[ ] 7. git commit + push     → 推送到 origin/main（备份到 GitHub）
 [ ] 8. bash docs/scripts/deploy.sh  → 部署 + PM2 重启
 [ ] 9. 验证 /api/health      → {"status":"ok"}
 ```
