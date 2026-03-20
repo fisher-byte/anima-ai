@@ -1,3 +1,19 @@
+## [0.5.42] - 2026-03-21
+
+### fix: 编辑历史用户消息时输入框过窄、长文显示为「一条细线」
+
+**问题**：在对话窗中编辑已发送的用户消息，多行/长文本仍只占一行高度，体验差。
+
+**修复**（`AnswerModal.tsx`）：
+
+- `clampMessageEditTextareaHeight`：按内容 `scrollHeight` 计算高度，最小约 120px、最大约 420px 与视窗比例上限，超出可滚动。
+- `useLayoutEffect` + `messageEditTextareaRef`：进入编辑态首帧即撑开（并 `requestAnimationFrame` 补一帧），不依赖用户再输入才变高。
+- 布局：`w-full min-w-0`、`max-w-[min(85%,48rem)]`；编辑态气泡白底描边与只读灰气泡区分；`textarea` 支持 `resize-y`、`rows={4}` 兜底。
+
+**测试**：631/631 passed；`tsc` 0 错误；`npm run build` 成功；E2E 45 passed / 3 skipped。
+
+---
+
 ## [0.5.41] - 2026-03-21
 
 ### fix: 灵思模式与对话区 — 语言约束、trace 续问、思考解析、Lenny 深度搜索轮询、决策卡吸底
