@@ -53,6 +53,7 @@ export const en: Translations = {
     ongoingDecisionsDueBody: 'Recording outcomes helps LingSi learn which recommendations actually work.',
     ongoingDecisionsTimeline: 'Decision timeline',
     ongoingDecisionsViewAll: 'View all',
+    ongoingDecisionsDueChip: (n: number) => `${n} due`,
   },
 
   // ── InputBox ─────────────────────────────────────────────────────────────

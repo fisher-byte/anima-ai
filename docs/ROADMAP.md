@@ -2,6 +2,11 @@
 
 ## 计划中版本
 
+#### v0.5.46 - 进行中决策左上 Dock + 与空间侧栏解耦（已完成）
+- [x] `OngoingDecisionsDock`：左上紧凑条 + 灰阶进度条；移除侧栏内大块琥珀卡
+- [x] `Canvas`：空间列表不再堆叠进行中决策；灵思小徽标改 stone
+- [x] i18n：`ongoingDecisionsDueChip`
+
 #### v0.5.45 - 决策列表标题/预览 + 决策追踪布局与视觉（已完成）
 - [x] `decisionDisplay.ts`：列表标题、一行预览、去 `@Lenny Rachitsky` 类 mention；内部 slug 型 `decisionType` 回退用户问题
 - [x] `decisionRecords.ts` + 单测；`DecisionHubPanel` / `OngoingDecisionsSidebar` / `Canvas` 布局与 stone/amber 风格

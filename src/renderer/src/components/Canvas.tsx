@@ -34,7 +34,7 @@ import { CustomSpaceCanvas } from './CustomSpaceCanvas'
 import { CreateCustomSpaceModal } from './CreateCustomSpaceModal'
 import { FileBrowserPanel } from './FileBrowserPanel'
 import { DecisionHubPanel } from './DecisionHubPanel'
-import { OngoingDecisionsSidebar } from './OngoingDecisionsSidebar'
+import { OngoingDecisionsDock } from './OngoingDecisionsDock'
 
 import { AmbientBackground } from './AmbientBackground'
 import { ClusterLabel } from './ClusterLabel'
@@ -828,15 +828,6 @@ export function Canvas() {
     Promise.resolve().then(() => { isLocalWriteRef.current = false })
   }, [setOffset, setScale])
 
-  const formatDecisionDue = useCallback((date?: string) => {
-    if (!date) return t.canvas.ongoingDecisionNoDate
-    try {
-      return new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric' }).format(new Date(date))
-    } catch {
-      return date
-    }
-  }, [t.canvas])
-
   const getConversationFileForDecisionSource = useCallback((source: OngoingDecisionItem['source']) => {
     // custom-{spaceId} 格式：自定义 Space 的对话文件
     if (typeof source === 'string' && source.startsWith('custom-')) {
@@ -858,16 +849,6 @@ export function Canvas() {
         return STORAGE_FILES.CONVERSATIONS
     }
   }, [])
-
-  const getDecisionStatusLabel = useCallback((status: OngoingDecisionItem['decisionRecord']['status']) => {
-    switch (status) {
-      case 'revisited':
-        return t.canvas.ongoingDecisionStatusRevisited
-      case 'adopted':
-      default:
-        return t.canvas.ongoingDecisionStatusActive
-    }
-  }, [t.canvas])
 
   const dueDecisionCount = decisionLedger.filter((item) => item.decisionRecord.status === 'adopted' && item.isDue).length
 
@@ -1049,6 +1030,15 @@ export function Canvas() {
         </div>
       )}
 
+      {ongoingDecisions.length > 0 && (
+        <OngoingDecisionsDock
+          items={ongoingDecisions}
+          dueCount={dueDecisionCount}
+          canvasNodeCount={nodes.length}
+          onOpenHub={() => setIsDecisionHubOpen(true)}
+        />
+      )}
+
       {/* Spaces 侧边栏 — My Spaces + Public Spaces 合并到同一个 fixed 容器，自底向上堆叠 */}
       {/* flex-col-reverse：header（折叠按钮/pill）锚定在底部上方，预留更多与输入区的间距 */}
       <div className="fixed left-4 bottom-44 z-30 flex flex-col-reverse gap-1.5">
@@ -1183,7 +1173,7 @@ export function Canvas() {
             <div className="pr-10 text-[11px] font-semibold text-gray-700 leading-tight whitespace-normal break-words">Lenny Rachitsky</div>
             <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{t.canvas.lennySubtitle}</div>
           </div>
-          <span className="absolute right-7 top-2 inline-flex shrink-0 whitespace-nowrap rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold leading-none text-amber-700">
+          <span className="absolute right-7 top-2 inline-flex shrink-0 whitespace-nowrap rounded-full bg-stone-100 px-1.5 py-0.5 text-[9px] font-semibold leading-none text-stone-600 ring-1 ring-stone-200/80">
             {t.space.decisionModeLingSi}
           </span>
           <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
@@ -1216,7 +1206,7 @@ export function Canvas() {
             <div className="pr-10 text-[11px] font-semibold text-gray-700 leading-tight whitespace-normal break-words">张小龙</div>
             <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{t.canvas.zhangSubtitle}</div>
           </div>
-          <span className="absolute right-7 top-2 inline-flex shrink-0 whitespace-nowrap rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold leading-none text-amber-700">
+          <span className="absolute right-7 top-2 inline-flex shrink-0 whitespace-nowrap rounded-full bg-stone-100 px-1.5 py-0.5 text-[9px] font-semibold leading-none text-stone-600 ring-1 ring-stone-200/80">
             {t.space.decisionModeLingSi}
           </span>
           <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
@@ -1236,24 +1226,6 @@ export function Canvas() {
           </div>
           <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
         </motion.button>
-            </motion.div>
-
-            <motion.div
-              key="ongoing-decisions"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              transition={{ duration: 0.18 }}
-            >
-              <OngoingDecisionsSidebar
-                items={ongoingDecisions}
-                dueCount={dueDecisionCount}
-                onOpenHub={() => setIsDecisionHubOpen(true)}
-                onSelectItem={(item) =>
-                  openModalById(item.conversationId, getConversationFileForDecisionSource(item.source), item.source)}
-                getDecisionStatusLabel={getDecisionStatusLabel}
-                formatDecisionDue={formatDecisionDue}
-              />
             </motion.div>
             </div>
           )}
