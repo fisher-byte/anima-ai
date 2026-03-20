@@ -2,6 +2,10 @@
 
 ## 计划中版本
 
+#### v0.5.42 - 编辑历史用户消息输入区高度与布局（已完成）
+- [x] `AnswerModal`：编辑态 `textarea` 首帧撑开、`clampMessageEditTextareaHeight`、列 `min-w-0`、编辑态视觉区分
+- [x] 验证：`npm test`（631/631）、`npm run typecheck`、`npm run build`、`npm run test:e2e`（45 passed / 3 skipped）
+
 #### v0.5.41 - 灵思 / 对话区修复（语言、trace、思考解析、深度搜索、决策卡布局）（已完成）
 - [x] System prompt：公开空间默认简体中文，减少 Lenny 英文整段回复
 - [x] `resolveDecisionModeForPersona` + `mergeDecisionTrace`：历史灵思续问不丢 `decision` 轨迹

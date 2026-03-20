@@ -20,7 +20,7 @@
  * 特殊模式：
  *   isOnboardingMode — 新手引导流程，使用固定脚本回复，不调用真实 AI
  */
-import { useState, useCallback, useEffect, useRef, useMemo, memo, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
+import { useState, useCallback, useEffect, useLayoutEffect, useRef, useMemo, memo, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   CheckCircle2, Copy, RefreshCw,
@@ -66,6 +66,20 @@ import { useT } from '../i18n'
 const ANSWER_MODAL_HEIGHT_KEY = 'anima_answer_modal_height_px_v1'
 const ANSWER_MODAL_MIN_HEIGHT = 560
 const ANSWER_MODAL_TEXTAREA_MAX_HEIGHT = 220
+/** 编辑已发送用户消息时的多行输入：避免长文仍显示成「一条细线」 */
+const MESSAGE_EDIT_TEXTAREA_MIN_HEIGHT = 120
+const MESSAGE_EDIT_TEXTAREA_MAX_HEIGHT = 420
+
+function clampMessageEditTextareaHeight(el: HTMLTextAreaElement) {
+  const maxH =
+    typeof window !== 'undefined'
+      ? Math.min(MESSAGE_EDIT_TEXTAREA_MAX_HEIGHT, Math.floor(window.innerHeight * 0.42))
+      : MESSAGE_EDIT_TEXTAREA_MAX_HEIGHT
+  el.style.height = 'auto'
+  const next = Math.min(Math.max(el.scrollHeight, MESSAGE_EDIT_TEXTAREA_MIN_HEIGHT), maxH)
+  el.style.height = `${next}px`
+  el.style.overflowY = el.scrollHeight > maxH ? 'auto' : 'hidden'
+}
 
 function MarkdownLink({ href, children }: { href?: string; children?: ReactNode }) {
   if (!href) return <a>{children}</a>
@@ -316,6 +330,8 @@ export function AnswerModal() {
   const onboardingPhaseRef = useRef(0)
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  /** 编辑历史用户消息：与底部输入框分离，需单独做首帧高度撑开 */
+  const messageEditTextareaRef = useRef<HTMLTextAreaElement>(null)
   const startedConversationIdRef = useRef<string | null>(null)
   const isReplayRef = useRef(false)
   const didMutateRef = useRef(false)
@@ -328,6 +344,18 @@ export function AnswerModal() {
   turnsRef.current = turns
   const appliedPreferencesRef = useRef(appliedPreferences)
   appliedPreferencesRef.current = appliedPreferences
+
+  // 编辑态进入时不会触发 input 事件，需首帧即按内容撑开高度，避免长消息仍是「一条细线」
+  useLayoutEffect(() => {
+    if (editingIndex === null) return
+    const el = messageEditTextareaRef.current
+    if (!el) return
+    clampMessageEditTextareaHeight(el)
+    const id = requestAnimationFrame(() => {
+      clampMessageEditTextareaHeight(el)
+    })
+    return () => cancelAnimationFrame(id)
+  }, [editingIndex, editingContent])
 
   // ── 决策模式逻辑（从 AnswerModal 提取到专用 hook）──────────────────────────
   // useAnswerModalDecision 内含：
@@ -1688,7 +1716,7 @@ export function AnswerModal() {
 
                         {/* 用户消息 + 文件气泡 */}
                         <div className="flex justify-end mb-6">
-                          <div className="flex flex-col items-end gap-1 max-w-[85%] group/usermsg">
+                          <div className="flex flex-col items-end gap-1 max-w-[min(85%,48rem)] w-full min-w-0 group/usermsg">
                             {turn.images && turn.images.length > 0 && (
                               <div className="flex flex-wrap gap-2 justify-end">
                                 {turn.images.map((img, i) => (
@@ -1705,20 +1733,25 @@ export function AnswerModal() {
                             )}
 
                             {turn.user && (
-                              <div className="bg-[#F4F4F4] rounded-3xl px-5 py-3.5 text-[15px] leading-relaxed text-gray-900 min-w-[60px] max-w-full">
+                              <div
+                                className={`rounded-3xl px-5 py-3.5 text-[15px] leading-relaxed text-gray-900 min-w-0 w-full max-w-full ${
+                                  editingIndex === idx
+                                    ? 'bg-white border border-gray-200 shadow-sm ring-1 ring-gray-100'
+                                    : 'bg-[#F4F4F4] min-w-[60px]'
+                                }`}
+                              >
                                 {editingIndex === idx ? (
-                                  <div className="flex flex-col gap-3">
+                                  <div className="flex flex-col gap-3 w-full min-w-0">
                                     <textarea
+                                      ref={messageEditTextareaRef}
                                       value={editingContent}
                                       onChange={e => setEditingContent(e.target.value)}
-                                      className="w-full bg-transparent text-[15px] leading-relaxed text-gray-900 outline-none resize-none"
-                                      style={{ minHeight: '1.5em', height: 'auto', overflow: 'hidden' }}
+                                      className="w-full min-w-0 box-border bg-transparent text-[15px] leading-relaxed text-gray-900 outline-none resize-y rounded-xl"
+                                      style={{ minHeight: MESSAGE_EDIT_TEXTAREA_MIN_HEIGHT }}
                                       autoFocus
-                                      rows={1}
+                                      rows={4}
                                       onInput={e => {
-                                        const el = e.currentTarget
-                                        el.style.height = 'auto'
-                                        el.style.height = el.scrollHeight + 'px'
+                                        clampMessageEditTextareaHeight(e.currentTarget)
                                       }}
                                       onKeyDown={e => {
                                         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSaveEdit() }

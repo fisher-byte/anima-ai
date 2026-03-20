@@ -1,8 +1,13 @@
 # Anima 开发笔记
 
-*最后更新: 2026-03-21 | 版本: v0.5.41*
+*最后更新: 2026-03-21 | 版本: v0.5.42*
 
 这里记录架构决策、踩坑经历和性能优化心得，供后续维护参考。
+
+### v0.5.42 — 编辑历史用户消息输入区（2026-03-21）
+
+- **问题**：编辑已发送的长消息时 `textarea` 仍为单行细条——进入编辑态不触发 `input`，首帧高度未按 `scrollHeight` 撑开。
+- **修复**：`AnswerModal` 增加 `messageEditTextareaRef` + `useLayoutEffect` 与 `clampMessageEditTextareaHeight`；列宽 `min-w-0` / `max-w-[min(85%,48rem)]`；编辑态白底卡片与 `resize-y`、高度上下限。
 
 ### v0.5.41 — 灵思 / 对话区一致性（2026-03-21）
 
