@@ -4,7 +4,7 @@ import { Settings, X, Save, Shield, Cpu, Link, Copy, Check, Key, Languages, Down
 import { API_CONFIG, AI_CONFIG, SUPPORTED_MODELS } from '@shared/constants'
 import { configService, storageService, isElectronEnvironment } from '../services/storageService'
 import { getAuthToken, setAuthToken } from '../services/storageService'
-import { USER_TOKEN_KEY } from '../App'
+import { USER_TOKEN_KEY, ACCESS_TOKEN_KEY } from '../constants/userToken'
 import { useT } from '../i18n'
 
 interface SettingsModalProps {
@@ -25,7 +25,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [isExporting, setIsExporting] = useState(false)
 
   // 身份码相关
-  const currentToken = localStorage.getItem(USER_TOKEN_KEY) ?? ''
+  const currentToken = localStorage.getItem(ACCESS_TOKEN_KEY) ?? localStorage.getItem(USER_TOKEN_KEY) ?? ''
   const [copied, setCopied] = useState(false)
   const [migrateInput, setMigrateInput] = useState('')
   const [showMigrate, setShowMigrate] = useState(false)

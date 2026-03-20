@@ -1,6 +1,6 @@
 # Anima 架构文档
 
-*最后更新: 2026-03-19 | 版本: v0.5.39*
+*最后更新: 2026-03-20 | 版本: v0.5.40*
 
 ---
 
@@ -166,6 +166,7 @@ index.ts 中间件: c.set('db', getDb('a1b2c3d4e5f6'))
 ```
 
 - 每个用户数据库完全隔离，互不可见
+- **v0.5.40+**：当环境配置了 `ACCESS_TOKEN`/`ACCESS_TOKENS` 且未 `AUTH_DISABLED` 时，**所有 `/api/*` 请求必须携带非空 `Authorization: Bearer <身份码>`**，否则返回 401，**禁止**再落入共享默认库 `data/anima.db`（避免多用户串味）。
 - `agentWorker` 后台任务通过 `getAllUserDbs()` 遍历所有用户数据库，用正确的 db 处理各自任务
 - 老数据（legacy `data/anima.db`）首次建库时自动迁移到主用户目录，且只迁移一次（`.migrated` 哨兵文件）
 
