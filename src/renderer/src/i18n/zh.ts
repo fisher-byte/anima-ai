@@ -51,6 +51,8 @@ export interface Translations {
     ongoingDecisionsDueBody: string
     ongoingDecisionsTimeline: string
     ongoingDecisionsViewAll: string
+    /** 紧凑角标：N 待回访 */
+    ongoingDecisionsDueChip: (n: number) => string
   }
   input: {
     placeholder: string
@@ -455,6 +457,7 @@ export const zh: Translations = {
     ongoingDecisionsDueBody: '结果一旦记录下来，LingSi 才能开始判断哪些建议真的有效。',
     ongoingDecisionsTimeline: '决策时间线',
     ongoingDecisionsViewAll: '查看全部',
+    ongoingDecisionsDueChip: (n: number) => `${n} 待回访`,
   },
 
   // ── InputBox ─────────────────────────────────────────────────────────────
