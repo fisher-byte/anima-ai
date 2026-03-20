@@ -46,6 +46,7 @@ async function injectToken(page: import('@playwright/test').Page) {
     if (token) localStorage.setItem('anima_access_token', token)
     // 跳过新手引导，避免遮罩层阻碍点击
     localStorage.setItem('evo_onboarding_v3', 'done')
+    localStorage.setItem('evo_spaces_sidebar_visible', 'true')
   }, ACCESS_TOKEN)
 }
 

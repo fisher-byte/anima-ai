@@ -1,6 +1,6 @@
 # Anima 测试手册
 
-*最后更新: 2026-03-21 | 版本: v0.5.46*
+*最后更新: 2026-03-21 | 版本: v0.5.47*
 
 ## 测试策略
 
@@ -125,6 +125,8 @@ npm run test:watch    # 监听模式（开发时用）
 **框架**：`@playwright/test ^1.58.2`，配置文件 `playwright.config.ts`
 
 **当前基线**：`48` 个用例，`45 passed / 3 skipped`
+
+**与 UI 默认态（v0.5.47+）**：产品侧「我的空间」默认折叠；E2E 在 `injectToken` / `setupPage` 的 `addInitScript` 中写入 `evo_spaces_sidebar_visible: 'true'`，保证需依赖侧栏展开的用例（如 Lenny / Paul Graham 入口）稳定。
 
 **运行命令**：
 ```bash

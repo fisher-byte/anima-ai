@@ -2,6 +2,11 @@
 
 ## 计划中版本
 
+#### v0.5.47 - 我的空间默认折叠 + E2E 侧栏注入（已完成）
+- [x] `Canvas`：`evo_spaces_sidebar_visible === 'true'` 才展开，默认折叠并持久化上次状态
+- [x] E2E：`injectToken` / `setupPage` 写入 `evo_spaces_sidebar_visible: 'true'`，修复 Lenny/PG 可见性用例
+- [x] 验证：`npm test`（635）、`tsc`、`build`、E2E 45 passed / 3 skipped
+
 #### v0.5.46 - 进行中决策左上 Dock + 与空间侧栏解耦（已完成）
 - [x] `OngoingDecisionsDock`：左上紧凑条 + 灰阶进度条；移除侧栏内大块琥珀卡
 - [x] `Canvas`：空间列表不再堆叠进行中决策；灵思小徽标改 stone
