@@ -1,8 +1,13 @@
 # Anima 开发笔记
 
-*最后更新: 2026-03-21 | 版本: v0.5.46*
+*最后更新: 2026-03-21 | 版本: v0.5.47*
 
 这里记录架构决策、踩坑经历和性能优化心得，供后续维护参考。
+
+### v0.5.47 — 我的空间默认折叠 + E2E（2026-03-21）
+
+- **侧栏**：`isSpacesSidebarVisible` 初始值改为 `localStorage.getItem('evo_spaces_sidebar_visible') === 'true'`（默认折叠）；用户展开/收起仍写回 LS。
+- **E2E**：默认折叠后 Lenny/PG 文案不在 DOM 中，需在 `addInitScript` 里设 `evo_spaces_sidebar_visible: 'true'`（features / canvas / journey）。
 
 ### v0.5.46 — 进行中决策左上 Dock（2026-03-21）
 

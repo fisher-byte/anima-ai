@@ -1,3 +1,16 @@
+## [0.5.47] - 2026-03-21
+
+### fix: 「我的空间」默认折叠 + 持久化；E2E 注入侧栏展开以稳定 Lenny/PG 用例
+
+**改动**：
+
+- `Canvas.tsx`：侧栏初始状态改为 **默认折叠**（`localStorage` 仅当 `'true'` 时展开）；展开/折叠仍写入 `evo_spaces_sidebar_visible`，下次进入保持上次选择。
+- `e2e/features.spec.ts` / `canvas.spec.ts` / `journey.spec.ts`：在 `injectToken` / `setupPage` 中写入 `evo_spaces_sidebar_visible: 'true'`，避免默认折叠后找不到「Lenny Rachitsky」「Paul Graham」文案。
+
+**测试**：635/635 passed（36 files）；`tsc` 0 错误；`npm run build` 成功；E2E **45 passed / 3 skipped**。
+
+---
+
 ## [0.5.46] - 2026-03-21
 
 ### fix: 进行中决策独立浮层（左上）+ 灰阶紧凑条，不再占用空间侧栏高度

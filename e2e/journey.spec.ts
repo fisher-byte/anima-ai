@@ -64,6 +64,7 @@ async function setupPage(page: import('@playwright/test').Page) {
     localStorage.setItem('evo_onboarding_v3', 'done')
     localStorage.removeItem('evo_view')
     localStorage.removeItem('evo_onboarding_turns')
+    localStorage.setItem('evo_spaces_sidebar_visible', 'true')
   }, E2E_JOURNEY_TOKEN)
 }
 

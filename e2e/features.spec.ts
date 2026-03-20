@@ -99,6 +99,8 @@ async function injectToken(page: import('@playwright/test').Page) {
     localStorage.setItem('anima_user_token', args.userToken)
     localStorage.setItem('evo_onboarding_v3', 'done')
     localStorage.removeItem('evo_view')
+    // 产品默认折叠「我的空间」；E2E 需展开以定位 Lenny / PG 等入口
+    localStorage.setItem('evo_spaces_sidebar_visible', 'true')
   }, { accessToken: ACCESS_TOKEN, userToken: E2E_USER_TOKEN })
 }
 
