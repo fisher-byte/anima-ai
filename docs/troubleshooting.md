@@ -1,6 +1,6 @@
 # Anima 问题排查指南
 
-*最后更新: 2026-03-06 | 版本: v0.2.44*
+*最后更新: 2026-03-20 | 版本: v0.5.40*
 
 ---
 
@@ -241,6 +241,26 @@ HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
   "$BASE_URL/api/config/settings")
 echo "Config API 状态码: $HTTP_CODE"
 ```
+
+---
+
+### 问题: 他人设备上看到我的对话/节点（多租户数据串味）
+
+**根因简述**：生产环境若配置了 `ACCESS_TOKEN`/`ACCESS_TOKENS` 且未设置 `AUTH_DISABLED=true`，则**必须**在请求头携带 `Authorization: Bearer <身份码>`。旧版在未带身份时会落到服务器上的**共享默认库** `data/anima.db`，导致多人看到同一份画布/历史。
+
+**已修复行为（新版本服务端）**：上述情况下无 Bearer 的请求会返回 **401**，不再写入共享默认库。
+
+**上线后清理历史误存数据**（务必先备份 `data/`）：
+
+```bash
+# 干跑：只看会删多少，不写库
+npm run cleanup:tenant-leak -- --data-dir ./data --owner-token "你的身份码UUID" --dry-run
+
+# 确认后执行
+npm run cleanup:tenant-leak -- --data-dir ./data --owner-token "你的身份码UUID"
+```
+
+脚本会读取**主人**目录 `data/<SHA256前12位>/anima.db` 中的对话/节点 id，并从**默认库**及其他租户库中删除相同 id 的记录（含 `storage`、`embeddings`、`conversation_history`、`memory_facts`、`logical_edges`）。
 
 ---
 

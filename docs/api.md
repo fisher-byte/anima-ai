@@ -403,28 +403,24 @@ curl http://localhost:3000/api/health
 
 ## 鉴权
 
-**默认 Fail Closed（v0.2.18+）**：所有 `/api/*` 端点默认**启用鉴权**，需设置 `AUTH_DISABLED=true` 才跳过。
+### v0.5.40+（当前行为，多租户身份码）
+
+- **`GET /api/health`**、**`GET /api/auth/status`** 为公开端点，无需 Bearer。
+- 当 **未**设置 `AUTH_DISABLED=true` **且** 配置了 `ACCESS_TOKEN` 或 `ACCESS_TOKENS`（与 `/api/auth/status` 的 `authRequired` 一致）时：
+  - 其余 **`/api/*` 请求必须**携带非空 `Authorization: Bearer <身份码>`，否则返回 **401**。
+  - 身份码映射为 `tokenToUserId`（SHA-256 前 12 位 hex），数据落在 `data/<userId>/anima.db`，**禁止**无身份请求落入共享默认库 `data/anima.db`。
+- 当 `AUTH_DISABLED=true` 或未配置任何 `ACCESS_TOKEN(S)` 时：允许无 Bearer（本地开发）；若仍带 Bearer，则使用该 token 做用户隔离。
 
 | 环境变量 | 说明 |
 |---------|------|
-| `AUTH_DISABLED=true` | 跳过鉴权（本地开发、单机部署） |
-| `ACCESS_TOKEN=<token>` | Bearer token（启用鉴权时必须设置） |
+| `AUTH_DISABLED=true` | 跳过强制 Bearer（本地开发、单机调试） |
+| `ACCESS_TOKEN` / `ACCESS_TOKENS` | 存在且未禁用时触发 `authRequired`，前端应展示登录或携带身份码 |
 
-> ⚠️ **安全说明**：若未设置 `AUTH_DISABLED=true` 且 `ACCESS_TOKEN` 也未配置，所有请求将收到 `401 Unauthorized`。这是有意设计——防止生产环境忘配环境变量导致 API 裸奔。
-
-启用鉴权时，所有请求须携带：
-
-```
-Authorization: Bearer <ACCESS_TOKEN>
-```
-
-Token 比较使用 `crypto.timingSafeEqual()` 防止时序攻击。
-
-前端通过 `setAuthToken(token)` 注入 token：
+前端通过 `setAuthToken(token)` 注入 token（与 `localStorage` 中 `anima_access_token` / `anima_user_token` 对齐）：
 
 ```typescript
 import { setAuthToken } from './services/storageService'
-setAuthToken(localStorage.getItem('access_token') ?? '')
+setAuthToken(localStorage.getItem('anima_access_token') ?? localStorage.getItem('anima_user_token') ?? '')
 ```
 
 ---

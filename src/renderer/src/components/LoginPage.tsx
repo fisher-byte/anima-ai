@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { setAuthToken } from '../services/storageService'
 import { useT } from '../i18n'
+import { USER_TOKEN_KEY } from '../constants/userToken'
 
 const TOKEN_KEY = 'anima_access_token'
 
@@ -33,6 +34,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       if (res.ok || res.status === 404) {
         // token 有效（200=有数据, 404=新用户空库）
         localStorage.setItem(TOKEN_KEY, tok)
+        // 与设置页「身份码」展示、多入口读 token 逻辑一致
+        localStorage.setItem(USER_TOKEN_KEY, tok)
         // 已有服务端数据的用户跳过新手教程
         if (res.ok) {
           localStorage.setItem('evo_onboarding_v3', 'done')

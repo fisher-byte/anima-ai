@@ -1,3 +1,21 @@
+## [0.5.40] - 2026-03-20
+
+### security: 多租户鉴权强制 + 前端登录门禁 + 误存数据清理脚本
+
+**问题**：生产环境在配置了访问令牌时，未带 `Authorization` 的请求仍会落到共享默认 SQLite（`data/anima.db`），导致不同访客可能看到同一份画布/对话历史。
+
+**修复**：
+- `src/server/middleware/auth.ts`：与 `/api/auth/status` 一致，在需要鉴权时无 Bearer → **401**；`OPTIONS` 预检放行。
+- `src/renderer/src/App.tsx`：启动时读取 `/api/auth/status`；需登录且无本地 token → 展示 `LoginPage`；开放/本地模式自动生成客户端身份码。
+- `src/renderer/src/constants/userToken.ts`：统一 `anima_user_token` / `anima_access_token` 常量，避免循环依赖。
+- `LoginPage` / `SettingsModal`：登录成功后同步身份码展示；设置页同时读取两种 token。
+- `scripts/cleanup-leaked-tenant-data.ts` + `npm run cleanup:tenant-leak`：按主人身份码从其他租户库/默认库中删除误存的对话与索引数据（运维脚本，执行前务必备份 `data/`）。
+- `docs/troubleshooting.md`：新增「他人看到我的对话」排查与清理命令。
+
+**测试**：623/623 passed（35 files）；TypeScript 0 错误。
+
+---
+
 ## [0.5.39] - 2026-03-19
 
 ### fix: 灵思模式"点啥都卡死"根治 — ThinkingSection memo + RAF scroll + stable key

@@ -2,6 +2,13 @@
 
 ## 计划中版本
 
+#### v0.5.40 - 多租户数据串味修复（鉴权强制 + 运维清理脚本）（已完成）
+- [x] `auth.ts`：生产需鉴权时无 Bearer → 401，禁止 API 落入共享 `data/anima.db`
+- [x] `App.tsx` + `LoginPage`：与 `/api/auth/status` 对齐，未登录不加载画布数据
+- [x] `scripts/cleanup-leaked-tenant-data.ts`：按主人身份码从其他租户/默认库清理误存记录
+- [x] 文档：`changelog` / `architecture` / `troubleshooting` / `sop-release` 同步
+- [x] 验证：`npm test`（623/623）、`npm run typecheck`、`npm run build`
+
 #### v0.5.29 - LingSi loop tracking + validation ledger（最小闭环第二批前端）
 - [x] `docs/lingsi-v2-decision-system.md`：补齐完整决策系统 v2 设计，明确四层能力：persona profile / decision protocol / decision object / closed-loop learning
 - [x] `src/shared/types.ts`：新增 `DecisionPersonaProfile`、`DecisionTrace.reasoningRoute`、`DecisionRecord`，把 v2 的骨架先进入共享类型
