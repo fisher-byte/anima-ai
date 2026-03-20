@@ -18,16 +18,19 @@ import type { Node, Edge } from '@shared/types'
 
 // ── 力参数常量 ──────────────────────────────────────────────────────────────
 
-const NODE_REPEL          = 8000    // 节点间全局斥力强度
-const NODE_REPEL_MAX_DIST = 500     // 斥力生效最大距离（节点卡片 ~208x160，需要更大间距避免重叠）
-const SAME_ATTRACT        = 0.0018  // 同类弹簧系数
-const SAME_IDEAL_DIST     = 280     // 同类理想间距（大于卡片对角线，避免重叠）
-const SAME_MAX_DIST       = 700     // 同类引力生效上限
-const DIFF_REPEL          = 120     // 异类斥力系数
-const DIFF_MAX_DIST       = 500     // 异类斥力生效上限
+const NODE_REPEL          = 15000   // 节点间全局斥力强度（略增，减轻堆叠）
+const NODE_REPEL_MAX_DIST = 640     // 斥力生效最大距离（与卡片对角线 ~260 匹配）
+/** 小于此距离时叠加软斥力，防止同类弹簧 + 中心引力把多节点压成一堆 */
+const MIN_COMFORT_DIST    = 235
+const COMFORT_PUSH        = 3.2
+const SAME_ATTRACT        = 0.00125 // 同类弹簧略降，避免过度向心
+const SAME_IDEAL_DIST     = 300     // 略增，同类节点期望间距更大
+const SAME_MAX_DIST       = 720     // 同类引力生效上限
+const DIFF_REPEL          = 140     // 异类斥力略增
+const DIFF_MAX_DIST       = 560     // 异类斥力略增作用距离
 const EDGE_SPRING         = 0.0025  // 连线弹簧系数
 const EDGE_IDEAL_LEN      = 300     // 连线理想长度
-const CENTER_GRAVITY      = 0.00008 // 全局中心引力（防止节点飘出）
+const CENTER_GRAVITY      = 0.000045 // 略降，减轻「全图向一个重心塌缩」
 const DAMPING             = 0.82    // 速度阻尼
 const MAX_VELOCITY        = 2.5     // 速度上限
 
@@ -184,6 +187,16 @@ export function useForceSimulation(options: ForceSimulationOptions = {}): ForceS
           const repel = NODE_REPEL / (dist * dist)
           a.fx -= (dx / dist) * repel
           a.fy -= (dy / dist) * repel
+        }
+
+        // 近距软斥力：专门解决「多张卡片叠在同一位置」的局部极小
+        if (dist < MIN_COMFORT_DIST && dist > 0.01) {
+          const overlap = MIN_COMFORT_DIST - dist
+          const push = (overlap / MIN_COMFORT_DIST) * COMFORT_PUSH
+          const ux = dx / dist
+          const uy = dy / dist
+          a.fx -= ux * push
+          a.fy -= uy * push
         }
 
         if (a.category === b.category) {

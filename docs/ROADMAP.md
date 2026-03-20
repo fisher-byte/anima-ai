@@ -2,6 +2,12 @@
 
 ## 计划中版本
 
+#### v0.5.44 - 主画布节点防堆叠 + 进行中决策侧栏独立（已完成）
+- [x] `Canvas`：首次有记忆节点时 `forceSim.kick()`（不再仅 `startRotation`）
+- [x] `useForceSimulation`：斥力/弹簧参数 + 近距软斥力
+- [x] `OngoingDecisionsSidebar` + i18n
+- [x] 验证：`npm test`（631/631）、`npx tsc --noEmit`、`npm run build`、`npm run test:e2e`（45 passed / 3 skipped）
+
 #### v0.5.43 - 空间不关窗落盘 + 历史 sourceHint + 会话模式徽章（已完成）
 - [x] `autoSaveIfNeeded` / `beforeunload`：Lenny/自定义空间写入对应 `*-conversations.jsonl`；`getConversationsPersistFilename()`
 - [x] `PublicSpaceCanvas` / `CustomSpaceCanvas`：`openModalById` 传 `sourceHint`
