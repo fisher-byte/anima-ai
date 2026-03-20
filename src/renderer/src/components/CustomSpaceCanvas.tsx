@@ -219,6 +219,8 @@ export function CustomSpaceCanvas({ isOpen, onClose, config }: CustomSpaceCanvas
   const convsFile = `custom-${config.id}-conversations.jsonl`
   const edgesFile = `custom-${config.id}-edges.json`
   const dotGridClass = `custom-${config.id}-dot-grid`
+  /** 与 openModalById 的 sourceHint 对齐，避免读错自定义空间 jsonl */
+  const customModalSourceHint = useMemo(() => `custom-${config.id}`, [config.id])
 
   const [nodes, setNodes] = useState<Node[]>([])
   const [edges, setEdges] = useState<EdgeType[]>([])
@@ -525,9 +527,9 @@ export function CustomSpaceCanvas({ isOpen, onClose, config }: CustomSpaceCanvas
   }, [nodesFile])
 
   const handleNodeOpen = useCallback((node: Node) => {
-    if (node.conversationId) openModalById(node.conversationId)
+    if (node.conversationId) openModalById(node.conversationId, undefined, customModalSourceHint)
     else startConversation(node.title)
-  }, [openModalById, startConversation])
+  }, [openModalById, startConversation, customModalSourceHint])
 
   const handleDeleteRequest = useCallback((id: string) => { setDeleteConfirmId(id) }, [])
 
@@ -709,7 +711,7 @@ export function CustomSpaceCanvas({ isOpen, onClose, config }: CustomSpaceCanvas
                 historyItems.map(item => (
                   <button
                     key={item.id}
-                    onClick={() => { openModalById(item.id); setIsHistoryOpen(false) }}
+                    onClick={() => { openModalById(item.id, undefined, customModalSourceHint); setIsHistoryOpen(false) }}
                     className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors group"
                   >
                     <div className="flex items-start justify-between gap-2">

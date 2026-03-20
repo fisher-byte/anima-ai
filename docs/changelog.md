@@ -1,3 +1,21 @@
+## [0.5.43] - 2026-03-21
+
+### fix: 空间对话不关窗落盘 + 历史入口 sourceHint + 会话模式可见性
+
+**问题**：Lenny/自定义空间内多轮对话依赖关窗才稳落盘，刷新易丢；从空间「历史」打开对话若未带 `sourceHint` 可能误读主空间 `conversations.jsonl`；用户难以区分 **灵思决策**、**普通对话** 与 **模型思考过程**（Thinking 区「正在分析…」）。
+
+**修复**：
+
+- `AnswerModal`：`autoSaveIfNeeded` 对 Space/自定义空间同样 `appendConversation`；`beforeunload` 使用 `getConversationsPersistFilename()` 对应 `POST /api/storage/{filename}/append`。
+- `canvasStore`：新增 `getConversationsPersistFilename()`。
+- `PublicSpaceCanvas` / `CustomSpaceCanvas`：`openModalById` 传入 `sourceHint`（`lenny`/`pg`/`zhang`/`wang` 或 `custom-{id}`）。
+- `useAnswerModalDecision`：`resolvedDecisionMode`；`buildLingSiRequest` 与解析均使用 `isLennyMode || isCustomSpaceMode` 作为公共空间判断。
+- `AnswerModal` 顶部徽章：`Lenny 空间` 等 + **灵思决策** / **普通对话** + **模型思考中**（i18n `zh`/`en`）。
+
+**测试**：631/631 passed；`tsc` 0 错误；`npm run build` 成功；E2E 45 passed / 3 skipped。
+
+---
+
 ## [0.5.42] - 2026-03-21
 
 ### fix: 编辑历史用户消息时输入框过窄、长文显示为「一条细线」

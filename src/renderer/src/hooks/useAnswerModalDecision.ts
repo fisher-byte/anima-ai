@@ -17,7 +17,7 @@
  */
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
-import type { DecisionRecord, DecisionTrace, DecisionUnit, AssistantInvocation } from '@shared/types'
+import type { DecisionRecord, DecisionTrace, DecisionUnit, AssistantInvocation, DecisionMode } from '@shared/types'
 import { useCanvasStore } from '../stores/canvasStore'
 import { buildLingSiDecisionPayload, ensureLingSiStorageSeeded, loadDecisionUnits, mergeDecisionTrace } from '../services/lingsi'
 import { STORAGE_FILES } from '@shared/constants'
@@ -195,6 +195,36 @@ export function useAnswerModalDecision({
     [activeDecisionPersonaName, invokedAssistant?.name],
   )
 
+  const decisionTraceForResolve = useCanvasStore(
+    state => state.currentConversation?.decisionTrace,
+    (a, b) => {
+      if (a === b) return true
+      if (!a || !b) return a === b
+      return a.mode === b.mode && a.personaId === b.personaId
+    },
+  )
+
+  /** 当前轮实际生效的灵思/普通模式（与历史会话 decisionTrace、画布开关对齐） */
+  const resolvedDecisionMode: DecisionMode | null = useMemo(() => {
+    if (!activeDecisionPersonaId) return null
+    return resolveDecisionModeForPersona({
+      personaId: activeDecisionPersonaId,
+      isPublicSpaceMode: isLennyMode || isCustomSpaceMode,
+      lennyDecisionMode,
+      zhangDecisionMode,
+      invokedAssistant,
+      decisionTrace: decisionTraceForResolve,
+    })
+  }, [
+    activeDecisionPersonaId,
+    decisionTraceForResolve,
+    invokedAssistant,
+    isCustomSpaceMode,
+    isLennyMode,
+    lennyDecisionMode,
+    zhangDecisionMode,
+  ])
+
   const shouldShowLingSiTrace = useMemo(() =>
     !!activeDecisionTrace &&
     activeDecisionTrace.mode === 'decision' &&
@@ -220,7 +250,7 @@ export function useAnswerModalDecision({
     const currentConv = useCanvasStore.getState().currentConversation
     const currentMode = resolveDecisionModeForPersona({
       personaId: activeDecisionPersonaId,
-      isPublicSpaceMode: isLennyMode,
+      isPublicSpaceMode: isLennyMode || isCustomSpaceMode,
       lennyDecisionMode,
       zhangDecisionMode,
       invokedAssistant,
@@ -237,7 +267,7 @@ export function useAnswerModalDecision({
       })
     }
     return payload
-  }, [activeDecisionPersonaId, activeDecisionPersonaName, invokedAssistant, isLennyMode, lennyDecisionMode, updateConversation, zhangDecisionMode])
+  }, [activeDecisionPersonaId, activeDecisionPersonaName, invokedAssistant, isCustomSpaceMode, isLennyMode, lennyDecisionMode, updateConversation, zhangDecisionMode])
 
   // ── persistDecisionRecord ─────────────────────────────────────────────────
   const persistDecisionRecord = useCallback(async (
@@ -385,6 +415,7 @@ export function useAnswerModalDecision({
 
   return {
     activeDecisionPersona,
+    resolvedDecisionMode,
     activeDecisionRecord,
     activeDecisionTrace,
     matchedDecisionUnits,

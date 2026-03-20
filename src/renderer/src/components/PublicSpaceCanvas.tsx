@@ -303,6 +303,16 @@ export function PublicSpaceCanvas({ config, isOpen, onClose }: PublicSpaceCanvas
   const setLennyDecisionMode = useCanvasStore(state => state.setLennyDecisionMode)
   const setZhangDecisionMode = useCanvasStore(state => state.setZhangDecisionMode)
 
+  /** 从历史/节点打开对话时必须带上，否则刷新后 isLennyMode 可能为 false 会读错 jsonl */
+  const modalSourceHint = useMemo((): 'lenny' | 'pg' | 'zhang' | 'wang' => {
+    switch (config.openModeKey) {
+      case 'openLennyMode': return 'lenny'
+      case 'openPGMode': return 'pg'
+      case 'openZhangMode': return 'zhang'
+      case 'openWangMode': return 'wang'
+    }
+  }, [config.openModeKey])
+
   const activeDecisionMode = config.decisionPersonaId === 'zhang'
     ? zhangDecisionMode
     : lennyDecisionMode
@@ -701,9 +711,9 @@ export function PublicSpaceCanvas({ config, isOpen, onClose }: PublicSpaceCanvas
   // ── Node open / delete ────────────────────────────────────────────────────
   const handleNodeOpen = useCallback((node: Node) => {
     const isSeedNode = !node.conversationId || node.conversationId.startsWith(config.seedIdPrefix)
-    if (!isSeedNode) openModalById(node.conversationId)
+    if (!isSeedNode) openModalById(node.conversationId, undefined, modalSourceHint)
     else startConversation(node.title)
-  }, [config.seedIdPrefix, openModalById, startConversation])
+  }, [config.seedIdPrefix, openModalById, startConversation, modalSourceHint])
 
   const handleDeleteRequest = useCallback((id: string) => setDeleteConfirmId(id), [])
 
@@ -920,7 +930,7 @@ export function PublicSpaceCanvas({ config, isOpen, onClose }: PublicSpaceCanvas
                 historyItems.map(item => (
                   <button
                     key={item.id}
-                    onClick={() => { openModalById(item.id); setIsHistoryOpen(false) }}
+                    onClick={() => { openModalById(item.id, undefined, modalSourceHint); setIsHistoryOpen(false) }}
                     className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors group"
                   >
                     <div className="flex items-start justify-between gap-2">
