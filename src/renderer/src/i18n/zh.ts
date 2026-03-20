@@ -253,6 +253,17 @@ export interface Translations {
   modal: {
     onboardingHint: string
     memorized: string
+    /** 对话窗顶部：空间 + 模式说明 */
+    sessionSpaceLenny: string
+    sessionSpacePg: string
+    sessionSpaceZhang: string
+    sessionSpaceWang: string
+    sessionSpaceCustom: (name: string) => string
+    sessionSpaceCustomDefault: string
+    sessionModeLingSi: string
+    sessionModeNormal: string
+    sessionModelThinking: string
+    sessionBadgeSep: string
     lingsiEvidence: string
     lingsiMode: string
     lingsiDecisionTrace: string
@@ -658,6 +669,16 @@ export const zh: Translations = {
   modal: {
     onboardingHint: '随时可以关闭，下次点击「新手教程」继续',
     memorized: '已记住：',
+    sessionSpaceLenny: 'Lenny 空间',
+    sessionSpacePg: 'Paul Graham 空间',
+    sessionSpaceZhang: '张小龙 空间',
+    sessionSpaceWang: '王慧文 空间',
+    sessionSpaceCustom: (name: string) => `${name} · 自定义空间`,
+    sessionSpaceCustomDefault: '自定义空间',
+    sessionModeLingSi: '灵思决策',
+    sessionModeNormal: '普通对话',
+    sessionModelThinking: '模型思考中',
+    sessionBadgeSep: ' · ',
     lingsiEvidence: '决策依据',
     lingsiMode: '决策模式',
     lingsiDecisionTrace: '当前回答所依据的决策单元与真实来源片段。',

@@ -1,8 +1,14 @@
 # Anima 开发笔记
 
-*最后更新: 2026-03-21 | 版本: v0.5.42*
+*最后更新: 2026-03-21 | 版本: v0.5.43*
 
 这里记录架构决策、踩坑经历和性能优化心得，供后续维护参考。
+
+### v0.5.43 — 空间不关窗落盘 + 历史 sourceHint + 会话模式徽章（2026-03-21）
+
+- **落盘**：`autoSaveIfNeeded` 不再排除 Lenny/自定义空间，每轮完成后与主画布一致 `appendConversation`；`beforeunload` 用 `getConversationsPersistFilename()` 写对 jsonl。
+- **历史入口**：`PublicSpaceCanvas`/`CustomSpaceCanvas` 打开节点或历史列表时传 `openModalById(..., sourceHint)`，避免刷新后 store 丢 Space 标记而读错文件。
+- **可见性**：`resolvedDecisionMode` + 顶部琥珀徽章区分灵思决策 / 普通对话 / 模型思考中（与 ThinkingSection「正在分析」区分）。
 
 ### v0.5.42 — 编辑历史用户消息输入区（2026-03-21）
 

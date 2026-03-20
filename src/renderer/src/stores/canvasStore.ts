@@ -113,6 +113,8 @@ interface CanvasState {
   
   // 方法：对话记录
   appendConversation: (conversation: Conversation) => Promise<void>
+  /** 当前会话应对应的 jsonl 文件名（用于刷新前 keepalive 落盘与调试） */
+  getConversationsPersistFilename: () => string
   
   // 新增：全局对话历史管理
   conversationHistory: import('@shared/types').AIMessage[]
@@ -2534,6 +2536,18 @@ export const useCanvasStore = create<CanvasState>()(
         ).catch(() => {})
       }, 3000)
     })
+  },
+
+  getConversationsPersistFilename: () => {
+    const { isLennyMode, isPGMode, isZhangMode, isWangMode, isCustomSpaceMode, activeCustomSpaceId } = get()
+    if (isCustomSpaceMode && activeCustomSpaceId) return `custom-${activeCustomSpaceId}-conversations.jsonl`
+    if (isLennyMode) {
+      if (isPGMode) return STORAGE_FILES.PG_CONVERSATIONS
+      if (isZhangMode) return STORAGE_FILES.ZHANG_CONVERSATIONS
+      if (isWangMode) return STORAGE_FILES.WANG_CONVERSATIONS
+      return STORAGE_FILES.LENNY_CONVERSATIONS
+    }
+    return STORAGE_FILES.CONVERSATIONS
   },
 
   clearLastError: () => set({ lastError: null }),

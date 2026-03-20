@@ -301,7 +301,6 @@ export function AnswerModal() {
       // autoSaveIfNeeded 重建 → onComplete 闭包失效 → 多余 re-render 链。
       const currentConversation = currentConversationRef.current
       if (!currentConversation?.id) return
-      if (isLennyMode || isCustomSpaceMode) return
       if (isOnboardingMode) return
       if (isStreaming) return
 
@@ -313,7 +312,7 @@ export function AnswerModal() {
       if (autoSavedSigRef.current === sig) return
       autoSavedSigRef.current = sig
 
-      // 用 store 的 appendConversation 写入 conversations.jsonl（同 id 追加覆盖），并触发索引/画像等后续任务
+      // 主画布：appendConversation 会触发索引/画像；Lenny/自定义空间：写入对应 jsonl（与关窗落盘一致）
       const convToSave: Conversation = {
         ...currentConversation,
         assistantMessage,
@@ -324,7 +323,7 @@ export function AnswerModal() {
     } catch (e) {
       console.warn('autosave failed:', e)
     }
-  }, [isLennyMode, isCustomSpaceMode, isOnboardingMode, isStreaming, serializeTurnsForStorage])
+  }, [isOnboardingMode, isStreaming, serializeTurnsForStorage])
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const onboardingPhaseRef = useRef(0)
@@ -366,6 +365,8 @@ export function AnswerModal() {
   //   buildLingSiRequest / persistDecisionRecord / markDecisionAnswered
   //   handleAdoptDecision / handleDecisionOutcome
   const {
+    activeDecisionPersona,
+    resolvedDecisionMode,
     activeDecisionRecord,
     activeDecisionTrace,
     matchedDecisionUnits,
@@ -399,6 +400,37 @@ export function AnswerModal() {
     const base = stripLeadingNumberHeading(lastTurnAssistant)
     return injectLingSiInlineCitations(base, activeDecisionTrace.sourceRefs)
   }, [lastTurnAssistant, activeDecisionTrace?.sourceRefs, shouldShowLingSiTrace])
+
+  /** 空间画布内：标明当前空间 + 灵思决策/普通对话 + 模型思考过程（与灵思产品层区分） */
+  const sessionContextBadge = useMemo(() => {
+    if (!isLennyMode && !isCustomSpaceMode) return null
+    const parts: string[] = []
+    if (isCustomSpaceMode && activeCustomSpaceId) {
+      const name = customSpaces.find(s => s.id === activeCustomSpaceId)?.name?.trim()
+      parts.push(name ? t.modal.sessionSpaceCustom(name) : t.modal.sessionSpaceCustomDefault)
+    } else if (isPGMode) parts.push(t.modal.sessionSpacePg)
+    else if (isZhangMode) parts.push(t.modal.sessionSpaceZhang)
+    else if (isWangMode) parts.push(t.modal.sessionSpaceWang)
+    else if (isLennyMode) parts.push(t.modal.sessionSpaceLenny)
+
+    if (activeDecisionPersona && resolvedDecisionMode) {
+      parts.push(resolvedDecisionMode === 'decision' ? t.modal.sessionModeLingSi : t.modal.sessionModeNormal)
+    }
+
+    const last = turns[turns.length - 1]
+    const modelThinking =
+      isStreaming &&
+      last &&
+      !(last.assistant || '').trim() &&
+      (last.reasoning || '').trim().length > 0
+    if (modelThinking) parts.push(t.modal.sessionModelThinking)
+
+    return parts.length ? parts.join(t.modal.sessionBadgeSep) : null
+  }, [
+    isLennyMode, isCustomSpaceMode, isPGMode, isZhangMode, isWangMode,
+    activeCustomSpaceId, customSpaces, activeDecisionPersona, resolvedDecisionMode,
+    turns, isStreaming, t.modal,
+  ])
 
   const resizeFeedbackTextarea = useCallback(() => {
     const textarea = textareaRef.current
@@ -691,7 +723,7 @@ export function AnswerModal() {
         const currentConversation = currentConversationRef.current
         const turns = turnsRef.current
         const appliedPreferences = appliedPreferencesRef.current
-        if (isModalOpen && currentConversation?.id && !isStreaming && !isLennyMode && !isCustomSpaceMode && !isOnboardingMode) {
+        if (isModalOpen && currentConversation?.id && !isStreaming && !isOnboardingMode) {
           const shouldSave = !!currentConversation && (!isReplayRef.current || didMutateRef.current)
           if (shouldSave) {
             const assistantMessage = serializeTurnsForStorage(turns)
@@ -707,7 +739,8 @@ export function AnswerModal() {
                 reasoning_content: turns.length > 0 ? (turns[turns.length - 1].reasoning || undefined) : undefined,
                 appliedPreferences: [...appliedPreferences],
               }
-              fetch('/api/storage/conversations.jsonl/append', {
+              const filename = useCanvasStore.getState().getConversationsPersistFilename()
+              fetch(`/api/storage/${encodeURIComponent(filename)}/append`, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify(convToSave),
@@ -720,7 +753,7 @@ export function AnswerModal() {
     }
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
-  }, [isModalOpen, isStreaming, isLennyMode, isCustomSpaceMode, isOnboardingMode, serializeTurnsForStorage])
+  }, [isModalOpen, isStreaming, isOnboardingMode, serializeTurnsForStorage])
 
   useEffect(() => {
     deepSearchStateRef.current = deepSearchState
@@ -1634,18 +1667,29 @@ export function AnswerModal() {
                 </button>
                 {/* 头部 */}
                 <div className="flex items-center justify-end px-6 py-3 pt-8 border-b border-gray-100 bg-white gap-2">
-                  {/* 引导模式提示（未完成时显示） */}
-                  {isOnboardingMode && !onboardingDone && (
-                    <span className="flex-1 text-[12px] text-gray-400 font-medium pl-1">
-                      {t.modal.onboardingHint}
-                    </span>
-                  )}
-                  {/* 偏好预告：非引导模式下，展示最活跃的偏好规则 */}
-                  {!isOnboardingMode && appliedPreferences.length > 0 && (
-                    <span className="flex-1 text-[11px] text-gray-400/70 pl-1 truncate">
-                      {t.modal.memorized}{appliedPreferences[0]}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    {/* 引导模式提示（未完成时显示） */}
+                    {isOnboardingMode && !onboardingDone && (
+                      <span className="flex-1 text-[12px] text-gray-400 font-medium pl-1">
+                        {t.modal.onboardingHint}
+                      </span>
+                    )}
+                    {/* 空间画布：当前空间 / 灵思或普通 / 模型思考中 */}
+                    {!isOnboardingMode && sessionContextBadge && (
+                      <span
+                        className="shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-900/90 border border-amber-200/80 max-w-[min(100%,26rem)] truncate"
+                        title={sessionContextBadge}
+                      >
+                        {sessionContextBadge}
+                      </span>
+                    )}
+                    {/* 偏好预告：非引导模式下，展示最活跃的偏好规则 */}
+                    {!isOnboardingMode && appliedPreferences.length > 0 && (
+                      <span className="flex-1 text-[11px] text-gray-400/70 pl-1 truncate">
+                        {t.modal.memorized}{appliedPreferences[0]}
+                      </span>
+                    )}
+                  </div>
                   {/* 导出菜单 */}
                   <div className="relative">
                     <button

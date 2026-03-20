@@ -2,6 +2,12 @@
 
 ## 计划中版本
 
+#### v0.5.43 - 空间不关窗落盘 + 历史 sourceHint + 会话模式徽章（已完成）
+- [x] `autoSaveIfNeeded` / `beforeunload`：Lenny/自定义空间写入对应 `*-conversations.jsonl`；`getConversationsPersistFilename()`
+- [x] `PublicSpaceCanvas` / `CustomSpaceCanvas`：`openModalById` 传 `sourceHint`
+- [x] `resolvedDecisionMode` + 对话窗顶部徽章（灵思 / 普通 / 模型思考中）
+- [x] 验证：`npm test`（631/631）、`npx tsc --noEmit`、`npm run build`、`npm run test:e2e`（45 passed / 3 skipped）
+
 #### v0.5.42 - 编辑历史用户消息输入区高度与布局（已完成）
 - [x] `AnswerModal`：编辑态 `textarea` 首帧撑开、`clampMessageEditTextareaHeight`、列 `min-w-0`、编辑态视觉区分
 - [x] 验证：`npm test`（631/631）、`npm run typecheck`、`npm run build`、`npm run test:e2e`（45 passed / 3 skipped）
