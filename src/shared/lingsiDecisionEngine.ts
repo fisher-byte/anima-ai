@@ -254,6 +254,14 @@ export function buildDecisionExtraContext(
     `用户问题：${query.trim()}`,
   ]
 
+  if (persona?.id === 'zhang') {
+    header.splice(header.length - 1, 0,
+      '张小龙视角（语气与呈现）：',
+      '- 用「用户价值、关系、场景、克制、信任」来组织判断；避免写成互联网广告/增长操盘、填充率、放量之类的行业黑话备忘录。',
+      '- 案例库里的商业化/广告/变现措辞若出现，请转述为「体验边界、用户选择权、自然交互」等产品语言，不要照搬 KPI 口径。',
+    )
+  }
+
   if (frameworks.length > 0) {
     header.push(`优先框架：\n${frameworks.map(item => `- ${item}`).join('\n')}`)
   }

@@ -94,12 +94,12 @@ describe('LingSiTracePanel', () => {
         matchedUnits={[]}
         sourceRefs={[]}
         productStateDocRefs={['docs/PROJECT.md', 'docs/lingsi-flywheel.md']}
+        defaultExpanded
       />,
     )
 
     expect(html).toContain('当前项目状态')
     expect(html).toContain('这次没有命中具体案例')
-    expect(html).toContain('当前项目状态')
     expect(html).not.toContain('docs/PROJECT.md')
   })
 

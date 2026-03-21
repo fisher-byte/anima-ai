@@ -2,6 +2,13 @@
 
 ## 计划中版本
 
+#### v0.5.48 - 灵思决策区 / 模式标识 / 流中断 / 张小龙语气（已完成）
+- [x] `LingSiTracePanel` / `LingSiDecisionCard`：默认收起与限高滚动；`defaultExpanded` 可选
+- [x] `useAnswerModalDecision`：`decisionTrace.personaId` 兜底 persona；顶栏 / 深度搜索条 / 侧栏历史 / 决策卡灵思标识
+- [x] `useAI`：`terminated`/`aborted` 分流保留正文或友好报错
+- [x] `lingsiDecisionEngine`：张小龙灵思补充语境
+- [x] 验证：`npm test`（635）、`tsc`、`build`、E2E 45 passed / 3 skipped
+
 #### v0.5.47 - 我的空间默认折叠 + E2E 侧栏注入（已完成）
 - [x] `Canvas`：`evo_spaces_sidebar_visible === 'true'` 才展开，默认折叠并持久化上次状态
 - [x] E2E：`injectToken` / `setupPage` 写入 `evo_spaces_sidebar_visible: 'true'`，修复 Lenny/PG 可见性用例

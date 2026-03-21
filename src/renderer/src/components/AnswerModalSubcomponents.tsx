@@ -357,6 +357,7 @@ export const LingSiTracePanel = memo(function LingSiTracePanel({
   sourceRefs,
   productStateDocRefs = [],
   isStreaming = false,
+  defaultExpanded = false,
   onOpenTrace,
 }: {
   mode: DecisionMode
@@ -365,10 +366,13 @@ export const LingSiTracePanel = memo(function LingSiTracePanel({
   sourceRefs: DecisionSourceRef[]
   productStateDocRefs?: string[]
   isStreaming?: boolean
+  /** 默认是否展开（UI 默认 false；单测等可显式展开） */
+  defaultExpanded?: boolean
   onOpenTrace?: (data: LingSiTraceData) => void
 }) {
   const { t } = useT()
-  const [expanded, setExpanded] = useState(true)
+  /** 默认收起，避免占满吸底区、挤压上方正文输出区 */
+  const [expanded, setExpanded] = useState(defaultExpanded)
   const matchedUnitLabels = matchedUnits.map((unit) => unit.title)
   const nextActions = Array.from(new Set(matchedUnits.flatMap((unit) => unit.nextActions))).slice(0, 6)
   const hasProductStateTrace = productStateDocRefs.length > 0
@@ -414,8 +418,8 @@ export const LingSiTracePanel = memo(function LingSiTracePanel({
           <button
             type="button"
             onClick={() => setExpanded(v => !v)}
-            disabled={isStreaming}
-            className="rounded-lg p-1 text-amber-500 transition-colors hover:bg-white/70 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-40"
+            title={expanded ? t.input.collapse : t.input.expand}
+            className="rounded-lg p-1 text-amber-500 transition-colors hover:bg-white/70 hover:text-amber-700"
           >
             {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
@@ -423,7 +427,7 @@ export const LingSiTracePanel = memo(function LingSiTracePanel({
       </div>
 
       {expanded && (
-        <div className="border-t border-amber-200/50 px-4 py-3 space-y-2.5">
+        <div className="border-t border-amber-200/50 px-4 py-3 space-y-2.5 max-h-[min(42vh,420px)] overflow-y-auto overscroll-contain">
           {matchedUnitLabels.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {matchedUnits.map((unit, idx) => (
@@ -506,6 +510,7 @@ export const LingSiTracePanel = memo(function LingSiTracePanel({
   if (prevProps.mode !== nextProps.mode) return false
   if (prevProps.personaName !== nextProps.personaName) return false
   if (prevProps.isStreaming !== nextProps.isStreaming) return false
+  if (prevProps.defaultExpanded !== nextProps.defaultExpanded) return false
   if (prevProps.onOpenTrace !== nextProps.onOpenTrace) return false
   // 数组内容比较（长度优先快路径）
   const muPrev = prevProps.matchedUnits
@@ -667,7 +672,10 @@ export const LingSiDecisionCard = memo(function LingSiDecisionCard({
           <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${statusTone}`}>
             {statusLabel}
           </span>
-          <span className="text-[10px] text-amber-600/50">{personaName}</span>
+          <span className="text-[10px] font-semibold rounded-md bg-amber-100/90 px-1.5 py-0.5 text-amber-900">
+            {t.modal.sessionModeLingSi}
+          </span>
+          <span className="text-[10px] text-amber-800/80">{personaName}</span>
           {!expanded && (
             <span className="text-[12px] text-gray-600 truncate max-w-[280px]">
               {localRecord.recommendationSummary}
@@ -677,9 +685,9 @@ export const LingSiDecisionCard = memo(function LingSiDecisionCard({
         <ChevronDown className={`h-3.5 w-3.5 text-amber-500 flex-shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
       </button>
 
-      {/* Expanded content */}
+      {/* Expanded content：限高滚动，避免长决策卡占满可视区 */}
       {expanded && (
-        <div className="border-t border-amber-200/40">
+        <div className="border-t border-amber-200/40 max-h-[min(48vh,480px)] overflow-y-auto overscroll-contain">
           {/* Recommendation */}
           <div className="px-4 py-3">
             <div className="text-[15px] font-semibold leading-6 text-gray-900">

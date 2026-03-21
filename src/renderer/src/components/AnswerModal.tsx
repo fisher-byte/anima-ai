@@ -403,7 +403,10 @@ export function AnswerModal() {
 
   /** 空间画布内：标明当前空间 + 灵思决策/普通对话 + 模型思考过程（与灵思产品层区分） */
   const sessionContextBadge = useMemo(() => {
-    if (!isLennyMode && !isCustomSpaceMode) return null
+    const lingSiFromTrace =
+      activeDecisionTrace?.mode === 'decision' &&
+      (activeDecisionTrace.personaId === 'zhang' || activeDecisionTrace.personaId === 'lenny')
+    if (!isLennyMode && !isCustomSpaceMode && !lingSiFromTrace) return null
     const parts: string[] = []
     if (isCustomSpaceMode && activeCustomSpaceId) {
       const name = customSpaces.find(s => s.id === activeCustomSpaceId)?.name?.trim()
@@ -412,9 +415,13 @@ export function AnswerModal() {
     else if (isZhangMode) parts.push(t.modal.sessionSpaceZhang)
     else if (isWangMode) parts.push(t.modal.sessionSpaceWang)
     else if (isLennyMode) parts.push(t.modal.sessionSpaceLenny)
+    else if (activeDecisionTrace?.personaId === 'zhang') parts.push(t.modal.sessionSpaceZhang)
+    else if (activeDecisionTrace?.personaId === 'lenny') parts.push(t.modal.sessionSpaceLenny)
 
-    if (activeDecisionPersona && resolvedDecisionMode) {
+    if (resolvedDecisionMode !== null) {
       parts.push(resolvedDecisionMode === 'decision' ? t.modal.sessionModeLingSi : t.modal.sessionModeNormal)
+    } else if (lingSiFromTrace) {
+      parts.push(t.modal.sessionModeLingSi)
     }
 
     const last = turns[turns.length - 1]
@@ -429,6 +436,7 @@ export function AnswerModal() {
   }, [
     isLennyMode, isCustomSpaceMode, isPGMode, isZhangMode, isWangMode,
     activeCustomSpaceId, customSpaces, activeDecisionPersona, resolvedDecisionMode,
+    activeDecisionTrace?.mode, activeDecisionTrace?.personaId,
     turns, isStreaming, t.modal,
   ])
 
@@ -1848,7 +1856,12 @@ export function AnswerModal() {
                                   transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
                                   className="block w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0"
                                 />
-                                {searchRoundMsg}
+                                <span className="min-w-0">
+                                  {(resolvedDecisionMode === 'decision' || activeDecisionTrace?.mode === 'decision') && (
+                                    <span className="font-semibold text-amber-800/90">{t.modal.sessionModeLingSi}{t.modal.sessionBadgeSep}</span>
+                                  )}
+                                  {searchRoundMsg}
+                                </span>
                               </div>
                             )}
                             <ThinkingSection

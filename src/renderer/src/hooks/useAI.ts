@@ -174,7 +174,12 @@ export function useAI(options: UseAIOptions = {}) {
           errorMessage.includes('BodyStreamBuffer')
         )
 
-      if (isNetworkTailFailure) {
+      // 流被提前终止（Abort/代理超时/服务端断开）：有部分正文时尽量保留，避免用户只看到「terminated」
+      const isTerminatedWithPartial =
+        fullText.trim().length > 0 &&
+        (errorMessage.toLowerCase().includes('terminated') || errorMessage.toLowerCase().includes('aborted'))
+
+      if (isNetworkTailFailure || isTerminatedWithPartial) {
         const nextHistory: AIMessage[] = [
           ...messages,
           {
@@ -187,6 +192,14 @@ export function useAI(options: UseAIOptions = {}) {
         if (conversationId) persistHistory(conversationId, nextHistory)
         callbacksRef.current.onComplete?.(fullText)
         return fullText
+      }
+
+      const isEmptyStreamTerminated =
+        !fullText.trim() &&
+        (errorMessage.toLowerCase().includes('terminated') || errorMessage.toLowerCase().includes('aborted'))
+      if (isEmptyStreamTerminated) {
+        callbacksRef.current.onError?.('流式连接中断，请稍后重试或点击重试')
+        return ''
       }
 
       callbacksRef.current.onError?.(errorMessage)

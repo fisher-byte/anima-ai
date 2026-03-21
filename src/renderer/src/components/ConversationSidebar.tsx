@@ -475,11 +475,16 @@ export function ConversationSidebar({ isOpen, onClose, initialTab = 'history' }:
                           onClick={() => handleConversationClick(conversation)}
                           className="p-4 bg-gray-50/50 hover:bg-gray-100/80 border border-gray-100/50 rounded-2xl cursor-pointer transition-all group relative overflow-hidden"
                         >
-                          <div className="flex items-start justify-between mb-2">
-                            <div className="font-medium text-gray-800 text-sm line-clamp-1 flex-1">
-                              {node?.title || conversation.userMessage.slice(0, 20)}
+                          <div className="flex items-start justify-between mb-2 gap-2">
+                            <div className="font-medium text-gray-800 text-sm line-clamp-1 flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
+                              {conversation.decisionTrace?.mode === 'decision' && (
+                                <span className="shrink-0 rounded-md bg-amber-100/90 px-1.5 py-0.5 text-[9px] font-semibold text-amber-800">
+                                  {t.modal.sessionModeLingSi}
+                                </span>
+                              )}
+                              <span className="min-w-0 truncate">{node?.title || conversation.userMessage.slice(0, 20)}</span>
                             </div>
-                            <span className="text-[10px] text-gray-400 font-medium whitespace-nowrap ml-2">
+                            <span className="text-[10px] text-gray-400 font-medium whitespace-nowrap ml-2 shrink-0">
                               {conversation.createdAt.split('T')[0]}
                             </span>
                           </div>
