@@ -1,3 +1,18 @@
+## [0.5.48] - 2026-03-21
+
+### fix: 灵思（张小龙）决策区布局、模式可见性、深度搜索流中断与语气引导
+
+**改动**：
+
+- **决策依据 / 决策卡**：`LingSiTracePanel` 默认收起、展开区限高滚动、生成中仍可折叠；`LingSiDecisionCard` 展开区限高滚动；可选 `defaultExpanded`（单测与需默认展开场景）。
+- **灵思可见性**：`decisionTrace.personaId` 兜底 `activeDecisionPersona`（历史续聊）；顶栏徽章在 trace 为灵思时仍可展示；深度搜索条前缀「灵思决策」；侧栏历史列表灵思徽章；决策卡头显式灵思标签。
+- **流式错误**：`useAI` 对 `terminated`/`aborted`：有正文则保留并走完成；无正文则友好中文提示。
+- **张小龙灵思**：`buildDecisionExtraContext` 增加克制、用户价值与信任导向，弱化商业化操盘口吻。
+
+**测试**：635/635 passed（36 files）；`tsc` 0 错误；`npm run build` 成功；E2E **45 passed / 3 skipped**。
+
+---
+
 ## [0.5.47] - 2026-03-21
 
 ### fix: 「我的空间」默认折叠 + 持久化；E2E 注入侧栏展开以稳定 Lenny/PG 用例

@@ -101,18 +101,26 @@ export function useAnswerModalDecision({
   const invokedAssistant: AssistantInvocation | undefined = useCanvasStore(
     state => state.currentConversation?.invokedAssistant
   )
+  const decisionTracePersonaId = useCanvasStore(
+    state => state.currentConversation?.decisionTrace?.personaId,
+  )
   const updateConversation = useCanvasStore(state => state.updateConversation)
 
-  // activeDecisionPersona：根据当前 space 模式推断
-  const activeDecisionPersona = useMemo(() => (
-    isLennyMode && !isPGMode && !isWangMode
-      ? (isZhangMode
-        ? { id: 'zhang' as const, name: '张小龙' }
-        : { id: 'lenny' as const, name: 'Lenny Rachitsky' })
-      : invokedAssistant?.type === 'public_space'
-        ? getDecisionPersonaForPublicSpace(invokedAssistant.id)
-        : null
-  ), [invokedAssistant, isLennyMode, isPGMode, isWangMode, isZhangMode])
+  // activeDecisionPersona：根据当前 space 模式推断；从历史恢复灵思会话时以 decisionTrace.personaId 兜底
+  const activeDecisionPersona = useMemo(() => {
+    const fromSpace =
+      isLennyMode && !isPGMode && !isWangMode
+        ? (isZhangMode
+          ? { id: 'zhang' as const, name: '张小龙' }
+          : { id: 'lenny' as const, name: 'Lenny Rachitsky' })
+        : invokedAssistant?.type === 'public_space'
+          ? getDecisionPersonaForPublicSpace(invokedAssistant.id)
+          : null
+    if (fromSpace) return fromSpace
+    if (decisionTracePersonaId === 'zhang') return { id: 'zhang' as const, name: '张小龙' }
+    if (decisionTracePersonaId === 'lenny') return { id: 'lenny' as const, name: 'Lenny Rachitsky' }
+    return null
+  }, [invokedAssistant, isLennyMode, isPGMode, isWangMode, isZhangMode, decisionTracePersonaId])
   const activeDecisionPersonaId = activeDecisionPersona?.id
   const activeDecisionPersonaName = activeDecisionPersona?.name
 

@@ -1,7 +1,7 @@
 # Anima 服务器部署文档
 
 **最后更新**: 2026-03-21
-**应用版本**: v0.5.47（生产目录 `/opt/evocanvas`，PM2 进程名 `evocanvas`）
+**应用版本**: v0.5.48（生产目录 `/opt/evocanvas`，PM2 进程名 `evocanvas`）
 
 ---
 
