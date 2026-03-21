@@ -1,3 +1,21 @@
+## [0.5.49] - 2026-03-21
+
+### feat: anima-base 灵思自动入库 + 匹配降权 + 离线轻量评测
+
+**改动**：
+
+- **自动入库**：`scripts/animaBaseAutoDiscovery.ts` 扫描 Lenny / 张小龙目录下未在精选 `SOURCE_SPECS` 中的 `.md`，生成 `src-auto-*` / `unit-auto-*`；`extract-lingsi-seeds` 支持 `ANIMA_BASE`、`LINGSI_AUTO_INGEST`；Persona `evidenceSources` 仍仅精选。
+- **匹配**：`unit-auto-*` 在 `scoreDecisionUnit` 降权，避免挤掉 Top3 精选。
+- **评测**：`lingsiEvalPrompts.ts` 与 `evaluate-lingsi` 共用题集；新增 `npm run lingsi:evaluate:lite`（离线匹配统计）→ `docs/lingsi-eval-lite.md`、`reports/lingsi-eval-lite.json`。
+- **发布说明**：`docs/releases/RELEASE_ANIMA_BASE_AUTO_INGEST.md`（打 tag、回退指引）。
+- **UI**：灵思决策卡在非流式且已有决策记录时隐藏冗余「下一步」。
+
+**测试**：637/637 passed；`tsc` 0 错误；`npm run build` 成功。
+
+**种子**：`LINGSI_AUTO_INGEST=0` 可仅导出精选；全量需本地 `anima-base`。
+
+---
+
 ## [0.5.48] - 2026-03-21
 
 ### fix: 灵思（张小龙）决策区布局、模式可见性、深度搜索流中断与语气引导

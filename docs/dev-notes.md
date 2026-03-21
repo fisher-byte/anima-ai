@@ -1,8 +1,21 @@
 # Anima 开发笔记
 
-*最后更新: 2026-03-21 | 版本: v0.5.48*
+*最后更新: 2026-03-21 | 版本: v0.5.49*
 
 这里记录架构决策、踩坑经历和性能优化心得，供后续维护参考。
+
+### 灵思续聊与职业场景（2026-03-21）
+
+- **`mergeDecisionTrace`**：`decision` 模式下 `matchedDecisionUnitIds` / `sourceRefs` **按轮替换**，不再与历史并集，避免「决策依据」叠旧命中。
+- **职业意图**：`inferDecisionType` 扩展口语（工作怎么、第一份工作、跳槽等）；`career` 下过滤典型商业化单元；新增 Zhang 职业向 `DecisionUnit`。
+- **UI**：决策依据/决策卡与 Dock 对齐 **stone 白灰**；有决策卡时依据区 **隐藏「下一步动作」** 避免与卡内重复。
+- **anima-base**：见 `dev-guide`「anima-base 与灵思种子」；clone 到与 `evocanvas` 同级后跑 `lingsi:extract` / `lingsi:refresh`。
+
+### v0.5.49 — anima-base 灵思自动入库 / 匹配降权 / 离线轻量评测（2026-03-21）
+
+- 自动扫描 `anima-base` 未登记 md → `src-auto-*` / `unit-auto-*`；`LINGSI_AUTO_INGEST=0` 可仅精选。
+- `npm run lingsi:evaluate:lite` 离线匹配基线；`docs/releases/RELEASE_ANIMA_BASE_AUTO_INGEST.md` 含打 tag 与回退。
+- changelog 解析器同时支持 `**改动**：` 与 `**标题：**` 两种 bullet 标题写法。
 
 ### v0.5.48 — 灵思决策区 / 模式标识 / 流中断（2026-03-21）
 

@@ -1921,6 +1921,7 @@ export function AnswerModal() {
                         sourceRefs={stableSourceRefs}
                         productStateDocRefs={stableProductStateDocRefs}
                         isStreaming={isStreaming}
+                        hideRedundantNextActions={!isStreaming && !!activeDecisionRecord}
                         onOpenTrace={setTraceData}
                       />
                     )}

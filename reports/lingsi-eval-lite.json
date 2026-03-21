@@ -1,0 +1,294 @@
+{
+  "generatedAt": "2026-03-21T05:05:05.650Z",
+  "seeds": {
+    "totalUnits": 443,
+    "lennyUnits": 374,
+    "zhangUnits": 69,
+    "autoUnits": 384,
+    "curatedUnits": 59
+  },
+  "lenny": {
+    "cases": 15,
+    "avgMatchedPerCase": 2.33,
+    "casesWithAtLeastOneMatch": 14,
+    "casesWhereFirstHitIsCurated": 13,
+    "pctFirstHitCuratedAmongHits": 93
+  },
+  "zhang": {
+    "cases": 7,
+    "avgMatchedPerCase": 1.43,
+    "casesWithAtLeastOneMatch": 7,
+    "casesWhereFirstHitIsCurated": 7,
+    "pctFirstHitCuratedAmongHits": 100
+  },
+  "details": {
+    "lenny": [
+      {
+        "id": "pmf-before-growth",
+        "category": "product",
+        "count": 3,
+        "top3Ids": [
+          "lenny-retention-before-acquisition",
+          "lenny-pmf-validate-before-growth",
+          "unit-auto-c3d624c6c870"
+        ],
+        "autoInTop3": 1,
+        "curatedInTop3": 2,
+        "firstIsAuto": false
+      },
+      {
+        "id": "find-best-segment",
+        "category": "product",
+        "count": 3,
+        "top3Ids": [
+          "lenny-pmf-find-best-segment",
+          "unit-auto-6dba6a9333e0",
+          "unit-auto-7d35a572824e"
+        ],
+        "autoInTop3": 2,
+        "curatedInTop3": 1,
+        "firstIsAuto": false
+      },
+      {
+        "id": "prioritize-roadmap",
+        "category": "product",
+        "count": 3,
+        "top3Ids": [
+          "lenny-roadmap-cutline-before-stakeholder-pull",
+          "lenny-rice-prioritize-with-confidence",
+          "lenny-pmf-balance-love-and-objections"
+        ],
+        "autoInTop3": 0,
+        "curatedInTop3": 3,
+        "firstIsAuto": false
+      },
+      {
+        "id": "pricing-value-metric",
+        "category": "pricing",
+        "count": 3,
+        "top3Ids": [
+          "lenny-pricing-start-with-value-metric",
+          "unit-auto-1d421204b859",
+          "unit-auto-e195d4cbea00"
+        ],
+        "autoInTop3": 2,
+        "curatedInTop3": 1,
+        "firstIsAuto": false
+      },
+      {
+        "id": "pricing-upgrade-path",
+        "category": "pricing",
+        "count": 3,
+        "top3Ids": [
+          "lenny-pricing-start-with-value-metric",
+          "lenny-pricing-design-clear-upgrade-path",
+          "unit-auto-c3d624c6c870"
+        ],
+        "autoInTop3": 1,
+        "curatedInTop3": 2,
+        "firstIsAuto": false
+      },
+      {
+        "id": "growth-loop",
+        "category": "growth",
+        "count": 3,
+        "top3Ids": [
+          "lenny-growth-loop-before-channel-scaling",
+          "lenny-pmf-validate-before-growth",
+          "unit-auto-0db3eb7bfc21"
+        ],
+        "autoInTop3": 1,
+        "curatedInTop3": 2,
+        "firstIsAuto": false
+      },
+      {
+        "id": "daci-decision",
+        "category": "org",
+        "count": 3,
+        "top3Ids": [
+          "lenny-daci-for-cross-functional-decisions",
+          "lenny-roadmap-cutline-before-stakeholder-pull",
+          "lenny-pre-mortem-needs-kill-criteria"
+        ],
+        "autoInTop3": 0,
+        "curatedInTop3": 3,
+        "firstIsAuto": false
+      },
+      {
+        "id": "two-way-door",
+        "category": "org",
+        "count": 3,
+        "top3Ids": [
+          "lenny-two-way-door-for-speed",
+          "lenny-find-magic-moment-before-scaling-onboarding",
+          "lenny-guide-users-to-aha-moment-fast"
+        ],
+        "autoInTop3": 0,
+        "curatedInTop3": 3,
+        "firstIsAuto": false
+      },
+      {
+        "id": "meeting-redesign",
+        "category": "org",
+        "count": 2,
+        "top3Ids": [
+          "lenny-daci-for-cross-functional-decisions",
+          "lenny-meetings-are-for-discussion-not-discovery-or-decision"
+        ],
+        "autoInTop3": 0,
+        "curatedInTop3": 2,
+        "firstIsAuto": false
+      },
+      {
+        "id": "pre-mortem",
+        "category": "risk",
+        "count": 3,
+        "top3Ids": [
+          "lenny-pre-mortem-needs-kill-criteria",
+          "unit-auto-6dba6a9333e0",
+          "unit-auto-7d35a572824e"
+        ],
+        "autoInTop3": 2,
+        "curatedInTop3": 1,
+        "firstIsAuto": false
+      },
+      {
+        "id": "make-implicit-explicit",
+        "category": "decision",
+        "count": 1,
+        "top3Ids": [
+          "lenny-make-implicit-explicit"
+        ],
+        "autoInTop3": 0,
+        "curatedInTop3": 1,
+        "firstIsAuto": false
+      },
+      {
+        "id": "leading-signals",
+        "category": "decision",
+        "count": 1,
+        "top3Ids": [
+          "lenny-shorten-feedback-loops-with-leading-signals"
+        ],
+        "autoInTop3": 0,
+        "curatedInTop3": 1,
+        "firstIsAuto": false
+      },
+      {
+        "id": "career-switch",
+        "category": "career",
+        "count": 3,
+        "top3Ids": [
+          "unit-auto-c3d624c6c870",
+          "unit-auto-6213229109dd",
+          "unit-auto-dc23e27adf05"
+        ],
+        "autoInTop3": 3,
+        "curatedInTop3": 0,
+        "firstIsAuto": true
+      },
+      {
+        "id": "cofounder-choice",
+        "category": "career",
+        "count": 1,
+        "top3Ids": [
+          "lenny-timebox-most-decisions-under-uncertainty"
+        ],
+        "autoInTop3": 0,
+        "curatedInTop3": 1,
+        "firstIsAuto": false
+      },
+      {
+        "id": "general-overload",
+        "category": "general",
+        "count": 0,
+        "top3Ids": [],
+        "autoInTop3": 0,
+        "curatedInTop3": 0,
+        "firstIsAuto": false
+      }
+    ],
+    "zhang": [
+      {
+        "id": "service-shape-use-and-go",
+        "category": "service",
+        "count": 1,
+        "top3Ids": [
+          "zhang-scene-entry-beats-homepage-entry-for-services"
+        ],
+        "autoInTop3": 0,
+        "curatedInTop3": 1,
+        "firstIsAuto": false
+      },
+      {
+        "id": "scene-entry-vs-home-entry",
+        "category": "entry",
+        "count": 3,
+        "top3Ids": [
+          "zhang-scene-entry-beats-homepage-entry-for-services",
+          "unit-auto-ded3065530ea",
+          "unit-auto-974ac5fedae8"
+        ],
+        "autoInTop3": 2,
+        "curatedInTop3": 1,
+        "firstIsAuto": false
+      },
+      {
+        "id": "platform-forest-vs-palace",
+        "category": "platform",
+        "count": 1,
+        "top3Ids": [
+          "zhang-build-forest-not-palace"
+        ],
+        "autoInTop3": 0,
+        "curatedInTop3": 1,
+        "firstIsAuto": false
+      },
+      {
+        "id": "dynamic-rules",
+        "category": "governance",
+        "count": 1,
+        "top3Ids": [
+          "zhang-dynamic-rules-beat-static-control"
+        ],
+        "autoInTop3": 0,
+        "curatedInTop3": 1,
+        "firstIsAuto": false
+      },
+      {
+        "id": "social-pressure-signals",
+        "category": "social",
+        "count": 1,
+        "top3Ids": [
+          "zhang-reduce-social-pressure-signals"
+        ],
+        "autoInTop3": 0,
+        "curatedInTop3": 1,
+        "firstIsAuto": false
+      },
+      {
+        "id": "commercialize-social-feed",
+        "category": "commercialization",
+        "count": 1,
+        "top3Ids": [
+          "zhang-commercialize-with-restraint-and-native-form"
+        ],
+        "autoInTop3": 0,
+        "curatedInTop3": 1,
+        "firstIsAuto": false
+      },
+      {
+        "id": "cold-start-centralization",
+        "category": "governance",
+        "count": 2,
+        "top3Ids": [
+          "zhang-use-temporary-centralization-only-for-cold-start",
+          "zhang-govern-platform-with-rules-not-manual-traffic"
+        ],
+        "autoInTop3": 0,
+        "curatedInTop3": 2,
+        "firstIsAuto": false
+      }
+    ]
+  }
+}

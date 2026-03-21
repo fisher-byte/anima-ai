@@ -4,6 +4,7 @@ import decisionPersonasSeed from '../../../seeds/lingsi/decision-personas.json'
 import decisionProductStateSeed from '../../../seeds/lingsi/decision-product-state.json'
 import {
   buildLingSiDecisionPayloadFromUnits,
+  filterMatchedUnitsByDecisionDomain,
   matchDecisionUnits,
   mergeDecisionTrace,
   shouldInjectDecisionProductState,
@@ -133,12 +134,33 @@ describe('lingsiDecisionEngine', () => {
     expect(payload.decisionTrace.reasoningRoute?.keyUnknowns?.length).toBeGreaterThan(0)
   })
 
-  it('merges traces without duplicating unit ids', () => {
+  it('career prompts filter out commercialization Zhang units and prefer career-oriented unit', () => {
+    const q = '对于工作怎么思考？我现在是第一份工作，刚上班半年。'
+    const zhangScoped = units.filter((u) => u.personaId === 'zhang')
+    const raw = matchDecisionUnits(q, zhangScoped)
+    const commercial = raw.find((u) => u.id.includes('commercialize'))
+    if (commercial) {
+      expect(filterMatchedUnitsByDecisionDomain([commercial], 'career')).toHaveLength(0)
+    }
+    const payload = buildLingSiDecisionPayloadFromUnits(q, 'decision', units, {
+      personaId: 'zhang',
+      personaName: '张小龙',
+    })
+    expect(payload.decisionTrace.reasoningRoute?.decisionType).toBe('career')
+    expect(payload.decisionTrace.matchedDecisionUnitIds?.some((id) => id.includes('commercialize'))).toBe(false)
+    for (const id of payload.decisionTrace.matchedDecisionUnitIds ?? []) {
+      expect(id.includes('commercialize')).toBe(false)
+    }
+  })
+
+  it('mergeDecisionTrace replaces matched units per round (does not accumulate across turns)', () => {
     const first = buildLingSiDecisionPayloadFromUnits('路线图优先级怎么排？', 'decision', units, { personaId: 'lenny' }).decisionTrace
     const second = buildLingSiDecisionPayloadFromUnits('路线图优先级还是用 RICE 吗？', 'decision', units, { personaId: 'lenny' }).decisionTrace
     const merged = mergeDecisionTrace(first, second)
     expect(merged.mode).toBe('decision')
     expect(merged.personaId).toBe('lenny')
+    expect(merged.matchedDecisionUnitIds).toEqual(second.matchedDecisionUnitIds)
+    expect(merged.sourceRefs?.map(r => r.id)).toEqual(second.sourceRefs?.map(r => r.id))
     expect(merged.matchedDecisionUnitIds?.filter(id => id === 'lenny-rice-prioritize-with-confidence')).toHaveLength(1)
   })
 

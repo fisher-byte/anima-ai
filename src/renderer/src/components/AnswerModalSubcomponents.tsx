@@ -358,6 +358,8 @@ export const LingSiTracePanel = memo(function LingSiTracePanel({
   productStateDocRefs = [],
   isStreaming = false,
   defaultExpanded = false,
+  /** 底部已有决策卡时隐藏「下一步动作」块，避免与决策卡重复 */
+  hideRedundantNextActions = false,
   onOpenTrace,
 }: {
   mode: DecisionMode
@@ -368,6 +370,7 @@ export const LingSiTracePanel = memo(function LingSiTracePanel({
   isStreaming?: boolean
   /** 默认是否展开（UI 默认 false；单测等可显式展开） */
   defaultExpanded?: boolean
+  hideRedundantNextActions?: boolean
   onOpenTrace?: (data: LingSiTraceData) => void
 }) {
   const { t } = useT()
@@ -387,19 +390,19 @@ export const LingSiTracePanel = memo(function LingSiTracePanel({
   }, [isStreaming, onOpenTrace, personaName, matchedUnits, sourceRefs, productStateDocRefs])
 
   return (
-    <div className="mt-4 rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-50/80 to-orange-50/40 overflow-hidden">
-      {/* ── 标题栏 ── */}
+    <div className="mt-4 rounded-2xl border border-stone-200/90 bg-white/95 shadow-sm overflow-hidden backdrop-blur-sm">
+      {/* ── 标题栏（与画布「进行中决策」Dock 一致：白底灰边 stone） */}
       <div className="flex items-center gap-2.5 px-4 py-2.5">
-        <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+        <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-stone-100 text-stone-600">
           <BookOpen className="h-3.5 w-3.5" />
         </div>
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-          <span className="text-[12px] font-semibold text-amber-900">{t.modal.lingsiEvidence}</span>
-          <span className="rounded-md bg-amber-100/80 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-amber-700">
+          <span className="text-[12px] font-semibold text-stone-800">{t.modal.lingsiEvidence}</span>
+          <span className="rounded-md bg-stone-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-stone-700">
             {t.modal.lingsiMode}
           </span>
           {(matchedUnitLabels.length > 0 || sourceRefs.length > 0) && (
-            <span className="text-[11px] text-amber-600/70">
+            <span className="text-[11px] text-stone-500">
               {t.modal.lingsiUnits(matchedUnitLabels.length)} · {t.modal.lingsiSources(sourceRefs.length)}
             </span>
           )}
@@ -410,7 +413,7 @@ export const LingSiTracePanel = memo(function LingSiTracePanel({
             onClick={handleOpenTrace}
             disabled={isStreaming}
             title={isStreaming ? t.modal.lingsiTraceWaitForCompletion : t.modal.lingsiOpenTrace}
-            className="inline-flex items-center gap-1 rounded-lg bg-white/70 px-2 py-1 text-[11px] font-medium text-amber-700 transition-colors hover:bg-white hover:text-amber-900 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center gap-1 rounded-lg bg-stone-50 px-2 py-1 text-[11px] font-medium text-stone-700 transition-colors hover:bg-stone-100 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Route className="h-3 w-3" />
             {t.modal.lingsiOpenTrace}
@@ -419,7 +422,7 @@ export const LingSiTracePanel = memo(function LingSiTracePanel({
             type="button"
             onClick={() => setExpanded(v => !v)}
             title={expanded ? t.input.collapse : t.input.expand}
-            className="rounded-lg p-1 text-amber-500 transition-colors hover:bg-white/70 hover:text-amber-700"
+            className="rounded-lg p-1 text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-800"
           >
             {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
@@ -427,13 +430,13 @@ export const LingSiTracePanel = memo(function LingSiTracePanel({
       </div>
 
       {expanded && (
-        <div className="border-t border-amber-200/50 px-4 py-3 space-y-2.5 max-h-[min(42vh,420px)] overflow-y-auto overscroll-contain">
+        <div className="border-t border-stone-200/80 px-4 py-3 space-y-2.5 max-h-[min(42vh,420px)] overflow-y-auto overscroll-contain">
           {matchedUnitLabels.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {matchedUnits.map((unit, idx) => (
                 <span
                   key={`${unit.id}-${idx}`}
-                  className="rounded-lg border border-amber-200/80 bg-white/60 px-2.5 py-1 text-[11px] font-medium text-amber-800"
+                  className="rounded-lg border border-stone-200/90 bg-stone-50/80 px-2.5 py-1 text-[11px] font-medium text-stone-800"
                 >
                   {unit.title}
                 </span>
@@ -441,30 +444,30 @@ export const LingSiTracePanel = memo(function LingSiTracePanel({
             </div>
           )}
 
-          {nextActions.length > 0 && (
-            <div className="rounded-xl bg-white/60 px-3 py-2.5 ring-1 ring-amber-200/50">
-              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-amber-600">
+          {nextActions.length > 0 && !hideRedundantNextActions && (
+            <div className="rounded-xl bg-stone-50/90 px-3 py-2.5 ring-1 ring-stone-200/70">
+              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-stone-600">
                 {t.modal.lingsiNextActions}
               </div>
               <ul className="space-y-1 pl-3.5 text-[12px] leading-[1.6] text-gray-700">
                 {nextActions.slice(0, 3).map((action, idx) => (
-                  <li key={`${action}-${idx}`} className="list-disc marker:text-amber-400">{action}</li>
+                  <li key={`${action}-${idx}`} className="list-disc marker:text-stone-400">{action}</li>
                 ))}
               </ul>
             </div>
           )}
 
           {hasProductStateTrace && (
-            <div className="rounded-xl bg-white/60 px-3 py-2.5 ring-1 ring-amber-200/50">
-              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-amber-600">
+            <div className="rounded-xl bg-stone-50/90 px-3 py-2.5 ring-1 ring-stone-200/70">
+              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-stone-600">
                 {t.modal.lingsiStatePack}
               </div>
-              <p className="mb-2 text-[11px] leading-[1.5] text-amber-700/70">{t.modal.lingsiStatePackSummary}</p>
+              <p className="mb-2 text-[11px] leading-[1.5] text-stone-600">{t.modal.lingsiStatePackSummary}</p>
               <div className="flex flex-wrap gap-1.5">
                 {productStateLabels.map((ref, idx) => (
                   <span
                     key={`${ref}-${idx}`}
-                    className="rounded-md border border-amber-200/70 bg-white/80 px-2 py-0.5 text-[11px] text-amber-800"
+                    className="rounded-md border border-stone-200/80 bg-white px-2 py-0.5 text-[11px] text-stone-800"
                   >
                     {ref}
                   </span>
@@ -479,10 +482,10 @@ export const LingSiTracePanel = memo(function LingSiTracePanel({
                 <div
                   key={`${ref.id}-${ref.locator ?? idx}`}
                   id={`lingsi-source-${idx + 1}`}
-                  className="rounded-xl bg-white/60 px-3 py-2.5 ring-1 ring-amber-200/50"
+                  className="rounded-xl bg-stone-50/90 px-3 py-2.5 ring-1 ring-stone-200/70"
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] font-bold text-amber-600">[{idx + 1}]</span>
+                    <span className="text-[10px] font-bold text-stone-600">[{idx + 1}]</span>
                     <span className="text-[12px] font-medium text-gray-800 flex-1 min-w-0 truncate">
                       {formatLingSiSourceLabel(ref)}
                     </span>
@@ -491,7 +494,7 @@ export const LingSiTracePanel = memo(function LingSiTracePanel({
                     </span>
                   </div>
                   {ref.excerpt && (
-                    <blockquote className="border-l-2 border-amber-300 pl-2.5 text-[11.5px] leading-5 text-gray-500 italic">
+                    <blockquote className="border-l-2 border-stone-300 pl-2.5 text-[11.5px] leading-5 text-gray-500 italic">
                       {ref.excerpt}
                     </blockquote>
                   )}
@@ -511,6 +514,7 @@ export const LingSiTracePanel = memo(function LingSiTracePanel({
   if (prevProps.personaName !== nextProps.personaName) return false
   if (prevProps.isStreaming !== nextProps.isStreaming) return false
   if (prevProps.defaultExpanded !== nextProps.defaultExpanded) return false
+  if (prevProps.hideRedundantNextActions !== nextProps.hideRedundantNextActions) return false
   if (prevProps.onOpenTrace !== nextProps.onOpenTrace) return false
   // 数组内容比较（长度优先快路径）
   const muPrev = prevProps.matchedUnits
@@ -542,7 +546,7 @@ function getDecisionStatusTone(status: DecisionRecord['status']): string {
     case 'archived':
       return 'bg-gray-100 text-gray-500 border-gray-200'
     default:
-      return 'bg-amber-50 text-amber-700 border-amber-200'
+      return 'bg-stone-100 text-stone-700 border-stone-200'
   }
 }
 
@@ -655,39 +659,39 @@ export const LingSiDecisionCard = memo(function LingSiDecisionCard({
   const statusLabel = getDecisionStatusLabel(localRecord.status, t)
 
   return (
-    <div className={`mt-3 rounded-2xl border border-amber-200/50 bg-amber-50/40 overflow-hidden transition-opacity ${busy ? 'opacity-60 pointer-events-none' : ''}`}>
+    <div className={`mt-3 rounded-2xl border border-stone-200/90 bg-white/95 shadow-sm overflow-hidden transition-opacity ${busy ? 'opacity-60 pointer-events-none' : ''}`}>
       {/* Collapsed summary row — always visible */}
       <button
         type="button"
         onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center gap-2.5 px-4 py-3 text-left hover:bg-amber-50/60 transition-colors"
+        className="w-full flex items-center gap-2.5 px-4 py-3 text-left hover:bg-stone-50/80 transition-colors"
       >
-        <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+        <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-stone-100 text-stone-600">
           <BookOpen className="h-3.5 w-3.5" />
         </div>
         <div className="flex min-w-0 flex-1 items-center gap-2 flex-wrap">
-          <span className="text-[11px] font-semibold uppercase tracking-widest text-amber-700">
+          <span className="text-[11px] font-semibold uppercase tracking-widest text-stone-600">
             {t.modal.decisionCardTitle}
           </span>
           <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${statusTone}`}>
             {statusLabel}
           </span>
-          <span className="text-[10px] font-semibold rounded-md bg-amber-100/90 px-1.5 py-0.5 text-amber-900">
+          <span className="text-[10px] font-semibold rounded-md bg-stone-100 px-1.5 py-0.5 text-stone-800">
             {t.modal.sessionModeLingSi}
           </span>
-          <span className="text-[10px] text-amber-800/80">{personaName}</span>
+          <span className="text-[10px] text-stone-600">{personaName}</span>
           {!expanded && (
             <span className="text-[12px] text-gray-600 truncate max-w-[280px]">
               {localRecord.recommendationSummary}
             </span>
           )}
         </div>
-        <ChevronDown className={`h-3.5 w-3.5 text-amber-500 flex-shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`h-3.5 w-3.5 text-stone-500 flex-shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
       </button>
 
       {/* Expanded content：限高滚动，避免长决策卡占满可视区 */}
       {expanded && (
-        <div className="border-t border-amber-200/40 max-h-[min(48vh,480px)] overflow-y-auto overscroll-contain">
+        <div className="border-t border-stone-200/80 max-h-[min(48vh,480px)] overflow-y-auto overscroll-contain">
           {/* Recommendation */}
           <div className="px-4 py-3">
             <div className="text-[15px] font-semibold leading-6 text-gray-900">
@@ -702,14 +706,14 @@ export const LingSiDecisionCard = memo(function LingSiDecisionCard({
 
           {/* Next actions */}
           {nextActions.length > 0 && (
-            <div className="mx-4 mb-3 rounded-xl bg-white/60 px-3 py-2.5 ring-1 ring-amber-200/40">
-              <div className="flex items-center gap-1.5 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-amber-600">
+            <div className="mx-4 mb-3 rounded-xl bg-stone-50/90 px-3 py-2.5 ring-1 ring-stone-200/70">
+              <div className="flex items-center gap-1.5 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-stone-600">
                 <CircleDot className="h-3 w-3" />
                 {t.modal.decisionCardNextActions}
               </div>
               <ul className="space-y-1 pl-3.5 text-[12px] leading-[1.6] text-gray-700">
                 {nextActions.map((action, idx) => (
-                  <li key={`${action}-${idx}`} className="list-disc marker:text-amber-400">{action}</li>
+                  <li key={`${action}-${idx}`} className="list-disc marker:text-stone-400">{action}</li>
                 ))}
               </ul>
             </div>
@@ -721,7 +725,7 @@ export const LingSiDecisionCard = memo(function LingSiDecisionCard({
               {followUps.map((question, idx) => (
                 <span
                   key={`${question}-${idx}`}
-                  className="rounded-lg border border-amber-200/60 bg-white/60 px-2.5 py-1 text-[11px] text-amber-800"
+                  className="rounded-lg border border-stone-200/80 bg-stone-50/80 px-2.5 py-1 text-[11px] text-stone-800"
                 >
                   {question}
                 </span>
@@ -731,16 +735,16 @@ export const LingSiDecisionCard = memo(function LingSiDecisionCard({
 
           {/* Adopt block */}
           {canSchedule && (
-            <div className="border-t border-amber-200/40 px-4 py-3">
+            <div className="border-t border-stone-200/80 px-4 py-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <div className="text-[12px] font-semibold text-amber-900">{t.modal.decisionCardAdoptTitle}</div>
-                  <div className="mt-0.5 text-[11px] leading-5 text-amber-700/70">{t.modal.decisionCardAdoptBody}</div>
+                  <div className="text-[12px] font-semibold text-stone-900">{t.modal.decisionCardAdoptTitle}</div>
+                  <div className="mt-0.5 text-[11px] leading-5 text-stone-600">{t.modal.decisionCardAdoptBody}</div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowSchedule((v) => !v)}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-3.5 py-2 text-[12px] font-semibold text-white shadow-sm hover:bg-amber-700 transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-stone-800 px-3.5 py-2 text-[12px] font-semibold text-white shadow-sm hover:bg-stone-900 transition-colors"
                 >
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   {t.modal.decisionCardAdopt}
@@ -753,7 +757,7 @@ export const LingSiDecisionCard = memo(function LingSiDecisionCard({
                       key={days}
                       type="button"
                       onClick={() => safeAdopt(days)}
-                      className="rounded-xl border border-amber-300/80 bg-white px-3.5 py-1.5 text-[12px] font-medium text-amber-800 hover:border-amber-400 hover:bg-amber-50 transition-colors"
+                      className="rounded-xl border border-stone-300/90 bg-white px-3.5 py-1.5 text-[12px] font-medium text-stone-800 hover:border-stone-400 hover:bg-stone-50 transition-colors"
                     >
                       {t.modal.decisionCardAdoptDays(days)}
                     </button>
@@ -765,7 +769,7 @@ export const LingSiDecisionCard = memo(function LingSiDecisionCard({
 
           {/* Revisit time */}
           {revisitAt && (
-            <div className="border-t border-amber-200/40 px-4 py-2.5 flex items-center gap-1.5 text-[11px] text-amber-700/70">
+            <div className="border-t border-stone-200/80 px-4 py-2.5 flex items-center gap-1.5 text-[11px] text-stone-600">
               <Clock3 className="h-3.5 w-3.5 flex-shrink-0" />
               <span>{t.modal.decisionCardRevisitAt(formatDecisionDate(revisitAt))}</span>
             </div>
@@ -773,14 +777,14 @@ export const LingSiDecisionCard = memo(function LingSiDecisionCard({
 
           {/* Outcome block */}
           {canMarkOutcome && (
-            <div className="border-t border-amber-200/40 px-4 py-3">
+            <div className="border-t border-stone-200/80 px-4 py-3">
               <div className="text-[12px] font-semibold text-gray-700">{t.modal.decisionCardOutcomeTitle}</div>
               <textarea
                 value={outcomeNotes}
                 onChange={(event) => setOutcomeNotes(event.target.value)}
                 rows={2}
                 placeholder={t.modal.decisionCardOutcomeNotesPlaceholder}
-                className="mt-2 min-h-[64px] w-full resize-none rounded-xl border border-amber-200/70 bg-white/70 px-3 py-2 text-[12px] leading-6 text-gray-700 outline-none placeholder:text-gray-400 focus:border-amber-400 focus:ring-1 focus:ring-amber-200"
+                className="mt-2 min-h-[64px] w-full resize-none rounded-xl border border-stone-200/90 bg-white px-3 py-2 text-[12px] leading-6 text-gray-700 outline-none placeholder:text-gray-400 focus:border-stone-400 focus:ring-1 focus:ring-stone-200"
               />
               <div className="mt-2 flex flex-wrap gap-1.5">
                 <button type="button" onClick={() => safeOutcome('working', outcomeNotes)} className="rounded-xl border border-emerald-200 bg-white/80 px-3 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 transition-colors">{t.modal.decisionCardOutcomeWorking}</button>

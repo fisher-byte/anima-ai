@@ -1,7 +1,10 @@
 import { execFileSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+import { discoverAutoSpecsAndSeeds } from './animaBaseAutoDiscovery'
 
 import type {
   DecisionEvidenceLevel,
@@ -42,8 +45,13 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const evocanvasRoot = resolve(__dirname, '..')
 const workspaceRoot = resolve(evocanvasRoot, '..')
-const animaBaseRoot = join(workspaceRoot, 'anima-base')
 const outputDir = join(evocanvasRoot, 'seeds', 'lingsi')
+
+function resolveAnimaBaseRoot(): string {
+  const env = process.env.ANIMA_BASE?.trim()
+  if (env) return resolve(env)
+  return join(workspaceRoot, 'anima-base')
+}
 
 const PERSONA_SPECS: PersonaSpec[] = [
   {
@@ -597,6 +605,8 @@ interface UnitSeed {
     excerpt: string
   }>
   confidence: number
+  /** 自动入库默认 approved；可改为 candidate 做人工审核池 */
+  status?: DecisionUnit['status']
 }
 
 const UNIT_SEEDS: UnitSeed[] = [
@@ -2673,11 +2683,19 @@ function readGitValue(repoDir: string, args: string[]): string {
 }
 
 function readPathShortCommit(repoDir: string, repoRelativePath: string): string {
-  return readGitValue(repoDir, ['log', '-1', '--format=%h', '--', repoRelativePath])
+  try {
+    return readGitValue(repoDir, ['log', '-1', '--format=%h', '--', repoRelativePath])
+  } catch {
+    return 'unknown'
+  }
 }
 
 function readPathCommittedAt(repoDir: string, repoRelativePath: string): string {
-  return readGitValue(repoDir, ['log', '-1', '--format=%cI', '--', repoRelativePath])
+  try {
+    return readGitValue(repoDir, ['log', '-1', '--format=%cI', '--', repoRelativePath])
+  } catch {
+    return new Date(0).toISOString()
+  }
 }
 
 interface SourceFileRecord {
@@ -2685,9 +2703,12 @@ interface SourceFileRecord {
   content: string
 }
 
-async function loadSourceFiles(): Promise<Map<string, SourceFileRecord>> {
+async function loadSourceFiles(
+  specs: SourceSpec[],
+  animaBaseRoot: string,
+): Promise<Map<string, SourceFileRecord>> {
   const records = await Promise.all(
-    SOURCE_SPECS.map(async (spec) => {
+    specs.map(async (spec) => {
       const content = await readFile(join(animaBaseRoot, spec.sourcePath), 'utf8')
       return [spec.id, { spec, content }] as const
     }),
@@ -2792,7 +2813,7 @@ function buildUnit(seed: UnitSeed, sourceRefs: DecisionSourceRef[], timestamp: s
     nextActions: seed.nextActions,
     evidenceLevel: seed.evidenceLevel,
     sourceRefs,
-    status: 'approved',
+    status: seed.status ?? 'approved',
     confidence: seed.confidence,
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -2860,11 +2881,35 @@ async function writeJsonIfChanged(filePath: string, data: unknown): Promise<bool
 }
 
 async function main() {
+  const animaBaseRoot = resolveAnimaBaseRoot()
   const generationTimestamp = new Date().toISOString()
-  const sourceFiles = await loadSourceFiles()
+
+  const autoIngestEnabled =
+    process.env.LINGSI_AUTO_INGEST !== '0' && process.env.LINGSI_AUTO_INGEST !== 'false'
+  let autoSpecs: SourceSpec[] = []
+  let autoSeeds: UnitSeed[] = []
+  if (autoIngestEnabled && existsSync(animaBaseRoot)) {
+    const curatedPaths = new Set(SOURCE_SPECS.map(s => s.sourcePath))
+    const { specs, seeds, skipped } = await discoverAutoSpecsAndSeeds({
+      animaBaseRoot,
+      curatedSourcePaths: curatedPaths,
+    })
+    autoSpecs = specs as SourceSpec[]
+    autoSeeds = seeds as UnitSeed[]
+    console.log(`LingSi auto-ingest: +${autoSpecs.length} sources (+${autoSeeds.length} units), skipped ${skipped.length} files`)
+  } else if (autoIngestEnabled && !existsSync(animaBaseRoot)) {
+    console.warn(`LingSi auto-ingest: anima-base not found at ${animaBaseRoot} (set ANIMA_BASE or clone repo); using curated specs only`)
+  }
+
+  const allSpecs = [...SOURCE_SPECS, ...autoSpecs]
+  const allSeeds = [...UNIT_SEEDS, ...autoSeeds]
+
+  const sourceFiles = await loadSourceFiles(allSpecs, animaBaseRoot)
 
   for (const record of sourceFiles.values()) {
-    ensureSourceIntegrity(record.spec, record.content)
+    if (record.spec.mustInclude.length > 0) {
+      ensureSourceIntegrity(record.spec, record.content)
+    }
   }
 
   await mkdir(outputDir, { recursive: true })
@@ -2879,7 +2924,7 @@ async function main() {
     (await readJsonArray<DecisionUnit>(join(outputDir, 'decision-units.json'))).map(item => [item.id, item]),
   )
 
-  const manifest = SOURCE_SPECS
+  const manifest = allSpecs
     .map(spec => manifestFromSpec(
       spec,
       readPathShortCommit(animaBaseRoot, spec.sourcePath),
@@ -2896,7 +2941,7 @@ async function main() {
     })
     .sort((a, b) => a.id.localeCompare(b.id))
 
-  const units = UNIT_SEEDS.map((seed) => {
+  const units = allSeeds.map((seed) => {
     const refs = seed.evidenceRefs.map(({ sourceId, excerpt }) => {
       const record = sourceFiles.get(sourceId)
       if (!record) throw new Error(`Unknown sourceId: ${sourceId}`)
@@ -2913,8 +2958,8 @@ async function main() {
 
   console.log(`Wrote LingSi seed files to ${outputDir}`)
   console.log(`Persona count: ${personas.length}`)
-  console.log(`Source count: ${manifest.length}`)
-  console.log(`Approved unit count: ${units.length}`)
+  console.log(`Source count: ${manifest.length} (curated ${SOURCE_SPECS.length} + auto ${autoSpecs.length})`)
+  console.log(`Unit count: ${units.length} (curated ${UNIT_SEEDS.length} + auto ${autoSeeds.length})`)
   console.log(`Files changed: ${wroteFiles.filter(Boolean).length}`)
 }
 

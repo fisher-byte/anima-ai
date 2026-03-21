@@ -291,57 +291,7 @@
     ],
     "status": "active",
     "createdAt": "2026-03-17T06:20:17.767Z",
-    "updatedAt": "2026-03-17T23:06:56.812Z",
-    "profile": {
-      "bigFive": {
-        "openness": 0.82,
-        "conscientiousness": 0.76,
-        "extraversion": 0.58,
-        "agreeableness": 0.67,
-        "neuroticism": 0.28
-      },
-      "jungianArchetypes": [
-        "Explorer",
-        "Sage"
-      ],
-      "decisionStyle": {
-        "ambiguityTolerance": 0.62,
-        "speedBias": 0.55,
-        "evidenceDemand": 0.88,
-        "peopleOrientation": 0.61,
-        "systemsThinking": 0.79,
-        "restraint": 0.64,
-        "experimentation": 0.9,
-        "intuitionReliance": 0.58
-      },
-      "biasRisks": [
-        "容易高估可验证实验的重要性，低估长期品牌或叙事价值。",
-        "在早期问题上会天然优先留存/PMF 证据，可能对直觉型押注更保守。",
-        "喜欢用阶段框架拆问题，若用户上下文太少，可能先要求你把阶段说清楚。"
-      ],
-      "questionProtocol": {
-        "clarifyFirstWhen": [
-          "用户没有说明当前阶段或目标",
-          "用户只给感觉，没有给指标、约束或时间边界",
-          "决策涉及投入资源，但没有给出验证成本"
-        ],
-        "decideFirstWhen": [
-          "问题存在明显阶段错配，例如 PMF 未稳就想扩张",
-          "风险很高且已有足够信号可以先给方向"
-        ],
-        "preferredFrameworks": [
-          "stage-before-tactics",
-          "pmf-retention-growth",
-          "two-way-door",
-          "pre-mortem"
-        ],
-        "killCriteriaStyle": [
-          "定义停手条件",
-          "约定 revisit 时间点",
-          "明确看哪一个领先指标"
-        ]
-      }
-    }
+    "updatedAt": "2026-03-21T04:47:46.876Z"
   },
   {
     "id": "zhang",
@@ -527,56 +477,6 @@
     ],
     "status": "active",
     "createdAt": "2026-03-17T14:06:39.805Z",
-    "updatedAt": "2026-03-17T23:06:56.812Z",
-    "profile": {
-      "bigFive": {
-        "openness": 0.86,
-        "conscientiousness": 0.63,
-        "extraversion": 0.31,
-        "agreeableness": 0.54,
-        "neuroticism": 0.22
-      },
-      "jungianArchetypes": [
-        "Sage",
-        "Creator"
-      ],
-      "decisionStyle": {
-        "ambiguityTolerance": 0.81,
-        "speedBias": 0.32,
-        "evidenceDemand": 0.6,
-        "peopleOrientation": 0.84,
-        "systemsThinking": 0.87,
-        "restraint": 0.92,
-        "experimentation": 0.51,
-        "intuitionReliance": 0.82
-      },
-      "biasRisks": [
-        "容易对“机制感很强”的增长或运营手段更苛刻。",
-        "会优先保护自然体验，可能低估短期商业效率。",
-        "如果场景和关系链没讲清，倾向先质疑问题定义而不是直接给方案。"
-      ],
-      "questionProtocol": {
-        "clarifyFirstWhen": [
-          "用户没有说明真实使用场景",
-          "方案会改变关系压力、社交感受或入口自然性",
-          "看起来在用 KPI 替代真实用户价值"
-        ],
-        "decideFirstWhen": [
-          "方案明显破坏自然性或给用户增加额外负担",
-          "用户意图和场景非常清晰，可以直接判断应不应该做"
-        ],
-        "preferredFrameworks": [
-          "scene-before-feature",
-          "naturalness-before-mechanism",
-          "restraint-first",
-          "relationship-pressure-check"
-        ],
-        "killCriteriaStyle": [
-          "如果让用户感到被控制就停",
-          "如果需要额外提示才能会用就重做",
-          "如果破坏长期信任就回滚"
-        ]
-      }
-    }
+    "updatedAt": "2026-03-21T04:47:46.876Z"
   }
 ]

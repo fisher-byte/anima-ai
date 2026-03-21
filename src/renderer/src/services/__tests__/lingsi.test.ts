@@ -38,7 +38,9 @@ describe('lingsi service', () => {
     mockStorageRead.mockImplementation(async (filename: string) => {
       if (filename === 'decision-personas.json') return '[]'
       if (filename === 'decision-source-manifest.json') return '[]'
-      if (filename === 'decision-product-state.json') return '{"id":"state-1","version":"0.5.19","updatedAt":"2026-03-18T00:00:00.000Z","summary":"current state","keywords":["anima"],"completedChanges":["done"],"currentFocus":["focus"],"validatedDirections":["validated"],"knownRisks":["risk"],"nextDecisions":["next"],"evalSummary":{"lenny":"decision 14 / normal 1"},"docRefs":["docs/PROJECT.md"]}'
+      if (filename === 'decision-product-state.json') {
+        return '{"id":"state-1","version":"0.5.49","updatedAt":"2026-03-21T00:00:00.000Z","summary":"current state","keywords":["anima"],"completedChanges":["done"],"currentFocus":["focus"],"validatedDirections":["validated"],"knownRisks":["risk"],"nextDecisions":["next"],"evalSummary":{"lenny":"decision 14 / normal 1"},"docRefs":["docs/PROJECT.md"]}'
+      }
       if (filename === 'decision-units.json') return '[{"id":"unit-1","personaId":"lenny","title":"t","summary":"s","scenario":"x","tags":[],"triggerKeywords":[],"reasoningSteps":[],"reasons":[],"followUpQuestions":[],"nextActions":[],"evidenceLevel":"B","sourceRefs":[],"status":"approved","createdAt":"2026-03-17T00:00:00.000Z","updatedAt":"2026-03-17T00:00:00.000Z"}]'
       return null
     })

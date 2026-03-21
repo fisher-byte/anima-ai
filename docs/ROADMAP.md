@@ -2,6 +2,8 @@
 
 ## 计划中版本
 
+#### v0.5.49 - anima-base 灵思自动入库 / 匹配降权 / 离线轻量评测（已完成）
+
 #### v0.5.48 - 灵思决策区 / 模式标识 / 流中断 / 张小龙语气（已完成）
 - [x] `LingSiTracePanel` / `LingSiDecisionCard`：默认收起与限高滚动；`defaultExpanded` 可选
 - [x] `useAnswerModalDecision`：`decisionTrace.personaId` 兜底 persona；顶栏 / 深度搜索条 / 侧栏历史 / 决策卡灵思标识

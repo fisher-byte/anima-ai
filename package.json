@@ -1,6 +1,6 @@
 {
   "name": "anima",
-  "version": "0.5.48",
+  "version": "0.5.49",
   "description": "Anima — 属于你的那部分自我",
   "main": "./out/main/index.js",
   "author": "Anima Team",
@@ -25,6 +25,7 @@
     "lingsi:extract": "tsx scripts/extract-lingsi-seeds.ts",
     "lingsi:evaluate": "tsx scripts/evaluate-lingsi.ts",
     "lingsi:evaluate:zhang": "LINGSI_EVAL_PERSONA=zhang tsx scripts/evaluate-lingsi.ts",
+    "lingsi:evaluate:lite": "tsx scripts/lingsi-eval-lite.ts",
     "debug:browser": "tsx scripts/debug-browser.ts",
     "cleanup:tenant-leak": "tsx scripts/cleanup-leaked-tenant-data.ts",
     "dev:electron": "electron-vite dev",
