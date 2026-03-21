@@ -41,7 +41,10 @@ export function extractLatestReleaseSnapshot(changelog: string): ReleaseSnapshot
   }
 
   const [, version, date, title, body] = releaseMatch
-  const bulletBlockMatch = body.match(/\*\*[^*]+：\*\*\n((?:- .+\n)+)/)
+  // 支持 `**改动**：`（冒号在粗体外）与 `**标题：**`（冒号在粗体内）两种 changelog 习惯
+  const bulletBlockMatch =
+    body.match(/\*\*[^*]+\*\*[：:]\s*\n(?:\s*\n)*((?:- .+\n)+)/)
+    ?? body.match(/\*\*[^*]+：\*\*\s*\n(?:\s*\n)*((?:- .+\n)+)/)
   if (!bulletBlockMatch) {
     throw new Error('Unable to parse latest changelog bullet block.')
   }

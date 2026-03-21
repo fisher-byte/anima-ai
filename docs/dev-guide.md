@@ -1,6 +1,6 @@
 # Anima 开发指南
 
-*最后更新: 2026-03-21 | 版本: v0.5.48*
+*最后更新: 2026-03-21 | 版本: v0.5.49*
 
 ## 环境准备
 
@@ -38,7 +38,7 @@ cp .env.example .env
 | `npm run dev:server` | 仅启动后端（tsx watch 热重载） |
 | `npm run build` | 构建前端到 `dist/` |
 | `npm start` | 生产模式启动（同时服务 API + 静态文件，端口 3000） |
-| `npm test` | 运行所有测试（单元 + 集成，当前 635 个用例，36 个文件） |
+| `npm test` | 运行所有测试（单元 + 集成，当前 637 个用例，37 个文件） |
 | `npm run test:watch` | 监听模式（开发时用） |
 | `npm run typecheck` | TypeScript 类型检查 |
 | `npm run lint` | ESLint 检查 |
@@ -46,8 +46,36 @@ cp .env.example .env
 | `npm run lingsi:refresh` | 先刷新产品状态包，再刷新 LingSi seeds；适合影响 persona 决策链路的发版收口 |
 | `npm run lingsi:evaluate` | 跑 Lenny 15 题 `normal vs decision` 对照评测；支持 `LINGSI_EVAL_CASE` / `LINGSI_EVAL_TIMEOUT_MS`，并刷新 `docs/lingsi-eval-m4.md` / `reports/lingsi-m4-eval.json` |
 | `npm run lingsi:evaluate:zhang` | 跑张小龙 persona 的 case-based eval 基线，并刷新 `docs/lingsi-eval-zhang.md` / `reports/lingsi-zhang-eval.json` |
+| `npm run lingsi:evaluate:lite` | **离线**轻量评测：不调用 LLM，仅统计固定题集下单元匹配与精选占比；输出 `docs/lingsi-eval-lite.md`、`reports/lingsi-eval-lite.json` |
 | `npm run lingsi:extract` | 刷新 DecisionUnit / source manifest seeds；source manifest 现在按“文件级最后 commit”记录，不再随 repo HEAD 产生纯噪音 diff |
 | `npm run dev:electron` | 启动 Electron 桌面版（可选，非主要模式） |
+
+### anima-base 与灵思种子（可选）
+
+LingSi 的 `DecisionUnit` 与摘录来源默认来自仓库内 [`seeds/lingsi/`](seeds/lingsi/)；完整语料在独立仓库 **[fisher-byte/anima-base](https://github.com/fisher-byte/anima-base)**。
+
+**精选条目**：`scripts/extract-lingsi-seeds.ts` 里手写的 `SOURCE_SPECS` + `UNIT_SEEDS` 仍保留高质量、可审计的策展单元。
+
+**自动批量入库（推荐本地有 clone 时使用）**：对 `people/product/lenny-rachitsky` 与 `people/product/zhang-xiaolong` 下未出现在精选清单中的 `.md` 逐文件扫描，为每篇生成一条来源 + 一条 `DecisionUnit`（证据等级 `C`、与精选去重）。Persona 卡片里的「来源池」仍只展示精选来源，避免清单爆炸。
+
+环境变量：
+
+| 变量 | 说明 |
+|------|------|
+| `ANIMA_BASE` | 可选。指向 `anima-base` 根目录的绝对路径；不设则使用与 `evocanvas` 同级的 `../anima-base`。 |
+| `LINGSI_AUTO_INGEST` | 设为 `0` 或 `false` 时关闭自动扫描，仅导出精选条目（适合 CI 或无需扩库时）。 |
+
+操作步骤：
+
+1. 将 `anima-base` clone 到 **与 `evocanvas` 同级**目录，例如：
+   ```bash
+   cd ..   # 自 evocanvas 目录到父级
+   git clone https://github.com/fisher-byte/anima-base.git
+   ```
+2. 在 `evocanvas` 目录执行 **`npm run lingsi:extract`**（仅刷新 seeds）或 **`npm run lingsi:refresh`**（先 `lingsi:state-pack` 再 extract，适合发版收口）。
+3. 提交变更的 `seeds/lingsi/*.json`（体积会显著增大；若不希望把自动单元纳入仓库，可在 CI 设 `LINGSI_AUTO_INGEST=0` 仅校验精选）。
+
+未 clone `anima-base` 时，extract 仅使用精选 `SOURCE_SPECS`（并打印警告），不影响日常 `npm run dev`。
 
 ---
 

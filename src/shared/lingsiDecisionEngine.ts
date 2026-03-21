@@ -22,10 +22,17 @@ function stripLinkedContextHints(text: string): string {
   return text.replace(LINKED_CONTEXT_HINT_REGEX, '').trim()
 }
 
+/** 口语「工作/上班」类职业发展问题，需先于 experience 等宽泛规则命中 career */
 function inferDecisionType(query: string, personaId?: string): string {
   const normalized = normalizeText(stripLinkedContextHints(query))
+  if (
+    /(career|职业|offer|转岗|创业|合伙人|跳槽|离职|裁员|薪资|转行|mentor|职场|第一份工作|刚上班|上班半年|工作怎么|怎么想工作|对于工作|要不要换工作|对工作|换工作|找工作|职业发展|要不要跳槽|裸辞)/i.test(
+      normalized,
+    )
+  ) {
+    return 'career'
+  }
   if (/(pmf|留存|增长|roadmap|优先级|pricing|定价|渠道|增长)/i.test(normalized)) return 'product_strategy'
-  if (/(career|职业|offer|转岗|创业|合伙人)/i.test(normalized)) return 'career'
   if (/(team|org|组织|dac[iy]|会议|汇报|owner|协作)/i.test(normalized)) return 'org'
   if (/(social|社交|关系|入口|内容|推荐|商业化|平台|小程序|广告)/i.test(normalized)) return 'experience'
   if (/(risk|风险|pre-mortem|kill criteria|回滚|two-way door)/i.test(normalized)) return 'risk'
@@ -57,7 +64,8 @@ function inferMissingInfo(query: string, matchedUnits: DecisionUnit[], persona?:
   if (!hasTime) missing.push('时间边界不清楚')
   if (!hasNumbers && matchedUnits.length === 0) missing.push('缺少关键事实或指标')
 
-  if (persona?.id === 'zhang' && !/(场景|入口|关系|用户|社交|路径|流程)/.test(normalized)) {
+  const careerish = /(职业|工作|跳槽|职场|offer|上班|第一份|转行|薪资|裁员)/.test(normalized)
+  if (persona?.id === 'zhang' && !careerish && !/(场景|入口|关系|用户|社交|路径|流程)/.test(normalized)) {
     missing.push('真实使用场景不清楚')
   }
 
@@ -90,7 +98,9 @@ function shouldClarifyFirst(
   const normalized = normalizeText(stripLinkedContextHints(query))
   const missingInfo = inferMissingInfo(query, matchedUnits, persona)
   if (matchedUnits.length === 0 && missingInfo.length >= 2) return true
-  if (persona?.id === 'zhang' && !/(场景|入口|路径|关系|社交)/.test(normalized)) return true
+  if (persona?.id === 'zhang' && !/(场景|入口|路径|关系|社交|职业|工作|跳槽|职场|offer|上班|第一份)/.test(normalized)) {
+    return true
+  }
   if (persona?.id === 'lenny' && /(职业|career|增长|pricing|roadmap|优先级)/.test(normalized) && missingInfo.length >= 2) return true
   return false
 }
@@ -216,6 +226,11 @@ export function scoreDecisionUnit(query: string, unit: DecisionUnit): number {
   // tags 只作为辅助信号，不允许单独触发命中，避免 `saas` 之类的泛标签造成误判
   if (hardSignalCount === 0) return 0
 
+  // anima-base 自动入库单元（unit-auto-*）用于扩证据面；匹配时降权，避免挤掉精选策展单元
+  if (unit.id.startsWith('unit-auto-')) {
+    score = Math.max(1, score - 25)
+  }
+
   return score
 }
 
@@ -226,6 +241,23 @@ export function matchDecisionUnits(query: string, units: DecisionUnit[]): Decisi
     .sort((a, b) => b.score - a.score)
     .slice(0, MAX_MATCHED_UNITS)
     .map(item => item.unit)
+}
+
+/** career 场景下剔除典型「产品商业化/广告」单元，避免与职业发展提问不符 */
+function isProductCommercializationUnit(unit: DecisionUnit): boolean {
+  const tags = unit.tags ?? []
+  if (tags.includes('commercialization') || tags.includes('ads')) return true
+  if (unit.id.includes('commercialize')) return true
+  if (/(朋友圈|信息流广告|广告位)/.test(unit.title)) return true
+  return false
+}
+
+export function filterMatchedUnitsByDecisionDomain(
+  matchedUnits: DecisionUnit[],
+  decisionType: string,
+): DecisionUnit[] {
+  if (decisionType !== 'career') return matchedUnits
+  return matchedUnits.filter((u) => !isProductCommercializationUnit(u))
 }
 
 export function buildDecisionExtraContext(
@@ -255,11 +287,19 @@ export function buildDecisionExtraContext(
   ]
 
   if (persona?.id === 'zhang') {
-    header.splice(header.length - 1, 0,
-      '张小龙视角（语气与呈现）：',
-      '- 用「用户价值、关系、场景、克制、信任」来组织判断；避免写成互联网广告/增长操盘、填充率、放量之类的行业黑话备忘录。',
-      '- 案例库里的商业化/广告/变现措辞若出现，请转述为「体验边界、用户选择权、自然交互」等产品语言，不要照搬 KPI 口径。',
-    )
+    if (decisionType === 'career') {
+      header.splice(header.length - 1, 0,
+        '张小龙视角（职业发展）：',
+        '- 把语料里的「产品/KPI/克制」转写成个人阶段的选择：节奏、是否值得投入、长期复利，不要套用「商业化上线、广告位、放量」等产品运营词。',
+        '- 回答要短而可执行：先给一个倾向，再给 2～3 条可验证的下一步（例如观察什么、试什么小实验），避免堆案例复述。',
+      )
+    } else {
+      header.splice(header.length - 1, 0,
+        '张小龙视角（语气与呈现）：',
+        '- 用「用户价值、关系、场景、克制、信任」来组织判断；避免写成互联网广告/增长操盘、填充率、放量之类的行业黑话备忘录。',
+        '- 案例库里的商业化/广告/变现措辞若出现，请转述为「体验边界、用户选择权、自然交互」等产品语言，不要照搬 KPI 口径。',
+      )
+    }
   }
 
   if (frameworks.length > 0) {
@@ -447,14 +487,14 @@ export function buildLingSiDecisionPayloadFromUnits(
   const scopedUnits = options?.personaId
     ? units.filter(unit => unit.personaId === options.personaId)
     : units
-  const matchedUnits = matchDecisionUnits(query, scopedUnits)
+  const persona = options?.persona
+    ?? (options?.personaId ? { id: options.personaId, name: options.personaName ?? options.personaId, heuristics: [], evidenceSources: [], status: 'active', createdAt: '', updatedAt: '' } : undefined)
+  const decisionType = inferDecisionType(query, persona?.id)
+  const matchedUnits = filterMatchedUnitsByDecisionDomain(matchDecisionUnits(query, scopedUnits), decisionType)
   const shouldInjectProductState = shouldInjectDecisionProductState(query, options?.productState)
   const productStateContext = shouldInjectProductState && options?.productState
     ? buildDecisionProductStateContext(options.productState, options.personaId)
     : undefined
-  const persona = options?.persona
-    ?? (options?.personaId ? { id: options.personaId, name: options.personaName ?? options.personaId, heuristics: [], evidenceSources: [], status: 'active', createdAt: '', updatedAt: '' } : undefined)
-  const decisionType = inferDecisionType(query, persona?.id)
   const stage = inferStage(query)
   const keyUnknowns = inferMissingInfo(query, matchedUnits, persona)
   const chosenFrameworks = resolveFrameworks(decisionType, persona)
@@ -495,11 +535,12 @@ export function mergeDecisionTrace(
     }
     return { mode: 'normal', personaId: persona }
   }
+  // 续问时每轮独立命中：用本轮 next 的单元与来源替换，避免与上一轮并集导致 UI/依据「叠旧料」
   return {
     mode: 'decision',
     personaId: next.personaId ?? existing?.personaId,
-    matchedDecisionUnitIds: [...new Set([...(existing?.matchedDecisionUnitIds ?? []), ...(next.matchedDecisionUnitIds ?? [])])],
-    sourceRefs: dedupeSourceRefs([...(existing?.sourceRefs ?? []), ...(next.sourceRefs ?? [])]),
+    matchedDecisionUnitIds: [...(next.matchedDecisionUnitIds ?? [])],
+    sourceRefs: dedupeSourceRefs([...(next.sourceRefs ?? [])]),
     productStateUsed: existing?.productStateUsed || next.productStateUsed,
     productStateDocRefs: [...new Set([...(existing?.productStateDocRefs ?? []), ...(next.productStateDocRefs ?? [])])].slice(0, 6),
     reasoningRoute: next.reasoningRoute ?? existing?.reasoningRoute,

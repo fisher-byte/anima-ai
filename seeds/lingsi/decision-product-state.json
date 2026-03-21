@@ -1,8 +1,8 @@
 {
-  "id": "anima-product-state-v0-5-26",
-  "version": "0.5.26",
-  "updatedAt": "2026-03-18T00:00:00.000Z",
-  "summary": "Anima 当前已支持 2 个决策 persona，基线知识库为 37 sources / 59 approved units。v0.5.26 本轮聚焦：feat: LingSi v2 decision protocol foundation。最近完成：`docs/lingsi-v2-decision-system.md`：正式定义 LingSi v2 的四层能力：`persona profile / decision protocol / decision object / closed-loop learning`，把“完整决策系统”从概念收敛成可交付路线；`src/shared/types.ts`：新增 `DecisionPersonaProfile`、`DecisionTrace.reasoningRoute` 与 `DecisionRecord`，把 persona 心理画像、协议路由和结构化决策对象纳入共享 schema",
+  "id": "anima-product-state-v0-5-49",
+  "version": "0.5.49",
+  "updatedAt": "2026-03-21T00:00:00.000Z",
+  "summary": "Anima 当前已支持 2 个决策 persona，基线知识库为 421 sources / 443 approved units。v0.5.49 本轮聚焦：feat: anima-base 灵思自动入库 + 匹配降权 + 离线轻量评测。最近完成：**自动入库**：`scripts/animaBaseAutoDiscovery.ts` 扫描 Lenny / 张小龙目录下未在精选 `SOURCE_SPECS` 中的 `.md`，生成 `src-auto-*` / `unit-auto-*`；`extract-lingsi-seeds` 支持 `ANIMA_BASE`、`LINGSI_AUTO_INGEST`；Persona `evidenceSources` 仍仅精选。；**匹配**：`unit-auto-*` 在 `scoreDecisionUnit` 降权，避免挤掉 Top3 精选。",
   "keywords": [
     "anima",
     "当前产品",
@@ -27,12 +27,11 @@
     "状态包"
   ],
   "completedChanges": [
-    "`docs/lingsi-v2-decision-system.md`：正式定义 LingSi v2 的四层能力：`persona profile / decision protocol / decision object / closed-loop learning`，把“完整决策系统”从概念收敛成可交付路线",
-    "`src/shared/types.ts`：新增 `DecisionPersonaProfile`、`DecisionTrace.reasoningRoute` 与 `DecisionRecord`，把 persona 心理画像、协议路由和结构化决策对象纳入共享 schema",
-    "`seeds/lingsi/decision-personas.json`：为 `Lenny / 张小龙` 补齐 `Big Five + Jungian Archetypes + Decision Style + Bias Risks + questionProtocol`，心理学框架用于解构 persona 决策偏好，不做用户人格诊断",
-    "`src/shared/lingsiDecisionEngine.ts`：补第一版决策协议层，开始显式判断 `decisionType / stage / keyUnknowns / chosenFrameworks / followUpRequired`，让 persona 更像“稳定判断系统”而不是只靠风格和案例",
-    "`src/renderer/src/services/lingsi.ts`：LingSi payload 构建现在会加载 persona profile，并把 profile 与 reasoningRoute 一并送入决策链路",
-    "`src/shared/__tests__/lingsiDecisionEngine.test.ts` / `src/shared/__tests__/lingsiSeeds.test.ts`：补 persona 画像、框架选择、follow-up 路由与 reasoningRoute 回归测试"
+    "**自动入库**：`scripts/animaBaseAutoDiscovery.ts` 扫描 Lenny / 张小龙目录下未在精选 `SOURCE_SPECS` 中的 `.md`，生成 `src-auto-*` / `unit-auto-*`；`extract-lingsi-seeds` 支持 `ANIMA_BASE`、`LINGSI_AUTO_INGEST`；Persona `evidenceSources` 仍仅精选。",
+    "**匹配**：`unit-auto-*` 在 `scoreDecisionUnit` 降权，避免挤掉 Top3 精选。",
+    "**评测**：`lingsiEvalPrompts.ts` 与 `evaluate-lingsi` 共用题集；新增 `npm run lingsi:evaluate:lite`（离线匹配统计）→ `docs/lingsi-eval-lite.md`、`reports/lingsi-eval-lite.json`。",
+    "**发布说明**：`docs/releases/RELEASE_ANIMA_BASE_AUTO_INGEST.md`（打 tag、回退指引）。",
+    "**UI**：灵思决策卡在非流式且已有决策记录时隐藏冗余「下一步」。"
   ],
   "currentFocus": [
     "扩展产品状态包覆盖面，让更多当前项目问题命中这套事实基线。",
@@ -79,11 +78,11 @@
   ],
   "dataSnapshot": {
     "personas": 2,
-    "sources": 37,
-    "approvedUnits": 59,
+    "sources": 421,
+    "approvedUnits": 443,
     "unitsByPersona": {
-      "lenny": 37,
-      "zhang": 22
+      "lenny": 374,
+      "zhang": 69
     },
     "animaBaseHead": "083974d"
   }

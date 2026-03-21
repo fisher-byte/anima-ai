@@ -1,6 +1,6 @@
 # Anima 测试手册
 
-*最后更新: 2026-03-21 | 版本: v0.5.48*
+*最后更新: 2026-03-21 | 版本: v0.5.49*
 
 ## 测试策略
 
@@ -60,7 +60,7 @@
   - changelog 解析、eval 汇总、当前状态摘要生成
 - ✅ `evalJudgeParser.test.ts` — 评测 JSON 解析健壮性（4 个用例）
   - 纯 JSON、fenced JSON、前言包裹 JSON 与无 JSON 报错场景
-- ✅ `lingsiDecisionEngine.test.ts` — 灵思决策匹配、payload 与 `mergeDecisionTrace`（18 个用例）
+- ✅ `lingsiDecisionEngine.test.ts` — 灵思决策匹配、payload 与 `mergeDecisionTrace`（19 个用例）
   - `mergeDecisionTrace`：续问误传 `normal` 时不降级清空已有 `decision` 轨迹
 
 **运行命令**:
@@ -116,7 +116,7 @@ npm run test:watch    # 监听模式（开发时用）
 
 - ✅ `memory.test.ts` — 记忆路由集成测试（含 FTS5 trigger、引用块过滤、decayPreferences、语义边 by-id）
 
-**总测试数**: **635 个用例，36 个测试文件，全部通过**
+**总测试数**: **637 个用例，37 个测试文件，全部通过**
 
 ---
 
