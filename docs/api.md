@@ -414,7 +414,7 @@ curl http://localhost:3000/api/health
 | 环境变量 | 说明 |
 |---------|------|
 | `AUTH_DISABLED=true` | 跳过强制 Bearer（本地开发、单机调试） |
-| `ACCESS_TOKEN` / `ACCESS_TOKENS` | 存在且未禁用时触发 `authRequired`，前端应展示登录或携带身份码 |
+| `ACCESS_TOKEN` / `ACCESS_TOKENS` | 存在且未禁用时触发 `authRequired`；浏览器**首访自动生成**身份码（UUID）写入 `anima_user_token` 并随请求携带 Bearer（v0.5.50+，不再要求手填访问令牌页） |
 
 前端通过 `setAuthToken(token)` 注入 token（与 `localStorage` 中 `anima_access_token` / `anima_user_token` 对齐）：
 
