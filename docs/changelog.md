@@ -1,3 +1,18 @@
+## [0.5.50] - 2026-03-22
+
+### fix: 生产鉴权下首访自动生成身份码，移除访问令牌拦截页
+
+**问题**：配置了 `ACCESS_TOKEN` / `ACCESS_TOKENS` 时，前端曾要求用户手填令牌才能进入，与「每人自带身份、独立空间」的预期不符；服务端实际只要求非空 Bearer 以分库（`.env` 中的 token 仅用于打开「强制鉴权」开关，**不**把浏览器里的身份码与某一串固定邀请码比对）。
+
+**改动**：
+
+- `App.tsx`：与开放模式一致，无本地身份时自动生成 `crypto.randomUUID()` 写入 `USER_TOKEN_KEY` 并注入请求；不再展示 `LoginPage` 门禁。
+- 文档：`dev-guide`、`troubleshooting`、`sop-release` 测试基线与说明同步。
+
+**测试**：637/637 passed（37 files）；`tsc` 0 错误；`npm run build` 成功；E2E **45 passed / 3 skipped**。
+
+---
+
 ## [0.5.49] - 2026-03-21
 
 ### feat: anima-base 灵思自动入库 + 匹配降权 + 离线轻量评测

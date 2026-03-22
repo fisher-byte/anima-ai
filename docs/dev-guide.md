@@ -1,6 +1,6 @@
 # Anima 开发指南
 
-*最后更新: 2026-03-21 | 版本: v0.5.49*
+*最后更新: 2026-03-22 | 版本: v0.5.50*
 
 ## 环境准备
 
@@ -23,7 +23,7 @@ cp .env.example .env
 # 按需设置 PORT / DATA_DIR / ACCESS_TOKEN 等
 ```
 
-**本地仍出现登录页 / 要求访问令牌**：若 `.env` 里配置了 `ACCESS_TOKEN` 或 `ACCESS_TOKENS`（例如从生产复制），服务端会按**需鉴权**运行，与线上一致。本地想免登录可设 `AUTH_DISABLED=true`，或删除上述 token 配置后重启。多端 token 需与服务器一致时，见 `docs/deployment-server.md` 的 `SYNC_ENV=1` 部署说明。
+**生产鉴权模式**（`.env` 配置了 `ACCESS_TOKEN` 或 `ACCESS_TOKENS`）：服务端要求请求带 Bearer，与线上一致；浏览器**首次访问会自动生成身份码**并存入本地，无需手填访问令牌。本地开发若想完全关闭鉴权、走单机默认库，可设 `AUTH_DISABLED=true`，或删除上述 token 配置后重启。多端要与同一服务端数据目录联调、需固定同一身份码时，见 `docs/deployment-server.md` 的 `SYNC_ENV=1` 部署说明。
 
 **API Key 不在 `.env` 中配置**，启动后在 UI 右上角设置页面填写，保存到服务端 SQLite。
 

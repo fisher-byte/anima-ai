@@ -8,7 +8,6 @@ import { FeedbackButton } from './components/FeedbackButton'
 import { LanguageProvider } from './i18n'
 import { useCanvasStore } from './stores/canvasStore'
 import { setAuthToken } from './services/storageService'
-import { LoginPage } from './components/LoginPage'
 import { ACCESS_TOKEN_KEY, USER_TOKEN_KEY } from './constants/userToken'
 
 export { USER_TOKEN_KEY } from './constants/userToken'
@@ -49,7 +48,6 @@ export async function repairStaleAutoToken(existingToken: string | null): Promis
 function App() {
   const { loadNodes, loadProfile } = useCanvasStore()
   const [authChecked, setAuthChecked] = useState(false)
-  const [needLogin, setNeedLogin] = useState(false)
 
   const bootstrapAuth = useCallback(async () => {
     let authRequired = false
@@ -63,27 +61,13 @@ function App() {
       /* 网络失败时仍尝试用本地 token，避免完全不可用 */
     }
 
-    if (authRequired) {
-      const existing = readStoredToken()
-      if (!existing) {
-        setNeedLogin(true)
-        setAuthChecked(true)
-        return
-      }
-      setAuthToken(existing)
-      setNeedLogin(false)
-      setAuthChecked(true)
-      loadNodes()
-      loadProfile()
-      return
-    }
-
-    // 本地/开放模式：保证有一条客户端身份码，避免多人落到同一默认库
+    // 无论服务端是否要求 Bearer：没有本地身份码时自动生成 UUID，每人独立库（与 middleware 的 token→userId 一致）
     let token = readStoredToken()
     if (!token) {
       token = crypto.randomUUID()
       localStorage.setItem(USER_TOKEN_KEY, token)
-    } else {
+    } else if (!authRequired) {
+      // 仅开放模式做「误指默认库」修正；生产鉴权下不清空 token，避免回到无身份请求
       const repaired = await repairStaleAutoToken(token)
       if (repaired === null && !localStorage.getItem(USER_TOKEN_KEY)) {
         token = crypto.randomUUID()
@@ -92,8 +76,8 @@ function App() {
         token = repaired ?? token
       }
     }
+
     setAuthToken(token)
-    setNeedLogin(false)
     setAuthChecked(true)
     loadNodes()
     loadProfile()
@@ -103,27 +87,11 @@ function App() {
     void bootstrapAuth()
   }, [bootstrapAuth])
 
-  const handleLoggedIn = useCallback(() => {
-    const t = readStoredToken()
-    if (t) setAuthToken(t)
-    setNeedLogin(false)
-    loadNodes()
-    loadProfile()
-  }, [loadNodes, loadProfile])
-
   if (!authChecked) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-white text-sm text-gray-400">
         加载中…
       </div>
-    )
-  }
-
-  if (needLogin) {
-    return (
-      <LanguageProvider>
-        <LoginPage onLogin={handleLoggedIn} />
-      </LanguageProvider>
     )
   }
 
