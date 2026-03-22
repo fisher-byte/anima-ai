@@ -2,6 +2,11 @@
 
 ## 计划中版本
 
+#### v0.5.50 - 首访自动身份码 + 去掉访问令牌页（已完成）
+- [x] `App.tsx`：需鉴权时无本地 token 仍自动生成 UUID，带 Bearer 分库；移除 `LoginPage` 首访拦截
+- [x] 文档：`changelog`、`dev-guide`、`troubleshooting`、`sop-release`、版本头与测试基线
+- [x] 验证：`npm test`（637/637）、`npm run typecheck`、`npm run build`、`npm run test:e2e`（45 passed / 3 skipped）
+
 #### v0.5.49 - anima-base 灵思自动入库 / 匹配降权 / 离线轻量评测（已完成）
 
 #### v0.5.48 - 灵思决策区 / 模式标识 / 流中断 / 张小龙语气（已完成）

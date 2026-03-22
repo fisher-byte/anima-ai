@@ -1,19 +1,19 @@
 # Anima 问题排查指南
 
-*最后更新: 2026-03-21 | 版本: v0.5.49*
+*最后更新: 2026-03-22 | 版本: v0.5.50*
 
 ---
 
 ## 常见问题速查
 
-### 问题0: 本地 `npm run dev` 也要访问令牌 / 登录页
+### 问题0: 本地 `npm run dev` 与生产「需带 Bearer」不一致 / 想关掉鉴权
 
-**原因**：本地 `.env` 若配置了 `ACCESS_TOKEN` 或 `ACCESS_TOKENS`，服务端会进入与生产一致的鉴权模式，前端需带 Bearer 登录。
+**原因**：本地 `.env` 若配置了 `ACCESS_TOKEN` 或 `ACCESS_TOKENS`，服务端会进入与生产一致的鉴权模式（无 Bearer 的 API 会 401）。前端会在**首次访问时自动生成身份码**并写入 `localStorage`，一般**不再出现**手填访问令牌的拦截页。
 
 **处理**（选一）：
 
-1. 开发时关闭鉴权：`.env` 中设 `AUTH_DISABLED=true`，或删除 `ACCESS_TOKEN` / `ACCESS_TOKENS` 后重启 `npm run dev`。
-2. 需与线上一致联调：在登录页填入与服务器 `/opt/evocanvas/.env` 相同的令牌；若本地改了多 token，部署时用 `SYNC_ENV=1 bash docs/scripts/deploy.sh` 合并到服务器（见 `docs/deployment-server.md`）。
+1. 开发时关闭鉴权、走单机默认库：`.env` 中设 `AUTH_DISABLED=true`，或删除 `ACCESS_TOKEN` / `ACCESS_TOKENS` 后重启 `npm run dev`。
+2. 需与服务器上某一固定身份联调：在设置里查看/复制身份码，或在部署时用 `SYNC_ENV=1 bash docs/scripts/deploy.sh` 同步 `.env`（见 `docs/deployment-server.md`）。
 
 ---
 
