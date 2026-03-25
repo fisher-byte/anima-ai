@@ -21,6 +21,7 @@ export const en: Translations = {
     preferences: 'Settings',
     githubLink: 'Open Source on GitHub',
     mergeNodes: 'Merge similar nodes',
+    focusEntries: 'Focus entries',
     analyzing: 'Analyzing…',
     merged: (n: number) => `Merged ${n} group${n === 1 ? '' : 's'}`,
     mergeProgress: (done: number, total: number) => `${done}/${total}`,

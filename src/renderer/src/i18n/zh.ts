@@ -19,6 +19,7 @@ export interface Translations {
     preferences: string
     githubLink: string
     mergeNodes: string
+    focusEntries: string
     analyzing: string
     merged: (n: number) => string
     mergeProgress: (done: number, total: number) => string
@@ -428,6 +429,7 @@ export const zh: Translations = {
     preferences: '设置',
     githubLink: '开源项目 GitHub',
     mergeNodes: '整理相似节点',
+    focusEntries: '定位入口',
     analyzing: '分析中…',
     merged: (n: number) => `已合并 ${n} 组`,
     mergeProgress: (done: number, total: number) => `${done}/${total}`,

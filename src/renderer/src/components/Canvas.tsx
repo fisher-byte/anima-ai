@@ -256,6 +256,48 @@ export function Canvas() {
     }, 500)
   }, [])
 
+  // 入口定位：把视口拉回入口列（进行中决策/Space 入口等），避免用户在大图里“找不到入口”
+  const focusEntries = useCallback(() => {
+    const state = useCanvasStore.getState()
+    const { scale } = viewRef.current
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 1280
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 800
+
+    // 优先从 DOM 读实时坐标（入口可能被拖拽/物理 sim 改过），读不到再回退 store
+    const pickId = (id: string) => {
+      const el = document.getElementById(`node-${id}`)
+      if (el) {
+        const x = parseFloat(el.style.left)
+        const y = parseFloat(el.style.top)
+        if (!Number.isNaN(x) && !Number.isNaN(y)) return { x, y }
+      }
+      const n = state.nodes.find(n => n.id === id)
+      if (n) return { x: n.x, y: n.y }
+      return null
+    }
+
+    const target =
+      pickId('entry:decision-hub')
+      ?? pickId('entry:space:zhang')
+      ?? pickId('entry:space:lenny')
+      ?? pickId('entry:space:pg')
+      ?? pickId('entry:space:wang')
+
+    if (!target) return
+
+    // screenX = worldX*scale + offset.x - vw
+    // => offset.x = screenX + vw - worldX*scale
+    const desiredScreenX = 120
+    const desiredScreenY = 180
+    const nextOffset = {
+      x: desiredScreenX + vw - target.x * scale,
+      y: desiredScreenY + vh - target.y * scale,
+    }
+
+    applyTransform(nextOffset, scale)
+    state.setOffset(nextOffset)
+  }, [applyTransform])
+
   // 窗口 resize 时保持内容视觉中心不变
   useEffect(() => {
     let prevW = window.innerWidth
@@ -1101,6 +1143,13 @@ export function Canvas() {
                   {nodeGraphRebuild.phase === 'done' && nodeGraphRebuild.totalClusters > 0 && (
                     <span className="ml-auto text-xs text-green-500">{t.canvas.merged(nodeGraphRebuild.totalClusters)}</span>
                   )}
+                </button>
+                <button
+                  onClick={() => { setIsMenuOpen(false); focusEntries() }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
+                >
+                  <Sparkles className="w-4 h-4 shrink-0" />
+                  <span className="font-medium whitespace-nowrap">{t.canvas.focusEntries}</span>
                 </button>
               </motion.div>
             )}

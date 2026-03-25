@@ -348,6 +348,7 @@ export function useForceSimulation(options: ForceSimulationOptions = {}): ForceS
     const prevMap = nodeMapRef.current
     const newNodes: SimNode[] = storeNodes.map(n => {
       const prev = prevMap.get(n.id)
+      const isEntry = typeof n.id === 'string' && n.id.startsWith('entry:')
       return {
         id: n.id,
         x: prev ? prev.x : n.x,
@@ -356,8 +357,8 @@ export function useForceSimulation(options: ForceSimulationOptions = {}): ForceS
         vx: prev?.vx ?? 0,
         vy: prev?.vy ?? 0,
         fx: 0, fy: 0,
-        // entry:* 入口节点要参与物理（悬浮/推挤/随画布公转），不算作 capability
-        isCapability: n.nodeType === 'capability' && !(typeof n.id === 'string' && n.id.startsWith('entry:')),
+        // 入口节点不再参与力场推挤（避免“入口自己跑丢”），但仍是可拖拽的节点卡片
+        isCapability: n.nodeType === 'capability' || isEntry,
       }
     })
     nodesRef.current  = newNodes
