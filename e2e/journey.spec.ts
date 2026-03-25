@@ -60,6 +60,7 @@ async function waitForBackend(page: import('@playwright/test').Page) {
 /** 注入 token、跳过引导 */
 async function setupPage(page: import('@playwright/test').Page) {
   await page.addInitScript((tok: string) => {
+    ;(window as any).__E2E__ = true
     localStorage.setItem('anima_user_token', tok)
     localStorage.setItem('evo_onboarding_v3', 'done')
     localStorage.removeItem('evo_view')

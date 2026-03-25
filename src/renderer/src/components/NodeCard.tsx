@@ -16,13 +16,14 @@
  */
 import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo, memo, useContext, type ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Import, BookOpen, Layers, Paperclip, MessageSquare } from 'lucide-react'
+import { Import, BookOpen, Layers, Paperclip, MessageSquare, ListTodo, Plus, ArrowUpRight } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useLodScale } from '../hooks/useLodScale'
 import { useConfirm } from './GlobalUI'
-import { ForceSimContext } from './Canvas'
+import { ForceSimContext, EntryActionsContext } from './Canvas'
 import { useT } from '../i18n'
 import type { Node } from '@shared/types'
+import { getMemoryCardVariant, MEMORY_VARIANT_STYLES } from '../utils/nodeCardVariants'
 
 /** 拖拽推挤半径：在此范围内的节点会被推开 */
 const PUSH_RADIUS = 280
@@ -41,6 +42,7 @@ export const NodeCard = memo(function NodeCard({ node, depth }: NodeCardProps) {
 })
 
 function RegularNodeCard({ node, depth }: NodeCardProps) {
+  const isE2E = typeof window !== 'undefined' && (window as any).__E2E__ === true
   const removeNode = useCanvasStore(state => state.removeNode)
   const updateNodePosition = useCanvasStore(state => state.updateNodePosition)
   const openModalById = useCanvasStore(state => state.openModalById)
@@ -219,6 +221,9 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
     return { dur: 5 + seed0 * 0.2, delay: seed1 * 0.2 }
   }, [node.id])
 
+  const memVariant = useMemo(() => getMemoryCardVariant(node), [node])
+  const variantStyle = MEMORY_VARIANT_STYLES[memVariant]
+
   return (
     // 外层 div：持有 id + 定位，force sim / 拖拽直接写 style.left/top
     // left/top 不在 React style prop 里——避免重渲染时 React 覆盖 DOM 坐标
@@ -251,7 +256,7 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
       >
         {/* 漂浮层：compositor thread keyframe，拖拽时停止 */}
         <div
-          style={isDragging || scale < 0.6 ? undefined : {
+          style={isDragging || scale < 0.6 || isE2E ? undefined : {
             animation: `nodeFloat ${floatStyle.dur}s ${floatStyle.delay}s ease-in-out infinite`,
           }}
         >
@@ -264,22 +269,36 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
           <motion.div
             layout
             className={`rounded-2xl transition-all duration-300 w-52 border overflow-hidden ${
-              isHighlighted
-                ? 'shadow-[0_4px_24px_rgba(0,0,0,0.10)] border-gray-300/60'
-                : isDragging
-                  ? 'shadow-[0_24px_48px_rgba(0,0,0,0.16)] border-gray-200/60'
-                  : isHovered
-                    ? 'shadow-[0_8px_32px_rgba(0,0,0,0.12)] border-gray-200/50'
-                    : 'shadow-[0_2px_16px_rgba(0,0,0,0.06)] border-gray-100/80'
+              memVariant !== 'neutral'
+                ? variantStyle.shell
+                : isHighlighted
+                  ? 'shadow-[0_4px_24px_rgba(0,0,0,0.10)] border-gray-300/60'
+                  : isDragging
+                    ? 'shadow-[0_24px_48px_rgba(0,0,0,0.16)] border-gray-200/60'
+                    : isHovered
+                      ? 'shadow-[0_8px_32px_rgba(0,0,0,0.12)] border-gray-200/50'
+                      : 'shadow-[0_2px_16px_rgba(0,0,0,0.06)] border-gray-100/80'
+            } ${
+              memVariant !== 'neutral'
+                ? isHighlighted
+                  ? 'shadow-[0_4px_24px_rgba(0,0,0,0.12)]'
+                  : isDragging
+                    ? 'shadow-[0_24px_48px_rgba(0,0,0,0.18)]'
+                    : isHovered
+                      ? 'shadow-[0_8px_32px_rgba(0,0,0,0.14)]'
+                      : 'shadow-[0_2px_16px_rgba(0,0,0,0.07)]'
+                : ''
             }`}
-            style={{ backgroundColor: 'rgba(255,255,255,0.92)' }}
+            style={memVariant === 'neutral' ? { backgroundColor: 'rgba(255,255,255,0.92)' } : undefined}
           >
-            {node.color && (
+            {memVariant !== 'neutral' ? (
+              <div className={`absolute left-0 top-3 bottom-3 w-[3px] rounded-full ${variantStyle.accentBar}`} />
+            ) : node.color ? (
               <div
                 className="absolute left-0 top-3 bottom-3 w-[2px] rounded-full"
                 style={{ backgroundColor: 'rgba(0,0,0,0.08)' }}
               />
-            )}
+            ) : null}
 
             <div className="p-5 pl-6">
               <AnimatePresence>
@@ -300,6 +319,11 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
                 )}
               </AnimatePresence>
 
+              {memVariant !== 'neutral' && variantStyle.chip && (
+                <div className={`mb-1 ${variantStyle.chip}`}>
+                  {memVariant === 'person' ? t.canvas.nodeVariantPerson : t.canvas.nodeVariantTask}
+                </div>
+              )}
               {node.category && (
                 <div className="text-[10px] text-gray-400/70 mb-1.5 tracking-wide">
                   {node.category}
@@ -365,10 +389,15 @@ function RegularNodeCard({ node, depth }: NodeCardProps) {
 // ── 能力节点渲染 ──────────────────────────────────────────────────────────────
 
 function CapabilityNodeCard({ node }: { node: Node }) {
+  const isE2E = typeof window !== 'undefined' && (window as any).__E2E__ === true
   const { t } = useT()
   const openCapability = useCanvasStore(state => state.openCapability)
   const openOnboarding = useCanvasStore(state => state.openOnboarding)
+  const deleteCustomSpace = useCanvasStore(state => state.deleteCustomSpace)
+  const confirm = useConfirm()
   const updateNodePosition = useCanvasStore(state => state.updateNodePosition)
+  const entryActions = useContext(EntryActionsContext)
+  const forceSim = useContext(ForceSimContext)
 
   const isDraggingRef = useRef(false)
   const mouseDownPosRef = useRef({ x: 0, y: 0 })
@@ -376,12 +405,23 @@ function CapabilityNodeCard({ node }: { node: Node }) {
   const lastDragEndRef = useRef(0)
   const justDraggedRef = useRef(false)
 
+  const capId = node.capabilityData?.capabilityId ?? 'import-memory'
+  const isEntryNode = typeof node.id === 'string' && node.id.startsWith('entry:')
+  const isCustomSpaceEntry = typeof capId === 'string' && capId.startsWith('custom-space:')
+  const elemId = isEntryNode ? `node-${node.id}` : `cap-node-${node.id}`
+
+  const floatStyle = useMemo(() => {
+    const seed0 = node.id.charCodeAt(0) % 20
+    const seed1 = (node.id.charCodeAt(1) || 0) % 20
+    return { dur: 6 + seed0 * 0.2, delay: seed1 * 0.2 }
+  }, [node.id])
+
   useEffect(() => {
     if (isDraggingRef.current || justDraggedRef.current) return
     positionRef.current = { x: node.x, y: node.y }
-    const el = document.getElementById(`cap-node-${node.id}`)
+    const el = document.getElementById(elemId)
     if (el) { el.style.left = `${node.x}px`; el.style.top = `${node.y}px` }
-  }, [node.x, node.y, node.id])
+  }, [node.x, node.y, elemId])
 
   useEffect(() => {
     return () => {
@@ -399,6 +439,7 @@ function CapabilityNodeCard({ node }: { node: Node }) {
 
     if (!isDraggingRef.current && Math.hypot(dx, dy) > 8) {
       isDraggingRef.current = true
+      if (isEntryNode) forceSim?.setDragging(node.id)
       mouseDownPosRef.current = { x: e.clientX, y: e.clientY }
       return
     }
@@ -411,10 +452,10 @@ function CapabilityNodeCard({ node }: { node: Node }) {
       const newY = positionRef.current.y + ddy / currentScale
       mouseDownPosRef.current = { x: e.clientX, y: e.clientY }
       positionRef.current = { x: newX, y: newY }
-      const el = document.getElementById(`cap-node-${node.id}`)
+      const el = document.getElementById(elemId)
       if (el) { el.style.left = `${newX}px`; el.style.top = `${newY}px` }
     }
-  }, [node.id])
+  }, [elemId, forceSim, isEntryNode, node.id])
 
   const handleGlobalMouseUp = useCallback(() => {
     window.removeEventListener('mousemove', handleGlobalMouseMove)
@@ -423,10 +464,15 @@ function CapabilityNodeCard({ node }: { node: Node }) {
       isDraggingRef.current = false
       lastDragEndRef.current = Date.now()
       justDraggedRef.current = true
+      if (isEntryNode) {
+        forceSim?.updateSimNode(node.id, positionRef.current.x, positionRef.current.y)
+        forceSim?.setDragging(null)
+        forceSim?.kick()
+      }
       updateNodePosition(node.id, positionRef.current.x, positionRef.current.y)
       setTimeout(() => { justDraggedRef.current = false }, 200)
     }
-  }, [node.id, updateNodePosition, handleGlobalMouseMove])
+  }, [forceSim, handleGlobalMouseMove, isEntryNode, node.id, updateNodePosition])
 
   useEffect(() => { handleGlobalMouseMoveRef.current = handleGlobalMouseMove }, [handleGlobalMouseMove])
   useEffect(() => { handleGlobalMouseUpRef.current = handleGlobalMouseUp }, [handleGlobalMouseUp])
@@ -438,40 +484,165 @@ function CapabilityNodeCard({ node }: { node: Node }) {
     window.addEventListener('mouseup', handleGlobalMouseUp)
   }, [handleGlobalMouseMove, handleGlobalMouseUp])
 
-  const capId = node.capabilityData?.capabilityId ?? 'import-memory'
-  const ICONS: Record<string, ReactNode> = {
-    'import-memory': <Import className="w-4 h-4 text-gray-500" />,
-    'onboarding': <BookOpen className="w-4 h-4 text-gray-400" />
-  }
-
   const handleClick = useCallback(() => {
     if (isDraggingRef.current || Date.now() - lastDragEndRef.current < 200) return
-    if (capId === 'onboarding') {
-      openOnboarding()
-    } else {
-      openCapability(node.id)
+
+    if (capId === 'onboarding') return openOnboarding()
+    if (capId === 'import-memory') return openCapability(node.id)
+    if (capId === 'decision-hub') return entryActions?.openDecisionHub()
+    if (capId === 'create-space') return entryActions?.openCreateSpace()
+
+    if (typeof capId === 'string' && capId.startsWith('space:')) {
+      const persona = capId.slice('space:'.length) as any
+      return entryActions?.openPublicSpace(persona)
     }
-  }, [node.id, capId, openCapability, openOnboarding])
+    if (typeof capId === 'string' && capId.startsWith('custom-space:')) {
+      const spaceId = capId.slice('custom-space:'.length)
+      return entryActions?.openCustomSpace(spaceId)
+    }
+
+    // fallback
+    openCapability(node.id)
+  }, [
+    capId,
+    node.id,
+    entryActions,
+    openCapability,
+    openOnboarding,
+  ])
+
+  const handleDeleteCustomSpace = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!isCustomSpaceEntry) return
+    const spaceId = capId.slice('custom-space:'.length)
+    const ok = await confirm({
+      title: t.space.deleteSpaceTitle,
+      message: t.space.deleteSpaceWarning,
+      confirmLabel: t.space.deleteSpaceConfirm,
+      danger: true,
+    })
+    if (!ok) return
+    await deleteCustomSpace(spaceId)
+  }, [capId, confirm, deleteCustomSpace, isCustomSpaceEntry, t.space.deleteSpaceConfirm, t.space.deleteSpaceTitle, t.space.deleteSpaceWarning])
+
+  const ICON: ReactNode =
+    capId === 'import-memory' ? <Import className="w-4 h-4 text-stone-500" /> :
+    capId === 'onboarding' ? <BookOpen className="w-4 h-4 text-stone-400" /> :
+    capId === 'decision-hub' ? <ListTodo className="w-4 h-4 text-stone-500" /> :
+    capId === 'create-space' ? <Plus className="w-4 h-4 text-stone-500" /> :
+    (typeof capId === 'string' && capId.startsWith('space:')) ? <ArrowUpRight className="w-4 h-4 text-stone-500" /> :
+    <ArrowUpRight className="w-4 h-4 text-stone-500" />
+
+  // 入口强调：把“左侧大块”改为“顶部 2px 细线 / 小色点”（更像普通节点，仅轻微提示）
+  const ENTRY_TOP_ACCENT_CLASS =
+    capId === 'decision-hub'
+      ? 'bg-gradient-to-r from-stone-500/45 via-stone-400/20 to-transparent'
+      : capId === 'create-space'
+        ? 'bg-gradient-to-r from-stone-400/35 via-stone-300/15 to-transparent'
+        : (typeof capId === 'string' && capId.startsWith('space:'))
+          ? 'bg-gradient-to-r from-stone-500/35 via-stone-300/15 to-transparent'
+          : isCustomSpaceEntry
+            ? 'bg-gradient-to-r from-stone-400/35 via-stone-300/15 to-transparent'
+            : 'bg-gradient-to-r from-stone-400/30 via-stone-300/12 to-transparent'
+
+  const ENTRY_DOT_CLASS =
+    capId === 'decision-hub'
+      ? 'bg-stone-500/40'
+      : capId === 'create-space'
+        ? 'bg-stone-400/35'
+        : (typeof capId === 'string' && capId.startsWith('space:'))
+          ? 'bg-stone-500/30'
+          : 'bg-stone-400/30'
 
   return (
     <div
-      id={`cap-node-${node.id}`}
+      id={elemId}
       style={{ position: 'absolute', left: `${node.x}px`, top: `${node.y}px` }}
-      className="select-none z-10 pointer-events-auto cursor-grab active:cursor-grabbing"
+      className="select-none z-10 pointer-events-auto cursor-grab active:cursor-grabbing group"
       onMouseDown={handleMouseDown}
       onClick={handleClick}
+      role="button"
+      tabIndex={0}
+      aria-label={node.title}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          // 复用点击逻辑（键盘不触发拖拽）
+          handleClick()
+        }
+      }}
     >
       <motion.div
-        initial={{ scale: 0.85, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
+        initial={{ scale: 0.85, opacity: 0, filter: 'blur(8px)' }}
+        animate={{ scale: 1, opacity: 1, filter: 'blur(0px)' }}
         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
       >
-        <div className="flex flex-col items-center gap-1.5 px-4 py-3.5 bg-white border-2 border-dashed border-gray-300 rounded-2xl shadow-sm hover:shadow-md hover:border-gray-400 transition-all w-36 text-center">
-          <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center">
-            {ICONS[capId]}
+        <div
+          style={isDraggingRef.current || useCanvasStore.getState().scale < 0.6 || isE2E ? undefined : {
+            animation: `nodeFloat ${floatStyle.dur}s ${floatStyle.delay}s ease-in-out infinite`,
+          }}
+        >
+          <div
+            className={`relative rounded-2xl transition-all duration-300 w-52 border overflow-hidden ${
+              isEntryNode
+                ? 'shadow-[0_2px_16px_rgba(0,0,0,0.06)] border-gray-100/80 hover:shadow-[0_8px_32px_rgba(0,0,0,0.12)] hover:border-gray-200/60'
+                : 'shadow-[0_2px_16px_rgba(0,0,0,0.06)] border-stone-200/70 hover:shadow-[0_8px_32px_rgba(0,0,0,0.10)] hover:border-stone-300/90'
+            }`}
+            style={{ backgroundColor: 'rgba(255,255,255,0.92)' }}
+          >
+            {/* Entry accent — 顶部细线 + 小点（更收敛，不抢主视觉） */}
+            {isEntryNode && (
+              <>
+                <div className={`absolute left-0 right-0 top-0 h-[2px] ${ENTRY_TOP_ACCENT_CLASS}`} />
+                <div className={`absolute right-4 top-4 w-1.5 h-1.5 rounded-full ${ENTRY_DOT_CLASS}`} />
+              </>
+            )}
+
+            <div className="p-5 pl-6">
+              {isEntryNode && node.category && (
+                <div className="text-[10px] text-gray-400/70 mb-1.5 tracking-wide flex items-center gap-1.5">
+                  <span>{node.category}</span>
+                  <span className="ml-auto w-6 h-6 rounded-xl bg-gray-50 border border-gray-200/60 flex items-center justify-center">
+                    {ICON}
+                  </span>
+                </div>
+              )}
+
+              <h3 className="font-medium text-gray-800 mb-2.5 text-[15px] break-words leading-snug line-clamp-3">
+                {node.title}
+              </h3>
+
+              <div className="flex flex-wrap gap-1.5 mb-4">
+                {(node.keywords ?? []).slice(0, 3).map((keyword, idx) => (
+                  <span
+                    key={idx}
+                    className="text-[10px] px-2 py-0.5 bg-white/50 text-gray-500 rounded-lg border border-gray-100/50"
+                  >
+                    {keyword}
+                  </span>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-between text-[10px] text-gray-400 font-medium">
+                <span>{node.date}</span>
+                <div className="w-1.5 h-1.5 rounded-full bg-gray-300/40" />
+              </div>
+            </div>
+
+            {isCustomSpaceEntry && (
+              <button
+                type="button"
+                onClick={handleDeleteCustomSpace}
+                className="absolute -top-2.5 -right-2.5 w-8 h-8 rounded-full bg-white shadow-sm border border-stone-200 text-stone-300 hover:text-red-500 hover:border-red-200 flex items-center justify-center transition-colors opacity-0 group-hover:opacity-100"
+                title={t.space.deleteSpaceTitle}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            )}
           </div>
-          <div className="text-[12px] font-semibold text-gray-700 leading-tight">{node.title}</div>
-          <div className="text-[10px] text-gray-400">{t.clusterLabel.clickToUse}</div>
         </div>
       </motion.div>
     </div>

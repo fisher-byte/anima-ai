@@ -16,7 +16,7 @@
  */
 import { useState, useRef, useCallback, useMemo, useEffect, createContext } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit, Sparkles, Clock, GitMerge, Github, PlusCircle, Trash2, FolderOpen, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Settings, Search, History, Minus, Plus, LayoutGrid, BrainCircuit, Sparkles, Clock, GitMerge, Github, FolderOpen } from 'lucide-react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useForceSimulation, type ForceSimulationAPI } from '../hooks/useForceSimulation'
 import { NodeCard } from './NodeCard'
@@ -34,7 +34,6 @@ import { CustomSpaceCanvas } from './CustomSpaceCanvas'
 import { CreateCustomSpaceModal } from './CreateCustomSpaceModal'
 import { FileBrowserPanel } from './FileBrowserPanel'
 import { DecisionHubPanel } from './DecisionHubPanel'
-import { OngoingDecisionsDock } from './OngoingDecisionsDock'
 
 import { AmbientBackground } from './AmbientBackground'
 import { ClusterLabel } from './ClusterLabel'
@@ -48,6 +47,14 @@ import { STORAGE_FILES } from '@shared/constants'
 
 /** 让 NodeCard 能访问 force sim API（setDragging / kick） */
 export const ForceSimContext = createContext<ForceSimulationAPI | null>(null)
+
+/** 让入口节点（Space/决策）能触发 Canvas 内部 UI 打开 */
+export const EntryActionsContext = createContext<null | {
+  openDecisionHub: () => void
+  openCreateSpace: () => void
+  openPublicSpace: (id: 'lenny' | 'pg' | 'zhang' | 'wang') => void
+  openCustomSpace: (id: string) => void
+}>(null)
 
 /** 记忆引用连线：从高亮节点画虚线到输入框位置 */
 function MemoryLines({
@@ -177,6 +184,7 @@ export function Canvas() {
   const profileRulesCount = useCanvasStore(state => state.profile?.rules?.length ?? 0)
   const customSpaces = useCanvasStore(state => state.customSpaces)
   const openModalById = useCanvasStore(state => state.openModalById)
+  const syncEntryCapabilityNodes = useCanvasStore(state => state.syncEntryCapabilityNodes)
 
   // 空画布欢迎语（个性化，当天缓存）
   const [welcomeText, setWelcomeText] = useState<string | null>(null)
@@ -383,14 +391,8 @@ export function Canvas() {
   const [isWangSpaceOpen, setIsWangSpaceOpen] = useState(false)
   const [isCreateSpaceOpen, setIsCreateSpaceOpen] = useState(false)
   const [openCustomSpaceId, setOpenCustomSpaceId] = useState<string | null>(null)
-  const [deleteConfirmSpaceId, setDeleteConfirmSpaceId] = useState<string | null>(null)
   const [isFileBrowserOpen, setIsFileBrowserOpen] = useState(false)
   const [isDecisionHubOpen, setIsDecisionHubOpen] = useState(false)
-  // 左侧 Spaces 侧边栏：默认折叠；展开/折叠会写入 localStorage，下次进入浏览器恢复上次状态
-  const [isSpacesSidebarVisible, setIsSpacesSidebarVisible] = useState(() => {
-    return localStorage.getItem('evo_spaces_sidebar_visible') === 'true'
-  })
-  const [ongoingDecisions, setOngoingDecisions] = useState<OngoingDecisionItem[]>([])
   const [decisionLedger, setDecisionLedger] = useState<OngoingDecisionItem[]>([])
   const prevNodeCountRef = useRef(0)
   const prevRulesCountRef = useRef(profileRulesCount)
@@ -407,10 +409,7 @@ export function Canvas() {
         }
         return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
       })
-      if (!cancelled) {
-        setOngoingDecisions(items.slice(0, 4))
-        setDecisionLedger(ledgerItems)
-      }
+      if (!cancelled) setDecisionLedger(ledgerItems)
     }
 
     void load()
@@ -425,6 +424,91 @@ export function Canvas() {
       window.removeEventListener(DECISION_RECORDS_UPDATED_EVENT, handleDecisionUpdate)
     }
   }, [])
+
+  const entryActions = useMemo(() => ({
+    openDecisionHub: () => setIsDecisionHubOpen(true),
+    openCreateSpace: () => setIsCreateSpaceOpen(true),
+    openPublicSpace: (id: 'lenny' | 'pg' | 'zhang' | 'wang') => {
+      if (id === 'lenny') setIsLennySpaceOpen(true)
+      else if (id === 'pg') setIsPGSpaceOpen(true)
+      else if (id === 'zhang') setIsZhangSpaceOpen(true)
+      else setIsWangSpaceOpen(true)
+    },
+    openCustomSpace: (id: string) => setOpenCustomSpaceId(id),
+  }), [])
+
+  // Space/决策入口：同步为画布内的“节点卡片”（不再使用固定侧栏/Dock 组件）
+  useEffect(() => {
+    if (!nodesLoaded) return
+
+    const now = new Date().toISOString().split('T')[0]
+    const all = useCanvasStore.getState().nodes
+    // 默认锚点：用“当前视口左上角”投影到世界坐标，确保入口节点首次必定可见
+    const { offset, scale } = useCanvasStore.getState()
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 1280
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 800
+    const screenX = 96
+    const screenY = 160
+    // contentLayer 的世界坐标系以 (-vw, -vh) 为原点（见 contentLayer: left=-100vw/top=-100vh）
+    // worldX/worldY 需要补上 vw/vh 才能与屏幕坐标对齐（否则在 offset=0 的环境会跑到视野外）
+    const baseX = (screenX - offset.x) / scale + vw
+    const baseY = (screenY - offset.y) / scale + vh
+    const gapY = 220 / scale
+
+    const dueCount = decisionLedger.filter((item) => item.decisionRecord.status === 'adopted' && item.isDue).length
+    const totalCount = decisionLedger.length
+
+    const make = (idx: number, id: string, capabilityId: import('@shared/types').CapabilityData['capabilityId'], title: string, keywords: string[]) => {
+      const existing = all.find(n => n.id === id)
+      const x = existing?.x ?? baseX
+      const desiredY = baseY + idx * gapY
+      // 轻微纠偏：若入口节点仅“略微”漂到视口外，则拉回到视口内；用户明显拖拽过（差距过大）则不覆盖
+      const y = (() => {
+        if (existing?.y === undefined) return desiredY
+        const diff = desiredY - existing.y
+        // 1) 略微偏离队列（上下浮动一点），拉回到队列
+        if (diff > 12 && diff < gapY * 2) return desiredY
+        // 2) 如果入口卡片跑到视口上沿之外（常见于刷新/聚焦/历史布局），优先拉回，保证“入口列”永远可见
+        const offscreenY = baseY - 16 / scale
+        if (existing.y < offscreenY) return desiredY
+        return existing.y
+      })()
+      const node: CanvasNode = {
+        id,
+        title,
+        keywords,
+        date: now,
+        conversationId: id,
+        x,
+        y,
+        category: '入口',
+        color: 'rgba(241, 245, 249, 0.9)',
+        nodeType: 'capability',
+        capabilityData: { capabilityId, state: 'active' },
+      }
+      return node
+    }
+
+    const entries: CanvasNode[] = []
+    entries.push(make(0, 'entry:decision-hub', 'decision-hub', t.canvas.ongoingDecisions, [
+      totalCount > 0 ? t.canvas.ongoingDecisionsCount(totalCount) : t.canvas.ongoingDecisionsEmpty,
+      dueCount > 0 ? t.canvas.ongoingDecisionsDueChip(dueCount) : t.canvas.ongoingDecisionsHint,
+    ]))
+    entries.push(make(1, 'entry:create-space', 'create-space', t.space.addSpace, ['创建一个新的空间', '可拖拽放到你喜欢的位置']))
+    entries.push(make(2, 'entry:space:lenny', 'space:lenny', 'Lenny Rachitsky', [t.canvas.lennySubtitle, t.space.decisionModeLingSi]))
+    entries.push(make(3, 'entry:space:pg', 'space:pg', 'Paul Graham', [t.canvas.pgSubtitle]))
+    entries.push(make(4, 'entry:space:zhang', 'space:zhang', '张小龙', [t.canvas.zhangSubtitle, t.space.decisionModeLingSi]))
+    entries.push(make(5, 'entry:space:wang', 'space:wang', '王慧文', [t.canvas.wangSubtitle]))
+
+    // 自定义空间入口（若有）
+    customSpaces.forEach((s, i) => {
+      const idx = 6 + i
+      const kw = [s.topic].filter(Boolean) as string[]
+      entries.push(make(idx, `entry:custom-space:${s.id}`, `custom-space:${s.id}`, s.name, kw.length ? kw : ['自定义空间']))
+    })
+
+    void syncEntryCapabilityNodes(entries)
+  }, [nodesLoaded, customSpaces, decisionLedger, syncEntryCapabilityNodes, t])
 
   // 节点数量增加时做物理 kick；首次有节点时也必须 kick（否则温度为 0，斥力/弹簧不积分位移，只会叠在一起）
   // （红点改为由进化基因规则数量变化触发，不再与节点数绑定）
@@ -850,10 +934,11 @@ export function Canvas() {
     }
   }, [])
 
-  const dueDecisionCount = decisionLedger.filter((item) => item.decisionRecord.status === 'adopted' && item.isDue).length
+  const memoryNodeCount = nodes.filter(n => n.nodeType !== 'capability').length
 
   return (
     <ForceSimContext.Provider value={forceSim}>
+    <EntryActionsContext.Provider value={entryActions}>
     <>
       {/* 工具栏 */}
       <div className="fixed top-6 right-6 z-30 flex items-center gap-3">
@@ -1024,248 +1109,11 @@ export function Canvas() {
       </div>
 
       {/* 节点数量指示 */}
-      {nodes.length > 0 && (
-        <div className="fixed top-4 left-4 z-30 px-3 py-1 bg-white/80 rounded-full text-xs text-gray-500 shadow-sm border border-gray-100">
-          {t.canvas.nodeCount(nodes.length)}
+      {memoryNodeCount > 0 && (
+        <div className="fixed top-4 left-4 z-30 px-3 py-1 bg-white/90 rounded-full text-xs text-stone-500 shadow-sm border border-stone-200/90 backdrop-blur-sm">
+          {t.canvas.nodeCount(memoryNodeCount)}
         </div>
       )}
-
-      {ongoingDecisions.length > 0 && (
-        <OngoingDecisionsDock
-          items={ongoingDecisions}
-          dueCount={dueDecisionCount}
-          canvasNodeCount={nodes.length}
-          onOpenHub={() => setIsDecisionHubOpen(true)}
-        />
-      )}
-
-      {/* Spaces 侧边栏 — My Spaces + Public Spaces 合并到同一个 fixed 容器，自底向上堆叠 */}
-      {/* flex-col-reverse：header（折叠按钮/pill）锚定在底部上方，预留更多与输入区的间距 */}
-      <div className="fixed left-4 bottom-44 z-30 flex flex-col-reverse gap-1.5">
-        {/* 折叠/展开切换按钮 — 在 flex-col-reverse 中渲染顺序靠前 = 视觉上在底部 */}
-        <div className={`flex items-center mt-0.5 ${isSpacesSidebarVisible ? 'justify-between w-[168px]' : 'justify-start'}`}>
-          {isSpacesSidebarVisible && (
-            <span className="px-1 text-[10px] text-gray-400/70 font-medium tracking-widest uppercase">{t.space.mySpaces}</span>
-          )}
-          <div className={isSpacesSidebarVisible ? 'flex items-center gap-0.5' : ''}>
-            {isSpacesSidebarVisible && customSpaces.length < 5 && (
-              <button
-                onClick={() => setIsCreateSpaceOpen(true)}
-                className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors"
-                title={t.space.addSpace}
-              >
-                <PlusCircle className="w-3.5 h-3.5" />
-              </button>
-            )}
-            {isSpacesSidebarVisible ? (
-              <button
-                onClick={() => {
-                  setIsSpacesSidebarVisible(false)
-                  localStorage.setItem('evo_spaces_sidebar_visible', 'false')
-                }}
-                className="p-2 text-gray-300 hover:text-gray-600 transition-colors"
-                title={t.canvas.hideSpaces}
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-              </button>
-            ) : (
-              <button
-                onClick={() => {
-                  setIsSpacesSidebarVisible(true)
-                  localStorage.setItem('evo_spaces_sidebar_visible', 'true')
-                }}
-                className="flex items-center gap-2 pl-3 pr-3.5 py-2.5 bg-white/95 backdrop-blur-md rounded-2xl shadow-md border border-gray-200 hover:shadow-lg hover:border-gray-300 transition-all group"
-                title={t.canvas.showSpaces}
-              >
-                <div className="flex -space-x-1.5">
-                  <div className="w-5 h-5 rounded-full bg-gray-900 border-2 border-white flex items-center justify-center text-white text-[8px] font-bold shrink-0">L</div>
-                  <div className="w-5 h-5 rounded-full bg-gray-900 border-2 border-white flex items-center justify-center text-white text-[8px] font-bold shrink-0">PG</div>
-                </div>
-                <span className="text-[11px] font-semibold text-gray-600 group-hover:text-gray-900 transition-colors whitespace-nowrap">{t.space.mySpaces || 'Spaces'}</span>
-                <ChevronRight className="w-3 h-3 text-gray-400 group-hover:text-gray-600 transition-colors" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        <AnimatePresence initial={false}>
-          {isSpacesSidebarVisible && (
-            <div className="flex flex-col gap-3">
-            <motion.div
-              key="spaces-sidebar-content"
-              initial={{ opacity: 0, x: -16 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -16 }}
-              transition={{ duration: 0.18 }}
-              className="flex flex-col gap-1.5"
-            >
-
-        {customSpaces.map(space => {
-          const COLOR_ACCENT: Record<string, string> = {
-            indigo: 'bg-indigo-100 border-indigo-200/80 text-indigo-700',
-            violet: 'bg-violet-100 border-violet-200/80 text-violet-700',
-            emerald: 'bg-emerald-100 border-emerald-200/80 text-emerald-700',
-            amber: 'bg-amber-100 border-amber-200/80 text-amber-700',
-            rose: 'bg-rose-100 border-rose-200/80 text-rose-700',
-            sky: 'bg-sky-100 border-sky-200/80 text-sky-700',
-          }
-          const avatarClass = COLOR_ACCENT[space.colorKey] ?? 'bg-gray-100 border-gray-200/80 text-gray-700'
-          return (
-            <div key={space.id} className="relative group/space">
-              <motion.button
-                onClick={() => setOpenCustomSpaceId(space.id)}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="flex items-center gap-2.5 pl-2.5 pr-3 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[168px]"
-              >
-                <div className={`w-7 h-7 rounded-full border flex items-center justify-center font-semibold text-[11px] shrink-0 ${avatarClass}`}>
-                  {space.avatarInitials}
-                </div>
-                <div className="text-left flex-1 min-w-0">
-                  <div className="text-[11px] font-semibold text-gray-700 leading-tight truncate">{space.name}</div>
-                  {space.topic && <div className="text-[9px] text-gray-400 leading-tight mt-0.5 truncate">{space.topic}</div>}
-                </div>
-                <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                </svg>
-              </motion.button>
-              {/* Delete button — hover overlay */}
-              <button
-                onClick={e => { e.stopPropagation(); setDeleteConfirmSpaceId(space.id) }}
-                className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/space:opacity-100 p-1 text-gray-300 hover:text-red-400 transition-all rounded-lg"
-                title={t.space.deleteSpaceTitle}
-              >
-                <Trash2 className="w-3 h-3" />
-              </button>
-            </div>
-          )
-        })}
-
-        {customSpaces.length === 0 && (
-          <motion.button
-            onClick={() => setIsCreateSpaceOpen(true)}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="flex items-center gap-2 pl-2.5 pr-3 py-2 bg-white/60 backdrop-blur-md rounded-2xl border border-dashed border-gray-200 hover:bg-white/90 hover:border-gray-300 transition-all cursor-pointer w-[168px] text-gray-400 hover:text-gray-600"
-          >
-            <Plus className="w-4 h-4 shrink-0" />
-            <span className="text-[11px] font-medium">{t.space.addSpace}</span>
-          </motion.button>
-        )}
-
-        {/* 分隔线 */}
-        <div className="w-[168px] border-t border-gray-100/80 my-0.5" />
-
-        {/* Public Spaces */}
-        <div className="px-1 mb-1">
-          <span className="text-[10px] text-gray-400/70 font-medium tracking-widest uppercase">{t.canvas.spacesLabel}</span>
-        </div>
-
-        {/* Lenny Rachitsky */}
-        <motion.button
-          onClick={() => setIsLennySpaceOpen(true)}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="relative flex items-center gap-2.5 pl-2.5 pr-3 py-2.5 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[196px]"
-        >
-          <div className="w-7 h-7 rounded-full bg-gray-900 border border-gray-700/50 flex items-center justify-center text-white font-semibold text-[11px] shrink-0">L</div>
-          <div className="text-left flex-1 min-w-0">
-            <div className="pr-10 text-[11px] font-semibold text-gray-700 leading-tight whitespace-normal break-words">Lenny Rachitsky</div>
-            <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{t.canvas.lennySubtitle}</div>
-          </div>
-          <span className="absolute right-7 top-2 inline-flex shrink-0 whitespace-nowrap rounded-full bg-stone-100 px-1.5 py-0.5 text-[9px] font-semibold leading-none text-stone-600 ring-1 ring-stone-200/80">
-            {t.space.decisionModeLingSi}
-          </span>
-          <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
-        </motion.button>
-
-        {/* Paul Graham */}
-        <motion.button
-          onClick={() => setIsPGSpaceOpen(true)}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="flex items-center gap-2.5 pl-2.5 pr-3 py-2.5 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[196px]"
-        >
-          <div className="w-7 h-7 rounded-full bg-gray-900 border border-gray-700/50 flex items-center justify-center text-white font-semibold text-[11px] shrink-0">PG</div>
-          <div className="text-left flex-1 min-w-0">
-            <div className="text-[11px] font-semibold text-gray-700 leading-tight truncate">Paul Graham</div>
-            <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{t.canvas.pgSubtitle}</div>
-          </div>
-          <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
-        </motion.button>
-
-        {/* 张小龙 */}
-        <motion.button
-          onClick={() => setIsZhangSpaceOpen(true)}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="relative flex items-center gap-2.5 pl-2.5 pr-3 py-2.5 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[196px]"
-        >
-          <div className="w-7 h-7 rounded-full bg-gray-900 border border-gray-700/50 flex items-center justify-center text-white font-semibold text-[11px] shrink-0">张</div>
-          <div className="text-left flex-1 min-w-0">
-            <div className="pr-10 text-[11px] font-semibold text-gray-700 leading-tight whitespace-normal break-words">张小龙</div>
-            <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{t.canvas.zhangSubtitle}</div>
-          </div>
-          <span className="absolute right-7 top-2 inline-flex shrink-0 whitespace-nowrap rounded-full bg-stone-100 px-1.5 py-0.5 text-[9px] font-semibold leading-none text-stone-600 ring-1 ring-stone-200/80">
-            {t.space.decisionModeLingSi}
-          </span>
-          <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
-        </motion.button>
-
-        {/* 王慧文 */}
-        <motion.button
-          onClick={() => setIsWangSpaceOpen(true)}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="flex items-center gap-2.5 pl-2.5 pr-3 py-2.5 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all group cursor-pointer w-[196px]"
-        >
-          <div className="w-7 h-7 rounded-full bg-gray-900 border border-gray-700/50 flex items-center justify-center text-white font-semibold text-[11px] shrink-0">王</div>
-          <div className="text-left flex-1 min-w-0">
-            <div className="text-[11px] font-semibold text-gray-700 leading-tight truncate">王慧文</div>
-            <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{t.canvas.wangSubtitle}</div>
-          </div>
-          <svg className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
-        </motion.button>
-            </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Delete Custom Space confirm dialog */}
-      <AnimatePresence>
-        {deleteConfirmSpaceId && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50"
-              onClick={() => setDeleteConfirmSpaceId(null)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-              className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
-            >
-              <div className="bg-white rounded-2xl shadow-xl p-6 max-w-xs w-full mx-4 pointer-events-auto">
-                <h3 className="text-sm font-semibold text-gray-900 mb-1">{t.space.deleteSpaceTitle}</h3>
-                <p className="text-xs text-gray-500 mb-4">{t.space.deleteSpaceWarning}</p>
-                <div className="flex gap-2 justify-end">
-                  <button
-                    onClick={() => setDeleteConfirmSpaceId(null)}
-                    className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
-                  >{t.space.deleteCancel}</button>
-                  <button
-                    onClick={async () => {
-                      await useCanvasStore.getState().deleteCustomSpace(deleteConfirmSpaceId)
-                      setDeleteConfirmSpaceId(null)
-                    }}
-                    className="px-3 py-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-all"
-                  >{t.space.deleteSpaceConfirm}</button>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
 
       <AmbientBackground />
 
@@ -1482,6 +1330,7 @@ export function Canvas() {
         onClose={() => setIsFileBrowserOpen(false)}
       />
     </>
+    </EntryActionsContext.Provider>
     </ForceSimContext.Provider>
   )
 }

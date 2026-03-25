@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ACCESS_TOKEN_KEY, USER_TOKEN_KEY } from '../constants/userToken'
 
 const originalFetch = global.fetch
 const storage = new Map<string, string>()
@@ -72,6 +73,31 @@ describe('repairStaleAutoToken', () => {
     const { repairStaleAutoToken } = await import('../App')
     await expect(repairStaleAutoToken(null)).resolves.toBeNull()
     expect(global.fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('migrateLegacyAccessTokenIfNeeded', () => {
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', localStorageMock)
+    localStorage.clear()
+    vi.resetModules()
+  })
+
+  it('copies anima_access_token to anima_user_token and removes legacy key', async () => {
+    localStorage.setItem(ACCESS_TOKEN_KEY, 'legacy-only')
+    const { migrateLegacyAccessTokenIfNeeded } = await import('../App')
+    migrateLegacyAccessTokenIfNeeded()
+    expect(localStorage.getItem(USER_TOKEN_KEY)).toBe('legacy-only')
+    expect(localStorage.getItem(ACCESS_TOKEN_KEY)).toBeNull()
+  })
+
+  it('does not overwrite existing user token', async () => {
+    localStorage.setItem(USER_TOKEN_KEY, 'user-1')
+    localStorage.setItem(ACCESS_TOKEN_KEY, 'other')
+    const { migrateLegacyAccessTokenIfNeeded } = await import('../App')
+    migrateLegacyAccessTokenIfNeeded()
+    expect(localStorage.getItem(USER_TOKEN_KEY)).toBe('user-1')
+    expect(localStorage.getItem(ACCESS_TOKEN_KEY)).toBeNull()
   })
 })
 
