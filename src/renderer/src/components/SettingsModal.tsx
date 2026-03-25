@@ -24,8 +24,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [keyError, setKeyError] = useState('')
   const [isExporting, setIsExporting] = useState(false)
 
-  // 身份码相关
-  const currentToken = localStorage.getItem(ACCESS_TOKEN_KEY) ?? localStorage.getItem(USER_TOKEN_KEY) ?? ''
+  // 身份码相关（单一来源：anima_user_token；旧 anima_access_token 由 App 启动时迁移并清除）
+  const currentToken = localStorage.getItem(USER_TOKEN_KEY) ?? ''
   const [copied, setCopied] = useState(false)
   const [migrateInput, setMigrateInput] = useState('')
   const [showMigrate, setShowMigrate] = useState(false)
@@ -41,6 +41,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const t = migrateInput.trim()
     if (!t || t === currentToken) return
     localStorage.setItem(USER_TOKEN_KEY, t)
+    localStorage.removeItem(ACCESS_TOKEN_KEY)
     setAuthToken(t)
     setMigrateInput('')
     setShowMigrate(false)

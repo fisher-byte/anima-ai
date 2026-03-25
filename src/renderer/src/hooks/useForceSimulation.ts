@@ -94,6 +94,8 @@ export interface ForceSimulationAPI {
 
 export function useForceSimulation(options: ForceSimulationOptions = {}): ForceSimulationAPI {
   const { noSameAttract = false, noClusterForce = false, noStoreSync = false } = options
+  // Playwright / E2E 环境下关闭物理模拟：避免节点持续漂移导致点击不稳定（只影响测试，不影响线上）
+  const isE2E = typeof window !== 'undefined' && (window as any).__E2E__ === true
   // 只用 getState() 取函数引用，不订阅 store，不触发重渲染
   const updateNodePositionInMemory = useCanvasStore.getState().updateNodePositionInMemory
   const updateNodePosition = useCanvasStore.getState().updateNodePosition
@@ -334,10 +336,11 @@ export function useForceSimulation(options: ForceSimulationOptions = {}): ForceS
 
   // ── 启动模拟 ──────────────────────────────────────────────────────────────
   useEffect(() => {
+    if (isE2E) return
     const loop = () => tickRef.current!()
     rafRef.current = requestAnimationFrame(loop)
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }
-  }, [])
+  }, [isE2E])
 
   // ── 对外 API ──────────────────────────────────────────────────────────────
 
@@ -353,7 +356,8 @@ export function useForceSimulation(options: ForceSimulationOptions = {}): ForceS
         vx: prev?.vx ?? 0,
         vy: prev?.vy ?? 0,
         fx: 0, fy: 0,
-        isCapability: n.nodeType === 'capability',
+        // entry:* 入口节点要参与物理（悬浮/推挤/随画布公转），不算作 capability
+        isCapability: n.nodeType === 'capability' && !(typeof n.id === 'string' && n.id.startsWith('entry:')),
       }
     })
     nodesRef.current  = newNodes

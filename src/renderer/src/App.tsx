@@ -12,8 +12,25 @@ import { ACCESS_TOKEN_KEY, USER_TOKEN_KEY } from './constants/userToken'
 
 export { USER_TOKEN_KEY } from './constants/userToken'
 
+/** 只读客户端身份码；旧版 anima_access_token 在启动时迁移后不再参与 */
 function readStoredToken(): string | null {
-  return localStorage.getItem(ACCESS_TOKEN_KEY) || localStorage.getItem(USER_TOKEN_KEY)
+  return localStorage.getItem(USER_TOKEN_KEY)
+}
+
+/**
+ * 历史版本曾用 anima_access_token 存「访问令牌」；与当前「每人 UUID 身份码」混用会导致首访异常。
+ * 若仅有旧键，则写入 USER_TOKEN_KEY；随后删除旧键，保证单一身份源。
+ */
+/** @internal 导出供单测验证旧键迁移 */
+export function migrateLegacyAccessTokenIfNeeded(): void {
+  const user = localStorage.getItem(USER_TOKEN_KEY)?.trim()
+  const access = localStorage.getItem(ACCESS_TOKEN_KEY)?.trim()
+  if (!user && access) {
+    localStorage.setItem(USER_TOKEN_KEY, access)
+  }
+  if (localStorage.getItem(USER_TOKEN_KEY)) {
+    localStorage.removeItem(ACCESS_TOKEN_KEY)
+  }
 }
 
 async function hasUsableKey(token?: string): Promise<boolean> {
@@ -60,6 +77,8 @@ function App() {
     } catch {
       /* 网络失败时仍尝试用本地 token，避免完全不可用 */
     }
+
+    migrateLegacyAccessTokenIfNeeded()
 
     // 无论服务端是否要求 Bearer：没有本地身份码时自动生成 UUID，每人独立库（与 middleware 的 token→userId 一致）
     let token = readStoredToken()

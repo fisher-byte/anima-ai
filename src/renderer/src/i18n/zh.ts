@@ -53,6 +53,9 @@ export interface Translations {
     ongoingDecisionsViewAll: string
     /** 紧凑角标：N 待回访 */
     ongoingDecisionsDueChip: (n: number) => string
+    /** 记忆节点变体标签 */
+    nodeVariantPerson: string
+    nodeVariantTask: string
   }
   input: {
     placeholder: string
@@ -458,6 +461,8 @@ export const zh: Translations = {
     ongoingDecisionsTimeline: '决策时间线',
     ongoingDecisionsViewAll: '查看全部',
     ongoingDecisionsDueChip: (n: number) => `${n} 待回访`,
+    nodeVariantPerson: '人物',
+    nodeVariantTask: '任务',
   },
 
   // ── InputBox ─────────────────────────────────────────────────────────────

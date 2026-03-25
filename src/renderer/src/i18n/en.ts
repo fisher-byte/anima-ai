@@ -54,6 +54,8 @@ export const en: Translations = {
     ongoingDecisionsTimeline: 'Decision timeline',
     ongoingDecisionsViewAll: 'View all',
     ongoingDecisionsDueChip: (n: number) => `${n} due`,
+    nodeVariantPerson: 'People',
+    nodeVariantTask: 'Tasks',
   },
 
   // ── InputBox ─────────────────────────────────────────────────────────────

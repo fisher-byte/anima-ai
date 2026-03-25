@@ -21,6 +21,7 @@ import { useCanvasStore } from '../stores/canvasStore'
 import { useForceSimulation } from '../hooks/useForceSimulation'
 import { useT } from '../i18n'
 import type { Node, Edge as EdgeType } from '@shared/types'
+import { getMemoryCardVariant, MEMORY_VARIANT_STYLES } from '../utils/nodeCardVariants'
 
 // ─── SpaceConfig ──────────────────────────────────────────────────────────────
 
@@ -190,6 +191,8 @@ function SpaceNodeCard({ node, config, onOpen, onDelete, onPositionChange, onDra
     '生活日常': '#94A3B8',
   }
   const accentColor = categoryColor[node.category ?? ''] ?? '#94A3B8'
+  const memVariant = getMemoryCardVariant(node)
+  const variantStyle = MEMORY_VARIANT_STYLES[memVariant]
 
   const isSeedNode = !node.conversationId || node.conversationId.startsWith(config.seedIdPrefix)
 
@@ -208,13 +211,20 @@ function SpaceNodeCard({ node, config, onOpen, onDelete, onPositionChange, onDra
         animate={{ scale: 1, opacity: 1, filter: 'blur(0px)', y: isHovered ? -2 : 0 }}
         transition={{ type: 'spring', stiffness: 350, damping: 28 }}
         className={`w-52 rounded-2xl border overflow-hidden transition-all duration-200 ${
-          isHovered
-            ? `shadow-[${config.hoverShadow}] ${config.hoverBorder}`
-            : 'shadow-[0_2px_16px_rgba(0,0,0,0.06)] border-gray-100/80'
+          memVariant !== 'neutral'
+            ? `${variantStyle.shell} ${isHovered ? 'shadow-[0_8px_28px_rgba(0,0,0,0.12)]' : 'shadow-[0_2px_16px_rgba(0,0,0,0.07)]'}`
+            : isHovered
+              ? `shadow-[${config.hoverShadow}] ${config.hoverBorder}`
+              : 'shadow-[0_2px_16px_rgba(0,0,0,0.06)] border-gray-100/80'
         }`}
-        style={{ backgroundColor: 'rgba(255,255,255,0.92)' }}
+        style={memVariant === 'neutral' ? { backgroundColor: 'rgba(255,255,255,0.92)' } : undefined}
       >
         <div className="p-5 pl-6 relative">
+          {memVariant !== 'neutral' && variantStyle.chip && (
+            <div className={`mb-1 ${variantStyle.chip}`}>
+              {memVariant === 'person' ? t.canvas.nodeVariantPerson : t.canvas.nodeVariantTask}
+            </div>
+          )}
           {node.category && (
             <div className="text-[10px] text-gray-400/70 mb-1.5 tracking-wide">
               {node.category}
@@ -245,10 +255,14 @@ function SpaceNodeCard({ node, config, onOpen, onDelete, onPositionChange, onDra
               </motion.span>
             )}
           </div>
-          <div
-            className="absolute left-0 top-3 bottom-3 w-[2px] rounded-full"
-            style={{ backgroundColor: accentColor, opacity: 0.25 }}
-          />
+          {memVariant !== 'neutral' ? (
+            <div className={`absolute left-0 top-3 bottom-3 w-[3px] rounded-full ${variantStyle.accentBar}`} />
+          ) : (
+            <div
+              className="absolute left-0 top-3 bottom-3 w-[2px] rounded-full"
+              style={{ backgroundColor: accentColor, opacity: 0.25 }}
+            />
+          )}
         </div>
       </motion.div>
 
@@ -765,12 +779,12 @@ export function PublicSpaceCanvas({ config, isOpen, onClose }: PublicSpaceCanvas
 
       {/* ── Top bar ── */}
       <div
-        className="relative z-20 flex items-center gap-4 px-5 border-b border-gray-100"
+        className="relative z-20 flex items-center gap-4 px-5 border-b border-stone-200/80"
         style={{ height: 56, backgroundColor: 'rgba(248,248,250,0.97)', backdropFilter: 'blur(12px)' }}
       >
         <button
           onClick={onClose}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-all shrink-0"
+          className="flex items-center gap-2 px-3 py-1.5 text-sm text-stone-500 hover:text-stone-900 hover:bg-stone-100 rounded-xl transition-all shrink-0"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>{t.space.backToMySpace}</span>

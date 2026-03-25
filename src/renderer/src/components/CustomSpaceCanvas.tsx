@@ -16,6 +16,7 @@ import { storageService } from '../services/storageService'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useT } from '../i18n'
 import type { Node, Edge as EdgeType, CustomSpaceConfig, SpaceColorKey } from '@shared/types'
+import { getMemoryCardVariant, MEMORY_VARIANT_STYLES } from '../utils/nodeCardVariants'
 
 // ─── Color palette ─────────────────────────────────────────────────────────────
 
@@ -129,6 +130,9 @@ function CustomNodeCard({
     onDelete(node.id)
   }, [node.id, onDelete])
 
+  const memVariant = getMemoryCardVariant(node)
+  const variantStyle = MEMORY_VARIANT_STYLES[memVariant]
+
   return (
     <div
       id={elemId}
@@ -143,16 +147,31 @@ function CustomNodeCard({
         initial={{ scale: 0.7, opacity: 0, filter: 'blur(8px)' }}
         animate={{ scale: 1, opacity: 1, filter: 'blur(0px)', y: isHovered ? -2 : 0 }}
         transition={{ type: 'spring', stiffness: 350, damping: 28 }}
-        className="w-52 rounded-2xl border overflow-hidden transition-all duration-200"
-        style={{
-          backgroundColor: 'rgba(255,255,255,0.92)',
-          boxShadow: isHovered
-            ? `0 8px 32px ${hoverShadowColor}`
-            : '0 2px 16px rgba(0,0,0,0.06)',
-          borderColor: isHovered ? `${accentColor}33` : 'rgba(229,231,235,0.8)',
-        }}
+        className={`w-52 rounded-2xl border overflow-hidden transition-all duration-200 ${
+          memVariant !== 'neutral' ? variantStyle.shell : ''
+        }`}
+        style={
+          memVariant === 'neutral'
+            ? {
+                backgroundColor: 'rgba(255,255,255,0.92)',
+                boxShadow: isHovered
+                  ? `0 8px 32px ${hoverShadowColor}`
+                  : '0 2px 16px rgba(0,0,0,0.06)',
+                borderColor: isHovered ? `${accentColor}33` : 'rgba(229,231,235,0.8)',
+              }
+            : {
+                boxShadow: isHovered
+                  ? '0 8px 28px rgba(0,0,0,0.12)'
+                  : '0 2px 16px rgba(0,0,0,0.07)',
+              }
+        }
       >
         <div className="p-5 pl-6 relative">
+          {memVariant !== 'neutral' && variantStyle.chip && (
+            <div className={`mb-1 ${variantStyle.chip}`}>
+              {memVariant === 'person' ? t.canvas.nodeVariantPerson : t.canvas.nodeVariantTask}
+            </div>
+          )}
           {node.category && (
             <div className="text-[10px] text-gray-400/70 mb-1.5 tracking-wide">
               {node.category}
@@ -174,10 +193,14 @@ function CustomNodeCard({
           <div className="flex items-center justify-between text-[10px] text-gray-400 font-medium">
             <span>{node.date}</span>
           </div>
-          <div
-            className="absolute left-0 top-3 bottom-3 w-[2px] rounded-full"
-            style={{ backgroundColor: accentColor, opacity: 0.25 }}
-          />
+          {memVariant !== 'neutral' ? (
+            <div className={`absolute left-0 top-3 bottom-3 w-[3px] rounded-full ${variantStyle.accentBar}`} />
+          ) : (
+            <div
+              className="absolute left-0 top-3 bottom-3 w-[2px] rounded-full"
+              style={{ backgroundColor: accentColor, opacity: 0.25 }}
+            />
+          )}
         </div>
       </motion.div>
 
@@ -578,7 +601,7 @@ export function CustomSpaceCanvas({ isOpen, onClose, config }: CustomSpaceCanvas
 
       {/* ── Top bar ── */}
       <div
-        className="relative z-20 flex items-center gap-4 px-5 border-b border-gray-100"
+        className="relative z-20 flex items-center gap-4 px-5 border-b border-stone-200/80"
         style={{ height: 56, backgroundColor: 'rgba(248,248,250,0.97)', backdropFilter: 'blur(12px)' }}
       >
         <button
@@ -698,7 +721,7 @@ export function CustomSpaceCanvas({ isOpen, onClose, config }: CustomSpaceCanvas
             className="fixed left-0 z-[110] flex flex-col bg-white/95 backdrop-blur-md border-r border-gray-100 shadow-xl"
             style={{ top: 56, bottom: 0, width: 280 }}
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-stone-200/80">
               <span className="text-sm font-semibold text-gray-700">{t.space.historyTitle(config.name)}</span>
               <button onClick={() => setIsHistoryOpen(false)} className="p-1 text-gray-400 hover:text-gray-700 rounded-lg">
                 <X className="w-4 h-4" />

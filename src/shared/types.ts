@@ -8,7 +8,18 @@
  * 能力节点数据（区别于记忆节点）
  */
 export interface CapabilityData {
-  capabilityId: 'import-memory' | 'onboarding'  // 可扩展为更多能力类型
+  /**
+   * 能力节点类型：
+   * - import-memory / onboarding：原有能力
+   * - space:* / custom-space:* / decision-hub / create-space：用于把 Space/决策入口放进画布，作为“节点卡片”呈现
+   */
+  capabilityId:
+    | 'import-memory'
+    | 'onboarding'
+    | `space:${'lenny' | 'pg' | 'zhang' | 'wang'}`
+    | `custom-space:${string}`
+    | 'decision-hub'
+    | 'create-space'
   state: 'active' | 'completed'
 }
 

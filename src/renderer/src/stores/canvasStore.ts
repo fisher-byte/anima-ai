@@ -24,6 +24,8 @@ import { getAuthToken } from '../services/storageService'
 import { FILE_BLOCK_PREFIX } from '../utils/conversationUtils'
 import { detectIntent as _detectIntent } from '../utils/intentDetector'
 
+type OpenPublicSpaceId = 'lenny' | 'pg' | 'zhang' | 'wang'
+
 // ── 分类色板（分类名 → CSS color，用于节点染色）────────────────────────────
 const CATEGORY_COLOR_MAP: Record<string, string> = {
   '日常生活': 'rgba(220, 252, 231, 0.9)',   // 绿
@@ -191,8 +193,24 @@ interface CanvasState {
   activeCapabilityId: string | null
   openCapability: (nodeId: string) => void
   closeCapability: () => void
-  addCapabilityNode: (capabilityId: 'import-memory' | 'onboarding') => Promise<void>
+  addCapabilityNode: (capabilityId: import('@shared/types').CapabilityData['capabilityId']) => Promise<void>
   saveMemoryImport: (content: string, sourceName: string) => Promise<void>
+
+  // 画布入口节点（Space / 决策）触发的 UI 请求：由 Canvas.tsx 响应并清空
+  uiRequest: null | {
+    openDecisionHub?: true
+    openCreateSpace?: true
+    openPublicSpaceId?: OpenPublicSpaceId
+    openCustomSpaceId?: string
+  }
+  requestOpenDecisionHub: () => void
+  requestOpenCreateSpace: () => void
+  requestOpenPublicSpace: (id: OpenPublicSpaceId) => void
+  requestOpenCustomSpace: (id: string) => void
+  clearUiRequest: () => void
+
+  /** 同步入口能力节点：让 Space/决策入口作为节点卡片出现在画布中 */
+  syncEntryCapabilityNodes: (nextEntryNodes: Node[]) => Promise<void>
 
   // API Key 状态
   hasApiKey: boolean
@@ -378,6 +396,7 @@ export const useCanvasStore = create<CanvasState>()(
 
   // 能力节点初始化
   activeCapabilityId: null,
+  uiRequest: null,
 
   // API Key 状态初始化
   hasApiKey: false,
@@ -695,6 +714,44 @@ export const useCanvasStore = create<CanvasState>()(
 
   openCapability: (nodeId) => set({ activeCapabilityId: nodeId }),
   closeCapability: () => set({ activeCapabilityId: null }),
+
+  requestOpenDecisionHub: () => set({ uiRequest: { openDecisionHub: true } }),
+  requestOpenCreateSpace: () => set({ uiRequest: { openCreateSpace: true } }),
+  requestOpenPublicSpace: (id) => set({ uiRequest: { openPublicSpaceId: id } }),
+  requestOpenCustomSpace: (id) => set({ uiRequest: { openCustomSpaceId: id } }),
+  clearUiRequest: () => set({ uiRequest: null }),
+
+  syncEntryCapabilityNodes: async (nextEntryNodes) => {
+    const { nodes } = get()
+    const nextIds = new Set(nextEntryNodes.map(n => n.id))
+    const kept = nodes.filter(n => {
+      const isEntry = n.nodeType === 'capability' && typeof n.id === 'string' && n.id.startsWith('entry:')
+      if (!isEntry) return true
+      return nextIds.has(n.id)
+    })
+
+    const existingById = new Map(kept.map(n => [n.id, n] as const))
+    for (const nextNode of nextEntryNodes) {
+      const existing = existingById.get(nextNode.id)
+      // 若用户拖拽过入口节点，则保留其坐标，仅更新文案/能力类型等
+      const merged: import('@shared/types').Node = existing
+        ? {
+          ...nextNode,
+          // 始终保留用户拖拽过的 X；Y 仅在 Canvas 触发“纠偏”时才更新
+          x: existing.x,
+          y: (typeof existing.y === 'number' && typeof nextNode.y === 'number' && existing.y === nextNode.y)
+            ? existing.y
+            : nextNode.y,
+        }
+        : nextNode
+      existingById.set(nextNode.id, merged)
+    }
+
+    const mergedNodes = Array.from(existingById.values())
+    set({ nodes: mergedNodes })
+    get().updateEdges()
+    await storageService.write(STORAGE_FILES.NODES, JSON.stringify(mergedNodes, null, 2))
+  },
 
   addCapabilityNode: async (capabilityId) => {
     const { nodes } = get()

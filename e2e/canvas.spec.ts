@@ -43,6 +43,7 @@ async function waitForBackend(page: import('@playwright/test').Page) {
 // ── 工具：注入 token 到 localStorage（让 App.tsx 自动鉴权通过）─────────────
 async function injectToken(page: import('@playwright/test').Page) {
   await page.addInitScript((token: string) => {
+    ;(window as any).__E2E__ = true
     if (token) localStorage.setItem('anima_access_token', token)
     // 跳过新手引导，避免遮罩层阻碍点击
     localStorage.setItem('evo_onboarding_v3', 'done')

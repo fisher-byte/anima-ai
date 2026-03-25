@@ -2,6 +2,12 @@
 
 ## 计划中版本
 
+#### v0.5.51 - 入口卡片强调收敛 + E2E 稳定性（已完成）
+- [x] 入口节点卡片强调从大面积条收敛为顶部细线 + 小色点（整体灰阶）
+- [x] 入口节点初始落点对齐视口（补齐 vw/vh，offset=0 也可见）
+- [x] E2E：注入 `window.__E2E__`，关闭物理模拟与漂浮动画，消除点击不稳定
+- [x] 验证：`npm test`（643/643，38 files）、`npm run typecheck`、`npm run build`、`npm run test:e2e`（45 passed / 3 skipped）
+
 #### v0.5.50 - 首访自动身份码 + 去掉访问令牌页（已完成）
 - [x] `App.tsx`：需鉴权时无本地 token 仍自动生成 UUID，带 Bearer 分库；移除 `LoginPage` 首访拦截
 - [x] 文档：`changelog`、`dev-guide`、`troubleshooting`、`sop-release`、版本头与测试基线
