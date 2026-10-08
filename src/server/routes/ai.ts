@@ -33,6 +33,7 @@ import {
 import type { AIMessage } from '../../shared/types'
 import { enqueueTask } from '../agentWorker'
 import { cosineSim, embedTextWithUserKey } from '../lib/embedding'
+import { reserveTokens, settleTokens, recordSearchCalls } from '../usageBudget'
 
 export const aiRoutes = new Hono()
 
@@ -419,44 +420,19 @@ interface AIRequestBody {
   systemPromptOverride?: string
 }
 
-// ── 每用户每日限流（共享 key 模式，按 token 费用计算）──────────────────────────
-// moonshot-v1-8k: ¥0.012 / 千token（输入输出同价）
-// 默认每日上限 ¥5 ≈ 416,666 tokens（可通过 DAILY_LIMIT_YUAN 调整）
-const PRICE_PER_1K_TOKENS = 0.012 // 元
-function getDailyTokenLimit(): number {
-  const yuan = parseFloat(process.env.DAILY_LIMIT_YUAN ?? '5')
-  return Math.round((yuan / PRICE_PER_1K_TOKENS) * 1000)
-}
+// ── 全局每日预算（服务器出资的 env key：SHARED_API_KEY / ONBOARDING_API_KEY）────
+// 统一账本见 usageBudget.ts（跨用户共享，按 token 等价物记账，失败时 fail-closed）。
 
-function checkDailyBudget(db: InstanceType<typeof Database>): { allowed: boolean; usedYuan: number; limitYuan: number } {
-  const limitTokens = getDailyTokenLimit()
-  const limitYuan = parseFloat(process.env.DAILY_LIMIT_YUAN ?? '5')
-  const today = new Date().toISOString().slice(0, 10)
-  const key = `daily_tokens_${today}`
-  try {
-    const row = db.prepare('SELECT value FROM config WHERE key = ?').get(key) as { value: string } | undefined
-    const usedTokens = row ? parseInt(row.value, 10) : 0
-    const usedYuan = parseFloat(((usedTokens / 1000) * PRICE_PER_1K_TOKENS).toFixed(4))
-    return { allowed: usedTokens < limitTokens, usedYuan, limitYuan }
-  } catch { /* DB 读取失败时允许通过，避免 budget 检查阻断正常对话 */
-    return { allowed: true, usedYuan: 0, limitYuan }
+/** 提取消息文本用于预留额度估算（content 可能是 string 或多模态数组） */
+function messageText(msg: AIMessage): string {
+  if (typeof msg.content === 'string') return msg.content
+  if (Array.isArray(msg.content)) {
+    return (msg.content as Array<{ type?: string; text?: string }>)
+      .filter(p => p?.type === 'text' && typeof p.text === 'string')
+      .map(p => p.text!)
+      .join('\n')
   }
-}
-
-function addDailyTokens(db: InstanceType<typeof Database>, tokens: number): void {
-  if (tokens <= 0) return
-  const today = new Date().toISOString().slice(0, 10)
-  const key = `daily_tokens_${today}`
-  const now = new Date().toISOString()
-  try {
-    const row = db.prepare('SELECT value FROM config WHERE key = ?').get(key) as { value: string } | undefined
-    if (row) {
-      db.prepare("UPDATE config SET value = ?, updated_at = ? WHERE key = ?")
-        .run(String(parseInt(row.value, 10) + tokens), now, key)
-    } else {
-      db.prepare("INSERT INTO config (key, value, updated_at) VALUES (?, ?, ?)").run(key, String(tokens), now)
-    }
-  } catch { /* 失败时静默，不阻断 */ }
+  return ''
 }
 
 // ── URL 内容预取（Jina Reader）────────────────────────────────────────────────
@@ -607,16 +583,6 @@ aiRoutes.post('/stream', async (c) => {
 
   if (!effectiveApiKey) {
     return c.json({ error: 'API Key 未配置，请在设置中填写' }, 400)
-  }
-
-  // 仅使用共享 key 时做限流（有自己 key 的用户不受限）
-  if (usingSharedKey && !isOnboarding) {
-    const { allowed, usedYuan, limitYuan } = checkDailyBudget(db)
-    if (!allowed) {
-      return c.json({
-        error: `今日免费额度已用完（已用 ¥${usedYuan.toFixed(2)} / 上限 ¥${limitYuan}）。请在右上角设置中填写自己的 API Key 继续使用。`
-      }, 429)
-    }
   }
 
   const modelRow = db.prepare('SELECT value FROM config WHERE key = ?').get('model') as
@@ -849,9 +815,35 @@ aiRoutes.post('/stream', async (c) => {
     contextTokensUsed,
   }))
 
+  // ── 全局预算预留（仅当实际使用的是服务器出资的 env key 时记账；onboarding 不再豁免）
+  // 用户自有 key 的调用由用户付费，不占用共享额度。
+  // 预留 = prompt 近似 token + max_tokens 上界；URL 预取等增量在结算时按实际 usage 对齐。
+  const budgeted = usingSharedKey
+  let reservedTokens = 0
+  if (budgeted) {
+    const promptText = systemPrompt + '\n' + messages.map(messageText).join('\n')
+    reservedTokens = approxTokens(promptText) + maxTokens
+    const r = reserveTokens(reservedTokens)
+    if (!r.ok) {
+      return c.json({
+        error: `今日额度已用完（约 ¥${r.usedYuan.toFixed(2)} / ¥${r.limitYuan}），明天恢复或配置自己的 API Key`
+      }, 429)
+    }
+  }
+
   return streamSSE(c, async (stream) => {
     let fullContent = ''
     let reasoningContent = ''
+    let totalTokensUsed = 0
+    let searchCallRounds = 0
+    let settled = !budgeted
+    // 结算只执行一次：成功→实际用量；失败→0（失败调用不消耗预算）；中止→已消耗部分
+    const settleOnce = (actual: number) => {
+      if (settled) return
+      settled = true
+      settleTokens(reservedTokens, actual)
+      if (actual > 0 && searchCallRounds > 0) recordSearchCalls(searchCallRounds)
+    }
     // 若触发了多轮检索但本轮流式最终没有任何正文输出，则自动转入后台深度搜索，
     // 避免用户看到“搜索中…但一片空白”的体验。
     let sawSearchRound = false
@@ -892,6 +884,12 @@ aiRoutes.post('/stream', async (c) => {
       max_tokens: maxTokens,
       temperature: AI_CONFIG.TEMPERATURE,
       stream: true
+    }
+    // kimi-k2.6/k3 约束：thinking 开启时 temperature 必须为 1.0；
+    // 简单查询走快速路径 —— 关闭 thinking 后 temperature 允许 0.6
+    if (isSimpleQuery && baseUrl.includes('moonshot')) {
+      requestBody.thinking = { type: 'disabled' }
+      requestBody.temperature = 0.6
     }
     // 工具调用（search_memory + search_files + $web_search）：所有 Moonshot 模型和已知多模态模型均支持
     // MULTIMODAL_MODELS 仅控制图片能力，工具调用不受此限制
@@ -1039,6 +1037,7 @@ aiRoutes.post('/stream', async (c) => {
       }
 
       if (!response.ok) {
+        settleOnce(0)  // 上游拒绝：退还预留额度
         const errorText = await response.text()
         await sendEvent({ type: 'error', message: `API error ${response.status}: ${errorText}` })
         return
@@ -1049,7 +1048,6 @@ aiRoutes.post('/stream', async (c) => {
       let currentMessages = [...fullMessages]
       let currentResponse = response
       let round = 1
-      let totalTokensUsed = 0
 
       while (round <= MAX_SEARCH_ROUNDS) {
         const { toolCalls, finishReason, totalTokens, roundContent, roundReasoning } = await readRound(currentResponse)
@@ -1061,6 +1059,9 @@ aiRoutes.post('/stream', async (c) => {
         if (finishReason !== 'tool_calls' || toolCalls.length === 0) break
         // tool call id 缺失时不能继续拼装 tool_result，直接降级结束本轮，避免 400
         if (toolCalls.some(tc => !tc.id)) break
+
+        // 本轮触发了内置 $web_search（每次调用 ¥0.03，结算时统一记账；search_memory/search_files 为本地免费工具不计费）
+        searchCallRounds += toolCalls.filter(tc => tc.function.name === '$web_search').length
 
         // 构造本轮的 assistant 消息和 tool result 消息
         const assistantMsg: AIMessage = {
@@ -1221,10 +1222,8 @@ aiRoutes.post('/stream', async (c) => {
         await sendEvent({ type: 'usage', totalTokens: totalTokensUsed, model })
       }
 
-      // 共享 key 模式：累加本轮消耗的 token 数
-      if (usingSharedKey && totalTokensUsed > 0) {
-        addDailyTokens(db, totalTokensUsed)
-      }
+      // 结算预算：有 usage 按实际扣除；上游未返回 usage 时保留预留（保守记账）
+      settleOnce(totalTokensUsed > 0 ? totalTokensUsed : reservedTokens)
 
       // B2: 每次实质性对话结束后尝试触发心智模型更新
       if (!isOnboarding && fullContent.length > 80) {
@@ -1256,6 +1255,8 @@ aiRoutes.post('/stream', async (c) => {
         }
       }
     } catch (error) {
+      // 失败/中止路径：按已上报的实际用量结算（未到过上游则全额退还）
+      settleOnce(totalTokensUsed)
       if (error instanceof Error && error.name === 'AbortError') {
         await sendEvent({ type: 'done', fullText: fullContent })
         return

@@ -4,7 +4,7 @@ import { resolve } from 'path'
 
 // 使用 loadEnv 正确加载环境变量
 const env = loadEnv(process.env.NODE_ENV as string)
-const RENDERER_VITE_API_KEY = env.RENDERER_VITE_API_KEY || ''
+// API Key 绝不注入 renderer bundle（打包后会随安装包泄露）；只保留非敏感的 base URL
 const RENDERER_VITE_API_URL = env.RENDERER_VITE_API_URL || 'https://api.openai.com/v1'
 
 export default defineConfig({
@@ -49,7 +49,6 @@ export default defineConfig({
     },
     // 支持环境变量 - 使用编译时注入
     define: {
-      'import.meta.env.RENDERER_VITE_API_KEY': JSON.stringify(RENDERER_VITE_API_KEY),
       'import.meta.env.RENDERER_VITE_API_URL': JSON.stringify(RENDERER_VITE_API_URL)
     }
   }

@@ -398,7 +398,9 @@ memoryRoutes.post('/extract', async (c) => {
   if (!apiKey) return c.json({ ok: false, reason: 'no api key' })
 
   const isMoonshot = baseUrl.includes('moonshot')
-  const model = isMoonshot ? 'moonshot-v1-8k' : 'gpt-4o-mini'
+  const model = isMoonshot ? 'kimi-k2.6' : 'gpt-4o-mini'
+  // kimi-k2.6 约束：thinking 关闭时 temperature 只能为 0.6；非 moonshot 保持原 temperature
+  const utilityParams = isMoonshot ? { thinking: { type: 'disabled' }, temperature: 0.6 } : { temperature: 0 }
 
   const prompt = `你是用户记忆提取器。**只读取【用户说的话】，不要从 AI 回复中提取任何信息。**
 
@@ -427,7 +429,7 @@ ${assistantMessage ? `\n（AI回复仅供理解上下文，不作为提取来源
       body: JSON.stringify({
         model,
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0,
+        ...utilityParams,
         max_tokens: 300
       }),
       signal: AbortSignal.timeout(15_000)
@@ -470,12 +472,12 @@ ${assistantMessage ? `\n（AI回复仅供理解上下文，不作为提取来源
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
           body: JSON.stringify({
-            model: isMoonshot ? 'moonshot-v1-8k' : 'gpt-4o-mini',
+            model,
             messages: [{
               role: 'user',
               content: `已有记忆：\n${existingFacts.map((f, i) => `${i + 1}. ${f}`).join('\n')}\n\n新候选：\n${candidates.map((f, i) => `${i + 1}. ${f}`).join('\n')}\n\n请返回新候选中与已有记忆**语义不重复**的部分（完全相同或意思相同的去掉）。只返回JSON：{"keep": ["事实1", "事实2"]}`
             }],
-            temperature: 0,
+            ...utilityParams,
             max_tokens: 300
           }),
           signal: AbortSignal.timeout(10_000)
@@ -635,7 +637,8 @@ memoryRoutes.post('/classify', async (c) => {
   if (!apiKey) return c.json({ category: null })
 
   const isMoonshot = baseUrl.includes('moonshot')
-  const model = isMoonshot ? 'moonshot-v1-8k' : 'gpt-4o-mini'
+  const model = isMoonshot ? 'kimi-k2.6' : 'gpt-4o-mini'
+  const utilityParams = isMoonshot ? { thinking: { type: 'disabled' }, temperature: 0.6 } : { temperature: 0 }
 
   const CATEGORIES = ['日常生活', '日常事务', '学习成长', '工作事业', '情感关系', '思考世界', '其他']
 
@@ -660,7 +663,7 @@ memoryRoutes.post('/classify', async (c) => {
       body: JSON.stringify({
         model,
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0,
+        ...utilityParams,
         max_tokens: 20
       }),
       signal: AbortSignal.timeout(5000)
@@ -687,7 +690,8 @@ memoryRoutes.post('/extract-topic', async (c) => {
   if (!apiKey) return c.json({ topic: null })
 
   const isMoonshot = baseUrl.includes('moonshot')
-  const model = isMoonshot ? 'moonshot-v1-8k' : 'gpt-4o-mini'
+  const model = isMoonshot ? 'kimi-k2.6' : 'gpt-4o-mini'
+  const utilityParams = isMoonshot ? { thinking: { type: 'disabled' }, temperature: 0.6 } : { temperature: 0 }
   const text = `${userMessage.slice(0, 200)}\n${assistantMessage.slice(0, 200)}`
   const prompt = `请用1-2个词（最多8个汉字）总结这段对话的核心话题。
 要求：具体个人化（如「Python学习」「和父母的关系」），不要用「学习成长」「工作事业」这类抽象分类词。
@@ -699,7 +703,7 @@ memoryRoutes.post('/extract-topic', async (c) => {
     const resp = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], temperature: 0, max_tokens: 20 }),
+      body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], ...utilityParams, max_tokens: 20 }),
       signal: AbortSignal.timeout(5000)
     })
     if (!resp.ok) return c.json({ topic: null })
@@ -735,7 +739,8 @@ memoryRoutes.post('/reclassify-nodes', async (c) => {
   }
 
   const isMoonshot = baseUrl.includes('moonshot')
-  const model = isMoonshot ? 'moonshot-v1-8k' : 'gpt-4o-mini'
+  const model = isMoonshot ? 'kimi-k2.6' : 'gpt-4o-mini'
+  const utilityParams = isMoonshot ? { thinking: { type: 'disabled' }, temperature: 0.6 } : { temperature: 0 }
 
   // Classify nodes in parallel (batch of 5 at a time)
   const updated: { id: string; category: string; color: string }[] = []
@@ -747,7 +752,7 @@ memoryRoutes.post('/reclassify-nodes', async (c) => {
       const resp = await fetch(`${baseUrl}/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], temperature: 0, max_tokens: 20 }),
+        body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], ...utilityParams, max_tokens: 20 }),
         signal: AbortSignal.timeout(6000)
       })
       if (!resp.ok) return

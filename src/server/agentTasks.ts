@@ -15,6 +15,7 @@ import type Database from 'better-sqlite3'
 import type { AIMessage, Conversation } from '../shared/types'
 import { AI_CONFIG, DEFAULT_SYSTEM_PROMPT, ONBOARDING_SYSTEM_PROMPT } from '../shared/constants'
 import { cosineSim, embedTextWithUserKey } from './lib/embedding'
+import { reserveTokens, settleTokens } from './usageBudget'
 
 interface ExtractProfilePayload {
   userMessage: string
@@ -86,7 +87,7 @@ ${factsText}
         model,
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 800,
-        temperature: 0.1
+        ...utilityParams(baseUrl, 0.1)
       }),
       signal: controller.signal
     })
@@ -176,7 +177,7 @@ ${candidatesText}
         model,
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 500,
-        temperature: 0.2
+        ...utilityParams(baseUrl, 0.2)
       }),
       signal: AbortSignal.timeout(15_000)
     })
@@ -223,15 +224,26 @@ function getApiConfig(db: InstanceType<typeof Database>): { apiKey: string; base
   const userKey = keyRow?.value ?? ''
   const sharedKey = process.env.SHARED_API_KEY ?? ''
   const baseUrl = (urlRow?.value ?? 'https://api.moonshot.cn/v1').replace(/\/$/, '')
-  // 画像提取始终用最便宜模型，不受用户主模型配置影响；根据 provider 选择合适的 fast model
+  // 后台工具调用固定用轻量模型，不受用户主模型配置影响；根据 provider 选择合适的模型
   const isMoonshot = baseUrl.includes('moonshot')
   const isOpenAI = baseUrl.includes('openai.com')
-  const model = isMoonshot ? 'moonshot-v1-8k' : isOpenAI ? 'gpt-4o-mini' : 'moonshot-v1-8k'
+  const model = isMoonshot ? 'kimi-k2.6' : isOpenAI ? 'gpt-4o-mini' : 'kimi-k2.6'
   return {
     apiKey: userKey || sharedKey,
     baseUrl,
     model
   }
+}
+
+/**
+ * kimi-k2.6 约束：thinking 开启时 temperature 必须 1.0；
+ * 后台工具调用不需要思考链 → moonshot 下关闭 thinking 并用 0.6。
+ * 非 moonshot baseUrl（OpenAI 兼容）保持原 temperature。
+ */
+function utilityParams(baseUrl: string, fallbackTemp: number): Record<string, unknown> {
+  return baseUrl.includes('moonshot')
+    ? { thinking: { type: 'disabled' }, temperature: 0.6 }
+    : { temperature: fallbackTemp }
 }
 
 /** deep search 使用用户配置的主模型（可更强），fallback 到默认 */
@@ -244,7 +256,7 @@ function getChatModel(db: InstanceType<typeof Database>, baseUrl: string): strin
   // 保底：按 provider 兜底
   const isMoonshot = baseUrl.includes('moonshot')
   const isOpenAI = baseUrl.includes('openai.com')
-  return isOpenAI ? 'gpt-4o-mini' : (isMoonshot ? 'kimi-k2.5' : AI_CONFIG.MODEL)
+  return isOpenAI ? 'gpt-4o-mini' : (isMoonshot ? 'kimi-k2.6' : AI_CONFIG.MODEL)
 }
 
 function formatToday(): string {
@@ -754,7 +766,7 @@ ${userMessage.slice(0, 500)}
         model,
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 300,
-        temperature: 0.3
+        ...utilityParams(baseUrl, 0.3)
       }),
       signal: controller.signal
     })
@@ -803,7 +815,7 @@ AI之前说：${assistantMessage.slice(0, 200)}
         model,
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 100,
-        temperature: 0.2
+        ...utilityParams(baseUrl, 0.2)
       }),
       signal: controller.signal
     })
@@ -971,6 +983,13 @@ async function embedImageFile(
     contents.push({ text: textContent.slice(0, 500) })
   }
 
+  // 服务器出资的内置 embedding：计入全局日预算，超额时按 text_only 降级
+  const RESERVED = 500
+  if (!reserveTokens(RESERVED).ok) {
+    db.prepare("UPDATE uploaded_files SET embed_status = 'text_only' WHERE id = ?").run(fileId)
+    return
+  }
+
   try {
     const resp = await fetch(
       `${MULTIMODAL_EMBED_WORKER.baseUrl}/multimodal-embedding`,
@@ -990,11 +1009,13 @@ async function embedImageFile(
       }
     )
     if (!resp.ok) {
+      settleTokens(RESERVED, 0)
       console.warn(`[agent] image embed failed for ${filename}:`, resp.status)
       db.prepare("UPDATE uploaded_files SET embed_status = 'text_only' WHERE id = ?").run(fileId)
       return
     }
-    const data = (await resp.json()) as { output?: { embeddings?: Array<{ embedding: number[] }> } }
+    const data = (await resp.json()) as { output?: { embeddings?: Array<{ embedding: number[] }> }; usage?: { total_tokens?: number } }
+    settleTokens(RESERVED, data?.usage?.total_tokens ?? RESERVED)
     const vec = data?.output?.embeddings?.[0]?.embedding
     if (!Array.isArray(vec) || vec.length === 0) {
       db.prepare("UPDATE uploaded_files SET embed_status = 'text_only' WHERE id = ?").run(fileId)
@@ -1010,6 +1031,7 @@ async function embedImageFile(
     db.prepare('UPDATE uploaded_files SET embed_status = ?, chunk_count = ? WHERE id = ?').run('done', 1, fileId)
     console.log(`[agent] image embed ${filename}: multimodal vector dim=${vec.length}`)
   } catch (e) {
+    settleTokens(RESERVED, 0)
     console.warn(`[agent] image embed error for ${filename}:`, e)
     db.prepare("UPDATE uploaded_files SET embed_status = 'text_only' WHERE id = ?").run(fileId)
   }
@@ -1042,6 +1064,13 @@ async function embedFileContent(
 
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i]
+    // 服务器出资：每次 embedding 调用计入全局日预算，超额即停止并降级
+    const RESERVED = 500
+    if (!reserveTokens(RESERVED).ok) {
+      db.prepare("UPDATE uploaded_files SET embed_status = 'text_only' WHERE id = ?").run(fileId)
+      return
+    }
+    let chunkSettled = false
     try {
       const resp = await fetch(`${BUILTIN_EMBED_WORKER.baseUrl}/embeddings`, {
         method: 'POST',
@@ -1051,6 +1080,8 @@ async function embedFileContent(
       })
 
       if (!resp.ok) {
+        settleTokens(RESERVED, 0)
+        chunkSettled = true
         if (resp.status === 401 || resp.status === 403) {
           builtinEmbedWorkerFailed = true
           console.error('[agent] BUILTIN embedding key invalid, disabling file embedding')
@@ -1061,7 +1092,9 @@ async function embedFileContent(
         continue
       }
 
-      const data = (await resp.json()) as { data: { embedding: number[] }[] }
+      const data = (await resp.json()) as { data: { embedding: number[] }[]; usage?: { total_tokens?: number } }
+      settleTokens(RESERVED, data?.usage?.total_tokens ?? RESERVED)
+      chunkSettled = true
       const vec = data?.data?.[0]?.embedding
       if (!Array.isArray(vec) || vec.length === 0) continue
 
@@ -1076,6 +1109,7 @@ async function embedFileContent(
 
       embeddedCount++
     } catch (e) {
+      if (!chunkSettled) settleTokens(RESERVED, 0)  // 网络异常等：退还预留
       console.warn(`[agent] embed_file chunk ${i} error for ${filename}:`, e)
     }
   }
@@ -1173,7 +1207,7 @@ ${factsText}
         model,
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 1000,
-        temperature: 0.2
+        ...utilityParams(baseUrl, 0.2)
       }),
       signal: AbortSignal.timeout(20_000)
     })

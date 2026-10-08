@@ -9,6 +9,7 @@
  */
 
 import type Database from 'better-sqlite3'
+import { reserveTokens, settleTokens } from '../usageBudget'
 
 // ── Built-in embedding config (Aliyun DashScope, no user config needed) ──────
 
@@ -37,6 +38,10 @@ export async function fetchEmbedding(
 ): Promise<number[] | null> {
   if (builtinEmbeddingFailed) return null
 
+  // 内置 key 由服务器出资：计入全局日预算，超额时按 embedding 不可用优雅降级
+  const RESERVED = 500
+  if (!reserveTokens(RESERVED).ok) return null
+
   const input = text.slice(0, 6000)
 
   try {
@@ -51,6 +56,7 @@ export async function fetchEmbedding(
     })
 
     if (!resp.ok) {
+      settleTokens(RESERVED, 0)  // 失败调用不消耗预算
       if (resp.status === 401 || resp.status === 403) {
         builtinEmbeddingFailed = true
         console.error('[memory] BUILTIN embedding key invalid!')
@@ -60,11 +66,13 @@ export async function fetchEmbedding(
       return null
     }
 
-    const data = (await resp.json()) as { data: { embedding: number[] }[] }
+    const data = (await resp.json()) as { data: { embedding: number[] }[]; usage?: { total_tokens?: number } }
+    settleTokens(RESERVED, data?.usage?.total_tokens ?? RESERVED)  // 无 usage 时保留预留
     const embedding = data?.data?.[0]?.embedding
     if (!Array.isArray(embedding) || embedding.length === 0) return null
     return embedding
   } catch (e) {
+    settleTokens(RESERVED, 0)  // 网络异常等：退还预留
     console.warn('[memory] fetchEmbedding failed:', e)
     return null
   }
@@ -75,6 +83,11 @@ export async function fetchMultimodalEmbedding(
   contents: Array<{ text?: string; image?: string }>
 ): Promise<number[] | null> {
   if (builtinEmbeddingFailed) return null
+
+  // 内置 key 由服务器出资：计入全局日预算，超额时优雅降级
+  const RESERVED = 500
+  if (!reserveTokens(RESERVED).ok) return null
+
   try {
     const resp = await fetch(
       `${BUILTIN_EMBED_MULTIMODAL.baseUrl}/multimodal-embedding`,
@@ -94,14 +107,17 @@ export async function fetchMultimodalEmbedding(
       }
     )
     if (!resp.ok) {
+      settleTokens(RESERVED, 0)
       console.warn('[memory] multimodal embedding error:', resp.status)
       return null
     }
-    const data = (await resp.json()) as { output?: { embeddings?: Array<{ embedding: number[] }> } }
+    const data = (await resp.json()) as { output?: { embeddings?: Array<{ embedding: number[] }> }; usage?: { total_tokens?: number } }
+    settleTokens(RESERVED, data?.usage?.total_tokens ?? RESERVED)
     const embedding = data?.output?.embeddings?.[0]?.embedding
     if (!Array.isArray(embedding) || embedding.length === 0) return null
     return embedding
   } catch (e) {
+    settleTokens(RESERVED, 0)
     console.warn('[memory] fetchMultimodalEmbedding failed:', e)
     return null
   }
@@ -161,6 +177,10 @@ export async function embedTextWithUserKey(
     input: query.slice(0, opts?.maxInputLen ?? 1000)
   }
   if (BUILTIN_KEY) body.dimensions = 2048
+  // 使用内置 key 时由服务器出资：计入全局日预算；用户 key 调用不占用共享额度
+  const RESERVED = 500
+  const budgeted = !!BUILTIN_KEY
+  if (budgeted && !reserveTokens(RESERVED).ok) return null
   try {
     const resp = await fetch(`${embUrl}/embeddings`, {
       method: 'POST',
@@ -168,10 +188,17 @@ export async function embedTextWithUserKey(
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(opts?.timeoutMs ?? 8_000)
     })
-    if (!resp.ok) return null
-    const data = (await resp.json()) as { data: { embedding: number[] }[] }
+    if (!resp.ok) {
+      if (budgeted) settleTokens(RESERVED, 0)
+      return null
+    }
+    const data = (await resp.json()) as { data: { embedding: number[] }[]; usage?: { total_tokens?: number } }
+    if (budgeted) settleTokens(RESERVED, data?.usage?.total_tokens ?? RESERVED)
     const vec = data?.data?.[0]?.embedding
     if (!Array.isArray(vec) || vec.length === 0) return null
     return new Float32Array(vec)
-  } catch { return null }
+  } catch {
+    if (budgeted) settleTokens(RESERVED, 0)
+    return null
+  }
 }

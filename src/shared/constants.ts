@@ -407,7 +407,7 @@ Today's date: {{DATE}}
  * 支持多种模型，通过环境变量或API配置切换
  */
 export const AI_CONFIG = {
-  MODEL: 'kimi-k2.5',  // 默认使用最新 Kimi 2.5
+  MODEL: 'kimi-k2.6',  // 默认使用 Kimi 2.6（thinking 模式，temperature 固定 1.0）
   MAX_TOKENS: 4096,
   TEMPERATURE: 1.0,
   STREAM: true
@@ -415,9 +415,9 @@ export const AI_CONFIG = {
 
 /**
  * 简单查询快速模型（仅用于纯问候语，不用于实质性问题）
- * 不启用深度思考，响应更快
+ * kimi-k2.6 + thinking disabled + temperature 0.6（在 ai.ts 中针对 moonshot 设置）
  */
-export const FAST_MODEL = 'moonshot-v1-8k'
+export const FAST_MODEL = 'kimi-k2.6'
 export const FAST_MODEL_MAX_TOKENS = 2000
 
 /**
@@ -431,7 +431,7 @@ export const SIMPLE_QUERY_FACT_PATTERNS: string[] = []
 /**
  * 具备多模态和联网能力的模型列表
  */
-export const MULTIMODAL_MODELS = ['kimi-k2.5', 'gpt-4o', 'gpt-4o-mini'] as const
+export const MULTIMODAL_MODELS = ['kimi-k2.6', 'kimi-k3', 'gpt-4o', 'gpt-4o-mini'] as const
 
 /**
  * 导入外部记忆功能 — 各平台 Prompt
@@ -475,10 +475,10 @@ export const IMPORT_MEMORY_PROMPTS = {
  */
 export const SUPPORTED_MODELS = {
   KIMI: {
-    'kimi-k2.5': 'Kimi 2.5 (最新多模态)',
-    'moonshot-v1-8k': 'Kimi 8K',
-    'moonshot-v1-32k': 'Kimi 32K',
-    'moonshot-v1-128k': 'Kimi 128K'
+    'kimi-k2.6': 'Kimi 2.6',
+    'kimi-k3': 'Kimi 3',
+    'kimi-k2.7-code': 'Kimi 2.7 Code',
+    'kimi-k2.7-code-highspeed': 'Kimi 2.7 Code Highspeed'
   },
   OPENAI: {
     'gpt-4o': 'GPT-4o',

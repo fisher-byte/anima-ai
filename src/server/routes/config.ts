@@ -102,7 +102,27 @@ configRoutes.get('/has-usable-key', (c) => {
 })
 
 // POST /api/config/verify-key — lightweight upstream check (list models)
+// 调用方提供自己的 key（用户付费），但仍加每用户滑动窗口限流防刷：10 次/分钟
+const verifyAttempts = new Map<string, number[]>()
+const VERIFY_WINDOW_MS = 60_000
+const VERIFY_MAX_PER_WINDOW = 10
+
+/** Get userId set by auth middleware (loose typing, same pattern as userDb) */
+function userIdOf(c: { get: (key: string) => unknown }): string {
+  return (c.get('userId') as string | undefined) ?? '_default'
+}
+
 configRoutes.post('/verify-key', async (c) => {
+  const userId = userIdOf(c)
+  const now = Date.now()
+  const recent = (verifyAttempts.get(userId) ?? []).filter(t => now - t < VERIFY_WINDOW_MS)
+  if (recent.length >= VERIFY_MAX_PER_WINDOW) {
+    verifyAttempts.set(userId, recent)
+    return c.json({ valid: false, reason: 'rate_limited' }, 429)
+  }
+  recent.push(now)
+  verifyAttempts.set(userId, recent)
+
   const { apiKey, baseUrl } = await c.req.json<{ apiKey: string; baseUrl?: string }>()
   const rawUrl = (baseUrl || 'https://api.moonshot.cn/v1').replace(/\/$/, '')
   // P1-5: 验证 baseUrl 格式，防止 SSRF 等攻击
