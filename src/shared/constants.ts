@@ -474,6 +474,10 @@ export const IMPORT_MEMORY_PROMPTS = {
  * 支持的模型列表
  */
 export const SUPPORTED_MODELS = {
+  OPENROUTER: {
+    'dots-studio/dots-3-note-preview:free': 'Dots3 Note (free)',
+    'google/gemma-4-26b-a4b-it:free': 'Gemma 4 26B (free)'
+  },
   KIMI: {
     'kimi-k2.6': 'Kimi 2.6',
     'kimi-k3': 'Kimi 3',

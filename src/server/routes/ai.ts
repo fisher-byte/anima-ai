@@ -34,6 +34,11 @@ import type { AIMessage } from '../../shared/types'
 import { enqueueTask } from '../agentWorker'
 import { cosineSim, embedTextWithUserKey } from '../lib/embedding'
 import { reserveTokens, settleTokens, recordSearchCalls } from '../usageBudget'
+import {
+  resolveAIConfig, upstreamChat,
+  sanitizedUpstreamError, sanitizedCaughtError,
+  type ResolvedAIConfig
+} from '../lib/aiClient'
 
 export const aiRoutes = new Hono()
 
@@ -313,9 +318,7 @@ async function generateSessionSummary(
   db: InstanceType<typeof Database>,
   convId: string,
   messages: AIMessage[],
-  apiKey: string,
-  baseUrl: string,
-  model: string
+  cfg: ResolvedAIConfig
 ): Promise<void> {
   try {
     // 取最近 20 条消息做摘要（避免过长）
@@ -330,31 +333,30 @@ async function generateSessionSummary(
       })
       .join('\n')
 
-    const summaryResp = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: '你是一个对话摘要助手。请用 2-3 句话总结以下对话的核心内容、关键决定和结论。输出纯文本，不要 markdown。' },
-          { role: 'user', content: `请总结以下对话：\n\n${dialogue}` }
-        ],
-        max_tokens: 200,
-        stream: false
-      }),
-      signal: AbortSignal.timeout(15_000)
-    })
-    if (!summaryResp.ok) return
-    const summaryData = (await summaryResp.json()) as { choices: { message: { content: string } }[] }
-    const summary = summaryData?.choices?.[0]?.message?.content?.trim()
-    if (!summary) return
+    const { res: summaryResp, release } = await upstreamChat(cfg, {
+      model: cfg.model,
+      messages: [
+        { role: 'system', content: '你是一个对话摘要助手。请用 2-3 句话总结以下对话的核心内容、关键决定和结论。输出纯文本，不要 markdown。' },
+        { role: 'user', content: `请总结以下对话：\n\n${dialogue}` }
+      ],
+      max_tokens: 200,
+      stream: false
+    }, { timeoutMs: 15_000 })
+    try {
+      if (!summaryResp.ok) return
+      const summaryData = (await summaryResp.json()) as { choices: { message: { content: string } }[] }
+      const summary = summaryData?.choices?.[0]?.message?.content?.trim()
+      if (!summary) return
 
-    saveSessionMemory(db, convId, {
-      summary,
-      turn_count: messages.filter(m => m.role === 'user').length,
-      updated_at: new Date().toISOString()
-    })
-    console.log(`[ai/stream] session summary generated for conv ${convId.slice(0, 8)}…`)
+      saveSessionMemory(db, convId, {
+        summary,
+        turn_count: messages.filter(m => m.role === 'user').length,
+        updated_at: new Date().toISOString()
+      })
+      console.log(`[ai/stream] session summary generated for conv ${convId.slice(0, 8)}…`)
+    } finally {
+      release()
+    }
   } catch { /* 生成失败不影响主流程 */ }
 }
 
@@ -569,26 +571,14 @@ aiRoutes.post('/stream', async (c) => {
     }
   }
 
-  // ── API Key 解析：用户自己的 key → 共享 key → 报错 ──────────────────────────
-  const userKeyRow = db.prepare('SELECT value FROM config WHERE key = ?').get('apiKey') as
-    | { value: string }
-    | undefined
-  const apiKey = userKeyRow?.value ?? ''
-
-  const sharedApiKey = process.env.SHARED_API_KEY ?? process.env.ONBOARDING_API_KEY ?? ''
-  const usingSharedKey = !apiKey && !!sharedApiKey
-
-  // 引导模式 / 使用共享 key 时检查限流
-  const effectiveApiKey = apiKey || sharedApiKey
+  const cfg = resolveAIConfig(db)
+  const effectiveApiKey = cfg.apiKey
 
   if (!effectiveApiKey) {
     return c.json({ error: 'API Key 未配置，请在设置中填写' }, 400)
   }
 
-  const modelRow = db.prepare('SELECT value FROM config WHERE key = ?').get('model') as
-    | { value: string }
-    | undefined
-  const configuredModel = modelRow?.value ?? AI_CONFIG.MODEL
+  const configuredModel = cfg.model
 
   // 智能路由：仅纯问候语（不含实质内容）使用快速模型，其余走用户配置模型
   const lastUserMsg = messages.filter(m => m.role === 'user').pop()
@@ -619,13 +609,10 @@ aiRoutes.post('/stream', async (c) => {
     ) ||
     (isShortPlainQuestion && /^(谁|啥|吗|么|呢|呀|？|\?)$/.test(trimmedText.slice(-1)))
 
-  const model = isSimpleQuery ? FAST_MODEL : configuredModel
+  const model = cfg.managedFree ? cfg.model : (isSimpleQuery ? FAST_MODEL : configuredModel)
   const maxTokens = isSimpleQuery ? FAST_MODEL_MAX_TOKENS : AI_CONFIG.MAX_TOKENS
 
-  const baseUrlRow = db.prepare('SELECT value FROM config WHERE key = ?').get('baseUrl') as
-    | { value: string }
-    | undefined
-  const baseUrl = (baseUrlRow?.value ?? 'https://api.moonshot.cn/v1').replace(/\/$/, '')
+  const baseUrl = cfg.baseUrl
 
   // 注入当前日期
   const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
@@ -818,7 +805,7 @@ aiRoutes.post('/stream', async (c) => {
   // ── 全局预算预留（仅当实际使用的是服务器出资的 env key 时记账；onboarding 不再豁免）
   // 用户自有 key 的调用由用户付费，不占用共享额度。
   // 预留 = prompt 近似 token + max_tokens 上界；URL 预取等增量在结算时按实际 usage 对齐。
-  const budgeted = usingSharedKey
+  const budgeted = cfg.usingSharedKey && !cfg.managedFree
   let reservedTokens = 0
   if (budgeted) {
     const promptText = systemPrompt + '\n' + messages.map(messageText).join('\n')
@@ -894,6 +881,7 @@ aiRoutes.post('/stream', async (c) => {
     // 工具调用（search_memory + search_files + $web_search）：所有 Moonshot 模型和已知多模态模型均支持
     // MULTIMODAL_MODELS 仅控制图片能力，工具调用不受此限制
     const supportsTools = searchMode !== 'forced' && !isSimpleQuery && (
+      cfg.managedFree ||
       MULTIMODAL_MODELS.includes(model as typeof MULTIMODAL_MODELS[number]) ||
       baseUrl.includes('moonshot') ||
       model.startsWith('moonshot-')
@@ -903,31 +891,11 @@ aiRoutes.post('/stream', async (c) => {
     }
 
     const fetchCompletionStreamWithTimeout = async (body: Record<string, unknown>, timeoutMs: number) => {
-      const ac = new AbortController()
-      const onAbort = () => ac.abort()
-      try {
-        c.req.raw.signal.addEventListener('abort', onAbort)
-        const timer = setTimeout(() => ac.abort(), timeoutMs)
-        try {
-          return await fetch(`${baseUrl}/chat/completions`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${effectiveApiKey}`
-            },
-            body: JSON.stringify(body),
-            signal: ac.signal
-          })
-        } finally {
-          clearTimeout(timer)
-        }
-      } finally {
-        c.req.raw.signal.removeEventListener('abort', onAbort)
-      }
+      // 深度搜索可能较久：单次上游请求给更宽裕的超时（避免 60s 假死）
+      return upstreamChat(cfg, body, { signal: c.req.raw.signal, timeoutMs })
     }
 
     const fetchCompletionStream = async (body: Record<string, unknown>) => {
-      // 深度搜索可能较久：单次上游请求给更宽裕的超时（避免 60s 假死）
       return fetchCompletionStreamWithTimeout(body, 8 * 60_000)
     }
 
@@ -941,16 +909,18 @@ aiRoutes.post('/stream', async (c) => {
       totalTokens: number
       roundContent: string
       roundReasoning: string
+      upstreamError: boolean
     }> => {
       const toolCallMap: Record<number, { id: string; type: string; function: { name: string; arguments: string } }> = {}
       let finishReason: string | null = null
       let totalTokens = 0
       let roundContent = ''
       let roundReasoning = ''
+      let upstreamError = false
       const decoder = new TextDecoder()
       let sseBuffer = ''
       const reader = res.body?.getReader()
-      if (!reader) return { toolCalls: [], finishReason: null, totalTokens: 0, roundContent: '', roundReasoning: '' }
+      if (!reader) return { toolCalls: [], finishReason: null, totalTokens: 0, roundContent: '', roundReasoning: '', upstreamError: false }
 
       const upsertToolCall = (tc: any, fallbackIndex: number) => {
         const idx = Number.isInteger(tc?.index) ? Number(tc.index) : fallbackIndex
@@ -989,6 +959,10 @@ aiRoutes.post('/stream', async (c) => {
               if (data === '[DONE]') continue
               try {
                 const parsed = JSON.parse(data)
+                if (parsed?.error) {
+                  upstreamError = true
+                  break
+                }
                 const delta = parsed.choices?.[0]?.delta
                 const fr = parsed.choices?.[0]?.finish_reason
                 if (fr) finishReason = fr
@@ -1012,34 +986,43 @@ aiRoutes.post('/stream', async (c) => {
                 if (Array.isArray(msgToolCalls) && msgToolCalls.length > 0) {
                   msgToolCalls.forEach((tc: any, i: number) => upsertToolCall(tc, i))
                 }
-              } catch {
+              } catch (e) {
                 // ignore JSON parse errors in stream
+                if (!(e instanceof SyntaxError)) throw e
               }
             }
+            if (upstreamError) break
           }
+          if (upstreamError) break
         }
       } finally {
         reader.releaseLock()
       }
-      return { toolCalls: Object.values(toolCallMap), finishReason, totalTokens, roundContent, roundReasoning }
+      return { toolCalls: Object.values(toolCallMap), finishReason, totalTokens, roundContent, roundReasoning, upstreamError }
+    }
+
+    const upstreamSlot: { release: (() => void) | null } = { release: null }
+    const trackHandle = (h: { res: Response; release: () => void }): Response => {
+      upstreamSlot.release?.()
+      upstreamSlot.release = h.release
+      return h.res
     }
 
     try {
       // 首轮：带 tools 声明，失败时降级去掉 tools 重试
       let response: Response
       try {
-        response = await fetchCompletionStream(requestBody)
+        response = trackHandle(await fetchCompletionStream(requestBody))
       } catch (error) {
-        if (!requestBody.tools) throw error
+        if (cfg.managedFree || !requestBody.tools) throw error
         const fallbackBody = { ...requestBody }
         delete fallbackBody.tools
-        response = await fetchCompletionStream(fallbackBody)
+        response = trackHandle(await fetchCompletionStream(fallbackBody))
       }
 
       if (!response.ok) {
         settleOnce(0)  // 上游拒绝：退还预留额度
-        const errorText = await response.text()
-        await sendEvent({ type: 'error', message: `API error ${response.status}: ${errorText}` })
+        await sendEvent({ type: 'error', message: sanitizedUpstreamError(response.status) })
         return
       }
 
@@ -1050,7 +1033,14 @@ aiRoutes.post('/stream', async (c) => {
       let round = 1
 
       while (round <= MAX_SEARCH_ROUNDS) {
-        const { toolCalls, finishReason, totalTokens, roundContent, roundReasoning } = await readRound(currentResponse)
+        const { toolCalls, finishReason, totalTokens, roundContent, roundReasoning, upstreamError } = await readRound(currentResponse)
+        upstreamSlot.release?.()
+        upstreamSlot.release = null
+        if (upstreamError) {
+          settleOnce(0)
+          await sendEvent({ type: 'error', message: '上游服务暂时不可用，请稍后再试' })
+          return
+        }
         if (roundContent) fullContent += roundContent
         if (roundReasoning) reasoningContent += roundReasoning
         if (totalTokens > 0) totalTokensUsed += totalTokens
@@ -1151,7 +1141,7 @@ aiRoutes.post('/stream', async (c) => {
         }
 
         try {
-          const nextRes = await fetchCompletionStreamWithTimeout(nextBody, 8 * 60_000)
+          const nextRes = trackHandle(await fetchCompletionStreamWithTimeout(nextBody, 8 * 60_000))
           if (!nextRes.ok) {
             // 续轮失败：直接结束，已有内容仍然返回给用户
             break
@@ -1250,7 +1240,7 @@ aiRoutes.post('/stream', async (c) => {
         const existing = loadSessionMemory(db, conversationId)
         if (!existing) {
           setImmediate(() =>
-            generateSessionSummary(db, conversationId, messages, effectiveApiKey, baseUrl, model)
+            generateSessionSummary(db, conversationId, messages, cfg)
           )
         }
       }
@@ -1263,8 +1253,10 @@ aiRoutes.post('/stream', async (c) => {
       }
       await sendEvent({
         type: 'error',
-        message: error instanceof Error ? error.message : 'Unknown error'
+        message: sanitizedCaughtError(error)
       })
+    } finally {
+      upstreamSlot.release?.()
     }
   })
 })
@@ -1407,39 +1399,27 @@ aiRoutes.post('/summarize', async (c) => {
     return c.json({ title: null })
   }
 
-  const row = db.prepare('SELECT value FROM config WHERE key = ?').get('apiKey') as
-    | { value: string }
-    | undefined
-  const userApiKey = (row?.value ?? '').trim()
-  const sharedApiKey = (process.env.SHARED_API_KEY ?? process.env.ONBOARDING_API_KEY ?? '').trim()
-  const apiKey = userApiKey || sharedApiKey
+  const cfg = resolveAIConfig(db)
   // 标题摘要属于非关键体验：无 key 时静默降级，不返回 4xx 干扰前端控制台
-  if (!apiKey) return c.json({ title: null })
-
-  const baseUrlRow = db.prepare('SELECT value FROM config WHERE key = ?').get('baseUrl') as
-    | { value: string }
-    | undefined
-  const baseUrl = (baseUrlRow?.value ?? 'https://api.moonshot.cn/v1').replace(/\/$/, '')
+  if (!cfg.apiKey) return c.json({ title: null })
 
   const prompt = `请用一句话（10字以内）总结以下对话的核心问题或结论，只输出标题，不加标点：\n\n用户：${userMessage.slice(0, 200)}\nAI：${assistantMessage.slice(0, 300)}`
 
   try {
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: FAST_MODEL,
-        max_tokens: 30,
-        messages: [{ role: 'user', content: prompt }],
-        stream: false
-      }),
-      signal: AbortSignal.timeout(8000)
-    })
-
-    if (!response.ok) return c.json({ title: null })
-    const data = await response.json() as any
-    const title = data.choices?.[0]?.message?.content?.trim() ?? null
-    return c.json({ title })
+    const { res: response, release } = await upstreamChat(cfg, {
+      model: cfg.model,
+      max_tokens: 30,
+      messages: [{ role: 'user', content: prompt }],
+      stream: false
+    }, { timeoutMs: 8000 })
+    try {
+      if (!response.ok) return c.json({ title: null })
+      const data = await response.json() as any
+      const title = data.choices?.[0]?.message?.content?.trim() ?? null
+      return c.json({ title })
+    } finally {
+      release()
+    }
   } catch {
     return c.json({ title: null })
   }

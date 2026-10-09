@@ -10,6 +10,7 @@
 
 import type Database from 'better-sqlite3'
 import { reserveTokens, settleTokens } from '../usageBudget'
+import { isManagedFreeMode } from './aiPolicy'
 
 // ── Built-in embedding config (Aliyun DashScope, no user config needed) ──────
 
@@ -37,6 +38,7 @@ export async function fetchEmbedding(
   text: string
 ): Promise<number[] | null> {
   if (builtinEmbeddingFailed) return null
+  if (isManagedFreeMode()) return null
 
   // 内置 key 由服务器出资：计入全局日预算，超额时按 embedding 不可用优雅降级
   const RESERVED = 500
@@ -83,6 +85,7 @@ export async function fetchMultimodalEmbedding(
   contents: Array<{ text?: string; image?: string }>
 ): Promise<number[] | null> {
   if (builtinEmbeddingFailed) return null
+  if (isManagedFreeMode()) return null
 
   // 内置 key 由服务器出资：计入全局日预算，超额时优雅降级
   const RESERVED = 500
@@ -164,6 +167,7 @@ export async function embedTextWithUserKey(
   opts?: { maxInputLen?: number; timeoutMs?: number }
 ): Promise<Float32Array | null> {
   if (!query.trim() || !apiKey) return null
+  if (isManagedFreeMode()) return null
   const BUILTIN_KEY = process.env.BUILTIN_EMBED_API_KEY || ''
   const embKey = BUILTIN_KEY || apiKey
   const embUrl = BUILTIN_KEY

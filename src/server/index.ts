@@ -9,6 +9,7 @@
  */
 
 import 'dotenv/config'
+import fs from 'fs'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
@@ -23,6 +24,8 @@ import { aiRoutes } from './routes/ai'
 import { memoryRoutes, initCategoryPrototypes } from './routes/memory'
 import { feedbackRoutes } from './routes/feedback'
 import { startAgentWorker, bootstrapAllEmbeddings } from './agentWorker'
+import { isManagedFreeMode, managedFreeModel, FREE_CHAT_MODELS } from './lib/aiPolicy'
+import { isAuthRequired } from './middleware/auth'
 
 type AppEnv = {
   Variables: {
@@ -46,14 +49,30 @@ app.use(
 )
 
 // ── Health check (public, before auth) ───────────────────────────────────────
-app.get('/api/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }))
+app.get('/api/health', (c) => {
+  let version = 'unknown'
+  try {
+    version = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version ?? 'unknown'
+  } catch { }
+  const managed = isManagedFreeMode()
+  let managedModel: string | null = null
+  if (managed) {
+    try { managedModel = managedFreeModel() } catch { managedModel = FREE_CHAT_MODELS[0] }
+  }
+  return c.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    version,
+    commit: process.env.APP_COMMIT ?? null,
+    managed,
+    provider: managed ? 'openrouter' : 'custom',
+    model: managedModel
+  })
+})
 
 // ── Auth status (public, before auth) — frontend uses this to detect login requirement
 app.get('/api/auth/status', (c) => {
-  const authDisabled = process.env.AUTH_DISABLED === 'true'
-  const hasTokens = !!(process.env.ACCESS_TOKENS || process.env.ACCESS_TOKEN)
-  const authRequired = !authDisabled && hasTokens
-  return c.json({ authRequired })
+  return c.json({ authRequired: isAuthRequired() })
 })
 
 // ── Auth (all /api/* routes) ──────────────────────────────────────────────────
@@ -88,8 +107,9 @@ if (process.env.NODE_ENV === 'production') {
 
 // ── Start server ──────────────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT ?? '3000', 10)
+const HOST = process.env.HOST || (process.env.NODE_ENV === 'production' ? '127.0.0.1' : undefined)
 
-serve({ fetch: app.fetch, port: PORT }, () => {
+serve({ fetch: app.fetch, port: PORT, hostname: HOST }, () => {
   console.log(`Anima server running at http://localhost:${PORT}`)
   // 启动后台 Agent Worker（画像提取、记忆索引等）
   startAgentWorker()

@@ -9,6 +9,7 @@
 
 import { Hono } from 'hono'
 import type Database from 'better-sqlite3'
+import { allowedBaseUrl, isManagedFreeMode, managedFreeModel, openRouterKey, OPENROUTER_BASE_URL, FREE_CHAT_MODELS } from '../lib/aiPolicy'
 
 export const configRoutes = new Hono()
 
@@ -33,10 +34,11 @@ const getConfig = (db: InstanceType<typeof Database>, key: string): string | nul
   return row?.value ?? null
 }
 
-// GET /api/config/apikey
 configRoutes.get('/apikey', (c) => {
   const db = userDb(c)
-  return c.json({ apiKey: getConfig(db, 'apiKey') ?? '' })
+  const stored = getConfig(db, 'apiKey')
+  const managed = isManagedFreeMode()
+  return c.json({ apiKey: '', hasKey: managed ? !!openRouterKey() : !!stored, managed })
 })
 
 // PUT /api/config/apikey
@@ -61,9 +63,13 @@ configRoutes.put('/apikey', async (c) => {
 // GET /api/config/settings
 configRoutes.get('/settings', (c) => {
   const db = userDb(c)
+  const managed = isManagedFreeMode()
+  let managedModel = FREE_CHAT_MODELS[0] as string
+  try { managedModel = managedFreeModel() } catch { }
   return c.json({
-    model: getConfig(db, 'model') ?? '',
-    baseUrl: getConfig(db, 'baseUrl') ?? ''
+    model: managed ? managedModel : (getConfig(db, 'model') ?? ''),
+    baseUrl: managed ? OPENROUTER_BASE_URL : (getConfig(db, 'baseUrl') ?? ''),
+    managed
   })
 })
 
@@ -95,6 +101,9 @@ configRoutes.put('/settings', async (c) => {
 
 // GET /api/config/has-usable-key — 前端用：判断当前用户是否可用 key（用户自有 key 或后端共享 key 任一即可）
 configRoutes.get('/has-usable-key', (c) => {
+  if (isManagedFreeMode()) {
+    return c.json({ hasKey: !!openRouterKey() })
+  }
   const db = userDb(c)
   const userKey = getConfig(db, 'apiKey') ?? ''
   const sharedKey = process.env.SHARED_API_KEY ?? ''
@@ -124,22 +133,17 @@ configRoutes.post('/verify-key', async (c) => {
   verifyAttempts.set(userId, recent)
 
   const { apiKey, baseUrl } = await c.req.json<{ apiKey: string; baseUrl?: string }>()
-  const rawUrl = (baseUrl || 'https://api.moonshot.cn/v1').replace(/\/$/, '')
-  // P1-5: 验证 baseUrl 格式，防止 SSRF 等攻击
   let url: string
   try {
-    const parsed = new URL(rawUrl)
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      return c.json({ valid: false, reason: 'invalid_url' })
-    }
-    url = parsed.href.replace(/\/$/, '')
+    url = allowedBaseUrl(baseUrl || 'https://api.moonshot.cn/v1')
   } catch {
     return c.json({ valid: false, reason: 'invalid_url' })
   }
   try {
     const resp = await fetch(`${url}/models`, {
       headers: { Authorization: `Bearer ${apiKey}` },
-      signal: AbortSignal.timeout(6000)
+      signal: AbortSignal.timeout(6000),
+      redirect: 'error'
     })
     return c.json({ valid: resp.ok })
   } catch {

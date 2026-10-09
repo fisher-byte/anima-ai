@@ -126,6 +126,8 @@ export const en: Translations = {
     modelLabel: 'Current model',
     kimiGroup: 'Kimi (Moonshot)',
     openaiGroup: 'OpenAI',
+    openrouterGroup: 'OpenRouter (free)',
+    managedServiceNotice: 'Managed free models are provided by the server — endpoint and model are managed centrally, no configuration needed.',
     saveSuccess: 'Saved',
     saveError: 'Save failed — please check your connection',
     saving: 'Saving…',

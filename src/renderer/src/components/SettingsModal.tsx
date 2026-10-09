@@ -23,6 +23,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [showError, setShowError] = useState(false)
   const [keyError, setKeyError] = useState('')
   const [isExporting, setIsExporting] = useState(false)
+  const [managed, setManaged] = useState(false)
 
   // 身份码相关（单一来源：anima_user_token；旧 anima_access_token 由 App 启动时迁移并清除）
   const currentToken = localStorage.getItem(USER_TOKEN_KEY) ?? ''
@@ -62,7 +63,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     if (isOpen) {
       setApiKey('')  // 每次打开重置，不回填旧密文
       const loadConfig = async () => {
-        const savedKey = await configService.getApiKey()
+        const savedKey = await configService.hasApiKey()
         if (savedKey) {
           setHasExistingKey(true)
           // 不回填密文，让用户主动输入新 key 才覆盖
@@ -74,6 +75,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         // Electron mode: falls back to settings.json via storageService
         const backendSettings = await configService.getSettings()
         const isElectron = isElectronEnvironment()
+        setManaged(!!backendSettings.managed)
         if (backendSettings.model) {
           setModel(backendSettings.model)
         } else if (isElectron) {
@@ -101,22 +103,24 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setIsSaving(true)
     setKeyError('')
     try {
-      // 保存 API Key 到安全存储
-      await configService.setApiKey(apiKey)
+      if (!managed) {
+        // 保存 API Key 到安全存储
+        await configService.setApiKey(apiKey)
 
-      // Save model/baseUrl to config service (backend DB in web mode)
-      await configService.saveSettings({ baseUrl, model })
+        // Save model/baseUrl to config service (backend DB in web mode)
+        await configService.saveSettings({ baseUrl, model })
 
-      // Also keep settings.json for Electron mode compatibility
-      const settings = { baseUrl, model }
-      await storageService.write('settings.json', JSON.stringify(settings, null, 2))
+        // Also keep settings.json for Electron mode compatibility
+        const settings = { baseUrl, model }
+        await storageService.write('settings.json', JSON.stringify(settings, null, 2))
 
-      // 更新内存中的配置（简易处理，实际应用可能需要更复杂的同步）
-      API_CONFIG.BASE_URL = baseUrl
-      ;(AI_CONFIG as { MODEL: string }).MODEL = model
+        // 更新内存中的配置（简易处理，实际应用可能需要更复杂的同步）
+        API_CONFIG.BASE_URL = baseUrl
+        ;(AI_CONFIG as { MODEL: string }).MODEL = model
+      }
 
       // 校验 API Key：调后端验证接口
-      if (apiKey) {
+      if (!managed && apiKey) {
         try {
           const token = getAuthToken()
           const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -146,7 +150,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     } finally {
       setIsSaving(false)
     }
-  }, [apiKey, baseUrl, model])
+  }, [apiKey, baseUrl, model, managed])
 
   const handleExport = useCallback(async () => {
     setIsExporting(true)
@@ -271,7 +275,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 placeholder={hasExistingKey ? t.settings.apiKeySavedPlaceholder : t.settings.apiKeyDefaultPlaceholder}
-                className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-100 focus:bg-white outline-none transition-all"
+                disabled={managed}
+                className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-100 focus:bg-white outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               />
               <p className="text-[10px] text-gray-400 px-1">
                 {hasExistingKey ? t.settings.apiKeySavedHelper : t.settings.apiKeySecureHelper}
@@ -280,6 +285,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <p className="text-[11px] text-red-500 font-medium px-1">{keyError}</p>
               )}
             </div>
+
+            {managed && (
+              <div className="bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-2.5">
+                <p className="text-[11px] text-emerald-700 font-medium">{t.settings.managedServiceNotice}</p>
+              </div>
+            )}
 
             {/* Base URL */}
             <div className="space-y-2">
@@ -292,7 +303,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
                 placeholder={t.settings.baseUrlPlaceholder}
-                className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-100 focus:bg-white outline-none transition-all"
+                disabled={managed}
+                className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-100 focus:bg-white outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
 
@@ -305,8 +317,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <select
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-100 focus:bg-white outline-none transition-all appearance-none cursor-pointer"
+                disabled={managed}
+                className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-100 focus:bg-white outline-none transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
+                {(managed || model in SUPPORTED_MODELS.OPENROUTER) && (
+                  <optgroup label={t.settings.openrouterGroup}>
+                    {Object.entries(SUPPORTED_MODELS.OPENROUTER).map(([id, name]) => (
+                      <option key={id} value={id}>{name}</option>
+                    ))}
+                  </optgroup>
+                )}
                 <optgroup label={t.settings.kimiGroup}>
                   {Object.entries(SUPPORTED_MODELS.KIMI).map(([id, name]) => (
                     <option key={id} value={id}>{name}</option>

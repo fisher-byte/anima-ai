@@ -11,9 +11,11 @@
 
 import type { MiddlewareHandler } from 'hono'
 import { tokenToUserId } from '../db'
+import { isManagedFreeMode } from '../lib/aiPolicy'
 
-/** 与 `GET /api/auth/status` 中 `authRequired` 判定保持一致 */
+/** 与 `GET /api/auth/status` 中 `authRequired` 判定保持一致（托管/生产 fail-closed） */
 export function isAuthRequired(): boolean {
+  if (isManagedFreeMode() || process.env.NODE_ENV === 'production') return true
   const authDisabled = process.env.AUTH_DISABLED === 'true'
   const hasTokens = !!(process.env.ACCESS_TOKENS || process.env.ACCESS_TOKEN)
   return !authDisabled && hasTokens

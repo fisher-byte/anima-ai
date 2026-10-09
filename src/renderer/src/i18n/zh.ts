@@ -122,6 +122,8 @@ export interface Translations {
     modelLabel: string
     kimiGroup: string
     openaiGroup: string
+    openrouterGroup: string
+    managedServiceNotice: string
     saveSuccess: string
     saveError: string
     saving: string
@@ -534,6 +536,8 @@ export const zh: Translations = {
     modelLabel: '当前模型',
     kimiGroup: 'Kimi (Moonshot)',
     openaiGroup: 'OpenAI',
+    openrouterGroup: 'OpenRouter (免费)',
+    managedServiceNotice: '当前由服务器托管的免费模型统一提供服务，接口地址与模型由服务端管理，无需配置。',
     saveSuccess: '保存成功',
     saveError: '保存失败，请检查网络',
     saving: '保存中…',

@@ -5,9 +5,10 @@ import { AnswerModal } from './components/AnswerModal'
 import { OnboardingGuide } from './components/OnboardingGuide'
 import { GlobalUI } from './components/GlobalUI'
 import { FeedbackButton } from './components/FeedbackButton'
+import { LoginPage } from './components/LoginPage'
 import { LanguageProvider } from './i18n'
 import { useCanvasStore } from './stores/canvasStore'
-import { setAuthToken } from './services/storageService'
+import { setAuthToken, isElectronEnvironment } from './services/storageService'
 import { ACCESS_TOKEN_KEY, USER_TOKEN_KEY } from './constants/userToken'
 
 export { USER_TOKEN_KEY } from './constants/userToken'
@@ -62,55 +63,123 @@ export async function repairStaleAutoToken(existingToken: string | null): Promis
   return null
 }
 
+type AuthState = 'loading' | 'login' | 'ready' | 'error'
+
+async function probeToken(token: string): Promise<'accepted' | 'rejected' | 'network'> {
+  try {
+    const res = await fetch('/api/storage/nodes.json', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    if (res.ok || res.status === 404) return 'accepted'
+    if (res.status === 401 || res.status === 403) return 'rejected'
+    return 'network'
+  } catch {
+    return 'network'
+  }
+}
+
 function App() {
   const { loadNodes, loadProfile } = useCanvasStore()
-  const [authChecked, setAuthChecked] = useState(false)
+  const [authState, setAuthState] = useState<AuthState>('loading')
+
+  const enterApp = useCallback(() => {
+    setAuthState('ready')
+    loadNodes()
+    loadProfile()
+  }, [loadNodes, loadProfile])
 
   const bootstrapAuth = useCallback(async () => {
+    setAuthState('loading')
+
+    if (isElectronEnvironment()) {
+      enterApp()
+      return
+    }
+
     let authRequired = false
     try {
       const res = await fetch('/api/auth/status')
-      if (res.ok) {
-        const data = (await res.json()) as { authRequired?: boolean }
-        authRequired = !!data.authRequired
+      if (!res.ok) {
+        setAuthState('error')
+        return
       }
+      const data = (await res.json()) as { authRequired?: boolean }
+      authRequired = !!data.authRequired
     } catch {
-      /* 网络失败时仍尝试用本地 token，避免完全不可用 */
+      setAuthState('error')
+      return
     }
 
     migrateLegacyAccessTokenIfNeeded()
 
-    // 无论服务端是否要求 Bearer：没有本地身份码时自动生成 UUID，每人独立库（与 middleware 的 token→userId 一致）
-    let token = readStoredToken()
-    if (!token) {
-      token = crypto.randomUUID()
-      localStorage.setItem(USER_TOKEN_KEY, token)
-    } else if (!authRequired) {
-      // 仅开放模式做「误指默认库」修正；生产鉴权下不清空 token，避免回到无身份请求
-      const repaired = await repairStaleAutoToken(token)
-      if (repaired === null && !localStorage.getItem(USER_TOKEN_KEY)) {
+    if (!authRequired) {
+      // 开放/开发模式：没有本地身份码时自动生成 UUID，每人独立库（与 middleware 的 token→userId 一致）
+      let token = readStoredToken()
+      if (!token) {
         token = crypto.randomUUID()
         localStorage.setItem(USER_TOKEN_KEY, token)
       } else {
-        token = repaired ?? token
+        // 仅开放模式做「误指默认库」修正；生产鉴权下不清空 token，避免回到无身份请求
+        const repaired = await repairStaleAutoToken(token)
+        if (repaired === null && !localStorage.getItem(USER_TOKEN_KEY)) {
+          token = crypto.randomUUID()
+          localStorage.setItem(USER_TOKEN_KEY, token)
+        } else {
+          token = repaired ?? token
+        }
       }
+      setAuthToken(token)
+      enterApp()
+      return
     }
 
-    setAuthToken(token)
-    setAuthChecked(true)
-    loadNodes()
-    loadProfile()
-  }, [loadNodes, loadProfile])
+    const token = readStoredToken()
+    if (!token) {
+      setAuthState('login')
+      return
+    }
+    const result = await probeToken(token)
+    if (result === 'accepted') {
+      setAuthToken(token)
+      enterApp()
+    } else if (result === 'rejected') {
+      setAuthState('login')
+    } else {
+      setAuthState('error')
+    }
+  }, [enterApp])
 
   useEffect(() => {
     void bootstrapAuth()
   }, [bootstrapAuth])
 
-  if (!authChecked) {
+  if (authState === 'loading') {
     return (
       <div className="w-full h-full flex items-center justify-center bg-white text-sm text-gray-400">
         加载中…
       </div>
+    )
+  }
+
+  if (authState === 'error') {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-white text-sm text-gray-400">
+        <p>无法连接服务器，请稍后重试</p>
+        <button
+          onClick={() => void bootstrapAuth()}
+          className="px-4 py-2 rounded-lg bg-gray-900 text-white text-xs font-medium hover:bg-black transition-colors"
+        >
+          重试
+        </button>
+      </div>
+    )
+  }
+
+  if (authState === 'login') {
+    return (
+      <LanguageProvider>
+        <LoginPage onLogin={enterApp} />
+      </LanguageProvider>
     )
   }
 

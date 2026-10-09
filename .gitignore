@@ -1,8 +1,15 @@
+node_modules
 node_modules/
 .env
+.env.*
+!.env.example
 out/
 dist/
 data/
 .DS_Store
 test-results/
 scripts/migrate-electron-data.cjs
+.aoci/
+*apikey*
+*api_key*
+*.local

@@ -15,6 +15,7 @@
 import Database from 'better-sqlite3'
 import path from 'path'
 import fs from 'fs'
+import { FREE_DAILY_REQUEST_LIMIT, FREE_REQUESTS_PER_MINUTE } from './lib/aiPolicy'
 
 /**
  * 保守混合估价：¥50 / 1M tokens ≈ ¥0.05 / 1K。
@@ -42,6 +43,12 @@ function ledger(): InstanceType<typeof Database> | null {
         tokens     INTEGER NOT NULL DEFAULT 0,
         updated_at TEXT NOT NULL
       )
+    `)
+    d.exec(`
+      CREATE TABLE IF NOT EXISTS free_ai_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, day TEXT NOT NULL, started_at INTEGER NOT NULL)
+    `)
+    d.exec(`
+      CREATE INDEX IF NOT EXISTS free_ai_requests_day ON free_ai_requests(day)
     `)
     db = d
   } catch (e) {
@@ -164,6 +171,26 @@ export function budgetStatus(): { usedTokens: number; limitTokens: number; usedY
     return { usedTokens, limitTokens, usedYuan: tokensToYuan(usedTokens), limitYuan }
   } catch {
     return { usedTokens: 0, limitTokens, usedYuan: 0, limitYuan }
+  }
+}
+
+export function reserveFreeRequest(): { ok: boolean; reason?: 'daily' | 'minute' } {
+  try {
+    const d = ledger()
+    if (!d) return { ok: false }
+    const day = today()
+    const now = Date.now()
+    const minuteAgo = now - 60_000
+    return d.transaction(() => {
+      const dayRow = d.prepare('SELECT COUNT(*) AS n FROM free_ai_requests WHERE day = ?').get(day) as { n: number }
+      if (dayRow.n >= FREE_DAILY_REQUEST_LIMIT) return { ok: false as const, reason: 'daily' as const }
+      const minRow = d.prepare('SELECT COUNT(*) AS n FROM free_ai_requests WHERE started_at > ?').get(minuteAgo) as { n: number }
+      if (minRow.n >= FREE_REQUESTS_PER_MINUTE) return { ok: false as const, reason: 'minute' as const }
+      d.prepare('INSERT INTO free_ai_requests (day, started_at) VALUES (?, ?)').run(day, now)
+      return { ok: true as const }
+    }).immediate()
+  } catch {
+    return { ok: false }
   }
 }
 

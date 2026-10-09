@@ -29,6 +29,7 @@ import { Hono } from 'hono'
 import type Database from 'better-sqlite3'
 import type { DecisionRecord, DecisionTrace } from '../../shared/types'
 import { enqueueTask } from '../agentWorker'
+import { resolveAIConfig, upstreamChat, type ResolvedAIConfig } from '../lib/aiClient'
 import {
   fetchEmbedding,
   vecToBuffer, bufferToVec, cosineSim
@@ -89,16 +90,15 @@ function enqueueMainSpaceNodeWrite(task: () => Promise<void>): void {
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-/** 从 config 表读取 apiKey / baseUrl；若用户未配置 key，fallback 到 SHARED_API_KEY */
-function getApiConfig(db: InstanceType<typeof Database>): { apiKey: string; baseUrl: string } {
-  const keyRow = db.prepare('SELECT value FROM config WHERE key = ?').get('apiKey') as { value: string } | undefined
-  const urlRow = db.prepare('SELECT value FROM config WHERE key = ?').get('baseUrl') as { value: string } | undefined
-  const userKey = keyRow?.value ?? ''
-  const sharedKey = process.env.SHARED_API_KEY ?? ''
-  return {
-    apiKey: userKey || sharedKey,
-    baseUrl: (urlRow?.value ?? 'https://api.moonshot.cn/v1').replace(/\/$/, '')
-  }
+function getApiConfig(db: InstanceType<typeof Database>): ResolvedAIConfig {
+  return resolveAIConfig(db)
+}
+
+function chatUtilityParams(cfg: ResolvedAIConfig, fallbackTemp: number): Record<string, unknown> {
+  if (cfg.managedFree) return { temperature: fallbackTemp }
+  return cfg.baseUrl.includes('moonshot')
+    ? { thinking: { type: 'disabled' }, temperature: 0.6 }
+    : { temperature: fallbackTemp }
 }
 
 // 分类原型向量缓存（服务器启动时初始化一次）
@@ -394,13 +394,10 @@ memoryRoutes.post('/extract', async (c) => {
     .trim()
   if (cleanUserMessage.length <= 5) return c.json({ ok: true, extracted: 0, reason: 'only reference content' })
 
-  const { apiKey, baseUrl } = getApiConfig(db)
-  if (!apiKey) return c.json({ ok: false, reason: 'no api key' })
+  const cfg = getApiConfig(db)
+  if (!cfg.apiKey) return c.json({ ok: false, reason: 'no api key' })
 
-  const isMoonshot = baseUrl.includes('moonshot')
-  const model = isMoonshot ? 'kimi-k2.6' : 'gpt-4o-mini'
-  // kimi-k2.6 约束：thinking 关闭时 temperature 只能为 0.6；非 moonshot 保持原 temperature
-  const utilityParams = isMoonshot ? { thinking: { type: 'disabled' }, temperature: 0.6 } : { temperature: 0 }
+  const utilityParams = chatUtilityParams(cfg, 0)
 
   const prompt = `你是用户记忆提取器。**只读取【用户说的话】，不要从 AI 回复中提取任何信息。**
 
@@ -423,21 +420,21 @@ ${assistantMessage ? `\n（AI回复仅供理解上下文，不作为提取来源
 返回格式：{"facts": ["记忆1", "记忆2"]}`
 
   try {
-    const resp = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-        ...utilityParams,
-        max_tokens: 300
-      }),
-      signal: AbortSignal.timeout(15_000)
-    })
-    if (!resp.ok) return c.json({ ok: false, reason: 'api error' })
+    const { res: resp, release } = await upstreamChat(cfg, {
+      model: cfg.model,
+      messages: [{ role: 'user', content: prompt }],
+      ...utilityParams,
+      max_tokens: 300
+    }, { timeoutMs: 15_000 })
+    let content = ''
+    try {
+      if (!resp.ok) return c.json({ ok: false, reason: 'api error' })
 
-    const data = (await resp.json()) as { choices: { message: { content: string } }[] }
-    const content = data.choices?.[0]?.message?.content || ''
+      const data = (await resp.json()) as { choices: { message: { content: string } }[] }
+      content = data.choices?.[0]?.message?.content || ''
+    } finally {
+      release()
+    }
 
     const jsonMatch = content.match(/\{[\s\S]*\}/)
     if (!jsonMatch) return c.json({ ok: true, extracted: 0 })
@@ -468,42 +465,41 @@ ${assistantMessage ? `\n（AI回复仅供理解上下文，不作为提取来源
 
     if (existingFacts.length > 0) {
       try {
-        const dedupeResp = await fetch(`${baseUrl}/chat/completions`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({
-            model,
-            messages: [{
-              role: 'user',
-              content: `已有记忆：\n${existingFacts.map((f, i) => `${i + 1}. ${f}`).join('\n')}\n\n新候选：\n${candidates.map((f, i) => `${i + 1}. ${f}`).join('\n')}\n\n请返回新候选中与已有记忆**语义不重复**的部分（完全相同或意思相同的去掉）。只返回JSON：{"keep": ["事实1", "事实2"]}`
-            }],
-            ...utilityParams,
-            max_tokens: 300
-          }),
-          signal: AbortSignal.timeout(10_000)
-        })
-        if (dedupeResp.ok) {
-          const dedupeData = (await dedupeResp.json()) as { choices: { message: { content: string } }[] }
-          const dedupeContent = dedupeData.choices?.[0]?.message?.content || ''
-          const jsonMatch = dedupeContent.match(/\{[\s\S]*\}/)
-          if (jsonMatch) {
-            try {
-              const { keep } = JSON.parse(jsonMatch[0]) as { keep: string[] }
-              if (Array.isArray(keep)) {
-                const candidateSet = new Set(candidates)
-                // LLM 可能对字符串做了轻微修改，先精确匹配，再对 trim 后内容做宽松匹配
-                const trimmedCandidateMap = new Map(candidates.map(c => [c.trim(), c]))
-                toInsert = keep
-                  .map((f: string) => f?.trim())
-                  .filter(Boolean)
-                  .map(f => candidateSet.has(f) ? f : (trimmedCandidateMap.get(f) ?? null))
-                  .filter((f): f is string => f !== null)
+        const { res: dedupeResp, release: releaseDedupe } = await upstreamChat(cfg, {
+          model: cfg.model,
+          messages: [{
+            role: 'user',
+            content: `已有记忆：\n${existingFacts.map((f, i) => `${i + 1}. ${f}`).join('\n')}\n\n新候选：\n${candidates.map((f, i) => `${i + 1}. ${f}`).join('\n')}\n\n请返回新候选中与已有记忆**语义不重复**的部分（完全相同或意思相同的去掉）。只返回JSON：{"keep": ["事实1", "事实2"]}`
+          }],
+          ...utilityParams,
+          max_tokens: 300
+        }, { timeoutMs: 10_000 })
+        try {
+          if (dedupeResp.ok) {
+            const dedupeData = (await dedupeResp.json()) as { choices: { message: { content: string } }[] }
+            const dedupeContent = dedupeData.choices?.[0]?.message?.content || ''
+            const jsonMatch = dedupeContent.match(/\{[\s\S]*\}/)
+            if (jsonMatch) {
+              try {
+                const { keep } = JSON.parse(jsonMatch[0]) as { keep: string[] }
+                if (Array.isArray(keep)) {
+                  const candidateSet = new Set(candidates)
+                  // LLM 可能对字符串做了轻微修改，先精确匹配，再对 trim 后内容做宽松匹配
+                  const trimmedCandidateMap = new Map(candidates.map(c => [c.trim(), c]))
+                  toInsert = keep
+                    .map((f: string) => f?.trim())
+                    .filter(Boolean)
+                    .map(f => candidateSet.has(f) ? f : (trimmedCandidateMap.get(f) ?? null))
+                    .filter((f): f is string => f !== null)
+                }
+              } catch {
+                const exactSet = new Set(existingFacts)
+                toInsert = candidates.filter((f: string) => !exactSet.has(f))
               }
-            } catch {
-              const exactSet = new Set(existingFacts)
-              toInsert = candidates.filter((f: string) => !exactSet.has(f))
             }
           }
+        } finally {
+          releaseDedupe()
         }
       } catch {
         const exactSet = new Set(existingFacts)
@@ -633,12 +629,10 @@ memoryRoutes.post('/classify', async (c) => {
   }
 
   // 层2：LLM（用户 API key）
-  const { apiKey, baseUrl } = getApiConfig(db)
-  if (!apiKey) return c.json({ category: null })
+  const cfg = getApiConfig(db)
+  if (!cfg.apiKey) return c.json({ category: null })
 
-  const isMoonshot = baseUrl.includes('moonshot')
-  const model = isMoonshot ? 'kimi-k2.6' : 'gpt-4o-mini'
-  const utilityParams = isMoonshot ? { thinking: { type: 'disabled' }, temperature: 0.6 } : { temperature: 0 }
+  const utilityParams = chatUtilityParams(cfg, 0)
 
   const CATEGORIES = ['日常生活', '日常事务', '学习成长', '工作事业', '情感关系', '思考世界', '其他']
 
@@ -657,22 +651,21 @@ memoryRoutes.post('/classify', async (c) => {
 只输出类别名称，不要解释。`
 
   try {
-    const resp = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-        ...utilityParams,
-        max_tokens: 20
-      }),
-      signal: AbortSignal.timeout(5000)
-    })
-    if (!resp.ok) return c.json({ category: null })
-    const data = (await resp.json()) as { choices: { message: { content: string } }[] }
-    const raw = data.choices?.[0]?.message?.content?.trim() ?? ''
-    const matched = CATEGORIES.find(cat => raw.includes(cat))
-    return c.json({ category: matched ?? '其他' })
+    const { res: resp, release } = await upstreamChat(cfg, {
+      model: cfg.model,
+      messages: [{ role: 'user', content: prompt }],
+      ...utilityParams,
+      max_tokens: 20
+    }, { timeoutMs: 5000 })
+    try {
+      if (!resp.ok) return c.json({ category: null })
+      const data = (await resp.json()) as { choices: { message: { content: string } }[] }
+      const raw = data.choices?.[0]?.message?.content?.trim() ?? ''
+      const matched = CATEGORIES.find(cat => raw.includes(cat))
+      return c.json({ category: matched ?? '其他' })
+    } finally {
+      release()
+    }
   } catch {
     return c.json({ category: null })
   }
@@ -686,12 +679,10 @@ memoryRoutes.post('/extract-topic', async (c) => {
   }>()
   if (!userMessage?.trim()) return c.json({ topic: null })
 
-  const { apiKey, baseUrl } = getApiConfig(db)
-  if (!apiKey) return c.json({ topic: null })
+  const cfg = getApiConfig(db)
+  if (!cfg.apiKey) return c.json({ topic: null })
 
-  const isMoonshot = baseUrl.includes('moonshot')
-  const model = isMoonshot ? 'kimi-k2.6' : 'gpt-4o-mini'
-  const utilityParams = isMoonshot ? { thinking: { type: 'disabled' }, temperature: 0.6 } : { temperature: 0 }
+  const utilityParams = chatUtilityParams(cfg, 0)
   const text = `${userMessage.slice(0, 200)}\n${assistantMessage.slice(0, 200)}`
   const prompt = `请用1-2个词（最多8个汉字）总结这段对话的核心话题。
 要求：具体个人化（如「Python学习」「和父母的关系」），不要用「学习成长」「工作事业」这类抽象分类词。
@@ -700,16 +691,20 @@ memoryRoutes.post('/extract-topic', async (c) => {
 对话内容：${text}`
 
   try {
-    const resp = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], ...utilityParams, max_tokens: 20 }),
-      signal: AbortSignal.timeout(5000)
-    })
-    if (!resp.ok) return c.json({ topic: null })
-    const data = await resp.json() as any
-    const raw = data.choices?.[0]?.message?.content?.trim() ?? null
-    return c.json({ topic: raw?.slice(0, 8) ?? null })
+    const { res: resp, release } = await upstreamChat(cfg, {
+      model: cfg.model,
+      messages: [{ role: 'user', content: prompt }],
+      ...utilityParams,
+      max_tokens: 20
+    }, { timeoutMs: 5000 })
+    try {
+      if (!resp.ok) return c.json({ topic: null })
+      const data = await resp.json() as any
+      const raw = data.choices?.[0]?.message?.content?.trim() ?? null
+      return c.json({ topic: raw?.slice(0, 8) ?? null })
+    } finally {
+      release()
+    }
   } catch {
     return c.json({ topic: null })
   }
@@ -718,8 +713,8 @@ memoryRoutes.post('/extract-topic', async (c) => {
 /** 批量重新分类节点（修正历史分类错误） */
 memoryRoutes.post('/reclassify-nodes', async (c) => {
   const db = userDb(c)
-  const { apiKey, baseUrl } = getApiConfig(db)
-  if (!apiKey) return c.json({ error: 'no api key' }, 400)
+  const cfg = getApiConfig(db)
+  if (!cfg.apiKey) return c.json({ error: 'no api key' }, 400)
 
   // Use the storage service approach - read nodes from the request body instead
   const { nodes } = await c.req.json<{ nodes: { id: string; title: string; keywords: string[]; category: string }[] }>()
@@ -738,9 +733,7 @@ memoryRoutes.post('/reclassify-nodes', async (c) => {
     '其他': 'rgba(243, 244, 246, 0.9)',
   }
 
-  const isMoonshot = baseUrl.includes('moonshot')
-  const model = isMoonshot ? 'kimi-k2.6' : 'gpt-4o-mini'
-  const utilityParams = isMoonshot ? { thinking: { type: 'disabled' }, temperature: 0.6 } : { temperature: 0 }
+  const utilityParams = chatUtilityParams(cfg, 0)
 
   // Classify nodes in parallel (batch of 5 at a time)
   const updated: { id: string; category: string; color: string }[] = []
@@ -749,18 +742,22 @@ memoryRoutes.post('/reclassify-nodes', async (c) => {
     const text = [node.title, ...node.keywords].join('，').slice(0, 100)
     const prompt = `将以下内容归类到：日常生活、日常事务、学习成长、工作事业、情感关系、思考世界、其他。\n内容：${text}\n只输出类别名称。`
     try {
-      const resp = await fetch(`${baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], ...utilityParams, max_tokens: 20 }),
-        signal: AbortSignal.timeout(6000)
-      })
-      if (!resp.ok) return
-      const data = (await resp.json()) as { choices: { message: { content: string } }[] }
-      const raw = data.choices?.[0]?.message?.content?.trim() ?? ''
-      const matched = CATEGORIES.find(cat => raw.includes(cat)) ?? '其他'
-      if (matched !== node.category) {
-        updated.push({ id: node.id, category: matched, color: CATEGORY_COLORS[matched] ?? CATEGORY_COLORS['其他'] })
+      const { res: resp, release } = await upstreamChat(cfg, {
+        model: cfg.model,
+        messages: [{ role: 'user', content: prompt }],
+        ...utilityParams,
+        max_tokens: 20
+      }, { timeoutMs: 6000 })
+      try {
+        if (!resp.ok) return
+        const data = (await resp.json()) as { choices: { message: { content: string } }[] }
+        const raw = data.choices?.[0]?.message?.content?.trim() ?? ''
+        const matched = CATEGORIES.find(cat => raw.includes(cat)) ?? '其他'
+        if (matched !== node.category) {
+          updated.push({ id: node.id, category: matched, color: CATEGORY_COLORS[matched] ?? CATEGORY_COLORS['其他'] })
+        }
+      } finally {
+        release()
       }
     } catch { /* skip */ }
   }

@@ -16,6 +16,8 @@ import type { AIMessage, Conversation } from '../shared/types'
 import { AI_CONFIG, DEFAULT_SYSTEM_PROMPT, ONBOARDING_SYSTEM_PROMPT } from '../shared/constants'
 import { cosineSim, embedTextWithUserKey } from './lib/embedding'
 import { reserveTokens, settleTokens } from './usageBudget'
+import { resolveAIConfig, upstreamChat, sanitizedCaughtError, type ResolvedAIConfig } from './lib/aiClient'
+import { isManagedFreeMode } from './lib/aiPolicy'
 
 interface ExtractProfilePayload {
   userMessage: string
@@ -52,8 +54,8 @@ interface DeepSearchPayload {
 
 /** 把现有 facts 传给 LLM，合并语义重叠条目，软删除旧条目，写入合并后的新条目 */
 async function consolidateFacts(db: InstanceType<typeof Database>): Promise<void> {
-  const { apiKey, baseUrl, model } = getApiConfig(db)
-  if (!apiKey) return
+  const cfg = getApiConfig(db)
+  if (!cfg.apiKey) return
 
   const rows = db.prepare(
     'SELECT id, fact FROM memory_facts WHERE invalid_at IS NULL ORDER BY created_at ASC'
@@ -78,28 +80,25 @@ ${factsText}
 只返回 JSON，不要解释：{"facts": ["条目1", "条目2", ...]}`
 
   try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 20_000)
-    const resp = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 800,
-        ...utilityParams(baseUrl, 0.1)
-      }),
-      signal: controller.signal
-    })
-    clearTimeout(timeout)
-    if (!resp.ok) return
+    const { res: resp, release } = await upstreamChat(cfg, {
+      model: cfg.model,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 800,
+      ...utilityParams(cfg, 0.1)
+    }, { timeoutMs: 20_000 })
+    let consolidated: string[] | undefined
+    try {
+      if (!resp.ok) return
 
-    const data = (await resp.json()) as { choices: { message: { content: string } }[] }
-    const raw = data?.choices?.[0]?.message?.content?.trim() ?? ''
-    const jsonMatch = raw.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) return
+      const data = (await resp.json()) as { choices: { message: { content: string } }[] }
+      const raw = data?.choices?.[0]?.message?.content?.trim() ?? ''
+      const jsonMatch = raw.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) return
 
-    const { facts: consolidated } = JSON.parse(jsonMatch[0]) as { facts: string[] }
+      ;({ facts: consolidated } = JSON.parse(jsonMatch[0]) as { facts: string[] })
+    } finally {
+      release()
+    }
     if (!Array.isArray(consolidated) || consolidated.length === 0) return
 
     // 合并后条目数必须 <= 原来（防止模型 hallucinate 新内容），且不应超过原来数量
@@ -121,7 +120,7 @@ ${factsText}
 
     console.log(`[agent] consolidate_facts: ${rows.length} → ${cleaned.length} facts`)
   } catch (e) {
-    console.warn('[agent] consolidateFacts failed:', e)
+    console.warn('[agent] consolidateFacts failed:', sanitizedCaughtError(e))
   }
 }
 
@@ -130,8 +129,8 @@ async function extractLogicalEdges(
   db: InstanceType<typeof Database>,
   payload: ExtractLogicalEdgesPayload
 ): Promise<void> {
-  const { apiKey, baseUrl, model } = getApiConfig(db)
-  if (!apiKey) return
+  const cfg = getApiConfig(db)
+  if (!cfg.apiKey) return
 
   const { conversationId, userMessage, assistantMessage, candidateNodes } = payload
   if (candidateNodes.length === 0) return
@@ -170,22 +169,21 @@ ${candidatesText}
 如果没有明确关系，输出空数组：[]`
 
   try {
-    const resp = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 500,
-        ...utilityParams(baseUrl, 0.2)
-      }),
-      signal: AbortSignal.timeout(15_000)
-    })
+    const { res: resp, release } = await upstreamChat(cfg, {
+      model: cfg.model,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 500,
+      ...utilityParams(cfg, 0.2)
+    }, { timeoutMs: 15_000 })
+    let raw = ''
+    try {
+      if (!resp.ok) return
 
-    if (!resp.ok) return
-
-    const data = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> }
-    const raw = data?.choices?.[0]?.message?.content?.trim() ?? ''
+      const data = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> }
+      raw = data?.choices?.[0]?.message?.content?.trim() ?? ''
+    } finally {
+      release()
+    }
 
     // 提取 JSON（容错：去掉 markdown 代码块包裹）
     const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
@@ -213,50 +211,35 @@ ${candidatesText}
       console.log(`[agent] logical edge: ${r.relation} (${r.confidence}) → ${candidate.title.slice(0, 20)}`)
     }
   } catch (e) {
-    console.warn('[agent] extractLogicalEdges failed:', e)
+    console.warn('[agent] extractLogicalEdges failed:', sanitizedCaughtError(e))
   }
 }
 
-/** 从 config 表读取 apiKey / baseUrl（使用指定用户的 db）；若用户未配置 key，fallback 到 SHARED_API_KEY */
-function getApiConfig(db: InstanceType<typeof Database>): { apiKey: string; baseUrl: string; model: string } {
-  const keyRow = db.prepare('SELECT value FROM config WHERE key = ?').get('apiKey') as { value: string } | undefined
-  const urlRow = db.prepare('SELECT value FROM config WHERE key = ?').get('baseUrl') as { value: string } | undefined
-  const userKey = keyRow?.value ?? ''
-  const sharedKey = process.env.SHARED_API_KEY ?? ''
-  const baseUrl = (urlRow?.value ?? 'https://api.moonshot.cn/v1').replace(/\/$/, '')
-  // 后台工具调用固定用轻量模型，不受用户主模型配置影响；根据 provider 选择合适的模型
-  const isMoonshot = baseUrl.includes('moonshot')
-  const isOpenAI = baseUrl.includes('openai.com')
-  const model = isMoonshot ? 'kimi-k2.6' : isOpenAI ? 'gpt-4o-mini' : 'kimi-k2.6'
-  return {
-    apiKey: userKey || sharedKey,
-    baseUrl,
-    model
-  }
+function getApiConfig(db: InstanceType<typeof Database>): ResolvedAIConfig {
+  return resolveAIConfig(db)
 }
 
 /**
  * kimi-k2.6 约束：thinking 开启时 temperature 必须 1.0；
  * 后台工具调用不需要思考链 → moonshot 下关闭 thinking 并用 0.6。
- * 非 moonshot baseUrl（OpenAI 兼容）保持原 temperature。
  */
-function utilityParams(baseUrl: string, fallbackTemp: number): Record<string, unknown> {
-  return baseUrl.includes('moonshot')
+function utilityParams(cfg: ResolvedAIConfig, fallbackTemp: number): Record<string, unknown> {
+  if (cfg.managedFree) return { temperature: fallbackTemp }
+  return cfg.baseUrl.includes('moonshot')
     ? { thinking: { type: 'disabled' }, temperature: 0.6 }
     : { temperature: fallbackTemp }
 }
 
-/** deep search 使用用户配置的主模型（可更强），fallback 到默认 */
-function getChatModel(db: InstanceType<typeof Database>, baseUrl: string): string {
+function getChatModel(db: InstanceType<typeof Database>, cfg: ResolvedAIConfig): string {
+  if (cfg.managedFree) return cfg.model
   try {
     const row = db.prepare('SELECT value FROM config WHERE key = ?').get('model') as { value: string } | undefined
     const configured = (row?.value ?? '').trim()
     if (configured) return configured
   } catch { /* ignore */ }
   // 保底：按 provider 兜底
-  const isMoonshot = baseUrl.includes('moonshot')
-  const isOpenAI = baseUrl.includes('openai.com')
-  return isOpenAI ? 'gpt-4o-mini' : (isMoonshot ? 'kimi-k2.6' : AI_CONFIG.MODEL)
+  const isOpenAI = cfg.baseUrl.includes('openai.com')
+  return isOpenAI ? 'gpt-4o-mini' : (cfg.baseUrl.includes('moonshot') ? 'kimi-k2.6' : AI_CONFIG.MODEL)
 }
 
 function formatToday(): string {
@@ -468,13 +451,13 @@ export async function deepSearchAnswer(
     try { db.prepare('UPDATE agent_tasks SET result = ? WHERE id = ?').run(JSON.stringify(result), taskId) } catch { /* ignore */ }
   }
 
-  const { apiKey, baseUrl } = getApiConfig(db)
-  if (!apiKey) {
+  const cfg = getApiConfig(db)
+  if (!cfg.apiKey) {
     setProgress('缺少可用的 API Key，已跳过深度搜索。')
     return
   }
 
-  const model = getChatModel(db, baseUrl)
+  const model = getChatModel(db, cfg)
   const today = formatToday()
   const systemPrompt = payload.systemPromptOverride
     ? String(payload.systemPromptOverride).replace('{{DATE}}', today)
@@ -536,27 +519,24 @@ export async function deepSearchAnswer(
   ]
 
   const callLLM = async (msgs: AIMessage[]) => {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 4 * 60_000) // 单次请求最多 4 分钟，避免永久挂住
     try {
-      const resp = await fetch(`${baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          model,
-          messages: msgs,
-          tools,
-          temperature: AI_CONFIG.TEMPERATURE,
-          max_tokens: AI_CONFIG.MAX_TOKENS,
-          stream: false
-        }),
-        signal: controller.signal
-      })
-      if (!resp.ok) return { ok: false as const, status: resp.status, text: await resp.text() }
-      const data = await resp.json() as any
-      return { ok: true as const, data }
-    } finally {
-      clearTimeout(timeout)
+      const { res: resp, release } = await upstreamChat(cfg, {
+        model,
+        messages: msgs,
+        tools,
+        temperature: AI_CONFIG.TEMPERATURE,
+        max_tokens: AI_CONFIG.MAX_TOKENS,
+        stream: false
+      }, { timeoutMs: 4 * 60_000 })
+      try {
+        if (!resp.ok) return { ok: false as const, status: resp.status }
+        const data = await resp.json() as any
+        return { ok: true as const, data }
+      } finally {
+        release()
+      }
+    } catch {
+      return { ok: false as const, status: 0 }
     }
   }
 
@@ -572,7 +552,7 @@ export async function deepSearchAnswer(
     setProgress(`深度搜索进行中：第 ${round}/${MAX_ROUNDS} 轮…`)
     const res = await callLLM(current)
     if (!res.ok) {
-      setProgress(`深度搜索失败（上游错误 ${res.status}），将输出已有内容。`)
+      setProgress(res.status > 0 ? `深度搜索失败（上游错误 ${res.status}），将输出已有内容。` : '深度搜索网络异常，将输出已有内容。')
       break
     }
     const choice = res.data?.choices?.[0]
@@ -618,7 +598,7 @@ export async function deepSearchAnswer(
         toolMsgs.push({ role: 'tool', tool_call_id: id, content: result })
       } else if (name === 'search_files') {
         setProgress('深度搜索：正在检索文件内容…')
-        const chunks = query ? await searchFileChunks(db, query, apiKey, baseUrl) : []
+        const chunks = query ? await searchFileChunks(db, query, cfg.apiKey, cfg.baseUrl) : []
         const result = chunks.length > 0
           ? chunks.map((c, i) => `[${i + 1}] 文件《${c.filename}》第${c.chunkIndex + 1}段：\n${c.chunkText}`).join('\n\n')
           : '未找到相关文件内容。'
@@ -644,38 +624,32 @@ export async function deepSearchAnswer(
       }
       let finalOk = false
       for (let attempt = 1; attempt <= 3; attempt++) {
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 4 * 60_000)
         try {
-          const resp = await fetch(`${baseUrl}/chat/completions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-            body: JSON.stringify({
-              model,
-              messages: [...current, finalPrompt],
-              temperature: AI_CONFIG.TEMPERATURE,
-              max_tokens: AI_CONFIG.MAX_TOKENS,
-              stream: false
-            }),
-            signal: controller.signal
-          })
-          if (resp.ok) {
-            const data = await resp.json() as any
-            const c2 = data?.choices?.[0]
-            const m2 = c2?.message ?? {}
-            const cText = String(m2?.content ?? '')
-            const rText = String(m2?.reasoning_content ?? '')
-            if (cText) finalContent += cText
-            if (rText) finalReasoning += rText
-            if (cText.trim().length > 0) {
-              finalOk = true
-              break
+          const { res: resp, release } = await upstreamChat(cfg, {
+            model,
+            messages: [...current, finalPrompt],
+            temperature: AI_CONFIG.TEMPERATURE,
+            max_tokens: AI_CONFIG.MAX_TOKENS,
+            stream: false
+          }, { timeoutMs: 4 * 60_000 })
+          try {
+            if (resp.ok) {
+              const data = await resp.json() as any
+              const c2 = data?.choices?.[0]
+              const m2 = c2?.message ?? {}
+              const cText = String(m2?.content ?? '')
+              const rText = String(m2?.reasoning_content ?? '')
+              if (cText) finalContent += cText
+              if (rText) finalReasoning += rText
+              if (cText.trim().length > 0) {
+                finalOk = true
+                break
+              }
             }
-          } else {
+          } finally {
+            release()
           }
-        } catch (e) {
-        } finally {
-          clearTimeout(timeout)
+        } catch {
         }
       }
 
@@ -732,8 +706,8 @@ async function extractProfileFromConversation(
   userMessage: string,
   _assistantMessage: string
 ): Promise<Record<string, unknown> | null> {
-  const { apiKey, baseUrl, model } = getApiConfig(db)
-  if (!apiKey) return null
+  const cfg = getApiConfig(db)
+  if (!cfg.apiKey) return null
   if (userMessage.trim().length < 20) return null
 
   const prompt = `你是用户画像提取器。只读取【用户的发言】，忽略助手的回答部分。
@@ -757,31 +731,26 @@ ${userMessage.slice(0, 500)}
 只返回 JSON，不要解释。如果完全无法推断任何字段，返回 {}`
 
   try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 15_000)
-    const resp = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 300,
-        ...utilityParams(baseUrl, 0.3)
-      }),
-      signal: controller.signal
-    })
-    clearTimeout(timeout)
+    const { res: resp, release } = await upstreamChat(cfg, {
+      model: cfg.model,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 300,
+      ...utilityParams(cfg, 0.3)
+    }, { timeoutMs: 15_000 })
+    try {
+      if (!resp.ok) return null
+      const data = (await resp.json()) as { choices: { message: { content: string } }[] }
+      const raw = data?.choices?.[0]?.message?.content?.trim() ?? ''
 
-    if (!resp.ok) return null
-    const data = (await resp.json()) as { choices: { message: { content: string } }[] }
-    const raw = data?.choices?.[0]?.message?.content?.trim() ?? ''
-
-    // 提取 JSON（模型可能包裹在 ```json ``` 里）
-    const jsonMatch = raw.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) return null
-    return JSON.parse(jsonMatch[0])
+      // 提取 JSON（模型可能包裹在 ```json ``` 里）
+      const jsonMatch = raw.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) return null
+      return JSON.parse(jsonMatch[0])
+    } finally {
+      release()
+    }
   } catch (e) {
-    console.warn('[agent] extractProfile failed:', e)
+    console.warn('[agent] extractProfile failed:', sanitizedCaughtError(e))
     return null
   }
 }
@@ -792,8 +761,8 @@ async function extractPreferenceFromFeedback(
   userMessage: string,
   assistantMessage: string
 ): Promise<void> {
-  const { apiKey, baseUrl, model } = getApiConfig(db)
-  if (!apiKey) return
+  const cfg = getApiConfig(db)
+  if (!cfg.apiKey) return
   if (userMessage.trim().length < 5) return
 
   const prompt = `判断用户的回复中是否包含对 AI 回答方式的明确偏好或反馈（如"太长了""别用列表""更直接一点"等）。
@@ -806,23 +775,20 @@ AI之前说：${assistantMessage.slice(0, 200)}
 只返回 JSON，不要解释。`
 
   try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 15_000)
-    const resp = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 100,
-        ...utilityParams(baseUrl, 0.2)
-      }),
-      signal: controller.signal
-    })
-    clearTimeout(timeout)
-    if (!resp.ok) return
-    const data = (await resp.json()) as { choices: { message: { content: string } }[] }
-    const raw = data?.choices?.[0]?.message?.content?.trim() ?? ''
+    const { res: resp, release } = await upstreamChat(cfg, {
+      model: cfg.model,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 100,
+      ...utilityParams(cfg, 0.2)
+    }, { timeoutMs: 15_000 })
+    let raw = ''
+    try {
+      if (!resp.ok) return
+      const data = (await resp.json()) as { choices: { message: { content: string } }[] }
+      raw = data?.choices?.[0]?.message?.content?.trim() ?? ''
+    } finally {
+      release()
+    }
     const jsonMatch = raw.match(/\{[\s\S]*\}/)
     if (!jsonMatch) return
     const parsed = JSON.parse(jsonMatch[0]) as { preference?: string }
@@ -863,7 +829,7 @@ AI之前说：${assistantMessage.slice(0, 200)}
       db.prepare('INSERT INTO config (key, value, updated_at) VALUES (?, ?, ?)').run('preference_rules', val, new Date().toISOString())
     }
   } catch (e) {
-    console.warn('[agent] extractPreference failed:', e)
+    console.warn('[agent] extractPreference failed:', sanitizedCaughtError(e))
   }
 }
 
@@ -970,6 +936,10 @@ async function embedImageFile(
   filename: string,
   textContent: string  // 可能包含 OCR 文字或描述
 ): Promise<void> {
+  if (isManagedFreeMode()) {
+    db.prepare("UPDATE uploaded_files SET embed_status = 'text_only' WHERE id = ?").run(fileId)
+    return
+  }
   // 从 DB 读取图片的 base64 内容
   const fileRow = db.prepare('SELECT content, mimetype FROM uploaded_files WHERE id = ?').get(fileId) as
     { content: Buffer; mimetype: string } | undefined
@@ -1032,7 +1002,7 @@ async function embedImageFile(
     console.log(`[agent] image embed ${filename}: multimodal vector dim=${vec.length}`)
   } catch (e) {
     settleTokens(RESERVED, 0)
-    console.warn(`[agent] image embed error for ${filename}:`, e)
+    console.warn(`[agent] image embed error for ${filename}:`, sanitizedCaughtError(e))
     db.prepare("UPDATE uploaded_files SET embed_status = 'text_only' WHERE id = ?").run(fileId)
   }
 }
@@ -1044,7 +1014,7 @@ async function embedFileContent(
   textContent: string,
   filename: string
 ): Promise<void> {
-  if (builtinEmbedWorkerFailed) {
+  if (builtinEmbedWorkerFailed || isManagedFreeMode()) {
     db.prepare("UPDATE uploaded_files SET embed_status = 'text_only' WHERE id = ?").run(fileId)
     return
   }
@@ -1110,7 +1080,7 @@ async function embedFileContent(
       embeddedCount++
     } catch (e) {
       if (!chunkSettled) settleTokens(RESERVED, 0)  // 网络异常等：退还预留
-      console.warn(`[agent] embed_file chunk ${i} error for ${filename}:`, e)
+      console.warn(`[agent] embed_file chunk ${i} error for ${filename}:`, sanitizedCaughtError(e))
     }
   }
 
@@ -1158,8 +1128,8 @@ function maybeDecayPreferences(db: InstanceType<typeof Database>) {
  * }
  */
 export async function extractMentalModel(db: InstanceType<typeof Database>): Promise<void> {
-  const { apiKey, baseUrl, model } = getApiConfig(db)
-  if (!apiKey) return
+  const cfg = getApiConfig(db)
+  if (!cfg.apiKey) return
 
   // 收集素材：最新 60 条有效 facts + user_profile 字段
   const factRows = db.prepare(
@@ -1200,21 +1170,21 @@ ${factsText}
 }`
 
   try {
-    const resp = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 1000,
-        ...utilityParams(baseUrl, 0.2)
-      }),
-      signal: AbortSignal.timeout(20_000)
-    })
-    if (!resp.ok) return
+    const { res: resp, release } = await upstreamChat(cfg, {
+      model: cfg.model,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 1000,
+      ...utilityParams(cfg, 0.2)
+    }, { timeoutMs: 20_000 })
+    let raw = ''
+    try {
+      if (!resp.ok) return
 
-    const data = (await resp.json()) as { choices: { message: { content: string } }[] }
-    const raw = data?.choices?.[0]?.message?.content?.trim() ?? ''
+      const data = (await resp.json()) as { choices: { message: { content: string } }[] }
+      raw = data?.choices?.[0]?.message?.content?.trim() ?? ''
+    } finally {
+      release()
+    }
     const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     const jsonMatch = jsonStr.match(/\{[\s\S]*\}/)
     if (!jsonMatch) return
@@ -1247,7 +1217,7 @@ ${factsText}
     }
     console.log(`[agent] extract_mental_model: model updated (${factRows.length} facts → structured model)`)
   } catch (e) {
-    console.warn('[agent] extractMentalModel failed:', e)
+    console.warn('[agent] extractMentalModel failed:', sanitizedCaughtError(e))
   }
 }
 

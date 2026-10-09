@@ -116,6 +116,19 @@ class WebConfigService {
     }
   }
 
+  async hasApiKey(): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.baseUrl}/config/apikey`, {
+        headers: this.authHeader()
+      })
+      if (!res.ok) return false
+      const data = await res.json()
+      return !!data.hasKey
+    } catch {
+      return false
+    }
+  }
+
   async setApiKey(apiKey: string): Promise<boolean> {
     try {
       const res = await fetch(`${this.baseUrl}/config/apikey`, {
@@ -129,7 +142,7 @@ class WebConfigService {
     }
   }
 
-  async getSettings(): Promise<{ model: string; baseUrl: string }> {
+  async getSettings(): Promise<{ model: string; baseUrl: string; managed?: boolean }> {
     try {
       const res = await fetch(`${this.baseUrl}/config/settings`, {
         headers: this.authHeader()
@@ -160,13 +173,18 @@ class ElectronConfigService {
     return window.electronAPI.config.getApiKey()
   }
 
+  async hasApiKey(): Promise<boolean> {
+    const key = await window.electronAPI.config.getApiKey()
+    return !!key
+  }
+
   async setApiKey(apiKey: string): Promise<boolean> {
     return window.electronAPI.config.setApiKey(apiKey)
   }
 
   // In Electron mode, model/baseUrl are stored in settings.json via storageService
-  async getSettings(): Promise<{ model: string; baseUrl: string }> {
-    return { model: '', baseUrl: '' }
+  async getSettings(): Promise<{ model: string; baseUrl: string; managed?: boolean }> {
+    return { model: '', baseUrl: '', managed: false }
   }
 
   async saveSettings(_settings: { model?: string; baseUrl?: string }): Promise<boolean> {
