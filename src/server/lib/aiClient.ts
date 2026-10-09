@@ -85,8 +85,8 @@ export function resolveAIConfig(db: InstanceType<typeof Database>): ResolvedAICo
 }
 
 export class QuotaExceededError extends Error {
-  kind: 'daily' | 'minute' | 'concurrent'
-  constructor(kind: 'daily' | 'minute' | 'concurrent', message: string) {
+  kind: 'minute' | 'concurrent' | 'unavailable'
+  constructor(kind: 'minute' | 'concurrent' | 'unavailable', message: string) {
     super(message)
     this.kind = kind
   }
@@ -154,8 +154,8 @@ export async function upstreamChat(
     const reservation = reserveFreeRequest()
     if (!reservation.ok) {
       throw new QuotaExceededError(
-        reservation.reason ?? 'daily',
-        reservation.reason === 'minute' ? '请求过于频繁，请稍后再试' : '今日免费额度已用完，请明天再试'
+        reservation.reason ?? 'unavailable',
+        reservation.reason === 'minute' ? '请求过于频繁，请稍后再试' : '用量保护服务暂时不可用，请稍后再试'
       )
     }
     const signals: AbortSignal[] = [AbortSignal.timeout(Math.min(opts?.timeoutMs ?? FREE_REQUEST_TIMEOUT_MS, FREE_REQUEST_TIMEOUT_MS))]

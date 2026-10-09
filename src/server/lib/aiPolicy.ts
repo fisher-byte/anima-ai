@@ -3,7 +3,6 @@ export const FREE_CHAT_MODELS = [
   'dots-studio/dots-3-note-preview:free',
   'google/gemma-4-26b-a4b-it:free'
 ] as const
-export const FREE_DAILY_REQUEST_LIMIT = 40
 export const FREE_REQUESTS_PER_MINUTE = 10
 export const FREE_MAX_CONCURRENT = 2
 export const FREE_MAX_OUTPUT_TOKENS = 4096

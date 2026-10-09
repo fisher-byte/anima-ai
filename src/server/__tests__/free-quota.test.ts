@@ -66,23 +66,23 @@ function okResponse(): Response {
 const BODY = { messages: [{ role: 'user', content: 'hi' }] }
 
 describe('free request quota', () => {
-  it('当日已有 40 次记录后，下一次在 fetch 前拒绝', async () => {
+  it('当日 40 条历史（>61s 前）不拦截下一次请求', async () => {
     seedRequests(40, Date.now() - 61_000)
-    const fetchMock = vi.fn(async () => okResponse())
-    vi.stubGlobal('fetch', fetchMock)
-    await expect(client.upstreamChat(cfg, BODY)).rejects.toThrow()
-    expect(fetchMock).not.toHaveBeenCalled()
-  })
-
-  it('当日 39 条历史后，第 40 次放行、第 41 次拒', async () => {
-    seedRequests(39, Date.now() - 61_000)
     const fetchMock = vi.fn(async () => okResponse())
     vi.stubGlobal('fetch', fetchMock)
     const { res, release } = await client.upstreamChat(cfg, BODY)
     expect(res.status).toBe(200)
     release()
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    await expect(client.upstreamChat(cfg, BODY)).rejects.toThrow()
+  })
+
+  it('当日 1000 条历史（>61s 前）仍放行：无每日总量上限', async () => {
+    seedRequests(1000, Date.now() - 61_000)
+    const fetchMock = vi.fn(async () => okResponse())
+    vi.stubGlobal('fetch', fetchMock)
+    const { res, release } = await client.upstreamChat(cfg, BODY)
+    expect(res.status).toBe(200)
+    release()
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
@@ -108,8 +108,20 @@ describe('free request quota', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('同一 DATA_DIR 重启后计数持久', async () => {
+  it('同一 DATA_DIR 重启后：40 条旧记录（>61s 前）仍放行', async () => {
     seedRequests(40, Date.now() - 61_000)
+    ;(await import('../usageBudget')).closeLedger()
+    client = await loadClient()
+    const fetchMock = vi.fn(async () => okResponse())
+    vi.stubGlobal('fetch', fetchMock)
+    const { res, release } = await client.upstreamChat(cfg, BODY)
+    expect(res.status).toBe(200)
+    release()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('同一 DATA_DIR 重启后：10 条近期记录仍触发分钟限流（fetch 前拒绝）', async () => {
+    seedRequests(10, Date.now())
     ;(await import('../usageBudget')).closeLedger()
     client = await loadClient()
     const fetchMock = vi.fn(async () => okResponse())
@@ -118,20 +130,30 @@ describe('free request quota', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('两个独立账本实例共享 DATA_DIR：最后一格额度不会被双花', async () => {
-    seedRequests(39, Date.now() - 61_000)
+  it('两个独立账本实例共享 DATA_DIR：分钟最后一格不会被双花', async () => {
+    seedRequests(9, Date.now())
     const clientB = await loadClient()
     const fetchMock = vi.fn(async () => okResponse())
     vi.stubGlobal('fetch', fetchMock)
     const { res, release } = await client.upstreamChat(cfg, BODY)
     expect(res.status).toBe(200)
     release()
-    const [a, b] = await Promise.allSettled([
-      clientB.upstreamChat(cfg, BODY),
-      clientB.upstreamChat(cfg, BODY)
-    ])
-    const rejected = [a, b].filter(r => r.status === 'rejected')
-    expect(rejected.length).toBeGreaterThan(0)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    await expect(clientB.upstreamChat(cfg, BODY)).rejects.toThrow()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('付费账本耗尽（默认 ¥5 = 100000 tokens）不影响免费请求且不计费', async () => {
+    const budget = await import('../usageBudget')
+    const r = budget.reserveTokens(100000)
+    expect(r.ok).toBe(true)
+    const fetchMock = vi.fn(async () => okResponse())
+    vi.stubGlobal('fetch', fetchMock)
+    const { res, release } = await client.upstreamChat(cfg, BODY)
+    expect(res.status).toBe(200)
+    release()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(budget.budgetStatus().usedTokens).toBe(100000)
   })
 
   it('两个并发占用时第三个请求立即拒；流 EOF 消费后 release 放行', async () => {
